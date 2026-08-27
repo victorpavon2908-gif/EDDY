@@ -1,14 +1,19 @@
 package com.eddy.assistant.memory
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import com.eddy.assistant.brain.AssistantCommand
 import com.eddy.assistant.brain.SupportedApp
+import com.eddy.assistant.proactive.EddyProactiveReceiver
 import java.util.Calendar
 import org.json.JSONArray
 import org.json.JSONObject
 
 class EddyMemory(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences("eddy_memory", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences("eddy_memory", Context.MODE_PRIVATE)
 
     fun rememberUtterance(text: String) = rememberUserTurn(text)
 
@@ -110,7 +115,31 @@ class EddyMemory(context: Context) {
     }
 
     fun clearAll() {
+        cancelProactiveSchedules()
         prefs.edit().clear().apply()
+    }
+
+    private fun cancelProactiveSchedules() {
+        val alarmManager = appContext.getSystemService(AlarmManager::class.java) ?: return
+        val requestCodes = buildList {
+            SupportedApp.entries.forEach { app -> add(1_000 + app.ordinal) }
+            add(2_001)
+            add(2_002)
+        }
+
+        requestCodes.forEach { requestCode ->
+            val intent = Intent(appContext, EddyProactiveReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                appContext,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            )
+            if (pendingIntent != null) {
+                alarmManager.cancel(pendingIntent)
+                pendingIntent.cancel()
+            }
+        }
     }
 
     private fun appendTurn(role: String, text: String) {
