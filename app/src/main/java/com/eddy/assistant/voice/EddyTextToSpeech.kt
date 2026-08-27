@@ -26,8 +26,8 @@ class EddyTextToSpeech(
                 tts.language = Locale("es", "ES")
             }
 
-            tts.setSpeechRate(1.06f)
-            tts.setPitch(0.96f)
+            tts.setSpeechRate(1.04f)
+            tts.setPitch(0.94f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String) {
                     notifySpeaking(true)
@@ -54,9 +54,15 @@ class EddyTextToSpeech(
         mainHandler.post { onSpeakingChanged(value) }
     }
 
-    fun speak(text: String) {
-        if (!ready) return
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "eddy_reply_${System.nanoTime()}")
+    fun speak(text: String): Boolean {
+        if (!ready) return false
+        val result = tts.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "eddy_reply_${System.nanoTime()}"
+        )
+        return result == TextToSpeech.SUCCESS
     }
 
     fun stop() {
