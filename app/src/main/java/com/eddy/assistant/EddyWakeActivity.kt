@@ -79,10 +79,17 @@ private fun EddyWakeScreen(onFinished: () -> Unit) {
         EddyRuntimeState.State.SPEAKING -> EddyVisualState.SPEAKING
     }
 
+    val lockScreenStatus = when (snapshot.state) {
+        EddyRuntimeState.State.IDLE -> "EDDY activo."
+        EddyRuntimeState.State.LISTENING -> "Te escucho."
+        EddyRuntimeState.State.THINKING -> "Pensando..."
+        EddyRuntimeState.State.SPEAKING -> "Respondiendo..."
+    }
+
     EddyReferenceScreen(
         visualState = visualState,
-        heardText = snapshot.heardText,
-        responseText = snapshot.responseText,
+        heardText = "",
+        responseText = lockScreenStatus,
         voiceReady = snapshot.voiceReady,
         autoListeningEnabled = snapshot.running,
     )
