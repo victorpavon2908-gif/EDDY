@@ -1,17 +1,31 @@
 package com.eddy.assistant.proactive
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.eddy.assistant.MainActivity
 import com.eddy.assistant.R
 
 class EddyProactiveReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
         val message = intent.getStringExtra(EXTRA_MESSAGE)?.takeIf { it.isNotBlank() }
             ?: "EDDY tiene una sugerencia para ti."
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 4_201)
