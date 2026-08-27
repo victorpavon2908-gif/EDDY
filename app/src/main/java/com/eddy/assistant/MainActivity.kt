@@ -1,6 +1,7 @@
 package com.eddy.assistant
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -8,8 +9,8 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -30,7 +31,9 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     private lateinit var permissionLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var overlayLauncher: ActivityResultLauncher<Intent>
+    private lateinit var fullScreenLauncher: ActivityResultLauncher<Intent>
     private var overlayPromptedThisSession = false
+    private var fullScreenPromptedThisSession = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,12 +43,19 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
 
+        fullScreenLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            // Android aplica el cambio de permiso al volver de Configuración.
+        }
+
         overlayLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) {
             if (Settings.canDrawOverlays(this)) {
                 sendServiceAction(EddyAssistantService.ACTION_REFRESH_BUBBLE)
             }
+            maybeRequestFullScreenIntentPermission()
         }
 
         permissionLauncher = registerForActivityResult(
@@ -123,7 +133,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun maybeRequestOverlayPermission() {
-        if (Settings.canDrawOverlays(this) || overlayPromptedThisSession) return
+        if (Settings.canDrawOverlays(this)) {
+            maybeRequestFullScreenIntentPermission()
+            return
+        }
+        if (overlayPromptedThisSession) return
         overlayPromptedThisSession = true
 
         val intent = Intent(
@@ -131,6 +145,21 @@ class MainActivity : ComponentActivity() {
             Uri.parse("package:$packageName"),
         )
         overlayLauncher.launch(intent)
+    }
+
+    private fun maybeRequestFullScreenIntentPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        if (fullScreenPromptedThisSession) return
+
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        if (manager.canUseFullScreenIntent()) return
+
+        fullScreenPromptedThisSession = true
+        val intent = Intent(
+            Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+            Uri.parse("package:$packageName"),
+        )
+        fullScreenLauncher.launch(intent)
     }
 
     private fun startAssistantService() {
