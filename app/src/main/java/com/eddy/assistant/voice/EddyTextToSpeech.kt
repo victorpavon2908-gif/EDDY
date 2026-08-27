@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import java.util.Locale
 
 class EddyTextToSpeech(
@@ -20,14 +21,9 @@ class EddyTextToSpeech(
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
-            val nicaraguaSpanish = Locale("es", "NI")
-            val result = tts.setLanguage(nicaraguaSpanish)
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts.language = Locale("es", "ES")
-            }
-
-            tts.setSpeechRate(1.04f)
-            tts.setPitch(0.94f)
+            configureNicaraguanSpanishVoice()
+            tts.setSpeechRate(1.03f)
+            tts.setPitch(0.96f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String) {
                     notifySpeaking(true)
@@ -50,6 +46,60 @@ class EddyTextToSpeech(
         onReady(ready)
     }
 
+    private fun configureNicaraguanSpanishVoice() {
+        val nicaraguaSpanish = Locale("es", "NI")
+        val languageResult = tts.setLanguage(nicaraguaSpanish)
+
+        val spanishVoices = runCatching { tts.voices.orEmpty() }
+            .getOrDefault(emptySet())
+            .filter { it.locale.language.equals("es", ignoreCase = true) }
+
+        val preferred = spanishVoices
+            .sortedWith(
+                compareBy<Voice>(
+                    { voiceCountryRank(it.locale.country) },
+                    { if (it.isNetworkConnectionRequired) 1 else 0 },
+                    { it.latency },
+                ),
+            )
+            .firstOrNull()
+
+        if (preferred != null) {
+            runCatching { tts.voice = preferred }
+            return
+        }
+
+        if (
+            languageResult == TextToSpeech.LANG_MISSING_DATA ||
+            languageResult == TextToSpeech.LANG_NOT_SUPPORTED
+        ) {
+            val fallbacks = listOf(
+                Locale("es", "US"),
+                Locale("es", "MX"),
+                Locale("es", "CR"),
+                Locale("es", "CO"),
+                Locale("es", "ES"),
+            )
+            for (locale in fallbacks) {
+                val result = tts.setLanguage(locale)
+                if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
+                    break
+                }
+            }
+        }
+    }
+
+    private fun voiceCountryRank(country: String): Int = when (country.uppercase(Locale.ROOT)) {
+        "NI" -> 0
+        "CR" -> 1
+        "HN", "SV", "GT" -> 2
+        "MX", "US" -> 3
+        "CO", "VE", "PA" -> 4
+        "AR", "UY", "CL", "PE", "EC", "BO", "PY", "DO", "PR" -> 5
+        "ES" -> 6
+        else -> 7
+    }
+
     private fun notifySpeaking(value: Boolean) {
         mainHandler.post { onSpeakingChanged(value) }
     }
@@ -60,7 +110,7 @@ class EddyTextToSpeech(
             text,
             TextToSpeech.QUEUE_FLUSH,
             null,
-            "eddy_reply_${System.nanoTime()}"
+            "eddy_reply_${System.nanoTime()}",
         )
         return result == TextToSpeech.SUCCESS
     }
