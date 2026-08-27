@@ -2,6 +2,7 @@ package com.eddy.assistant.brain
 
 sealed interface AssistantCommand {
     data class OpenApp(val app: SupportedApp) : AssistantCommand
+    data class OpenAppByName(val name: String) : AssistantCommand
     data object OpenCamera : AssistantCommand
     data object TellTime : AssistantCommand
     data object Greeting : AssistantCommand
@@ -28,6 +29,7 @@ sealed interface AssistantCommand {
         val enabled: Boolean,
     ) : AssistantCommand
     data object OpenSmartHomeSettings : AssistantCommand
+    data object OpenAiSettings : AssistantCommand
     data class Unknown(val originalText: String) : AssistantCommand
 }
 
