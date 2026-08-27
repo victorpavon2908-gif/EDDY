@@ -198,8 +198,8 @@ def health():
         status="ok",
         engine="eddy-web",
         provider="duckduckgo+wikipedia",
-        chatgpt=False,
-        openai=False,
+        mode="search-only",
+        remote_model=False,
     )
 
 
@@ -243,8 +243,8 @@ def search():
 
 
 @app.post("/chat")
-def chat_compatibility():
-    # Compatibilidad con APK anteriores: ya no existe ningún modelo de ChatGPT/OpenAI.
+def legacy_search_route():
+    # Se conserva temporalmente para compatibilidad con APK anteriores.
     return _search_response()
 
 
