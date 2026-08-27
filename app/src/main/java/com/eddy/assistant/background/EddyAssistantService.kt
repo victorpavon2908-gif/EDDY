@@ -105,7 +105,7 @@ class EddyAssistantService : Service() {
         smartHome = LocalSmartHomeClient(applicationContext)
         memory = EddyMemory(applicationContext)
         wakeGate = WakeWordGate()
-        aiClient = EddyAiClient()
+        aiClient = EddyAiClient(applicationContext)
         fallbackConversation = EddyFallbackConversation()
         proactiveScheduler = EddyProactiveScheduler(applicationContext, memory)
 
@@ -122,7 +122,11 @@ class EddyAssistantService : Service() {
             onResult = { raw -> handleRecognition(raw) },
             onError = { error ->
                 isThinking = false
-                EddyRuntimeState.setResponse(applicationContext, error)
+                if (wakeGate.isArmed()) {
+                    EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
+                } else {
+                    EddyRuntimeState.setResponse(applicationContext, error)
+                }
                 updateVisualState()
             },
         )
@@ -133,9 +137,7 @@ class EddyAssistantService : Service() {
             onSpeakingChanged = { speaking ->
                 isSpeaking = speaking
                 updateVisualState()
-                if (!speaking && hasMicrophonePermission()) {
-                    recognizer.resume()
-                }
+                if (!speaking && hasMicrophonePermission()) recognizer.resume()
             },
         )
 
@@ -173,10 +175,7 @@ class EddyAssistantService : Service() {
             else -> Unit
         }
 
-        if (hasMicrophonePermission() && !isSpeaking && !isThinking) {
-            recognizer.resume()
-        }
-
+        if (hasMicrophonePermission() && !isSpeaking && !isThinking) recognizer.resume()
         return START_STICKY
     }
 
@@ -200,9 +199,10 @@ class EddyAssistantService : Service() {
         val now = System.currentTimeMillis()
         if (now - lastPartialWakeAt < PARTIAL_WAKE_DEBOUNCE_MS) return
         lastPartialWakeAt = now
+        wakeGate.arm(now)
 
         EddyRuntimeState.setHeard(applicationContext, "EDDY")
-        EddyRuntimeState.setResponse(applicationContext, "Te escucho.")
+        EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
         revealEddyOnLockScreen()
     }
 
@@ -210,15 +210,17 @@ class EddyAssistantService : Service() {
         when (val wakeResult = wakeGate.consume(raw)) {
             WakeResult.Ignored -> {
                 EddyRuntimeState.setHeard(applicationContext, "")
-                EddyRuntimeState.setResponse(applicationContext, "Decí EDDY para activarme.")
+                if (!wakeGate.isArmed()) {
+                    EddyRuntimeState.setResponse(applicationContext, "Decí EDDY para activarme.")
+                }
                 recognizer.resume()
             }
 
             WakeResult.Activated -> {
                 EddyRuntimeState.setHeard(applicationContext, "EDDY")
-                EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime.")
+                EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
                 revealEddyOnLockScreen()
-                recognizer.resume()
+                recognizer.restart(220L)
             }
 
             is WakeResult.Command -> {
@@ -255,6 +257,11 @@ class EddyAssistantService : Service() {
         proactiveScheduler.maybeSchedule(command)
 
         if (command is AssistantCommand.SearchWeb) {
+            if (!aiClient.isConfigured) {
+                speakResponse("La búsqueda inteligente todavía no tiene servidor configurado. Te abro IA más Web para conectarlo una sola vez.")
+                executor.openAiSettings()
+                return
+            }
             val aiReply = aiClient.reply(
                 message = command.query,
                 memoryContext = memory.contextForAi(),
@@ -263,17 +270,21 @@ class EddyAssistantService : Service() {
             if (aiReply != null) {
                 speakAiResponse(aiReply)
             } else {
-                speakResponse(executor.searchWeb(command.query).spokenMessage)
+                speakResponse("No pude conectar con mi búsqueda web ahorita. Revisá IA más Web en la configuración de EDDY.")
             }
             return
         }
 
         if (command is AssistantCommand.Unknown) {
-            val aiReply = aiClient.reply(
-                message = command.originalText,
-                memoryContext = memory.contextForAi(),
-                forceWeb = false,
-            )
+            val aiReply = if (aiClient.isConfigured) {
+                aiClient.reply(
+                    message = command.originalText,
+                    memoryContext = memory.contextForAi(),
+                    forceWeb = false,
+                )
+            } else {
+                null
+            }
             if (aiReply != null) {
                 speakAiResponse(aiReply)
             } else {
@@ -294,6 +305,7 @@ class EddyAssistantService : Service() {
             AssistantCommand.MemorySummary -> memory.describeLearnedPatterns()
             AssistantCommand.ClearMemory -> "Ya borré mi memoria local."
             is AssistantCommand.OpenApp -> executor.openApp(command.app).spokenMessage
+            is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).spokenMessage
             is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
             is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).spokenMessage
             is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).spokenMessage
@@ -312,6 +324,7 @@ class EddyAssistantService : Service() {
             is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).spokenMessage
             is AssistantCommand.SmartHomeControl -> smartHome.control(command.target, command.enabled).spokenMessage
             AssistantCommand.OpenSmartHomeSettings -> executor.openSmartHomeSettings().spokenMessage
+            AssistantCommand.OpenAiSettings -> executor.openAiSettings().spokenMessage
             is AssistantCommand.Unknown -> "Decime de otra forma y lo intento de nuevo."
         }
 
@@ -328,9 +341,7 @@ class EddyAssistantService : Service() {
         memory.rememberAssistantTurn(reply.text)
         recognizer.pause()
         val queued = tts.speak(reply.text)
-        if (!queued && hasMicrophonePermission()) {
-            recognizer.resume()
-        }
+        if (!queued && hasMicrophonePermission()) recognizer.resume()
     }
 
     private fun speakResponse(text: String) {
@@ -338,9 +349,7 @@ class EddyAssistantService : Service() {
         memory.rememberAssistantTurn(text)
         recognizer.pause()
         val queued = tts.speak(text)
-        if (!queued && hasMicrophonePermission()) {
-            recognizer.resume()
-        }
+        if (!queued && hasMicrophonePermission()) recognizer.resume()
     }
 
     private fun updateVisualState() {
@@ -357,9 +366,7 @@ class EddyAssistantService : Service() {
         if (!hasMicrophonePermission() || isSpeaking || isThinking) return
         serviceScope.launch {
             delay(delayMs)
-            if (hasMicrophonePermission() && !isSpeaking && !isThinking) {
-                recognizer.restart(0L)
-            }
+            if (hasMicrophonePermission() && !isSpeaking && !isThinking) recognizer.restart(0L)
         }
     }
 
@@ -370,12 +377,7 @@ class EddyAssistantService : Service() {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_USER_PRESENT)
         }
-        ContextCompat.registerReceiver(
-            this,
-            screenStateReceiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
+        ContextCompat.registerReceiver(this, screenStateReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         screenReceiverRegistered = true
     }
 
@@ -385,33 +387,23 @@ class EddyAssistantService : Service() {
         screenReceiverRegistered = false
     }
 
-    private fun hasMicrophonePermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.RECORD_AUDIO,
-        ) == PackageManager.PERMISSION_GRANTED
-    }
+    private fun hasMicrophonePermission(): Boolean = ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
 
     private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java) ?: return
 
         manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                "EDDY activo",
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
+            NotificationChannel(CHANNEL_ID, "EDDY activo", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Mantiene a EDDY disponible por voz en segundo plano."
                 setShowBadge(false)
             },
         )
 
         manager.createNotificationChannel(
-            NotificationChannel(
-                WAKE_CHANNEL_ID,
-                "Despertar EDDY",
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
+            NotificationChannel(WAKE_CHANNEL_ID, "Despertar EDDY", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Permite mostrar EDDY cuando lo llamás con el teléfono bloqueado."
                 setShowBadge(false)
                 enableVibration(false)
@@ -430,9 +422,7 @@ class EddyAssistantService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val stopIntent = Intent(this, EddyAssistantService::class.java).apply {
-            action = ACTION_STOP
-        }
+        val stopIntent = Intent(this, EddyAssistantService::class.java).apply { action = ACTION_STOP }
         val stopPendingIntent = PendingIntent.getService(
             this,
             11,
@@ -452,11 +442,7 @@ class EddyAssistantService : Service() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
-            )
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -469,15 +455,10 @@ class EddyAssistantService : Service() {
         val screenOff = powerManager?.isInteractive == false
 
         if (!locked && !screenOff) return
-
         wakeScreenBriefly()
 
         val wakeIntent = Intent(this, EddyWakeActivity::class.java).apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
-            )
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         val wakePendingIntent = PendingIntent.getActivity(
             this,
@@ -507,7 +488,6 @@ class EddyAssistantService : Service() {
     private fun wakeScreenBriefly() {
         val powerManager = getSystemService(PowerManager::class.java) ?: return
         if (powerManager.isInteractive) return
-
         runCatching {
             val wakeLock = powerManager.newWakeLock(
                 PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
@@ -520,7 +500,6 @@ class EddyAssistantService : Service() {
     private fun acquireCpuWakeLock() {
         val powerManager = getSystemService(PowerManager::class.java) ?: return
         if (cpuWakeLock?.isHeld == true) return
-
         cpuWakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
             "$packageName:eddy_always_listening",
@@ -532,9 +511,7 @@ class EddyAssistantService : Service() {
 
     private fun releaseCpuWakeLock() {
         val wakeLock = cpuWakeLock ?: return
-        if (wakeLock.isHeld) {
-            runCatching { wakeLock.release() }
-        }
+        if (wakeLock.isHeld) runCatching { wakeLock.release() }
         cpuWakeLock = null
     }
 
@@ -565,10 +542,7 @@ class EddyAssistantService : Service() {
         }
         container.addView(
             icon,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            ),
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
         )
 
         val dot = View(this).apply {
@@ -596,8 +570,7 @@ class EddyAssistantService : Service() {
             bubbleSize,
             bubbleSize,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -606,7 +579,6 @@ class EddyAssistantService : Service() {
         }
 
         container.setOnTouchListener(createBubbleTouchListener(params, container))
-
         runCatching {
             wm.addView(container, params)
             bubbleView = container
@@ -656,11 +628,7 @@ class EddyAssistantService : Service() {
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    if (moved) {
-                        saveBubblePosition(params)
-                    } else {
-                        openMainActivity()
-                    }
+                    if (moved) saveBubblePosition(params) else openMainActivity()
                     true
                 }
 
@@ -675,10 +643,7 @@ class EddyAssistantService : Service() {
     }
 
     private fun saveBubblePosition(params: WindowManager.LayoutParams) {
-        bubblePrefs.edit()
-            .putInt(KEY_BUBBLE_X, params.x)
-            .putInt(KEY_BUBBLE_Y, params.y)
-            .apply()
+        bubblePrefs.edit().putInt(KEY_BUBBLE_X, params.x).putInt(KEY_BUBBLE_Y, params.y).apply()
     }
 
     private fun openMainActivity() {
@@ -688,9 +653,7 @@ class EddyAssistantService : Service() {
         startActivity(intent)
     }
 
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).toInt()
-    }
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
         const val ACTION_SHOW_BUBBLE = "com.eddy.assistant.action.SHOW_BUBBLE"
