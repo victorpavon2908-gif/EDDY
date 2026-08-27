@@ -10,19 +10,22 @@ class EddyFallbackConversation {
 
         return when {
             text.contains("quien eres") || text.contains("que eres") ->
-                "Soy EDDY, tu asistente personal. Puedo escucharte, recordar contexto local, abrir aplicaciones y ayudarte con acciones del teléfono."
+                "Soy EDDY, tu asistente personal. Estoy hecho para ayudarte de una con el teléfono, tu casa inteligente y lo que vayás necesitando."
 
             text.contains("que puedes hacer") || text.contains("que sabes hacer") ->
-                "Puedo abrir aplicaciones, preparar llamadas y mensajes, crear alarmas, buscar lugares en mapas, recordar patrones y conversar contigo. Para respuestas más amplias, conecta mi backend de inteligencia artificial."
+                "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería, ajustes del teléfono y controlar dispositivos de tu casa por Wi‑Fi. También recuerdo contexto local y puedo conversar con vos."
 
             text.contains("gracias") ->
-                "Siempre. Estoy aquí cuando me necesites."
+                "De una. Aquí estoy para lo que ocupés."
+
+            text.contains("como estas") ->
+                "Todo tuani por aquí. Decime qué ocupás."
 
             text.contains("recuerdas") || text.contains("sabes de mi") ->
                 memory.describeLearnedPatterns()
 
             else ->
-                "Entendí lo que dijiste, pero mi motor de inteligencia artificial remoto todavía no está conectado. Aun así, lo guardé en mi contexto local y puedo seguir ejecutando mis funciones del teléfono."
+                "Te entendí. Esa parte todavía no la tengo como comando local, pero la guardé en contexto. Si mi IA remota está conectada también puedo responderte más amplio."
         }
     }
 
