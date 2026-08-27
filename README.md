@@ -1,86 +1,202 @@
-# EDDY v0.1
+# EDDY v0.2
 
-**Everyday Digital Dynamic Intelligence** — primer MVP Android de un asistente personal por voz.
+**Everyday Digital Dynamic Intelligence** — asistente personal Android por voz, con activación por nombre, memoria local, acciones del teléfono, conversación con IA y avisos proactivos.
 
-EDDY v0.1 está diseñado para probar el núcleo del producto antes de conectar un modelo de IA remoto: escuchar al usuario, entender comandos locales simples, responder con voz y ejecutar acciones reales en Android.
+## Qué hace esta versión
 
-## Qué funciona ahora
+### 1. Activación por voz
 
-- Interfaz Android con Jetpack Compose.
-- Solicitud de permiso de micrófono en tiempo de ejecución.
-- Reconocimiento de voz usando `SpeechRecognizer` de Android.
-- Respuesta hablada usando `TextToSpeech`.
-- Comandos en español:
-  - `Hola EDDY` / `EDDY`.
-  - `EDDY, ¿qué hora es?`.
-  - `EDDY, abre YouTube`.
-  - `EDDY, abre WhatsApp`.
-  - `EDDY, abre Spotify`.
-  - `EDDY, abre la cámara`.
-- Arquitectura separada en `brain`, `voice` y `actions` para poder añadir IA real posteriormente.
+EDDY mantiene sesiones de reconocimiento mientras la app está abierta y no necesitas tocar un botón.
+
+Puedes decir directamente:
+
+- `EDDY, abre Spotify`.
+- `EDDY, ¿qué hora es?`.
+- `EDDY, llévame a Galerías Santo Domingo`.
+
+También puedes usar dos pasos:
+
+1. `EDDY`.
+2. EDDY muestra `Te escucho` y durante unos segundos acepta tu siguiente frase.
+
+El filtro de palabra clave evita que una conversación ambiental cualquiera se ejecute como una orden.
+
+> Nota: esta versión usa `SpeechRecognizer` de Android. El hotword de bajo consumo funcionando permanentemente aun con la app cerrada requiere un motor de wake-word/servicio dedicado y será una etapa posterior.
+
+### 2. Conversación natural con IA
+
+Los comandos del teléfono se resuelven localmente. Cuando una frase no es una acción conocida, EDDY la envía a un backend conversacional si está configurado.
+
+El repositorio incluye el backend en `backend/` y un `render.yaml` listo para desplegar en Render.
+
+La clave de OpenAI **no se incluye en el APK ni en GitHub**. Debe vivir únicamente como variable de entorno `OPENAI_API_KEY` en el servidor.
+
+El backend usa la Responses API y por defecto `gpt-5-mini`. Puedes cambiarlo con `OPENAI_MODEL`.
+
+Si no hay backend configurado, EDDY mantiene un modo conversacional local de respaldo y las acciones del teléfono siguen funcionando.
+
+### 3. Memoria real de contexto
+
+EDDY guarda localmente:
+
+- hasta 100 turnos recientes de conversación;
+- frecuencia de acciones;
+- hora habitual de ciertas acciones;
+- algunos datos que el usuario declara explícitamente, por ejemplo `me llamo...`, `me gusta...`, `prefiero...`, `vivo en...`, `trabajo en/como...` y `estudio...`.
+
+Ejemplos:
+
+- `EDDY, ¿qué sabes de mí?`
+- `EDDY, ¿qué recuerdas de mí?`
+- `EDDY, olvida todo.`
+
+La memoria se guarda con `SharedPreferences` en el dispositivo.
+
+### 4. Acciones del teléfono
+
+Actualmente EDDY puede:
+
+- abrir YouTube, WhatsApp, Spotify, Google Maps, Chrome y Gmail;
+- abrir la cámara;
+- preparar una llamada por número usando el marcador;
+- preparar un SMS por número y texto, dejando la confirmación final al usuario;
+- crear una alarma mediante la app de reloj;
+- buscar lugares y rutas en mapas;
+- decir la hora.
+
+Ejemplos:
+
+```text
+EDDY, llama al 88881234
+EDDY, manda un mensaje al 88881234 diciendo voy en camino
+EDDY, pon una alarma a las 7:30 am
+EDDY, llévame a Metrocentro Managua
+EDDY, abre Gmail
+```
+
+Las llamadas usan `ACTION_DIAL` y los mensajes usan el compositor del teléfono; EDDY no realiza llamadas ni envía SMS silenciosamente.
+
+### 5. Modo proactivo
+
+EDDY aprende patrones básicos de uso. Cuando una acción elegible se repite varias veces cerca de la misma hora, puede programar una sugerencia diaria mediante notificación.
+
+Ejemplos de patrones elegibles:
+
+- abrir una app frecuentemente;
+- usar la cámara;
+- consultar mapas.
+
+Android 13 o superior solicita permiso para notificaciones.
+
+## Flujo principal
+
+```text
+Micrófono
+   ↓
+EddySpeechRecognizer
+   ↓
+WakeWordGate ("EDDY")
+   ↓
+LocalBrain
+   ├── Acción conocida ──→ ActionExecutor ──→ Android
+   └── Conversación ─────→ EddyAiClient ───→ backend /chat
+                                  ↓
+                              EddyMemory
+                                  ↓
+                         EddyTextToSpeech
+```
+
+## Configurar el backend IA
+
+### 1. Desplegar en Render
+
+El repositorio incluye `render.yaml`.
+
+En Render crea el servicio desde este repositorio y configura:
+
+```text
+OPENAI_API_KEY=<tu clave, solo en Render>
+OPENAI_MODEL=gpt-5-mini
+```
+
+No subas `OPENAI_API_KEY` al repositorio ni la pongas dentro de Android.
+
+### 2. Poner la URL del backend en Android
+
+En tu `local.properties` agrega la URL pública del servicio, sin `/chat`:
+
+```properties
+eddy.ai.baseUrl=https://TU-SERVICIO.onrender.com
+```
+
+Después sincroniza Gradle y recompila la app.
+
+Puedes comprobar el backend abriendo:
+
+```text
+https://TU-SERVICIO.onrender.com/health
+```
+
+## Permisos
+
+- `RECORD_AUDIO`: reconocimiento de voz.
+- `INTERNET`: conexión con el backend IA.
+- `POST_NOTIFICATIONS`: avisos proactivos en Android 13+.
 
 ## Requisitos
 
 - Android Studio reciente.
 - JDK 17.
-- Android SDK 36 instalado.
-- Dispositivo/emulador con Android 10 (API 29) o superior.
-- Un servicio de reconocimiento de voz disponible en el dispositivo.
+- Android SDK 36.
+- Android 10 / API 29 o superior.
+- Servicio de reconocimiento de voz disponible en el dispositivo.
 
-## Abrir el proyecto
+## Ejecutar
 
-1. Clona el repositorio.
-2. Abre la carpeta `EDDY` desde Android Studio.
-3. Deja que Gradle sincronice las dependencias.
-4. Conecta un Android físico o inicia un emulador.
-5. Ejecuta `app`.
-6. Al tocar el micrófono por primera vez, concede permiso de audio.
-
-## Arquitectura
-
-```text
-Tu voz
-   ↓
-EddySpeechRecognizer
-   ↓
-LocalBrain
-   ↓
-AssistantCommand
-   ↓
-ActionExecutor ──→ Android / apps
-   ↓
-EddyTextToSpeech
+```bash
+git pull origin main
 ```
 
-## Próximos hitos
+Luego en Android Studio:
 
-### v0.2
-- Conectar un modelo de IA conversacional.
-- Function/tool calling para que la IA elija acciones.
-- Historial de conversación.
-- Alarmas y temporizadores.
-- Abrir cualquier aplicación instalada.
+1. **File → Sync Project with Gradle Files**.
+2. **Build → Rebuild Project**.
+3. Ejecuta `app` en el teléfono.
+4. Concede micrófono y, si corresponde, notificaciones.
+5. Di `EDDY`.
 
-### v0.3
-- Contactos y llamadas con confirmación.
-- Mapas/rutas.
-- Calendario y recordatorios.
-- Memoria local controlada por el usuario.
+## Estructura relevante
 
-### v0.4+
-- Activación por palabra clave `EDDY`.
-- Integración con el rol de asistente de Android.
-- Cámara/visión.
-- Servicios externos y automatización multi-paso.
+```text
+app/src/main/java/com/eddy/assistant/
+├── MainActivity.kt
+├── actions/
+│   └── ActionExecutor.kt
+├── ai/
+│   ├── EddyAiClient.kt
+│   └── EddyFallbackConversation.kt
+├── brain/
+│   ├── AssistantCommand.kt
+│   └── LocalBrain.kt
+├── memory/
+│   └── EddyMemory.kt
+├── proactive/
+│   ├── EddyProactiveReceiver.kt
+│   └── EddyProactiveScheduler.kt
+├── voice/
+│   ├── EddySpeechRecognizer.kt
+│   ├── EddyTextToSpeech.kt
+│   └── WakeWordGate.kt
+└── ui/
+    └── ...
 
-## Importante sobre la voz
+backend/
+├── app.py
+└── requirements.txt
 
-Este proyecto usa la voz TTS instalada en el dispositivo. No incluye ni clona la voz del personaje EDDY de *Lab Rats*. Una voz original con personalidad similar en energía y estilo puede añadirse posteriormente usando un proveedor de voz compatible.
+render.yaml
+```
 
-## Licencia
+## Voz y diseño
 
-Proyecto privado/prototipo. Define una licencia antes de distribuirlo públicamente.
-
-## Gradle wrapper incluido
-
-El repositorio incluye un pequeño bootstrap de Gradle compatible con `./gradlew` y `gradlew.bat` que descarga Gradle 8.13 desde `services.gradle.org` la primera vez. Para una publicación de producción se recomienda reemplazarlo por el wrapper oficial generado con `gradle wrapper` desde una instalación confiable de Gradle.
+El proyecto usa el TTS disponible en Android y un diseño original de EDDY. No incluye ni clona la voz ni los recursos gráficos oficiales del personaje de *Lab Rats*.
