@@ -2,6 +2,7 @@ package com.eddy.assistant
 
 import android.Manifest
 import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -28,6 +29,9 @@ import com.eddy.assistant.ui.EddyVisualState
 import com.eddy.assistant.ui.theme.EddyTheme
 import kotlinx.coroutines.delay
 
+private const val CONTROL_PREFS = "eddy_control"
+private const val KEY_ASSISTANT_ENABLED = "assistant_enabled"
+
 class MainActivity : ComponentActivity() {
     private lateinit var permissionLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var overlayLauncher: ActivityResultLauncher<Intent>
@@ -52,7 +56,7 @@ class MainActivity : ComponentActivity() {
         overlayLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) {
-            if (Settings.canDrawOverlays(this)) {
+            if (Settings.canDrawOverlays(this) && assistantEnabled()) {
                 sendServiceAction(EddyAssistantService.ACTION_REFRESH_BUBBLE)
             }
             maybeRequestFullScreenIntentPermission()
@@ -64,10 +68,10 @@ class MainActivity : ComponentActivity() {
             val micGranted = grants[Manifest.permission.RECORD_AUDIO]
                 ?: hasMicrophonePermission()
 
-            if (micGranted) {
+            if (micGranted && assistantEnabled()) {
                 startAssistantService()
                 maybeRequestOverlayPermission()
-            } else {
+            } else if (!micGranted) {
                 EddyRuntimeState.setResponse(
                     applicationContext,
                     "Necesito permiso de micrófono para funcionar fuera de la aplicación.",
@@ -86,7 +90,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (hasMicrophonePermission()) {
+        if (hasMicrophonePermission() && assistantEnabled()) {
             startAssistantService()
             sendServiceAction(EddyAssistantService.ACTION_HIDE_BUBBLE)
         }
@@ -94,14 +98,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (hasMicrophonePermission()) {
+        if (hasMicrophonePermission() && assistantEnabled()) {
             startAssistantService()
             sendServiceAction(EddyAssistantService.ACTION_HIDE_BUBBLE)
         }
     }
 
     override fun onStop() {
-        if (hasMicrophonePermission()) {
+        if (hasMicrophonePermission() && assistantEnabled()) {
             sendServiceAction(EddyAssistantService.ACTION_SHOW_BUBBLE)
         }
         super.onStop()
@@ -125,8 +129,10 @@ class MainActivity : ComponentActivity() {
         }
 
         if (missing.isEmpty()) {
-            startAssistantService()
-            maybeRequestOverlayPermission()
+            if (assistantEnabled()) {
+                startAssistantService()
+                maybeRequestOverlayPermission()
+            }
         } else {
             permissionLauncher.launch(missing.toTypedArray())
         }
@@ -163,7 +169,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startAssistantService() {
-        if (!hasMicrophonePermission()) return
+        if (!hasMicrophonePermission() || !assistantEnabled()) return
 
         val intent = Intent(this, EddyAssistantService::class.java)
         runCatching {
@@ -183,6 +189,11 @@ class MainActivity : ComponentActivity() {
         runCatching { startService(intent) }
     }
 
+    private fun assistantEnabled(): Boolean = getSharedPreferences(
+        CONTROL_PREFS,
+        Context.MODE_PRIVATE,
+    ).getBoolean(KEY_ASSISTANT_ENABLED, true)
+
     private fun hasMicrophonePermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
@@ -194,13 +205,21 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun EddyAppScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val appContext = context.applicationContext
+    val controlPrefs = remember {
+        appContext.getSharedPreferences(CONTROL_PREFS, Context.MODE_PRIVATE)
+    }
     var snapshot by remember {
-        mutableStateOf(EddyRuntimeState.read(context.applicationContext))
+        mutableStateOf(EddyRuntimeState.read(appContext))
+    }
+    var assistantEnabled by remember {
+        mutableStateOf(controlPrefs.getBoolean(KEY_ASSISTANT_ENABLED, true))
     }
 
     LaunchedEffect(Unit) {
         while (true) {
-            snapshot = EddyRuntimeState.read(context.applicationContext)
+            snapshot = EddyRuntimeState.read(appContext)
+            assistantEnabled = controlPrefs.getBoolean(KEY_ASSISTANT_ENABLED, true)
             delay(180)
         }
     }
@@ -217,6 +236,28 @@ private fun EddyAppScreen() {
         heardText = snapshot.heardText,
         responseText = snapshot.responseText,
         voiceReady = snapshot.voiceReady,
-        autoListeningEnabled = snapshot.running,
+        autoListeningEnabled = assistantEnabled && snapshot.running,
+        onToggleAssistant = {
+            val enable = !assistantEnabled
+            assistantEnabled = enable
+            controlPrefs.edit().putBoolean(KEY_ASSISTANT_ENABLED, enable).apply()
+
+            val serviceIntent = Intent(appContext, EddyAssistantService::class.java)
+            if (enable) {
+                val micGranted = ContextCompat.checkSelfPermission(
+                    appContext,
+                    Manifest.permission.RECORD_AUDIO,
+                ) == PackageManager.PERMISSION_GRANTED
+                if (micGranted) {
+                    ContextCompat.startForegroundService(appContext, serviceIntent)
+                    EddyRuntimeState.setResponse(appContext, "EDDY está activo. Di EDDY para llamarme.")
+                } else {
+                    EddyRuntimeState.setResponse(appContext, "Concede el permiso de micrófono para activar EDDY.")
+                }
+            } else {
+                appContext.stopService(serviceIntent)
+                EddyRuntimeState.setResponse(appContext, "EDDY está pausado. Pulsa Activar cuando quieras continuar.")
+            }
+        },
     )
 }
