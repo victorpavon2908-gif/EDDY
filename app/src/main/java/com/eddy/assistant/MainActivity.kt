@@ -129,6 +129,15 @@ class MainActivity : ComponentActivity() {
             }
 
             if (
+                ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    Manifest.permission.CAMERA,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                add(Manifest.permission.CAMERA)
+            }
+
+            if (
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(
                     this@MainActivity,
@@ -228,12 +237,12 @@ class MainActivity : ComponentActivity() {
         if (!fullScreenReady) {
             EddyRuntimeState.setResponse(
                 applicationContext,
-                "Activa 'pantalla completa' para que EDDY pueda mostrarse cuando el teléfono esté bloqueado.",
+                "Activá pantalla completa para que EDDY pueda mostrarse con el teléfono bloqueado.",
             )
         } else if (!batteryReady) {
             EddyRuntimeState.setResponse(
                 applicationContext,
-                "Permite a EDDY funcionar sin optimización de batería para mantener activa la palabra EDDY con la pantalla apagada.",
+                "Permití a EDDY funcionar sin optimización de batería para mantener activa la palabra EDDY con la pantalla apagada.",
             )
         }
     }
@@ -247,7 +256,7 @@ class MainActivity : ComponentActivity() {
         }.onFailure {
             EddyRuntimeState.setResponse(
                 applicationContext,
-                "No pude iniciar el modo permanente de EDDY. Abre la aplicación nuevamente.",
+                "No pude iniciar el modo permanente de EDDY. Abrí la aplicación nuevamente.",
             )
         }
     }
@@ -320,13 +329,13 @@ private fun EddyAppScreen() {
                 ) == PackageManager.PERMISSION_GRANTED
                 if (micGranted) {
                     ContextCompat.startForegroundService(appContext, serviceIntent)
-                    EddyRuntimeState.setResponse(appContext, "EDDY está activo. Di EDDY para llamarme.")
+                    EddyRuntimeState.setResponse(appContext, "EDDY está activo. Decí EDDY para llamarme.")
                 } else {
-                    EddyRuntimeState.setResponse(appContext, "Concede el permiso de micrófono para activar EDDY.")
+                    EddyRuntimeState.setResponse(appContext, "Concedé el permiso de micrófono para activar EDDY.")
                 }
             } else {
                 appContext.stopService(serviceIntent)
-                EddyRuntimeState.setResponse(appContext, "EDDY está pausado. Pulsa Activar cuando quieras continuar.")
+                EddyRuntimeState.setResponse(appContext, "EDDY está pausado. Tocá Activar cuando querás continuar.")
             }
         },
     )
