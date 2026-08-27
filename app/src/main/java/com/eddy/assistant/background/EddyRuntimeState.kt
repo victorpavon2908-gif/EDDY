@@ -1,6 +1,9 @@
 package com.eddy.assistant.background
 
 import android.content.Context
+import com.eddy.assistant.ai.EddyWebSource
+import org.json.JSONArray
+import org.json.JSONObject
 
 object EddyRuntimeState {
     private const val PREFS = "eddy_runtime_state"
@@ -9,6 +12,8 @@ object EddyRuntimeState {
     private const val KEY_RESPONSE = "response"
     private const val KEY_RUNNING = "running"
     private const val KEY_VOICE_READY = "voice_ready"
+    private const val KEY_WEB_USED = "web_used"
+    private const val KEY_WEB_SOURCES = "web_sources"
 
     enum class State {
         IDLE,
@@ -23,6 +28,8 @@ object EddyRuntimeState {
         val responseText: String = "Di EDDY para activarme.",
         val running: Boolean = false,
         val voiceReady: Boolean = false,
+        val webUsed: Boolean = false,
+        val webSources: List<EddyWebSource> = emptyList(),
     )
 
     fun read(context: Context): Snapshot {
@@ -39,6 +46,8 @@ object EddyRuntimeState {
                 .ifBlank { "Di EDDY para activarme." },
             running = prefs.getBoolean(KEY_RUNNING, false),
             voiceReady = prefs.getBoolean(KEY_VOICE_READY, false),
+            webUsed = prefs.getBoolean(KEY_WEB_USED, false),
+            webSources = decodeSources(prefs.getString(KEY_WEB_SOURCES, "[]").orEmpty()),
         )
     }
 
@@ -59,7 +68,24 @@ object EddyRuntimeState {
     }
 
     fun setResponse(context: Context, value: String) {
-        edit(context) { putString(KEY_RESPONSE, value) }
+        edit(context) {
+            putString(KEY_RESPONSE, value)
+            putBoolean(KEY_WEB_USED, false)
+            putString(KEY_WEB_SOURCES, "[]")
+        }
+    }
+
+    fun setAiResponse(
+        context: Context,
+        value: String,
+        webUsed: Boolean,
+        sources: List<EddyWebSource>,
+    ) {
+        edit(context) {
+            putString(KEY_RESPONSE, value)
+            putBoolean(KEY_WEB_USED, webUsed)
+            putString(KEY_WEB_SOURCES, encodeSources(sources))
+        }
     }
 
     fun reset(context: Context) {
@@ -69,8 +95,39 @@ object EddyRuntimeState {
             putString(KEY_RESPONSE, "Di EDDY para activarme.")
             putBoolean(KEY_RUNNING, false)
             putBoolean(KEY_VOICE_READY, false)
+            putBoolean(KEY_WEB_USED, false)
+            putString(KEY_WEB_SOURCES, "[]")
         }
     }
+
+    private fun encodeSources(sources: List<EddyWebSource>): String {
+        val array = JSONArray()
+        sources.take(8).forEach { source ->
+            array.put(
+                JSONObject()
+                    .put("title", source.title)
+                    .put("url", source.url)
+            )
+        }
+        return array.toString()
+    }
+
+    private fun decodeSources(raw: String): List<EddyWebSource> = runCatching {
+        val array = JSONArray(raw.ifBlank { "[]" })
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val url = item.optString("url").trim()
+                if (url.isBlank()) continue
+                add(
+                    EddyWebSource(
+                        title = item.optString("title").trim().ifBlank { "Fuente web" },
+                        url = url,
+                    )
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
 
     private inline fun edit(
         context: Context,
