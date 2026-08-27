@@ -1,6 +1,8 @@
 package com.eddy.assistant.voice
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WakeWordGateTest {
@@ -26,6 +28,15 @@ class WakeWordGateTest {
             WakeResult.Ignored,
             gate.consume("Freddy abre YouTube", nowMs = 1_000L),
         )
+    }
+
+    @Test
+    fun partialWakeWordIsDetectedWithoutFalsePositive() {
+        val gate = WakeWordGate()
+        assertTrue(gate.hasWakeWord("hola EDDY"))
+        assertTrue(gate.hasWakeWord("EDDY abre la cámara"))
+        assertFalse(gate.hasWakeWord("Freddy abre YouTube"))
+        assertFalse(gate.hasWakeWord("eddyson"))
     }
 
     @Test
