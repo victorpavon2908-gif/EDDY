@@ -58,6 +58,7 @@ def test_chat_returns_model_reply(monkeypatch):
         assert captured["tool_choice"] == "auto"
         assert captured["tools"][0]["type"] == "web_search"
         assert captured["tools"][0]["search_context_size"] == "high"
+        assert captured["include"] == ["web_search_call.action.sources"]
 
 
 def test_force_web_requires_tool_and_returns_sources(monkeypatch):
@@ -73,7 +74,11 @@ def test_force_web_requires_tool_and_returns_sources(monkeypatch):
                             "type": "search",
                             "queries": ["dato actual"],
                             "sources": [
-                                {"type": "url", "url": "https://example.com/info"},
+                                {
+                                    "type": "url",
+                                    "title": "Documento oficial",
+                                    "url": "https://example.com/info",
+                                },
                             ],
                         },
                     },
@@ -117,10 +122,11 @@ def test_force_web_requires_tool_and_returns_sources(monkeypatch):
     payload = response.get_json()
     assert payload["web_used"] is True
     assert payload["sources"] == [
-        {"title": "example.com", "url": "https://example.com/info"}
+        {"title": "Documento oficial", "url": "https://example.com/info"}
     ]
     if app_module.WEB_SEARCH_ENABLED:
         assert captured["tool_choice"] == "required"
+        assert captured["include"] == ["web_search_call.action.sources"]
 
 
 def test_chat_rejects_empty_model_reply(monkeypatch):
