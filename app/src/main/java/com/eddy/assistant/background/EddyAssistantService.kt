@@ -33,6 +33,7 @@ import com.eddy.assistant.MainActivity
 import com.eddy.assistant.R
 import com.eddy.assistant.actions.ActionExecutor
 import com.eddy.assistant.ai.EddyAiClient
+import com.eddy.assistant.ai.EddyAiReply
 import com.eddy.assistant.ai.EddyFallbackConversation
 import com.eddy.assistant.brain.AssistantCommand
 import com.eddy.assistant.brain.LocalBrain
@@ -253,6 +254,34 @@ class EddyAssistantService : Service() {
         memory.rememberCommand(command)
         proactiveScheduler.maybeSchedule(command)
 
+        if (command is AssistantCommand.SearchWeb) {
+            val aiReply = aiClient.reply(
+                message = command.query,
+                memoryContext = memory.contextForAi(),
+                forceWeb = true,
+            )
+            if (aiReply != null) {
+                speakAiResponse(aiReply)
+            } else {
+                speakResponse(executor.searchWeb(command.query).spokenMessage)
+            }
+            return
+        }
+
+        if (command is AssistantCommand.Unknown) {
+            val aiReply = aiClient.reply(
+                message = command.originalText,
+                memoryContext = memory.contextForAi(),
+                forceWeb = false,
+            )
+            if (aiReply != null) {
+                speakAiResponse(aiReply)
+            } else {
+                speakResponse(fallbackConversation.reply(command.originalText, memory))
+            }
+            return
+        }
+
         val response = when (command) {
             AssistantCommand.Greeting -> "De una, aquí estoy. Decime qué ocupás."
 
@@ -272,7 +301,7 @@ class EddyAssistantService : Service() {
             is AssistantCommand.SetAlarm -> executor.setAlarm(command.hour, command.minute, command.label).spokenMessage
             is AssistantCommand.SetTimer -> executor.setTimer(command.seconds, command.label).spokenMessage
             is AssistantCommand.OpenMaps -> executor.openMaps(command.query).spokenMessage
-            is AssistantCommand.SearchWeb -> executor.searchWeb(command.query).spokenMessage
+            is AssistantCommand.SearchWeb -> "Estoy investigando eso."
             is AssistantCommand.ShareText -> executor.shareText(command.text).spokenMessage
             is AssistantCommand.SetTorch -> executor.setTorch(command.enabled).spokenMessage
             is AssistantCommand.SetVolume -> executor.setVolume(command.percent).spokenMessage
@@ -283,15 +312,25 @@ class EddyAssistantService : Service() {
             is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).spokenMessage
             is AssistantCommand.SmartHomeControl -> smartHome.control(command.target, command.enabled).spokenMessage
             AssistantCommand.OpenSmartHomeSettings -> executor.openSmartHomeSettings().spokenMessage
-            is AssistantCommand.Unknown -> {
-                aiClient.reply(
-                    message = command.originalText,
-                    memoryContext = memory.contextForAi(),
-                ) ?: fallbackConversation.reply(command.originalText, memory)
-            }
+            is AssistantCommand.Unknown -> "Decime de otra forma y lo intento de nuevo."
         }
 
         speakResponse(response)
+    }
+
+    private fun speakAiResponse(reply: EddyAiReply) {
+        EddyRuntimeState.setAiResponse(
+            context = applicationContext,
+            value = reply.text,
+            webUsed = reply.webUsed,
+            sources = reply.sources,
+        )
+        memory.rememberAssistantTurn(reply.text)
+        recognizer.pause()
+        val queued = tts.speak(reply.text)
+        if (!queued && hasMicrophonePermission()) {
+            recognizer.resume()
+        }
     }
 
     private fun speakResponse(text: String) {
@@ -510,8 +549,10 @@ class EddyAssistantService : Service() {
             elevation = dp(12).toFloat()
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.WHITE)
-                setStroke(dp(2), Color.BLACK)
+                colors = intArrayOf(Color.WHITE, Color.rgb(232, 255, 247))
+                gradientType = GradientDrawable.LINEAR_GRADIENT
+                orientation = GradientDrawable.Orientation.TL_BR
+                setStroke(dp(2), Color.rgb(28, 34, 32))
             }
             setPadding(dp(9), dp(9), dp(9), dp(9))
             contentDescription = "Abrir EDDY"
