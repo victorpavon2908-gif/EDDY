@@ -1,157 +1,101 @@
-from types import SimpleNamespace
-
 import backend.app as app_module
 
 
-def setup_function():
-    app_module._client = None
-
-
-def test_health_reports_model():
+def test_health_reports_eddy_web_engine():
     client = app_module.app.test_client()
     response = client.get("/health")
 
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["status"] == "ok"
-    assert payload["model"] == app_module.MODEL
-    assert isinstance(payload["web_search"], bool)
+    assert payload["engine"] == "eddy-web"
+    assert payload["chatgpt"] is False
+    assert payload["openai"] is False
 
 
-def test_chat_requires_message():
+def test_search_requires_message():
     client = app_module.app.test_client()
-    response = client.post("/chat", json={"context": "hola"})
+    response = client.post("/search", json={})
 
     assert response.status_code == 400
     assert response.get_json() == {"error": "message is required"}
 
 
-def test_chat_returns_model_reply(monkeypatch):
-    class FakeResponse:
-        output_text = "  Hola, aquí estoy.  "
-
-        def model_dump(self):
-            return {"output": []}
-
-    captured = {}
-
-    def create(**kwargs):
-        captured.update(kwargs)
-        return FakeResponse()
-
-    fake_client = SimpleNamespace(responses=SimpleNamespace(create=create))
-    monkeypatch.setattr(app_module, "get_client", lambda: fake_client)
-
+def test_non_web_chat_is_rejected_without_remote_ai():
     client = app_module.app.test_client()
     response = client.post(
         "/chat",
-        json={"message": "hola", "context": "El usuario prefiere respuestas breves."},
+        json={"message": "hola", "force_web": False},
     )
 
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "reply": "Hola, aquí estoy.",
-        "sources": [],
-        "web_used": False,
-    }
-    if app_module.WEB_SEARCH_ENABLED:
-        assert captured["tool_choice"] == "auto"
-        assert captured["tools"][0]["type"] == "web_search"
-        assert captured["tools"][0]["search_context_size"] == "high"
-        assert captured["include"] == ["web_search_call.action.sources"]
+    assert response.status_code == 422
+    assert response.get_json() == {"error": "web_search_required"}
 
 
-def test_force_web_requires_tool_and_returns_sources(monkeypatch):
-    class FakeResponse:
-        output_text = "El dato fue verificado en la web."
-
-        def model_dump(self):
-            return {
-                "output": [
-                    {
-                        "type": "web_search_call",
-                        "action": {
-                            "type": "search",
-                            "queries": ["dato actual"],
-                            "sources": [
-                                {
-                                    "type": "url",
-                                    "title": "Documento oficial",
-                                    "url": "https://example.com/info",
-                                },
-                            ],
-                        },
-                    },
-                    {
-                        "type": "message",
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": "El dato fue verificado en la web.",
-                                "annotations": [
-                                    {
-                                        "type": "url_citation",
-                                        "title": "Fuente principal",
-                                        "url": "https://example.com/info",
-                                        "start_index": 0,
-                                        "end_index": 10,
-                                    }
-                                ],
-                            }
-                        ],
-                    },
-                ]
-            }
-
-    captured = {}
-
-    def create(**kwargs):
-        captured.update(kwargs)
-        return FakeResponse()
-
-    fake_client = SimpleNamespace(responses=SimpleNamespace(create=create))
-    monkeypatch.setattr(app_module, "get_client", lambda: fake_client)
+def test_search_returns_ranked_sources(monkeypatch):
+    fake_results = [
+        {
+            "title": "Fuente oficial",
+            "url": "https://example.gov/info",
+            "snippet": "El dato principal fue confirmado oficialmente.",
+        },
+        {
+            "title": "Medio secundario",
+            "url": "https://example.com/noticia",
+            "snippet": "Una segunda fuente aporta contexto adicional.",
+        },
+    ]
+    monkeypatch.setattr(app_module, "_search_web", lambda query: fake_results)
 
     client = app_module.app.test_client()
     response = client.post(
-        "/chat",
-        json={"message": "busca el dato actual", "force_web": True},
+        "/search",
+        json={"query": "dato actual", "force_web": True},
     )
 
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["web_used"] is True
+    assert "dato actual" in payload["reply"]
     assert payload["sources"] == [
-        {"title": "Documento oficial", "url": "https://example.com/info"}
+        {"title": "Fuente oficial", "url": "https://example.gov/info"},
+        {"title": "Medio secundario", "url": "https://example.com/noticia"},
     ]
-    if app_module.WEB_SEARCH_ENABLED:
-        assert captured["tool_choice"] == "required"
-        assert captured["include"] == ["web_search_call.action.sources"]
 
 
-def test_chat_rejects_empty_model_reply(monkeypatch):
-    fake_responses = SimpleNamespace(
-        create=lambda **kwargs: SimpleNamespace(output_text="   ")
+def test_chat_endpoint_kept_for_old_apks(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "_search_web",
+        lambda query: [
+            {
+                "title": "Resultado",
+                "url": "https://example.com/result",
+                "snippet": "Resultado compatible.",
+            }
+        ],
     )
-    fake_client = SimpleNamespace(responses=fake_responses)
-    monkeypatch.setattr(app_module, "get_client", lambda: fake_client)
 
     client = app_module.app.test_client()
-    response = client.post("/chat", json={"message": "hola"})
+    response = client.post(
+        "/chat",
+        json={"message": "buscar algo", "force_web": True},
+    )
 
-    assert response.status_code == 502
-    assert response.get_json() == {"error": "empty model response"}
+    assert response.status_code == 200
+    assert response.get_json()["web_used"] is True
 
 
-def test_chat_hides_provider_exception_details(monkeypatch):
-    def fail(**kwargs):
-        raise RuntimeError("secret provider detail")
-
-    fake_client = SimpleNamespace(responses=SimpleNamespace(create=fail))
-    monkeypatch.setattr(app_module, "get_client", lambda: fake_client)
+def test_search_handles_no_results(monkeypatch):
+    monkeypatch.setattr(app_module, "_search_web", lambda query: [])
 
     client = app_module.app.test_client()
-    response = client.post("/chat", json={"message": "hola"})
+    response = client.post(
+        "/search",
+        json={"message": "consulta imposible", "force_web": True},
+    )
 
     assert response.status_code == 502
-    assert response.get_json() == {"error": "ai_request_failed"}
+    payload = response.get_json()
+    assert payload["web_used"] is False
+    assert payload["sources"] == []
