@@ -32,6 +32,7 @@ class LocalBrain {
 
         parseMessage(original, text)?.let { return it }
         parseDial(text)?.let { return it }
+        parseTimer(text)?.let { return it }
         parseAlarm(text)?.let { return it }
         parseMaps(original)?.let { return it }
 
@@ -90,6 +91,35 @@ class LocalBrain {
         )
     }
 
+    private fun parseTimer(text: String): AssistantCommand.SetTimer? {
+        if (!containsAny(text, "temporizador", "cronometro", "cuenta regresiva")) return null
+
+        val hourMatch = Regex("""(\d+)\s*(?:hora|horas|h)\b""").find(text)
+        val minuteMatch = Regex("""(\d+)\s*(?:minuto|minutos|min)\b""").find(text)
+        val secondMatch = Regex("""(\d+)\s*(?:segundo|segundos|seg)\b""").find(text)
+
+        val hours = hourMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        val minutes = minuteMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        val seconds = secondMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+
+        var totalSeconds = hours * 3_600 + minutes * 60 + seconds
+
+        if (totalSeconds == 0) {
+            val bareNumber = Regex("""\b(\d{1,4})\b""").find(text)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+                ?: return null
+            totalSeconds = bareNumber * 60
+        }
+
+        if (totalSeconds !in 1..86_400) return null
+        return AssistantCommand.SetTimer(
+            seconds = totalSeconds,
+            label = "Temporizador creado por EDDY",
+        )
+    }
+
     private fun parseAlarm(text: String): AssistantCommand.SetAlarm? {
         if (!containsAny(text, "alarma", "despiertame", "despertarme")) return null
 
@@ -125,7 +155,7 @@ class LocalBrain {
             "mapa de",
         )
 
-        val lower = original.lowercase(Locale.getDefault())
+        val lower = original.lowercase(Locale.ROOT)
         for (phrase in phrases) {
             val index = lower.indexOf(phrase)
             if (index >= 0) {
@@ -141,7 +171,7 @@ class LocalBrain {
     private fun containsAny(text: String, vararg values: String): Boolean = values.any(text::contains)
 
     private fun normalize(value: String): String {
-        val lower = value.lowercase(Locale.getDefault())
+        val lower = value.lowercase(Locale.ROOT)
         return Normalizer.normalize(lower, Normalizer.Form.NFD)
             .replace("\\p{Mn}+".toRegex(), "")
             .trim()
