@@ -1,4 +1,4 @@
-# EDDY v0.4.1
+# EDDY v0.4.2
 
 **Everyday Digital Dynamic Intelligence** — asistente personal Android por voz, centrado en funciones locales del teléfono, memoria local, búsqueda web mediante un backend propio, burbuja flotante y acceso desde pantalla bloqueada.
 
