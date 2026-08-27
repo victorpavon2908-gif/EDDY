@@ -38,6 +38,9 @@
         <intent>
             <action android:name="android.intent.action.SET_ALARM" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
     </queries>
 
     <application
