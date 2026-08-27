@@ -1,10 +1,13 @@
 #!/bin/sh
 set -eu
 
-APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
-WRAPPER_URL="https://services.gradle.org/distributions/gradle-8.13-wrapper.jar"
-WRAPPER_SHA256="81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f"
+GRADLE_VERSION="8.13"
+GRADLE_DIST_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+GRADLE_DIST_SHA256="20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78"
+GRADLE_HOME_BASE="${GRADLE_USER_HOME:-${HOME:-/tmp/.gradle}}/eddy-bootstrap"
+GRADLE_DIR="$GRADLE_HOME_BASE/gradle-${GRADLE_VERSION}"
+GRADLE_BIN="$GRADLE_DIR/bin/gradle"
+ZIP_FILE="$GRADLE_HOME_BASE/gradle-${GRADLE_VERSION}-bin.zip"
 
 checksum() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -17,50 +20,64 @@ checksum() {
   fi
 }
 
-download_wrapper() {
-  tmp="$WRAPPER_JAR.tmp"
+download_gradle() {
+  mkdir -p "$GRADLE_HOME_BASE"
+  tmp="$ZIP_FILE.tmp"
   rm -f "$tmp"
-  mkdir -p "$(dirname "$WRAPPER_JAR")"
 
   if command -v curl >/dev/null 2>&1; then
-    curl --fail --location --silent --show-error "$WRAPPER_URL" --output "$tmp"
+    curl --fail --location --retry 3 --silent --show-error "$GRADLE_DIST_URL" --output "$tmp"
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$tmp" "$WRAPPER_URL"
+    wget -qO "$tmp" "$GRADLE_DIST_URL"
   else
-    echo "ERROR: curl o wget es requerido para descargar el wrapper oficial de Gradle." >&2
+    echo "ERROR: curl o wget es requerido para descargar Gradle 8.13." >&2
     exit 1
   fi
 
   actual=$(checksum "$tmp")
-  if [ "$actual" != "$WRAPPER_SHA256" ]; then
+  if [ "$actual" != "$GRADLE_DIST_SHA256" ]; then
     rm -f "$tmp"
-    echo "ERROR: checksum invalido para gradle-wrapper.jar." >&2
+    echo "ERROR: checksum invalido para Gradle 8.13." >&2
     exit 1
   fi
 
-  mv "$tmp" "$WRAPPER_JAR"
+  mv "$tmp" "$ZIP_FILE"
 }
 
-if [ -f "$WRAPPER_JAR" ]; then
-  actual=$(checksum "$WRAPPER_JAR")
-  if [ "$actual" != "$WRAPPER_SHA256" ]; then
-    rm -f "$WRAPPER_JAR"
+install_gradle() {
+  if [ -x "$GRADLE_BIN" ]; then
+    return
   fi
-fi
 
-if [ ! -f "$WRAPPER_JAR" ]; then
-  download_wrapper
-fi
+  if [ ! -f "$ZIP_FILE" ] || [ "$(checksum "$ZIP_FILE")" != "$GRADLE_DIST_SHA256" ]; then
+    rm -f "$ZIP_FILE"
+    download_gradle
+  fi
+
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "ERROR: unzip es requerido para preparar Gradle 8.13." >&2
+    exit 1
+  fi
+
+  rm -rf "$GRADLE_DIR"
+  unzip -q "$ZIP_FILE" -d "$GRADLE_HOME_BASE"
+
+  if [ ! -x "$GRADLE_BIN" ]; then
+    echo "ERROR: no se pudo preparar Gradle 8.13." >&2
+    exit 1
+  fi
+}
 
 if [ -n "${JAVA_HOME:-}" ]; then
   JAVA_CMD="$JAVA_HOME/bin/java"
-else
-  JAVA_CMD=java
-fi
-
-if ! command -v "$JAVA_CMD" >/dev/null 2>&1 && [ ! -x "$JAVA_CMD" ]; then
+  if [ ! -x "$JAVA_CMD" ]; then
+    echo "ERROR: JAVA_HOME no apunta a un JDK valido." >&2
+    exit 1
+  fi
+elif ! command -v java >/dev/null 2>&1; then
   echo "ERROR: Java no esta disponible. Instala JDK 17 o configura JAVA_HOME." >&2
   exit 1
 fi
 
-exec "$JAVA_CMD" -classpath "$WRAPPER_JAR" org.gradle.wrapper.GradleWrapperMain "$@"
+install_gradle
+exec "$GRADLE_BIN" "$@"
