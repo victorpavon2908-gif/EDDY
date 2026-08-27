@@ -40,6 +40,18 @@ class WakeWordGateTest {
     }
 
     @Test
+    fun partialDetectionCanArmNextCommand() {
+        val gate = WakeWordGate(followUpWindowMs = 20_000L)
+        gate.arm(nowMs = 1_000L)
+        assertTrue(gate.isArmed(nowMs = 5_000L))
+        assertEquals(
+            WakeResult.Command("abre calculadora"),
+            gate.consume("abre calculadora", nowMs = 5_000L),
+        )
+        assertFalse(gate.isArmed(nowMs = 5_001L))
+    }
+
+    @Test
     fun followUpCommandWorksInsideWindow() {
         val gate = WakeWordGate(followUpWindowMs = 12_000L)
         assertEquals(WakeResult.Activated, gate.consume("EDDY", nowMs = 1_000L))
