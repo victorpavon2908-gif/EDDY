@@ -9,6 +9,7 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import java.util.Locale
 
 class EddySpeechRecognizer(
     private val context: Context,
@@ -23,6 +24,25 @@ class EddySpeechRecognizer(
     private var paused = true
     private var listening = false
     private var destroyed = false
+
+    private var useOnDeviceRecognizer =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+    private var preferOffline = useOnDeviceRecognizer
+    private var languageIndex = 0
+    private var useDeviceDefaultLanguage = false
+
+    private val languageCandidates: List<String> by lazy {
+        buildList {
+            val defaultTag = Locale.getDefault().toLanguageTag()
+            if (defaultTag.startsWith("es", ignoreCase = true)) {
+                add(defaultTag)
+            }
+            add("es-US")
+            add("es-ES")
+            add("es-MX")
+        }.distinct()
+    }
 
     private val restartRunnable = Runnable { startSession() }
 
@@ -98,11 +118,16 @@ class EddySpeechRecognizer(
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-NI")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-NI")
+            if (!useDeviceDefaultLanguage) {
+                languageCandidates.getOrNull(languageIndex)?.let { languageTag ->
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+                }
+            }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            if (preferOffline) {
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            }
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 750L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 500L)
         }
@@ -117,13 +142,48 @@ class EddySpeechRecognizer(
     }
 
     private fun createRecognizer(): SpeechRecognizer {
-        if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-        ) {
+        if (useOnDeviceRecognizer && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             return SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
         }
         return SpeechRecognizer.createSpeechRecognizer(context)
+    }
+
+    private fun recreateRecognizer() {
+        runCatching { recognizer?.destroy() }
+        recognizer = null
+        setListening(false)
+    }
+
+    /**
+     * ERROR_LANGUAGE_NOT_SUPPORTED / ERROR_LANGUAGE_UNAVAILABLE no deben romper EDDY.
+     * Algunos Samsung anuncian reconocimiento local disponible aunque no tengan el
+     * modelo es-NI descargado. Primero salimos del motor on-device, luego probamos
+     * variantes de español y por último dejamos que Android use el idioma por defecto.
+     */
+    private fun recoverFromLanguageError(): Boolean {
+        if (useOnDeviceRecognizer) {
+            useOnDeviceRecognizer = false
+            preferOffline = false
+            recreateRecognizer()
+            scheduleRestart(350)
+            return true
+        }
+
+        if (!useDeviceDefaultLanguage && languageIndex < languageCandidates.lastIndex) {
+            languageIndex += 1
+            recreateRecognizer()
+            scheduleRestart(350)
+            return true
+        }
+
+        if (!useDeviceDefaultLanguage) {
+            useDeviceDefaultLanguage = true
+            recreateRecognizer()
+            scheduleRestart(350)
+            return true
+        }
+
+        return false
     }
 
     private fun scheduleRestart(delayMs: Long) {
@@ -168,6 +228,21 @@ class EddySpeechRecognizer(
 
         override fun onError(error: Int) {
             setListening(false)
+
+            if (
+                error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
+                error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE
+            ) {
+                if (recoverFromLanguageError()) return
+
+                continuousMode = false
+                paused = true
+                onError(
+                    "El motor de voz del teléfono no tiene un modelo de español disponible. " +
+                        "Activa o descarga Español en los ajustes de reconocimiento de voz y vuelve a abrir EDDY.",
+                )
+                return
+            }
 
             val recoverable = when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH,
