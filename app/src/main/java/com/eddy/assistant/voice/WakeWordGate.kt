@@ -14,7 +14,7 @@ class WakeWordGate(
         if (raw.isBlank()) return WakeResult.Ignored
 
         val normalized = normalize(raw)
-        if (containsWakeWord(normalized)) {
+        if (hasWakeWordNormalized(normalized)) {
             armedUntil = nowMs + followUpWindowMs
             val command = removeWakeWord(raw)
             return if (command.isBlank()) {
@@ -33,7 +33,13 @@ class WakeWordGate(
         return WakeResult.Ignored
     }
 
-    private fun containsWakeWord(normalized: String): Boolean {
+    fun hasWakeWord(input: String): Boolean {
+        val raw = input.trim()
+        if (raw.isBlank()) return false
+        return hasWakeWordNormalized(normalize(raw))
+    }
+
+    private fun hasWakeWordNormalized(normalized: String): Boolean {
         val escaped = Regex.escape(normalize(wakeWord))
         return Regex("(?:^|\\s|[,:;.!?¿¡-])$escaped(?:$|\\s|[,:;.!?¿¡-])").containsMatchIn(normalized)
     }
