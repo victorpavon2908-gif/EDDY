@@ -17,7 +17,7 @@ class EddyMemory(context: Context) {
         while (current.size > MAX_HISTORY) current.removeAt(0)
 
         val array = JSONArray()
-        current.forEach(array::put)
+        current.forEach { item -> array.put(item) }
         prefs.edit()
             .putString(KEY_HISTORY, array.toString())
             .putInt(KEY_TOTAL_INTERACTIONS, prefs.getInt(KEY_TOTAL_INTERACTIONS, 0) + 1)
