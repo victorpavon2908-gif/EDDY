@@ -220,6 +220,7 @@ class EddyMemory(context: Context) {
         add("camera" to "usar la cámara")
         add("maps" to "usar mapas")
         add("alarm" to "crear alarmas")
+        add("timer" to "crear temporizadores")
     }
 
     private fun commandKey(command: AssistantCommand): String? = when (command) {
@@ -232,6 +233,7 @@ class EddyMemory(context: Context) {
         is AssistantCommand.Dial -> "dial"
         is AssistantCommand.ComposeMessage -> "message"
         is AssistantCommand.SetAlarm -> "alarm"
+        is AssistantCommand.SetTimer -> "timer"
         is AssistantCommand.OpenMaps -> "maps"
         is AssistantCommand.Unknown -> "conversation"
     }
