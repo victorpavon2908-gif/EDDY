@@ -14,12 +14,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.camera.flash"
-        android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <queries>
         <package android:name="com.google.android.youtube" />
@@ -28,6 +24,10 @@
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.android.chrome" />
         <package android:name="com.google.android.gm" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
@@ -66,18 +66,15 @@
         android:theme="@style/Theme.EDDY"
         android:usesCleartextTraffic="true">
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".SmartHomeSettingsActivity"
-            android:exported="false" />
+        <activity android:name=".SmartHomeSettingsActivity" android:exported="false" />
+        <activity android:name=".AiSettingsActivity" android:exported="false" />
 
         <activity
             android:name=".EddyWakeActivity"
@@ -93,9 +90,7 @@
             android:foregroundServiceType="microphone"
             android:stopWithTask="false" />
 
-        <receiver
-            android:name=".proactive.EddyProactiveReceiver"
-            android:exported="false" />
+        <receiver android:name=".proactive.EddyProactiveReceiver" android:exported="false" />
     </application>
 
 </manifest>
