@@ -34,18 +34,18 @@ class AiSettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             EddyTheme {
-                AiSettingsScreen(onClose = { finish() })
+                BackendWebSettingsScreen(onClose = { finish() })
             }
         }
     }
 }
 
 @Composable
-private fun AiSettingsScreen(onClose: () -> Unit) {
+private fun BackendWebSettingsScreen(onClose: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf(EddyAiSettings.baseUrl(context)) }
-    var status by remember { mutableStateOf("Pegá la URL pública del backend de EDDY, sin /chat.") }
+    var status by remember { mutableStateOf("Pegá la URL pública del backend de EDDY, sin /search.") }
     var testing by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -53,9 +53,9 @@ private fun AiSettingsScreen(onClose: () -> Unit) {
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("IA + WEB", style = MaterialTheme.typography.headlineMedium)
+            Text("BACKEND + WEB", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Esta conexión permite que EDDY investigue en Internet, sintetice resultados y muestre fuentes sin abrir el navegador.",
+                "Esta conexión permite que EDDY busque información en Internet desde su propio backend y muestre las fuentes dentro de la app.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -63,8 +63,8 @@ private fun AiSettingsScreen(onClose: () -> Unit) {
             OutlinedTextField(
                 value = url,
                 onValueChange = { url = it },
-                label = { Text("URL del backend") },
-                placeholder = { Text("https://eddy-ai-xxxx.onrender.com") },
+                label = { Text("URL del backend de EDDY") },
+                placeholder = { Text("https://eddy-backend-xxxx.onrender.com") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = CutCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 4.dp),
@@ -84,7 +84,7 @@ private fun AiSettingsScreen(onClose: () -> Unit) {
                             status = if (ok) {
                                 "Conectado. La búsqueda web de EDDY está lista."
                             } else {
-                                "No pude conectar. Revisá la URL y que el servicio esté desplegado."
+                                "No pude conectar. Revisá la URL y que el backend esté desplegado."
                             }
                         }
                     },
