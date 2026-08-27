@@ -192,15 +192,25 @@ def _build_reply(query: str, results: list[dict]) -> str:
     return reply[:1800]
 
 
+def _status_payload():
+    return {
+        "status": "ok",
+        "service": "EDDY Backend",
+        "engine": "eddy-web",
+        "provider": "duckduckgo+wikipedia",
+        "mode": "search-only",
+        "remote_model": False,
+    }
+
+
+@app.get("/")
+def index():
+    return jsonify(_status_payload())
+
+
 @app.get("/health")
 def health():
-    return jsonify(
-        status="ok",
-        engine="eddy-web",
-        provider="duckduckgo+wikipedia",
-        mode="search-only",
-        remote_model=False,
-    )
+    return jsonify(_status_payload())
 
 
 def _search_response():
