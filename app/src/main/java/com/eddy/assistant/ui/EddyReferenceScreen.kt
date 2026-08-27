@@ -2,6 +2,7 @@ package com.eddy.assistant.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,9 +37,10 @@ internal fun EddyReferenceScreen(
     responseText: String,
     voiceReady: Boolean,
     autoListeningEnabled: Boolean,
+    onToggleAssistant: (() -> Unit)? = null,
 ) {
     val statusText = when {
-        !autoListeningEnabled -> "Micrófono desactivado"
+        !autoListeningEnabled -> "Pausado"
         !voiceReady -> "Iniciando voz"
         visualState == EddyVisualState.LISTENING -> "Escuchando"
         visualState == EddyVisualState.THINKING -> "Pensando"
@@ -55,6 +57,8 @@ internal fun EddyReferenceScreen(
     ) {
         TopChrome(
             statusText = statusText,
+            autoListeningEnabled = autoListeningEnabled,
+            onToggleAssistant = onToggleAssistant,
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
@@ -62,7 +66,7 @@ internal fun EddyReferenceScreen(
             state = visualState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 108.dp, bottom = 128.dp),
+                .padding(top = 108.dp, bottom = 142.dp),
         )
 
         BottomMessageCard(
@@ -76,6 +80,8 @@ internal fun EddyReferenceScreen(
 @Composable
 private fun TopChrome(
     statusText: String,
+    autoListeningEnabled: Boolean,
+    onToggleAssistant: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -111,7 +117,7 @@ private fun TopChrome(
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Canvas(modifier = Modifier.size(9.dp)) {
-                    drawCircle(color = EddyMint)
+                    drawCircle(color = if (autoListeningEnabled) EddyMint else EddySoftGray)
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(
@@ -124,12 +130,31 @@ private fun TopChrome(
             }
         }
 
-        SliderIcon(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 28.dp, top = 26.dp)
-                .size(32.dp),
-        )
+        if (onToggleAssistant != null) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 20.dp, top = 22.dp)
+                    .clickable(onClick = onToggleAssistant),
+                shape = RoundedCornerShape(18.dp),
+                color = if (autoListeningEnabled) Color(0xFFF3F3F3) else Color(0xFFE8FFF7),
+            ) {
+                Text(
+                    text = if (autoListeningEnabled) "Pausar" else "Activar",
+                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                    color = EddyBlack,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        } else {
+            SliderIcon(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 28.dp, top = 26.dp)
+                    .size(32.dp),
+            )
+        }
     }
 }
 
@@ -139,17 +164,11 @@ private fun BottomMessageCard(
     responseText: String,
     modifier: Modifier = Modifier,
 ) {
-    val visibleText = when {
-        responseText.isNotBlank() -> responseText
-        heardText.isNotBlank() -> heardText
-        else -> "Listo para ayudarte."
-    }
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 26.dp, vertical = 14.dp)
-            .height(86.dp)
+            .height(104.dp)
             .shadow(
                 elevation = 12.dp,
                 shape = RoundedCornerShape(24.dp),
@@ -169,7 +188,7 @@ private fun BottomMessageCard(
 
             Spacer(Modifier.width(14.dp))
 
-            Canvas(modifier = Modifier.size(width = 1.dp, height = 48.dp)) {
+            Canvas(modifier = Modifier.size(width = 1.dp, height = 58.dp)) {
                 drawLine(
                     color = EddySoftGray,
                     start = Offset(size.width / 2f, 0f),
@@ -180,25 +199,28 @@ private fun BottomMessageCard(
 
             Spacer(Modifier.width(14.dp))
 
-            Text(
-                text = "EDDY:",
-                color = EddyMint,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                if (heardText.isNotBlank()) {
+                    Text(
+                        text = "TÚ: $heardText",
+                        color = EddyBlack,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(5.dp))
+                }
 
-            Spacer(Modifier.width(10.dp))
-
-            Text(
-                text = visibleText,
-                color = EddyBlack,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+                Text(
+                    text = if (responseText.isNotBlank()) "EDDY: $responseText" else "EDDY: Listo para ayudarte.",
+                    color = EddyMint,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = if (heardText.isNotBlank()) 2 else 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
 
             Spacer(Modifier.width(10.dp))
 
