@@ -1,5 +1,6 @@
 package com.eddy.assistant.ai
 
+import android.content.Context
 import com.eddy.assistant.BuildConfig
 import java.net.HttpURLConnection
 import java.net.URL
@@ -19,23 +20,51 @@ data class EddyAiReply(
 )
 
 class EddyAiClient(
-    private val baseUrl: String = BuildConfig.EDDY_AI_BASE_URL,
+    private val context: Context,
+    private val baseUrlOverride: String? = null,
 ) {
+    private fun resolvedBaseUrl(): String = baseUrlOverride
+        ?.trim()
+        ?.trimEnd('/')
+        ?.takeIf { it.isNotBlank() }
+        ?: EddyAiSettings.baseUrl(context)
+
     val isConfigured: Boolean
-        get() = baseUrl.isNotBlank()
+        get() = resolvedBaseUrl().isNotBlank()
+
+    suspend fun healthCheck(): Boolean = withContext(Dispatchers.IO) {
+        val baseUrl = resolvedBaseUrl()
+        if (baseUrl.isBlank()) return@withContext false
+        val connection = runCatching {
+            URL("${baseUrl.trimEnd('/')}/health").openConnection() as HttpURLConnection
+        }.getOrNull() ?: return@withContext false
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 15_000
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("User-Agent", "EDDY-Android/${BuildConfig.VERSION_NAME}")
+            connection.responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     suspend fun reply(
         message: String,
         memoryContext: String,
         forceWeb: Boolean = false,
     ): EddyAiReply? = withContext(Dispatchers.IO) {
+        val baseUrl = resolvedBaseUrl()
         if (baseUrl.isBlank()) return@withContext null
 
         val endpoint = "${baseUrl.trimEnd('/')}/chat"
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 15_000
-            readTimeout = 60_000
+            readTimeout = 75_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json")
@@ -49,10 +78,7 @@ class EddyAiClient(
                 .put("force_web", forceWeb)
                 .toString()
 
-            connection.outputStream.bufferedWriter(Charsets.UTF_8).use { writer ->
-                writer.write(payload)
-            }
-
+            connection.outputStream.bufferedWriter(Charsets.UTF_8).use { writer -> writer.write(payload) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
@@ -69,12 +95,7 @@ class EddyAiClient(
                         val item = sourcesJson.optJSONObject(index) ?: continue
                         val url = item.optString("url").trim()
                         if (url.isBlank()) continue
-                        add(
-                            EddyWebSource(
-                                title = item.optString("title").trim().ifBlank { "Fuente web" },
-                                url = url,
-                            )
-                        )
+                        add(EddyWebSource(item.optString("title").trim().ifBlank { "Fuente web" }, url))
                     }
                 }
             }
