@@ -14,9 +14,7 @@ class WakeWordGate(
         if (raw.isBlank()) return WakeResult.Ignored
 
         val normalized = normalize(raw)
-        val wakeIndex = normalized.indexOf(wakeWord)
-
-        if (wakeIndex >= 0) {
+        if (containsWakeWord(normalized)) {
             armedUntil = nowMs + followUpWindowMs
             val command = removeWakeWord(raw)
             return if (command.isBlank()) {
@@ -35,13 +33,19 @@ class WakeWordGate(
         return WakeResult.Ignored
     }
 
+    private fun containsWakeWord(normalized: String): Boolean {
+        val escaped = Regex.escape(normalize(wakeWord))
+        return Regex("(?:^|\\s|[,:;.!?¿¡-])$escaped(?:$|\\s|[,:;.!?¿¡-])").containsMatchIn(normalized)
+    }
+
     private fun removeWakeWord(input: String): String {
-        val regex = Regex("(?i)\\beddy\\b[,:;.!?¿¡\\s-]*")
+        val escaped = Regex.escape(wakeWord)
+        val regex = Regex("(?i)(?:^|(?<=\\s)|(?<=[,:;.!?¿¡-]))$escaped(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*")
         return input.replaceFirst(regex, "").trim()
     }
 
     private fun normalize(value: String): String {
-        val lower = value.lowercase(Locale.getDefault())
+        val lower = value.lowercase(Locale.ROOT)
         return Normalizer.normalize(lower, Normalizer.Form.NFD)
             .replace("\\p{Mn}+".toRegex(), "")
             .trim()
