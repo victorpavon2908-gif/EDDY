@@ -9,8 +9,8 @@ def test_health_reports_eddy_web_engine():
     payload = response.get_json()
     assert payload["status"] == "ok"
     assert payload["engine"] == "eddy-web"
-    assert payload["chatgpt"] is False
-    assert payload["openai"] is False
+    assert payload["mode"] == "search-only"
+    assert payload["remote_model"] is False
 
 
 def test_search_requires_message():
@@ -21,7 +21,7 @@ def test_search_requires_message():
     assert response.get_json() == {"error": "message is required"}
 
 
-def test_non_web_chat_is_rejected_without_remote_ai():
+def test_non_web_chat_is_rejected_without_remote_model():
     client = app_module.app.test_client()
     response = client.post(
         "/chat",
@@ -63,7 +63,7 @@ def test_search_returns_ranked_sources(monkeypatch):
     ]
 
 
-def test_chat_endpoint_kept_for_old_apks(monkeypatch):
+def test_legacy_endpoint_kept_for_old_apks(monkeypatch):
     monkeypatch.setattr(
         app_module,
         "_search_web",
