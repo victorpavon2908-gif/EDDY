@@ -6,13 +6,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val EddyColors = lightColorScheme(
-    primary = Color.Black,
+    primary = Color(0xFF101010),
     onPrimary = Color.White,
-    secondary = Color(0xFF444444),
+    secondary = Color(0xFF43DDB3),
+    onSecondary = Color(0xFF101010),
     background = Color.White,
     surface = Color.White,
-    onBackground = Color.Black,
-    onSurface = Color.Black,
+    surfaceVariant = Color(0xFFF7F7F7),
+    onBackground = Color(0xFF101010),
+    onSurface = Color(0xFF101010),
+    outline = Color(0xFFE8E8E8),
 )
 
 @Composable
