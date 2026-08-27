@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun EddyReferenceScreen(
+internal fun EddyReferenceScreen(
     visualState: EddyVisualState,
     heardText: String,
     responseText: String,
