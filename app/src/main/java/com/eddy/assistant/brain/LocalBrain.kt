@@ -7,6 +7,15 @@ class LocalBrain {
     fun understand(input: String): AssistantCommand {
         val text = normalize(input)
 
+        if (
+            text.contains("que sabes de mi") ||
+            text.contains("que has aprendido de mi") ||
+            text.contains("que hago mas") ||
+            text.contains("que uso mas")
+        ) {
+            return AssistantCommand.MemorySummary
+        }
+
         if (text.contains("que hora") || text.contains("hora es")) {
             return AssistantCommand.TellTime
         }
