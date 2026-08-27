@@ -316,6 +316,8 @@ private fun EddyAppScreen() {
         responseText = snapshot.responseText,
         voiceReady = snapshot.voiceReady,
         autoListeningEnabled = assistantEnabled && snapshot.running,
+        webUsed = snapshot.webUsed,
+        webSources = snapshot.webSources,
         onToggleAssistant = {
             val enable = !assistantEnabled
             assistantEnabled = enable
