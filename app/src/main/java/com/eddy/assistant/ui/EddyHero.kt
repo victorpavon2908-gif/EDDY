@@ -33,10 +33,10 @@ internal fun EddyHero(
     val pulse by transition.animateFloat(
         initialValue = 0.992f,
         targetValue = when (state) {
-            EddyVisualState.LISTENING -> 1.020f
-            EddyVisualState.THINKING -> 1.014f
-            EddyVisualState.SPEAKING -> 1.024f
-            EddyVisualState.IDLE -> 1.006f
+            EddyVisualState.LISTENING -> 1.022f
+            EddyVisualState.THINKING -> 1.016f
+            EddyVisualState.SPEAKING -> 1.026f
+            EddyVisualState.IDLE -> 1.008f
         },
         animationSpec = infiniteRepeatable(
             animation = tween(
@@ -67,7 +67,7 @@ internal fun EddyHero(
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = if (state == EddyVisualState.THINKING) 1050 else 4200,
+                durationMillis = if (state == EddyVisualState.THINKING) 980 else 4200,
                 easing = LinearEasing,
             ),
             repeatMode = RepeatMode.Restart,
@@ -117,30 +117,41 @@ internal fun EddyHero(
             val minDim = min(w, h)
             val center = Offset(w * 0.50f, h * 0.49f)
             val fieldRadius = minDim * 0.43f
+            val accent = when (state) {
+                EddyVisualState.LISTENING -> EddyMint
+                EddyVisualState.THINKING -> EddyBlue
+                EddyVisualState.SPEAKING -> EddyMintDeep
+                EddyVisualState.IDLE -> EddyMint
+            }
 
             drawCircle(
-                color = Color(0xFFE4E4E4),
-                radius = fieldRadius,
+                color = accent.copy(alpha = 0.055f),
+                radius = fieldRadius * 0.94f,
                 center = center,
-                style = Stroke(width = max(1f, minDim * 0.0022f)),
             )
             drawCircle(
-                color = Color(0xFFF0F0F0),
+                color = accent.copy(alpha = 0.30f),
+                radius = fieldRadius,
+                center = center,
+                style = Stroke(width = max(1.4f, minDim * 0.0026f)),
+            )
+            drawCircle(
+                color = EddySoftGray.copy(alpha = 0.74f),
                 radius = fieldRadius * 0.82f,
                 center = center,
                 style = Stroke(width = max(1f, minDim * 0.0017f)),
             )
             drawArc(
-                color = Color(0xFFD2D2D2),
+                color = accent.copy(alpha = 0.54f),
                 startAngle = 210f,
                 sweepAngle = 78f,
                 useCenter = false,
                 topLeft = Offset(center.x - fieldRadius * 0.92f, center.y - fieldRadius * 0.92f),
                 size = Size(fieldRadius * 1.84f, fieldRadius * 1.84f),
-                style = Stroke(width = max(1f, minDim * 0.0016f)),
+                style = Stroke(width = max(1.8f, minDim * 0.0042f), cap = StrokeCap.Round),
             )
             drawArc(
-                color = Color(0xFFE1E1E1),
+                color = EddySoftGray.copy(alpha = 0.72f),
                 startAngle = 322f,
                 sweepAngle = 60f,
                 useCenter = false,
@@ -155,17 +166,18 @@ internal fun EddyHero(
                 x = center.x + (kotlin.math.cos(angle) * orbitRadius).toFloat(),
                 y = center.y + (kotlin.math.sin(angle) * orbitRadius).toFloat(),
             )
-            drawCircle(EddyMint, radius = max(4f, minDim * 0.009f), center = movingDot)
+            drawCircle(accent.copy(alpha = 0.16f), radius = max(9f, minDim * 0.020f), center = movingDot)
+            drawCircle(accent, radius = max(4f, minDim * 0.009f), center = movingDot)
             drawCircle(EddyMint, radius = max(3.5f, minDim * 0.008f), center = Offset(center.x, center.y - orbitRadius))
-            drawCircle(EddyMint, radius = max(3.5f, minDim * 0.008f), center = Offset(center.x - orbitRadius, center.y + fieldRadius * 0.10f))
-            drawCircle(EddyMint, radius = max(3.5f, minDim * 0.008f), center = Offset(center.x + orbitRadius, center.y + fieldRadius * 0.10f))
+            drawCircle(EddyMint.copy(alpha = 0.84f), radius = max(3.5f, minDim * 0.008f), center = Offset(center.x - orbitRadius, center.y + fieldRadius * 0.10f))
+            drawCircle(EddyMint.copy(alpha = 0.84f), radius = max(3.5f, minDim * 0.008f), center = Offset(center.x + orbitRadius, center.y + fieldRadius * 0.10f))
 
             val waveY = center.y + fieldRadius * 0.03f
             val waveColor = when (state) {
-                EddyVisualState.SPEAKING -> Color(0xFFAAAAAA)
-                EddyVisualState.LISTENING -> Color(0xFFBEBEBE)
-                EddyVisualState.THINKING -> Color(0xFFC7C7C7)
-                EddyVisualState.IDLE -> Color(0xFFD7D7D7)
+                EddyVisualState.SPEAKING -> accent.copy(alpha = 0.74f)
+                EddyVisualState.LISTENING -> accent.copy(alpha = 0.58f)
+                EddyVisualState.THINKING -> accent.copy(alpha = 0.48f)
+                EddyVisualState.IDLE -> EddyGraphite.copy(alpha = 0.20f)
             }
             val baseHeights = floatArrayOf(0.16f, 0.30f, 0.46f, 0.25f, 0.18f, 0.34f, 0.22f, 0.52f, 0.31f, 0.16f)
             val gap = minDim * 0.026f
@@ -310,13 +322,13 @@ internal fun EddyHero(
 
             if (state == EddyVisualState.THINKING) {
                 drawArc(
-                    color = EddyBlack,
+                    color = accent,
                     startAngle = orbitPhase * 360f,
-                    sweepAngle = 42f,
+                    sweepAngle = 48f,
                     useCenter = false,
                     topLeft = Offset(center.x - fieldRadius, center.y - fieldRadius),
                     size = Size(fieldRadius * 2f, fieldRadius * 2f),
-                    style = Stroke(width = max(2f, minDim * 0.006f), cap = StrokeCap.Round),
+                    style = Stroke(width = max(2.2f, minDim * 0.0065f), cap = StrokeCap.Round),
                 )
             }
         }
