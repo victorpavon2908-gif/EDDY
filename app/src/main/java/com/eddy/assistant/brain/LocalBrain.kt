@@ -12,9 +12,7 @@ class LocalBrain {
             text.contains("olvida todo") ||
             text.contains("borra tu memoria") ||
             text.contains("borra lo que sabes de mi")
-        ) {
-            return AssistantCommand.ClearMemory
-        }
+        ) return AssistantCommand.ClearMemory
 
         if (
             text.contains("que sabes de mi") ||
@@ -22,13 +20,9 @@ class LocalBrain {
             text.contains("que recuerdas de mi") ||
             text.contains("que hago mas") ||
             text.contains("que uso mas")
-        ) {
-            return AssistantCommand.MemorySummary
-        }
+        ) return AssistantCommand.MemorySummary
 
-        if (text.contains("que hora") || text.contains("hora es")) {
-            return AssistantCommand.TellTime
-        }
+        if (text.contains("que hora") || text.contains("hora es")) return AssistantCommand.TellTime
 
         if (
             text.contains("configura casa inteligente") ||
@@ -37,9 +31,17 @@ class LocalBrain {
             text.contains("configurar domotica") ||
             text.contains("configura home assistant") ||
             text.contains("configurar home assistant")
-        ) {
-            return AssistantCommand.OpenSmartHomeSettings
-        }
+        ) return AssistantCommand.OpenSmartHomeSettings
+
+        if (
+            text.contains("configura inteligencia") ||
+            text.contains("configurar inteligencia") ||
+            text.contains("configura ia") ||
+            text.contains("configurar ia") ||
+            text.contains("configura busqueda web") ||
+            text.contains("configurar busqueda web") ||
+            text.contains("configura internet de eddy")
+        ) return AssistantCommand.OpenAiSettings
 
         parseWhatsApp(original, text)?.let { return it }
         parseMessage(original, text)?.let { return it }
@@ -59,9 +61,7 @@ class LocalBrain {
         if (
             text.contains("bateria") &&
             containsAny(text, "cuanta", "porcentaje", "nivel", "queda", "tengo")
-        ) {
-            return AssistantCommand.BatteryStatus
-        }
+        ) return AssistantCommand.BatteryStatus
 
         if (containsAny(text, "vibra", "vibrar", "haz vibrar", "hace vibrar")) {
             return AssistantCommand.Vibrate()
@@ -70,21 +70,9 @@ class LocalBrain {
         if (
             text.contains("camara") &&
             containsAny(text, "abre", "abri", "abrir", "inicia", "enciende")
-        ) {
-            return AssistantCommand.OpenCamera
-        }
+        ) return AssistantCommand.OpenCamera
 
-        val openRequested = containsAny(text, "abre", "abri", "abrir", "inicia", "lanza", "pon", "pone")
-        if (openRequested) {
-            when {
-                text.contains("youtube") -> return AssistantCommand.OpenApp(SupportedApp.YOUTUBE)
-                text.contains("whatsapp") || text.contains("wasa") -> return AssistantCommand.OpenApp(SupportedApp.WHATSAPP)
-                text.contains("spotify") -> return AssistantCommand.OpenApp(SupportedApp.SPOTIFY)
-                text.contains("maps") || text.contains("mapas") -> return AssistantCommand.OpenApp(SupportedApp.MAPS)
-                text.contains("chrome") || text.contains("navegador") -> return AssistantCommand.OpenApp(SupportedApp.CHROME)
-                text.contains("gmail") || text.contains("correo") -> return AssistantCommand.OpenApp(SupportedApp.GMAIL)
-            }
-        }
+        parseOpenApp(original, text)?.let { return it }
 
         if (
             text == "eddy" ||
@@ -94,11 +82,37 @@ class LocalBrain {
             text.contains("buenos dias") ||
             text.contains("buenas tardes") ||
             text.contains("buenas noches")
-        ) {
-            return AssistantCommand.Greeting
-        }
+        ) return AssistantCommand.Greeting
 
         return AssistantCommand.Unknown(original)
+    }
+
+    private fun parseOpenApp(original: String, normalized: String): AssistantCommand? {
+        val openRequested = containsAny(
+            normalized,
+            "abre", "abri", "abrir", "inicia", "lanza", "ejecuta", "pon", "pone",
+        )
+        if (!openRequested) return null
+
+        when {
+            normalized.contains("youtube") -> return AssistantCommand.OpenApp(SupportedApp.YOUTUBE)
+            normalized.contains("whatsapp") || normalized.contains("wasa") -> return AssistantCommand.OpenApp(SupportedApp.WHATSAPP)
+            normalized.contains("spotify") -> return AssistantCommand.OpenApp(SupportedApp.SPOTIFY)
+            normalized.contains("maps") || normalized.contains("mapas") -> return AssistantCommand.OpenApp(SupportedApp.MAPS)
+            normalized.contains("chrome") || normalized.contains("navegador") -> return AssistantCommand.OpenApp(SupportedApp.CHROME)
+            normalized.contains("gmail") || normalized.contains("correo") -> return AssistantCommand.OpenApp(SupportedApp.GMAIL)
+        }
+
+        val match = Regex(
+            """(?i)(?:^|\b)(?:abre|abrí|abri|abrir|inicia|lanza|ejecuta|poné|pone|pon)\s+(?:(?:la|el)\s+)?(?:(?:app|aplicación|aplicacion)\s+)?(.+)$"""
+        ).find(original) ?: return null
+
+        val name = match.groupValues.getOrNull(1)
+            ?.replace(Regex("(?i)\\s+por favor$"), "")
+            ?.trim(' ', ',', '.', '!', '?')
+            .orEmpty()
+
+        return name.takeIf { it.isNotBlank() }?.let(AssistantCommand::OpenAppByName)
     }
 
     private fun parseDial(text: String): AssistantCommand.Dial? {
@@ -113,11 +127,9 @@ class LocalBrain {
         if (normalized.contains("whatsapp") || normalized.contains("wasa") || normalized.contains("guasap")) return null
 
         val numberMatch = PHONE_REGEX.find(normalized) ?: return null
-        val body = extractMessageBody(original)
-
         return AssistantCommand.ComposeMessage(
             number = cleanPhone(numberMatch.value),
-            message = body,
+            message = extractMessageBody(original),
         )
     }
 
@@ -127,7 +139,6 @@ class LocalBrain {
 
         val number = PHONE_REGEX.find(normalized)?.value?.let(::cleanPhone)
         var body = extractMessageBody(original)
-
         if (body.isBlank()) {
             body = normalize(original)
                 .replace(Regex("\\b(?:envia|enviar|manda|mandar|escribe|mensaje)\\b"), " ")
@@ -137,34 +148,23 @@ class LocalBrain {
                 .replace(Regex("\\s+"), " ")
                 .trim(' ', ',', '.', ':')
         }
-
         return AssistantCommand.WhatsAppMessage(number = number, message = body)
     }
 
-    private fun extractMessageBody(original: String): String {
-        return Regex("""(?i)(?:diciendo|que diga|con el texto|con mensaje)\s+(.+)$""")
-            .find(original)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.trim()
-            .orEmpty()
-    }
+    private fun extractMessageBody(original: String): String =
+        Regex("""(?i)(?:diciendo|que diga|con el texto|con mensaje)\s+(.+)$""")
+            .find(original)?.groupValues?.getOrNull(1)?.trim().orEmpty()
 
     private fun parseSpotify(original: String, normalized: String): AssistantCommand.PlaySpotify? {
         if (!normalized.contains("spotify")) return null
         if (!containsAny(normalized, "pon", "pone", "reproduce", "toca", "escucha", "quiero escuchar", "musica")) return null
 
-        var query = Regex("""(?i)(?:pon(?:e)?|reproduce|toca|escucha|quiero escuchar)\s+(.+)$""")
-            .find(original)
-            ?.groupValues
-            ?.getOrNull(1)
-            .orEmpty()
-
+        var query = Regex("""(?i)(?:pon(?:e)?|poné|reproduce|toca|escucha|quiero escuchar)\s+(.+)$""")
+            .find(original)?.groupValues?.getOrNull(1).orEmpty()
         query = query
             .replace(Regex("(?i)\\s+(?:en|por)\\s+spotify\\s*$"), "")
             .replace(Regex("(?i)^spotify\\s+"), "")
             .trim(' ', ',', '.')
-
         if (query.equals("spotify", ignoreCase = true)) query = ""
         return AssistantCommand.PlaySpotify(query)
     }
@@ -180,44 +180,28 @@ class LocalBrain {
 
     private fun parseVolume(text: String): AssistantCommand? {
         if (!containsAny(text, "volumen", "sonido")) return null
-
-        val percent = Regex("""\b(100|[1-9]?\d)\s*%""")
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.toIntOrNull()
+        val percent = Regex("""\b(100|[1-9]?\d)\s*%""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
         if (percent != null) return AssistantCommand.SetVolume(percent)
-
         return when {
-            containsAny(text, "silencio", "mutea", "mute", "quita el sonido") ->
-                AssistantCommand.AdjustVolume(VolumeDirection.MUTE)
-            containsAny(text, "sube", "subi", "subir", "aumenta", "mas volumen") ->
-                AssistantCommand.AdjustVolume(VolumeDirection.UP)
-            containsAny(text, "baja", "bajar", "disminuye", "menos volumen") ->
-                AssistantCommand.AdjustVolume(VolumeDirection.DOWN)
+            containsAny(text, "silencio", "mutea", "mute", "quita el sonido") -> AssistantCommand.AdjustVolume(VolumeDirection.MUTE)
+            containsAny(text, "sube", "subi", "subir", "aumenta", "mas volumen") -> AssistantCommand.AdjustVolume(VolumeDirection.UP)
+            containsAny(text, "baja", "bajar", "disminuye", "menos volumen") -> AssistantCommand.AdjustVolume(VolumeDirection.DOWN)
             else -> null
         }
     }
 
     private fun parseBrightness(text: String): AssistantCommand.SetBrightness? {
         if (!containsAny(text, "brillo", "luminosidad")) return null
-        val percent = Regex("""\b(100|[1-9]?\d)\s*%""")
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.toIntOrNull()
-            ?: return null
+        val percent = Regex("""\b(100|[1-9]?\d)\s*%""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return null
         return AssistantCommand.SetBrightness(percent)
     }
 
     private fun parseSystemPanel(text: String): AssistantCommand.OpenSystemPanel? {
         val wantsControl = containsAny(
             text,
-            "abre", "abri", "abrir", "activa", "activar", "enciende", "encender",
-            "prende", "configura", "ajustes",
+            "abre", "abri", "abrir", "activa", "activar", "enciende", "encender", "prende", "configura", "ajustes",
         )
         if (!wantsControl) return null
-
         return when {
             text.contains("wifi") || text.contains("wi fi") -> AssistantCommand.OpenSystemPanel(SystemPanel.WIFI)
             text.contains("bluetooth") -> AssistantCommand.OpenSystemPanel(SystemPanel.BLUETOOTH)
@@ -233,36 +217,35 @@ class LocalBrain {
     private fun parseSmartHome(text: String): AssistantCommand.SmartHomeControl? {
         val hasTarget = containsAny(
             text,
-            "luz", "lampara", "bombillo", "foco", "ventilador", "abanico",
-            "enchufe", "tomacorriente", "switch", "televisor", "tv",
+            "luz", "lampara", "bombillo", "foco", "ventilador", "abanico", "enchufe", "tomacorriente", "switch", "televisor", "tv",
         )
         if (!hasTarget) return null
-
         val enabled = when {
             containsAny(text, "apaga", "apagar", "desactiva") -> false
             containsAny(text, "enciende", "encender", "prende", "prender", "activa") -> true
             else -> return null
         }
-
         val target = text
             .replace(Regex("\\b(?:enciende|encender|prende|prender|activa|apaga|apagar|desactiva)\\b"), " ")
             .replace(Regex("\\b(?:la|el|los|las|de|del)\\b"), " ")
             .replace(Regex("\\s+"), " ")
             .trim(' ', ',', '.')
-
         if (target.isBlank()) return null
         return AssistantCommand.SmartHomeControl(target = target, enabled = enabled)
     }
 
     private fun parseWebSearch(original: String): AssistantCommand.SearchWeb? {
         val normalized = normalize(original)
-        val phrases = listOf("busca en internet", "buscar en internet", "busca en google", "googlea")
+        val phrases = listOf(
+            "busca en internet", "buscar en internet", "busca en google", "buscar en google",
+            "investiga en internet", "investigar en internet", "consulta en internet", "googlea",
+            "busca", "buscar", "investiga", "investigar", "averigua", "averiguar",
+        )
         for (phrase in phrases) {
-            val index = normalized.indexOf(phrase)
-            if (index >= 0) {
-                val query = normalized.substring(index + phrase.length).trim(' ', ',', '.', '?', '¿')
-                if (query.isNotBlank()) return AssistantCommand.SearchWeb(query)
-            }
+            val regex = Regex("(?:^|\\s)${Regex.escape(phrase)}(?:\\s+|$)")
+            val match = regex.find(normalized) ?: continue
+            val query = normalized.substring(match.range.last + 1).trim(' ', ',', '.', '?', '¿', ':')
+            if (query.isNotBlank()) return AssistantCommand.SearchWeb(query)
         }
         return null
     }
@@ -277,71 +260,39 @@ class LocalBrain {
 
     private fun parseTimer(text: String): AssistantCommand.SetTimer? {
         if (!containsAny(text, "temporizador", "cronometro", "cuenta regresiva")) return null
-
-        val hourMatch = Regex("""(\d+)\s*(?:hora|horas|h)\b""").find(text)
-        val minuteMatch = Regex("""(\d+)\s*(?:minuto|minutos|min)\b""").find(text)
-        val secondMatch = Regex("""(\d+)\s*(?:segundo|segundos|seg)\b""").find(text)
-
-        val hours = hourMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
-        val minutes = minuteMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
-        val seconds = secondMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
-
+        val hours = Regex("""(\d+)\s*(?:hora|horas|h)\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        val minutes = Regex("""(\d+)\s*(?:minuto|minutos|min)\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        val seconds = Regex("""(\d+)\s*(?:segundo|segundos|seg)\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
         var totalSeconds = hours * 3_600 + minutes * 60 + seconds
-
         if (totalSeconds == 0) {
-            val bareNumber = Regex("""\b(\d{1,4})\b""").find(text)
-                ?.groupValues
-                ?.getOrNull(1)
-                ?.toIntOrNull()
-                ?: return null
+            val bareNumber = Regex("""\b(\d{1,4})\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return null
             totalSeconds = bareNumber * 60
         }
-
         if (totalSeconds !in 1..86_400) return null
-        return AssistantCommand.SetTimer(
-            seconds = totalSeconds,
-            label = "Temporizador creado por EDDY",
-        )
+        return AssistantCommand.SetTimer(totalSeconds, "Temporizador creado por EDDY")
     }
 
     private fun parseAlarm(text: String): AssistantCommand.SetAlarm? {
         if (!containsAny(text, "alarma", "despiertame", "despertarme")) return null
-
         val match = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm|a m|p m)?""").find(text) ?: return null
         var hour = match.groupValues[1].toIntOrNull() ?: return null
         val minute = match.groupValues.getOrNull(2)?.toIntOrNull() ?: 0
         val meridiem = match.groupValues.getOrNull(3).orEmpty().replace(" ", "")
-
         val mentionsNight = text.contains("noche") || text.contains("tarde")
         val mentionsMorning = text.contains("manana") || text.contains("madrugada")
-
         if ((meridiem == "pm" || mentionsNight) && hour in 1..11) hour += 12
         if ((meridiem == "am" || mentionsMorning) && hour == 12) hour = 0
-
         if (hour !in 0..23 || minute !in 0..59) return null
-
-        return AssistantCommand.SetAlarm(
-            hour = hour,
-            minute = minute,
-            label = "Alarma creada por EDDY",
-        )
+        return AssistantCommand.SetAlarm(hour, minute, "Alarma creada por EDDY")
     }
 
     private fun parseMaps(original: String): AssistantCommand.OpenMaps? {
         val normalized = normalize(original)
-        val phrases = listOf(
-            "llevame a",
-            "como llego a",
-            "ruta a",
-            "buscar en mapas",
-            "busca en mapas",
-            "mapa de",
-        )
-
+        val phrases = listOf("llevame a", "como llego a", "ruta a", "buscar en mapas", "busca en mapas", "mapa de")
         for (phrase in phrases) {
             val index = normalized.indexOf(phrase)
             if (index >= 0) {
-                val destination = original.substring(index + phrase.length).trim(' ', ',', '.', '?', '¿')
+                val destination = normalized.substring(index + phrase.length).trim(' ', ',', '.', '?', '¿')
                 if (destination.isNotBlank()) return AssistantCommand.OpenMaps(destination)
             }
         }
@@ -349,7 +300,6 @@ class LocalBrain {
     }
 
     private fun cleanPhone(value: String): String = value.replace(Regex("""[\s-]"""), "")
-
     private fun containsAny(text: String, vararg values: String): Boolean = values.any(text::contains)
 
     private fun normalize(value: String): String {
