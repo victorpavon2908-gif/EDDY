@@ -16,6 +16,18 @@ class LocalBrainTest {
     }
 
     @Test
+    fun opensAnyInstalledAppBySpokenName() {
+        assertEquals(
+            AssistantCommand.OpenAppByName("Calculadora"),
+            brain.understand("abrí la app Calculadora"),
+        )
+        assertEquals(
+            AssistantCommand.OpenAppByName("Facebook"),
+            brain.understand("abre Facebook"),
+        )
+    }
+
+    @Test
     fun understandsCameraWithoutAccent() {
         assertEquals(
             AssistantCommand.OpenCamera,
@@ -119,6 +131,26 @@ class LocalBrainTest {
     }
 
     @Test
+    fun opensAiWebConfiguration() {
+        assertEquals(
+            AssistantCommand.OpenAiSettings,
+            brain.understand("configura búsqueda web"),
+        )
+    }
+
+    @Test
+    fun naturalSearchForcesWebResearch() {
+        assertEquals(
+            AssistantCommand.SearchWeb("noticias de nicaragua hoy"),
+            brain.understand("buscá noticias de Nicaragua hoy"),
+        )
+        assertEquals(
+            AssistantCommand.SearchWeb("cual es el mejor samsung actual"),
+            brain.understand("investigá cuál es el mejor Samsung actual"),
+        )
+    }
+
+    @Test
     fun reportsBattery() {
         assertEquals(
             AssistantCommand.BatteryStatus,
@@ -129,7 +161,7 @@ class LocalBrainTest {
     @Test
     fun opensMapDestination() {
         assertEquals(
-            AssistantCommand.OpenMaps("Masaya"),
+            AssistantCommand.OpenMaps("masaya"),
             brain.understand("llévame a Masaya"),
         )
     }
