@@ -30,11 +30,42 @@ class LocalBrain {
             return AssistantCommand.TellTime
         }
 
+        if (
+            text.contains("configura casa inteligente") ||
+            text.contains("configurar casa inteligente") ||
+            text.contains("configura domotica") ||
+            text.contains("configurar domotica") ||
+            text.contains("configura home assistant") ||
+            text.contains("configurar home assistant")
+        ) {
+            return AssistantCommand.OpenSmartHomeSettings
+        }
+
+        parseWhatsApp(original, text)?.let { return it }
         parseMessage(original, text)?.let { return it }
         parseDial(text)?.let { return it }
+        parseSpotify(original, text)?.let { return it }
         parseTimer(text)?.let { return it }
         parseAlarm(text)?.let { return it }
         parseMaps(original)?.let { return it }
+        parseTorch(text)?.let { return it }
+        parseVolume(text)?.let { return it }
+        parseBrightness(text)?.let { return it }
+        parseSystemPanel(text)?.let { return it }
+        parseSmartHome(original, text)?.let { return it }
+        parseWebSearch(original)?.let { return it }
+        parseShare(original, text)?.let { return it }
+
+        if (
+            text.contains("bateria") &&
+            containsAny(text, "cuanta", "porcentaje", "nivel", "queda", "tengo")
+        ) {
+            return AssistantCommand.BatteryStatus
+        }
+
+        if (containsAny(text, "vibra", "vibrar", "haz vibrar", "hace vibrar")) {
+            return AssistantCommand.Vibrate()
+        }
 
         if (text.contains("camara") && containsAny(text, "abre", "abrir", "inicia", "enciende")) {
             return AssistantCommand.OpenCamera
@@ -69,26 +100,171 @@ class LocalBrain {
 
     private fun parseDial(text: String): AssistantCommand.Dial? {
         if (!containsAny(text, "llama", "marcar", "marca", "llamar")) return null
-        val match = Regex("""\+?\d[\d\s-]{6,}\d""").find(text) ?: return null
+        val match = PHONE_REGEX.find(text) ?: return null
         return AssistantCommand.Dial(cleanPhone(match.value))
     }
 
     private fun parseMessage(original: String, normalized: String): AssistantCommand.ComposeMessage? {
         if (!containsAny(normalized, "mensaje", "sms")) return null
         if (!containsAny(normalized, "envia", "enviar", "manda", "mandar", "escribe")) return null
+        if (normalized.contains("whatsapp") || normalized.contains("wasa")) return null
 
-        val numberMatch = Regex("""\+?\d[\d\s-]{6,}\d""").find(normalized) ?: return null
-        val body = Regex("""(?i)(?:diciendo|que diga|con el texto)\s+(.+)$""")
-            .find(original)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.trim()
-            .orEmpty()
+        val numberMatch = PHONE_REGEX.find(normalized) ?: return null
+        val body = extractMessageBody(original)
 
         return AssistantCommand.ComposeMessage(
             number = cleanPhone(numberMatch.value),
             message = body,
         )
+    }
+
+    private fun parseWhatsApp(original: String, normalized: String): AssistantCommand.WhatsAppMessage? {
+        if (!containsAny(normalized, "whatsapp", "wasa", "guasap")) return null
+        if (!containsAny(normalized, "envia", "enviar", "manda", "mandar", "escribe", "mensaje")) return null
+
+        val number = PHONE_REGEX.find(normalized)?.value?.let(::cleanPhone)
+        var body = extractMessageBody(original)
+
+        if (body.isBlank()) {
+            body = original
+                .replace(Regex("(?i)\\b(?:envia|enviar|manda|mandar|escribe|mensaje)\\b"), " ")
+                .replace(Regex("(?i)\\b(?:por|en)?\\s*(?:whatsapp|wasa|guasap)\\b"), " ")
+                .replace(Regex("(?i)\\b(?:al|a)\\b"), " ")
+                .replace(PHONE_REGEX, " ")
+                .replace(Regex("\\s+"), " ")
+                .trim(' ', ',', '.', ':')
+        }
+
+        return AssistantCommand.WhatsAppMessage(number = number, message = body)
+    }
+
+    private fun extractMessageBody(original: String): String {
+        return Regex("""(?i)(?:diciendo|que diga|con el texto|con mensaje|mensaje)\s+(.+)$""")
+            .find(original)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
+    }
+
+    private fun parseSpotify(original: String, normalized: String): AssistantCommand.PlaySpotify? {
+        if (!normalized.contains("spotify")) return null
+        if (!containsAny(normalized, "pon", "pone", "reproduce", "toca", "escucha", "quiero escuchar", "musica")) return null
+
+        var query = Regex("""(?i)(?:pon(?:e)?|reproduce|toca|escucha|quiero escuchar)\s+(.+)$""")
+            .find(original)
+            ?.groupValues
+            ?.getOrNull(1)
+            .orEmpty()
+
+        query = query
+            .replace(Regex("(?i)\\s+(?:en|por)\\s+spotify\\s*$"), "")
+            .replace(Regex("(?i)^spotify\\s+"), "")
+            .trim(' ', ',', '.')
+
+        if (query.equals("spotify", ignoreCase = true)) query = ""
+        return AssistantCommand.PlaySpotify(query)
+    }
+
+    private fun parseTorch(text: String): AssistantCommand.SetTorch? {
+        if (!containsAny(text, "linterna", "flash del telefono", "luz del telefono")) return null
+        return when {
+            containsAny(text, "apaga", "apagar", "desactiva", "quita") -> AssistantCommand.SetTorch(false)
+            containsAny(text, "enciende", "encender", "prende", "prender", "activa") -> AssistantCommand.SetTorch(true)
+            else -> null
+        }
+    }
+
+    private fun parseVolume(text: String): AssistantCommand? {
+        if (!containsAny(text, "volumen", "sonido")) return null
+
+        val percent = Regex("""\b(100|[1-9]?\d)\s*%""")
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+        if (percent != null) return AssistantCommand.SetVolume(percent)
+
+        return when {
+            containsAny(text, "silencio", "mutea", "mute", "quita el sonido") ->
+                AssistantCommand.AdjustVolume(VolumeDirection.MUTE)
+            containsAny(text, "sube", "subir", "aumenta", "mas volumen") ->
+                AssistantCommand.AdjustVolume(VolumeDirection.UP)
+            containsAny(text, "baja", "bajar", "disminuye", "menos volumen") ->
+                AssistantCommand.AdjustVolume(VolumeDirection.DOWN)
+            else -> null
+        }
+    }
+
+    private fun parseBrightness(text: String): AssistantCommand.SetBrightness? {
+        if (!containsAny(text, "brillo", "luminosidad")) return null
+        val percent = Regex("""\b(100|[1-9]?\d)\s*%""")
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: return null
+        return AssistantCommand.SetBrightness(percent)
+    }
+
+    private fun parseSystemPanel(text: String): AssistantCommand.OpenSystemPanel? {
+        val wantsControl = containsAny(text, "abre", "abrir", "activa", "activar", "enciende", "encender", "prende", "configura", "ajustes")
+        if (!wantsControl) return null
+
+        return when {
+            text.contains("wifi") || text.contains("wi fi") -> AssistantCommand.OpenSystemPanel(SystemPanel.WIFI)
+            text.contains("bluetooth") -> AssistantCommand.OpenSystemPanel(SystemPanel.BLUETOOTH)
+            text.contains("internet") || text.contains("datos moviles") -> AssistantCommand.OpenSystemPanel(SystemPanel.INTERNET)
+            text.contains("ubicacion") || text.contains("gps") -> AssistantCommand.OpenSystemPanel(SystemPanel.LOCATION)
+            text.contains("nfc") -> AssistantCommand.OpenSystemPanel(SystemPanel.NFC)
+            text.contains("modo avion") || text.contains("avion") -> AssistantCommand.OpenSystemPanel(SystemPanel.AIRPLANE)
+            text.contains("configuracion") || text.contains("ajustes") -> AssistantCommand.OpenSystemPanel(SystemPanel.SETTINGS)
+            else -> null
+        }
+    }
+
+    private fun parseSmartHome(original: String, text: String): AssistantCommand.SmartHomeControl? {
+        val hasTarget = containsAny(
+            text,
+            "luz", "lampara", "bombillo", "foco", "ventilador", "abanico",
+            "enchufe", "tomacorriente", "switch", "televisor", "tv",
+        )
+        if (!hasTarget) return null
+
+        val enabled = when {
+            containsAny(text, "apaga", "apagar", "desactiva") -> false
+            containsAny(text, "enciende", "encender", "prende", "prender", "activa") -> true
+            else -> return null
+        }
+
+        val target = original
+            .replace(Regex("(?i)\\b(?:enciende|encender|prende|prender|activa|apaga|apagar|desactiva)\\b"), " ")
+            .replace(Regex("(?i)\\b(?:la|el|los|las|de|del)\\b"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim(' ', ',', '.')
+
+        if (target.isBlank()) return null
+        return AssistantCommand.SmartHomeControl(target = target, enabled = enabled)
+    }
+
+    private fun parseWebSearch(original: String): AssistantCommand.SearchWeb? {
+        val phrases = listOf("busca en internet", "buscar en internet", "busca en google", "googlea")
+        val lower = original.lowercase(Locale.ROOT)
+        for (phrase in phrases) {
+            val index = lower.indexOf(phrase)
+            if (index >= 0) {
+                val query = original.substring(index + phrase.length).trim(' ', ',', '.', '?', '¿')
+                if (query.isNotBlank()) return AssistantCommand.SearchWeb(query)
+            }
+        }
+        return null
+    }
+
+    private fun parseShare(original: String, text: String): AssistantCommand.ShareText? {
+        if (!containsAny(text, "comparte", "compartir")) return null
+        val match = Regex("""(?i)(?:comparte|compartir)\s+(.+)$""").find(original) ?: return null
+        val value = match.groupValues.getOrNull(1)?.trim().orEmpty()
+        return value.takeIf { it.isNotBlank() }?.let(AssistantCommand::ShareText)
     }
 
     private fun parseTimer(text: String): AssistantCommand.SetTimer? {
@@ -175,5 +351,9 @@ class LocalBrain {
         return Normalizer.normalize(lower, Normalizer.Form.NFD)
             .replace("\\p{Mn}+".toRegex(), "")
             .trim()
+    }
+
+    companion object {
+        private val PHONE_REGEX = Regex("""\+?\d[\d\s-]{6,}\d""")
     }
 }
