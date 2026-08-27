@@ -3,81 +3,230 @@ package com.eddy.assistant.memory
 import android.content.Context
 import com.eddy.assistant.brain.AssistantCommand
 import com.eddy.assistant.brain.SupportedApp
+import java.util.Calendar
 import org.json.JSONArray
+import org.json.JSONObject
 
 class EddyMemory(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("eddy_memory", Context.MODE_PRIVATE)
 
-    fun rememberUtterance(text: String) {
+    fun rememberUtterance(text: String) = rememberUserTurn(text)
+
+    fun rememberUserTurn(text: String) {
         val cleaned = text.trim()
         if (cleaned.isBlank()) return
-
-        val current = readHistory().toMutableList()
-        current.add(cleaned)
-        while (current.size > MAX_HISTORY) current.removeAt(0)
-
-        val array = JSONArray()
-        current.forEach { item -> array.put(item) }
+        appendTurn("user", cleaned)
+        learnFacts(cleaned)
         prefs.edit()
-            .putString(KEY_HISTORY, array.toString())
             .putInt(KEY_TOTAL_INTERACTIONS, prefs.getInt(KEY_TOTAL_INTERACTIONS, 0) + 1)
             .apply()
     }
 
+    fun rememberAssistantTurn(text: String) {
+        val cleaned = text.trim()
+        if (cleaned.isBlank()) return
+        appendTurn("assistant", cleaned)
+    }
+
     fun rememberCommand(command: AssistantCommand) {
-        when (command) {
-            is AssistantCommand.OpenApp -> increment("app_${command.app.name}")
-            AssistantCommand.OpenCamera -> increment("camera")
-            AssistantCommand.TellTime -> increment("time")
-            AssistantCommand.Greeting -> increment("greeting")
-            AssistantCommand.MemorySummary -> increment("memory_summary")
-            is AssistantCommand.Unknown -> increment("unknown")
-        }
+        val key = commandKey(command) ?: return
+        increment("command_$key")
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        increment("command_${key}_hour_$hour")
     }
 
     fun describeLearnedPatterns(): String {
         val total = prefs.getInt(KEY_TOTAL_INTERACTIONS, 0)
         if (total == 0) {
-            return "Todavía estoy empezando a conocerte. Mientras hables conmigo iré recordando tus solicitudes en este teléfono."
+            return "Todavía estoy empezando a conocerte. Habla conmigo y recordaré localmente lo importante para ayudarte mejor."
         }
 
-        val favoriteApp = SupportedApp.entries
-            .map { app -> app to prefs.getInt("app_${app.name}", 0) }
-            .maxByOrNull { it.second }
-            ?.takeIf { it.second > 0 }
+        val facts = learnedFacts()
+        val factText = facts.entries
+            .take(4)
+            .joinToString("; ") { (key, value) -> "${factLabel(key)} $value" }
 
-        val cameraCount = prefs.getInt("camera", 0)
-        val timeCount = prefs.getInt("time", 0)
+        val favoriteAction = actionCandidates()
+            .map { (key, label) -> prefs.getInt("command_$key", 0) to label }
+            .maxByOrNull { it.first }
+            ?.takeIf { it.first > 0 }
 
-        val strongest = buildList {
-            favoriteApp?.let { add(it.second to "abrir ${it.first.displayName}") }
-            if (cameraCount > 0) add(cameraCount to "usar la cámara")
-            if (timeCount > 0) add(timeCount to "consultar la hora")
-        }.maxByOrNull { it.first }
+        return buildString {
+            append("He registrado $total interacciones contigo.")
+            if (factText.isNotBlank()) append(" Recuerdo que $factText.")
+            if (favoriteAction != null) append(" Lo que más me has pedido hasta ahora es ${favoriteAction.second}.")
+            append(" Esta memoria se guarda en tu teléfono.")
+        }
+    }
 
-        return if (strongest != null) {
-            "He registrado $total interacciones contigo. Hasta ahora, lo que más me pides es ${strongest.second}. Seguiré aprendiendo de lo que me solicites dentro de EDDY."
+    fun contextForAi(): String {
+        val facts = learnedFacts()
+        val factBlock = if (facts.isEmpty()) {
+            "Sin datos personales aprendidos todavía."
         } else {
-            "He registrado $total interacciones contigo. Todavía necesito más uso para encontrar un patrón claro."
+            facts.entries.joinToString("\n") { (key, value) -> "- ${factLabel(key)} $value" }
         }
+
+        val recent = readTurns().takeLast(14)
+        val conversationBlock = if (recent.isEmpty()) {
+            "Sin conversación previa."
+        } else {
+            recent.joinToString("\n") { turn ->
+                val label = if (turn.role == "user") "Usuario" else "EDDY"
+                "$label: ${turn.text}"
+            }
+        }
+
+        return """
+            MEMORIA APRENDIDA:
+            $factBlock
+
+            CONVERSACIÓN RECIENTE:
+            $conversationBlock
+        """.trimIndent()
+    }
+
+    fun shouldScheduleProactive(command: AssistantCommand): Boolean {
+        val key = commandKey(command) ?: return false
+        if (!isProactiveEligible(command)) return false
+        if (prefs.getBoolean("proactive_scheduled_$key", false)) return false
+
+        val totalForCommand = prefs.getInt("command_$key", 0)
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val sameHourCount = prefs.getInt("command_${key}_hour_$hour", 0)
+        return totalForCommand >= 3 && sameHourCount >= 2
+    }
+
+    fun markProactiveScheduled(command: AssistantCommand) {
+        val key = commandKey(command) ?: return
+        prefs.edit().putBoolean("proactive_scheduled_$key", true).apply()
+    }
+
+    fun proactiveMessage(command: AssistantCommand): String? = when (command) {
+        is AssistantCommand.OpenApp -> "Sueles abrir ${command.app.displayName} a esta hora. EDDY está listo si lo necesitas."
+        AssistantCommand.OpenCamera -> "Sueles usar la cámara a esta hora. EDDY está atento por si la necesitas."
+        is AssistantCommand.OpenMaps -> "Sueles consultar mapas a esta hora. Puedo ayudarte con una ruta cuando quieras."
+        else -> null
+    }
+
+    fun clearAll() {
+        prefs.edit().clear().apply()
+    }
+
+    private fun appendTurn(role: String, text: String) {
+        val current = readTurns().toMutableList()
+        current.add(MemoryTurn(role, text, System.currentTimeMillis()))
+        while (current.size > MAX_TURNS) current.removeAt(0)
+
+        val array = JSONArray()
+        current.forEach { turn ->
+            array.put(
+                JSONObject()
+                    .put("role", turn.role)
+                    .put("text", turn.text)
+                    .put("timestamp", turn.timestamp)
+            )
+        }
+        prefs.edit().putString(KEY_TURNS, array.toString()).apply()
+    }
+
+    private fun readTurns(): List<MemoryTurn> {
+        val raw = prefs.getString(KEY_TURNS, null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            List(array.length()) { index ->
+                val item = array.getJSONObject(index)
+                MemoryTurn(
+                    role = item.optString("role", "user"),
+                    text = item.optString("text", ""),
+                    timestamp = item.optLong("timestamp", 0L),
+                )
+            }.filter { it.text.isNotBlank() }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun learnFacts(text: String) {
+        learn("name", text, """(?i)\b(?:me llamo|mi nombre es)\s+([^,.!?]{1,60})""")
+        learn("likes", text, """(?i)\bme gusta(?:n)?\s+([^.!?]{1,100})""")
+        learn("prefers", text, """(?i)\bprefiero\s+([^.!?]{1,100})""")
+        learn("lives", text, """(?i)\bvivo en\s+([^.!?]{1,80})""")
+        learn("work", text, """(?i)\btrabajo (?:en|como)\s+([^.!?]{1,100})""")
+        learn("studies", text, """(?i)\bestudio\s+([^.!?]{1,100})""")
+    }
+
+    private fun learn(key: String, text: String, pattern: String) {
+        val value = Regex(pattern)
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            ?.take(120)
+            .orEmpty()
+        if (value.isNotBlank()) prefs.edit().putString("fact_$key", value).apply()
+    }
+
+    private fun learnedFacts(): Map<String, String> {
+        val keys = listOf("name", "likes", "prefers", "lives", "work", "studies")
+        return buildMap {
+            keys.forEach { key ->
+                prefs.getString("fact_$key", null)
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { put(key, it) }
+            }
+        }
+    }
+
+    private fun factLabel(key: String): String = when (key) {
+        "name" -> "tu nombre es"
+        "likes" -> "te gusta"
+        "prefers" -> "prefieres"
+        "lives" -> "vives en"
+        "work" -> "trabajas en/como"
+        "studies" -> "estudias"
+        else -> key
+    }
+
+    private fun actionCandidates(): List<Pair<String, String>> = buildList {
+        SupportedApp.entries.forEach { app -> add("app_${app.name}" to "abrir ${app.displayName}") }
+        add("camera" to "usar la cámara")
+        add("maps" to "usar mapas")
+        add("alarm" to "crear alarmas")
+    }
+
+    private fun commandKey(command: AssistantCommand): String? = when (command) {
+        is AssistantCommand.OpenApp -> "app_${command.app.name}"
+        AssistantCommand.OpenCamera -> "camera"
+        AssistantCommand.TellTime -> "time"
+        AssistantCommand.Greeting -> "greeting"
+        AssistantCommand.MemorySummary -> "memory_summary"
+        AssistantCommand.ClearMemory -> "clear_memory"
+        is AssistantCommand.Dial -> "dial"
+        is AssistantCommand.ComposeMessage -> "message"
+        is AssistantCommand.SetAlarm -> "alarm"
+        is AssistantCommand.OpenMaps -> "maps"
+        is AssistantCommand.Unknown -> "conversation"
+    }
+
+    private fun isProactiveEligible(command: AssistantCommand): Boolean = when (command) {
+        is AssistantCommand.OpenApp,
+        AssistantCommand.OpenCamera,
+        is AssistantCommand.OpenMaps -> true
+        else -> false
     }
 
     private fun increment(key: String) {
         prefs.edit().putInt(key, prefs.getInt(key, 0) + 1).apply()
     }
 
-    private fun readHistory(): List<String> {
-        val raw = prefs.getString(KEY_HISTORY, null) ?: return emptyList()
-        return runCatching {
-            val array = JSONArray(raw)
-            List(array.length()) { index -> array.optString(index) }
-                .filter { it.isNotBlank() }
-        }.getOrDefault(emptyList())
-    }
+    private data class MemoryTurn(
+        val role: String,
+        val text: String,
+        val timestamp: Long,
+    )
 
     companion object {
-        private const val KEY_HISTORY = "history"
+        private const val KEY_TURNS = "conversation_turns_v2"
         private const val KEY_TOTAL_INTERACTIONS = "total_interactions"
-        private const val MAX_HISTORY = 50
+        private const val MAX_TURNS = 100
     }
 }
