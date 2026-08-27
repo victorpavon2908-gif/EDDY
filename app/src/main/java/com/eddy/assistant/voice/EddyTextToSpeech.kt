@@ -29,20 +29,20 @@ class EddyTextToSpeech(
             tts.setSpeechRate(1.06f)
             tts.setPitch(0.96f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {
+                override fun onStart(utteranceId: String) {
                     notifySpeaking(true)
                 }
 
-                override fun onDone(utteranceId: String?) {
+                override fun onDone(utteranceId: String) {
                     notifySpeaking(false)
                 }
 
                 @Deprecated("Deprecated in Android API")
-                override fun onError(utteranceId: String?) {
+                override fun onError(utteranceId: String) {
                     notifySpeaking(false)
                 }
 
-                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                override fun onStop(utteranceId: String, interrupted: Boolean) {
                     notifySpeaking(false)
                 }
             })
