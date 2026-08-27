@@ -5,9 +5,15 @@ import java.util.Locale
 
 class WakeWordGate(
     private val wakeWord: String = "eddy",
-    private val followUpWindowMs: Long = 12_000L,
+    private val followUpWindowMs: Long = 20_000L,
 ) {
     private var armedUntil: Long = 0L
+
+    fun arm(nowMs: Long = System.currentTimeMillis()) {
+        armedUntil = nowMs + followUpWindowMs
+    }
+
+    fun isArmed(nowMs: Long = System.currentTimeMillis()): Boolean = nowMs <= armedUntil
 
     fun consume(input: String, nowMs: Long = System.currentTimeMillis()): WakeResult {
         val raw = input.trim()
@@ -15,7 +21,7 @@ class WakeWordGate(
 
         val normalized = normalize(raw)
         if (hasWakeWordNormalized(normalized)) {
-            armedUntil = nowMs + followUpWindowMs
+            arm(nowMs)
             val command = removeWakeWord(raw)
             return if (command.isBlank()) {
                 WakeResult.Activated
@@ -25,7 +31,7 @@ class WakeWordGate(
             }
         }
 
-        if (nowMs <= armedUntil) {
+        if (isArmed(nowMs)) {
             armedUntil = 0L
             return WakeResult.Command(raw)
         }
