@@ -7,6 +7,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -70,6 +71,10 @@ class EddyAssistantService : Service() {
     private var bubbleView: View? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var cpuWakeLock: PowerManager.WakeLock? = null
+
+    private val bubblePrefs by lazy {
+        getSharedPreferences(BUBBLE_PREFS, Context.MODE_PRIVATE)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -154,6 +159,7 @@ class EddyAssistantService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        bubbleParams?.let(::saveBubblePosition)
         hideBubble()
         recognizer.destroy()
         tts.shutdown()
@@ -204,7 +210,7 @@ class EddyAssistantService : Service() {
 
         if (command == AssistantCommand.ClearMemory) {
             memory.clearAll()
-            speakResponse("He borrado mi memoria local. Empezamos de nuevo desde aquí.")
+            speakResponse("He borrado mi memoria local y cancelado mis sugerencias programadas. Empezamos de nuevo desde aquí.")
             return
         }
 
@@ -215,7 +221,7 @@ class EddyAssistantService : Service() {
             AssistantCommand.Greeting -> "Aquí estoy. Te escucho."
 
             AssistantCommand.TellTime -> {
-                val time = SimpleDateFormat("h:mm a", Locale("es", "NI")).format(Date())
+                val time = SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())
                 "Son las $time."
             }
 
@@ -226,6 +232,7 @@ class EddyAssistantService : Service() {
             is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
             is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).spokenMessage
             is AssistantCommand.SetAlarm -> executor.setAlarm(command.hour, command.minute, command.label).spokenMessage
+            is AssistantCommand.SetTimer -> executor.setTimer(command.seconds, command.label).spokenMessage
             is AssistantCommand.OpenMaps -> executor.openMaps(command.query).spokenMessage
             is AssistantCommand.Unknown -> {
                 aiClient.reply(
@@ -430,11 +437,13 @@ class EddyAssistantService : Service() {
                 setStroke(dp(2), Color.BLACK)
             }
             setPadding(dp(9), dp(9), dp(9), dp(9))
+            contentDescription = "Abrir EDDY"
         }
 
         val icon = ImageView(this).apply {
             setImageResource(R.drawable.ic_eddy)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
+            contentDescription = null
         }
         container.addView(
             icon,
@@ -460,6 +469,11 @@ class EddyAssistantService : Service() {
         )
 
         val metrics = resources.displayMetrics
+        val maxX = (metrics.widthPixels - bubbleSize).coerceAtLeast(0)
+        val maxY = (metrics.heightPixels - bubbleSize - dp(24)).coerceAtLeast(0)
+        val defaultX = (metrics.widthPixels - bubbleSize - dp(14)).coerceAtLeast(0)
+        val defaultY = dp(180).coerceAtMost(maxY)
+
         val params = WindowManager.LayoutParams(
             bubbleSize,
             bubbleSize,
@@ -469,8 +483,8 @@ class EddyAssistantService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = (metrics.widthPixels - bubbleSize - dp(14)).coerceAtLeast(0)
-            y = dp(180)
+            x = bubblePrefs.getInt(KEY_BUBBLE_X, defaultX).coerceIn(0, maxX)
+            y = bubblePrefs.getInt(KEY_BUBBLE_Y, defaultY).coerceIn(0, maxY)
         }
 
         container.setOnTouchListener(createBubbleTouchListener(params, container))
@@ -483,6 +497,7 @@ class EddyAssistantService : Service() {
     }
 
     private fun hideBubble() {
+        bubbleParams?.let(::saveBubblePosition)
         val view = bubbleView ?: return
         runCatching { windowManager?.removeView(view) }
         bubbleView = null
@@ -523,13 +538,29 @@ class EddyAssistantService : Service() {
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    if (!moved) openMainActivity()
+                    if (moved) {
+                        saveBubblePosition(params)
+                    } else {
+                        openMainActivity()
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    if (moved) saveBubblePosition(params)
                     true
                 }
 
                 else -> false
             }
         }
+    }
+
+    private fun saveBubblePosition(params: WindowManager.LayoutParams) {
+        bubblePrefs.edit()
+            .putInt(KEY_BUBBLE_X, params.x)
+            .putInt(KEY_BUBBLE_Y, params.y)
+            .apply()
     }
 
     private fun openMainActivity() {
@@ -553,5 +584,9 @@ class EddyAssistantService : Service() {
         private const val WAKE_CHANNEL_ID = "eddy_wake_screen"
         private const val NOTIFICATION_ID = 4_310
         private const val WAKE_NOTIFICATION_ID = 4_311
+
+        private const val BUBBLE_PREFS = "eddy_bubble"
+        private const val KEY_BUBBLE_X = "bubble_x"
+        private const val KEY_BUBBLE_Y = "bubble_y"
     }
 }
