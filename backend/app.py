@@ -1,5 +1,8 @@
+import ast
+import math
 import os
 import re
+import unicodedata
 from html import unescape
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -28,6 +31,11 @@ _SESSION.headers.update(
 def _clean_text(value: str) -> str:
     text = unescape(str(value or ""))
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _ascii_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", str(value or "").lower())
+    return "".join(char for char in normalized if unicodedata.category(char) != "Mn")
 
 
 def _unwrap_ddg_url(href: str) -> str:
@@ -192,13 +200,129 @@ def _build_reply(query: str, results: list[dict]) -> str:
     return reply[:1800]
 
 
+def _normalize_math_expression(message: str) -> str | None:
+    text = _ascii_text(message)
+    text = text.replace("×", "*").replace("÷", "/").replace(",", ".")
+
+    root_match = re.search(r"raiz cuadrada de\s+(-?\d+(?:\.\d+)?)", text)
+    if root_match:
+        value = float(root_match.group(1))
+        if value < 0:
+            return None
+        return f"({value})**0.5"
+
+    text = re.sub(r"\bpor ciento de\b", "% de", text)
+    text = re.sub(
+        r"(-?\d+(?:\.\d+)?)\s*%\s*de\s*(-?\d+(?:\.\d+)?)",
+        r"(\1/100)*\2",
+        text,
+    )
+    text = re.sub(r"\bal cuadrado\b", " ** 2", text)
+    text = re.sub(r"\bal cubo\b", " ** 3", text)
+    text = re.sub(r"\belevado a\b", " ** ", text)
+    text = re.sub(r"\bdividido entre\b|\bdividido por\b", " / ", text)
+    text = re.sub(r"\bmultiplicado por\b", " * ", text)
+    text = re.sub(r"\bmas\b", " + ", text)
+    text = re.sub(r"\bmenos\b", " - ", text)
+    text = re.sub(r"\bentre\b", " / ", text)
+    text = re.sub(r"\bpor\b", " * ", text)
+    text = re.sub(r"(?<=\d)\s*x\s*(?=\d)", "*", text)
+    text = re.sub(r"\^", "**", text)
+
+    text = re.sub(
+        r"^(?:eddy\s*[,.:;-]?\s*)?(?:cuanto\s+es|cuanto\s+da|calcula(?:me)?|calcular|resuelve|resolver|resultado\s+de|dime\s+cuanto\s+es|decime\s+cuanto\s+es)\s+",
+        "",
+        text,
+    )
+    text = text.strip(" ¿?!.:;")
+
+    if not re.search(r"\d", text):
+        return None
+    if not re.search(r"(?:\*\*|[+\-*/%])", text):
+        return None
+    if re.search(r"[^0-9.+\-*/%()\s]", text):
+        return None
+
+    return re.sub(r"\s+", "", text)
+
+
+def _eval_math_node(node):
+    if isinstance(node, ast.Expression):
+        return _eval_math_node(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        value = _eval_math_node(node.operand)
+        return value if isinstance(node.op, ast.UAdd) else -value
+    if isinstance(node, ast.BinOp):
+        left = _eval_math_node(node.left)
+        right = _eval_math_node(node.right)
+        if isinstance(node.op, ast.Add):
+            value = left + right
+        elif isinstance(node.op, ast.Sub):
+            value = left - right
+        elif isinstance(node.op, ast.Mult):
+            value = left * right
+        elif isinstance(node.op, ast.Div):
+            if right == 0:
+                raise ZeroDivisionError
+            value = left / right
+        elif isinstance(node.op, ast.Mod):
+            if right == 0:
+                raise ZeroDivisionError
+            value = left % right
+        elif isinstance(node.op, ast.Pow):
+            if abs(right) > 12 or abs(left) > 1_000_000:
+                raise ValueError("power too large")
+            value = left**right
+        else:
+            raise ValueError("unsupported operator")
+        if not math.isfinite(value) or abs(value) > 1e15:
+            raise ValueError("result out of range")
+        return value
+    raise ValueError("unsupported expression")
+
+
+def _format_number(value: float) -> str:
+    if abs(value - round(value)) < 1e-10:
+        return str(int(round(value)))
+    return f"{value:.10f}".rstrip("0").rstrip(".")
+
+
+def _try_calculate(message: str) -> str | None:
+    expression = _normalize_math_expression(message)
+    if not expression:
+        return None
+    try:
+        tree = ast.parse(expression, mode="eval")
+        return _format_number(_eval_math_node(tree))
+    except (SyntaxError, ValueError, ZeroDivisionError, OverflowError):
+        return None
+
+
+def _looks_like_research(message: str) -> bool:
+    text = _ascii_text(message).strip(" ¿?!.:;")
+    if "?" in str(message):
+        return True
+    prefixes = (
+        "quien ", "quienes ", "que ", "cual ", "cuales ", "cuando ", "donde ",
+        "por que ", "como ", "cuanto ", "cuantos ", "cuanta ", "cuantas ",
+        "explicame ", "explica ", "hablame ", "dime sobre ", "decime sobre ",
+        "informacion ", "noticias ", "precio ", "cotizacion ", "clima ",
+        "busca ", "buscar ", "investiga ", "investigar ", "averigua ", "averiguar ",
+        "compara ", "comparame ", "diferencia entre ", "historia de ", "biografia de ",
+        "define ", "significado de ", "que paso ", "que esta pasando ",
+    )
+    return text.startswith(prefixes)
+
+
 def _status_payload():
     return {
         "status": "ok",
         "service": "EDDY Backend",
-        "engine": "eddy-web",
+        "engine": "eddy-web+math",
         "provider": "duckduckgo+wikipedia",
-        "mode": "search-only",
+        "mode": "automatic-research+calculator",
         "remote_model": False,
     }
 
@@ -213,17 +337,27 @@ def health():
     return jsonify(_status_payload())
 
 
-def _search_response():
+def _query_response(default_force_web: bool):
     payload = request.get_json(silent=True) or {}
     message = str(payload.get("message", payload.get("query", ""))).strip()
-    force_web = bool(payload.get("force_web", True))
+    force_web = bool(payload.get("force_web", default_force_web))
 
     if not message:
         return jsonify(error="message is required"), 400
     if len(message) > 2_000:
         return jsonify(error="message too long"), 413
-    if not force_web:
-        return jsonify(error="web_search_required"), 422
+
+    calculation = _try_calculate(message)
+    if calculation is not None:
+        return jsonify(
+            reply=f"El resultado es {calculation}.",
+            web_used=False,
+            sources=[],
+            kind="calculation",
+        )
+
+    if not force_web and not _looks_like_research(message):
+        return jsonify(error="local_command_unknown"), 422
 
     results = _search_web(message)
     if not results:
@@ -231,6 +365,7 @@ def _search_response():
             reply=_build_reply(message, []),
             web_used=False,
             sources=[],
+            kind="research",
         ), 502
 
     sources = [
@@ -244,18 +379,19 @@ def _search_response():
         reply=_build_reply(message, results),
         web_used=True,
         sources=sources,
+        kind="research",
     )
 
 
 @app.post("/search")
 def search():
-    return _search_response()
+    return _query_response(default_force_web=True)
 
 
 @app.post("/chat")
-def legacy_search_route():
-    # Se conserva temporalmente para compatibilidad con APK anteriores.
-    return _search_response()
+def legacy_query_route():
+    # Compatibilidad con APK anteriores: calcula o investiga sin usar modelos remotos.
+    return _query_response(default_force_web=False)
 
 
 if __name__ == "__main__":
