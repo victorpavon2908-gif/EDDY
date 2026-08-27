@@ -217,6 +217,7 @@ class EddyMemory(context: Context) {
 
     private fun actionCandidates(): List<Pair<String, String>> = buildList {
         SupportedApp.entries.forEach { app -> add("app_${app.name}" to "abrir ${app.displayName}") }
+        add("app_dynamic" to "abrir aplicaciones")
         add("camera" to "usar la cámara")
         add("maps" to "usar mapas")
         add("alarm" to "crear alarmas")
@@ -229,6 +230,7 @@ class EddyMemory(context: Context) {
 
     private fun commandKey(command: AssistantCommand): String? = when (command) {
         is AssistantCommand.OpenApp -> "app_${command.app.name}"
+        is AssistantCommand.OpenAppByName -> "app_dynamic"
         AssistantCommand.OpenCamera -> "camera"
         AssistantCommand.TellTime -> "time"
         AssistantCommand.Greeting -> "greeting"
@@ -252,6 +254,7 @@ class EddyMemory(context: Context) {
         is AssistantCommand.Vibrate -> "vibrate"
         is AssistantCommand.SmartHomeControl -> "smart_home"
         AssistantCommand.OpenSmartHomeSettings -> "smart_home_settings"
+        AssistantCommand.OpenAiSettings -> "ai_settings"
         is AssistantCommand.Unknown -> "conversation"
     }
 
