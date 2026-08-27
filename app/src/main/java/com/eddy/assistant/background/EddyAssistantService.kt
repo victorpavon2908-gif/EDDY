@@ -1,6 +1,8 @@
 package com.eddy.assistant.background
 
 import android.Manifest
+import android.app.KeyguardManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -13,6 +15,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
@@ -22,6 +25,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.eddy.assistant.EddyWakeActivity
 import com.eddy.assistant.MainActivity
 import com.eddy.assistant.R
 import com.eddy.assistant.actions.ActionExecutor
@@ -65,6 +69,7 @@ class EddyAssistantService : Service() {
     private var windowManager: WindowManager? = null
     private var bubbleView: View? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+    private var cpuWakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -106,9 +111,10 @@ class EddyAssistantService : Service() {
             },
         )
 
+        acquireCpuWakeLock()
         EddyRuntimeState.setRunning(applicationContext, true)
         EddyRuntimeState.setResponse(applicationContext, "Di EDDY para activarme.")
-        createNotificationChannel()
+        createNotificationChannels()
         startAsForeground()
 
         if (hasMicrophonePermission()) {
@@ -151,6 +157,7 @@ class EddyAssistantService : Service() {
         hideBubble()
         recognizer.destroy()
         tts.shutdown()
+        releaseCpuWakeLock()
         serviceScope.cancel()
         EddyRuntimeState.reset(applicationContext)
         super.onDestroy()
@@ -167,11 +174,13 @@ class EddyAssistantService : Service() {
             WakeResult.Activated -> {
                 EddyRuntimeState.setHeard(applicationContext, "EDDY")
                 EddyRuntimeState.setResponse(applicationContext, "Te escucho.")
+                revealEddyOnLockScreen()
                 recognizer.resume()
             }
 
             is WakeResult.Command -> {
                 EddyRuntimeState.setHeard(applicationContext, wakeResult.text)
+                revealEddyOnLockScreen()
                 recognizer.pause()
                 isThinking = true
                 updateVisualState()
@@ -256,17 +265,33 @@ class EddyAssistantService : Service() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "EDDY activo",
-            NotificationManager.IMPORTANCE_LOW,
-        ).apply {
-            description = "Mantiene a EDDY disponible por voz en segundo plano."
-            setShowBadge(false)
-        }
-        manager.createNotificationChannel(channel)
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                "EDDY activo",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Mantiene a EDDY disponible por voz en segundo plano."
+                setShowBadge(false)
+            },
+        )
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                WAKE_CHANNEL_ID,
+                "Despertar EDDY",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Permite mostrar EDDY cuando lo llamas con el teléfono bloqueado."
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            },
+        )
     }
 
     private fun startAsForeground() {
@@ -308,6 +333,86 @@ class EddyAssistantService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    private fun revealEddyOnLockScreen() {
+        val keyguardManager = getSystemService(KeyguardManager::class.java)
+        val powerManager = getSystemService(PowerManager::class.java)
+        val locked = keyguardManager?.isKeyguardLocked == true
+        val screenOff = powerManager?.isInteractive == false
+
+        if (!locked && !screenOff) return
+
+        wakeScreenBriefly()
+
+        val wakeIntent = Intent(this, EddyWakeActivity::class.java).apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
+        }
+        val wakePendingIntent = PendingIntent.getActivity(
+            this,
+            12,
+            wakeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val notification = NotificationCompat.Builder(this, WAKE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_eddy_notification)
+            .setContentTitle("EDDY")
+            .setContentText("Te escucho.")
+            .setContentIntent(wakePendingIntent)
+            .setFullScreenIntent(wakePendingIntent, true)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setTimeoutAfter(30_000L)
+            .build()
+
+        manager.notify(WAKE_NOTIFICATION_ID, notification)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !manager.canUseFullScreenIntent()) {
+            runCatching { startActivity(wakeIntent) }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun wakeScreenBriefly() {
+        val powerManager = getSystemService(PowerManager::class.java) ?: return
+        if (powerManager.isInteractive) return
+
+        runCatching {
+            val wakeLock = powerManager.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "$packageName:eddy_screen_wake",
+            )
+            wakeLock.acquire(4_000L)
+        }
+    }
+
+    private fun acquireCpuWakeLock() {
+        val powerManager = getSystemService(PowerManager::class.java) ?: return
+        if (cpuWakeLock?.isHeld == true) return
+
+        cpuWakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "$packageName:eddy_always_listening",
+        ).apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+    }
+
+    private fun releaseCpuWakeLock() {
+        val wakeLock = cpuWakeLock ?: return
+        if (wakeLock.isHeld) {
+            runCatching { wakeLock.release() }
+        }
+        cpuWakeLock = null
     }
 
     private fun showBubble() {
@@ -445,6 +550,8 @@ class EddyAssistantService : Service() {
         const val ACTION_STOP = "com.eddy.assistant.action.STOP"
 
         private const val CHANNEL_ID = "eddy_background_service"
+        private const val WAKE_CHANNEL_ID = "eddy_wake_screen"
         private const val NOTIFICATION_ID = 4_310
+        private const val WAKE_NOTIFICATION_ID = 4_311
     }
 }
