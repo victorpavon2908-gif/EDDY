@@ -1,171 +1,251 @@
 import os
-from urllib.parse import urlparse
+import re
+from html import unescape
+from urllib.parse import parse_qs, unquote, urlparse
 
+import requests
+from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
-from openai import OpenAI
 
 app = Flask(__name__)
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
-WEB_SEARCH_ENABLED = os.getenv("OPENAI_WEB_SEARCH", "true").lower() not in {"0", "false", "no"}
-_client = None
+SEARCH_TIMEOUT_SECONDS = float(os.getenv("EDDY_SEARCH_TIMEOUT", "12"))
+SEARCH_LIMIT = max(3, min(int(os.getenv("EDDY_SEARCH_LIMIT", "8")), 12))
+DDG_HTML_URL = "https://html.duckduckgo.com/html/"
+WIKIPEDIA_API_URL = "https://es.wikipedia.org/w/api.php"
 
-SYSTEM_INSTRUCTIONS = """
-Eres EDDY, un asistente personal conversacional para Android.
-Habla en español nicaragüense natural, claro y útil. Usa voseo de forma natural
-("vos", "decime", "querés", "ocupás", "podés") y expresiones nicas ligeras como
-"de una", "tuani" o "ahorita" cuando encajen. No caricaturices el acento ni llenes
-cada frase de modismos. EDDY es un asistente masculino: habla de sí mismo en masculino.
-Tu personalidad es inteligente, rápida, amable y segura.
-
-El teléfono ejecuta por separado acciones locales como abrir apps, llamadas,
-WhatsApp, Spotify, linterna, volumen, brillo, batería, alarmas, temporizadores,
-mapas, ajustes del sistema y dispositivos de casa inteligente por Wi-Fi. Tú atiendes
-conversación general, preguntas, explicaciones, investigación y continuidad contextual.
-
-Cuando la pregunta dependa de información reciente, cambiante, local, específica o
-requiera verificación, usa la búsqueda web. Investiga antes de responder. Para consultas
-complejas, haz varias búsquedas con términos distintos, abre o contrasta fuentes relevantes
-y sintetiza solamente después de tener evidencia suficiente. Prioriza fuentes oficiales,
-primarias, documentación original y medios confiables; usa varias fuentes cuando una sola
-no sea suficiente. No inventes hechos ni enlaces. Si las fuentes discrepan, dilo y explica
-la diferencia. Distingue claramente hechos verificados de inferencias.
-
-Cuando uses la web, responde primero la conclusión útil y luego el contexto necesario.
-Las citas de la plataforma deben respaldar las afirmaciones verificables. No llenes la
-respuesta de enlaces escritos manualmente: EDDY Android mostrará las fuentes por separado.
-
-Usa la memoria proporcionada solo cuando sea relevante. No inventes recuerdos.
-Si la memoria no contiene un dato, dilo con naturalidad. Evita respuestas innecesariamente
-largas salvo que el usuario pida detalle. Cuando una acción local ya fue ejecutada, no la
-simules ni afirmes haber hecho algo que Android no confirmó.
-""".strip()
+_SESSION = requests.Session()
+_SESSION.headers.update(
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36 EDDY/0.4"
+        ),
+        "Accept-Language": "es-NI,es;q=0.9,en;q=0.7",
+    }
+)
 
 
-def get_client():
-    global _client
-    if _client is None:
-        _client = OpenAI()
-    return _client
+def _clean_text(value: str) -> str:
+    text = unescape(str(value or ""))
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def _response_dict(response):
-    if isinstance(response, dict):
-        return response
-    model_dump = getattr(response, "model_dump", None)
-    if callable(model_dump):
-        return model_dump()
-    return {}
+def _unwrap_ddg_url(href: str) -> str:
+    value = str(href or "").strip()
+    if value.startswith("//"):
+        value = "https:" + value
+    parsed = urlparse(value)
+    if "duckduckgo.com" in parsed.netloc.lower() and parsed.path.startswith("/l/"):
+        target = parse_qs(parsed.query).get("uddg", [""])[0]
+        return unquote(target).strip()
+    return value
 
 
-def _source_title(url: str) -> str:
+def _source_domain(url: str) -> str:
     try:
-        host = urlparse(url).netloc.lower().removeprefix("www.")
-        return host or "Fuente web"
+        return urlparse(url).netloc.lower().removeprefix("www.")
     except Exception:
-        return "Fuente web"
+        return ""
 
 
-def _extract_sources(response):
-    data = _response_dict(response)
-    sources = []
-    seen = set()
+def _query_tokens(query: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-záéíóúñü0-9]{3,}", query.lower())
+        if token not in {"para", "como", "esta", "este", "esto", "sobre", "desde", "hasta"}
+    }
 
-    def add_source(url, title=None):
-        url = str(url or "").strip()
-        if not url or url in seen:
-            return
-        seen.add(url)
-        sources.append(
+
+def _score_result(query: str, item: dict) -> int:
+    tokens = _query_tokens(query)
+    haystack = f"{item.get('title', '')} {item.get('snippet', '')}".lower()
+    score = sum(8 for token in tokens if token in haystack)
+    domain = _source_domain(item.get("url", ""))
+    if domain.endswith((".gov", ".gob.ni", ".edu", ".org")):
+        score += 5
+    if domain:
+        score += 2
+    return score
+
+
+def _dedupe_rank(query: str, items: list[dict]) -> list[dict]:
+    seen_urls = set()
+    per_domain = {}
+    ranked = []
+
+    for item in sorted(items, key=lambda value: _score_result(query, value), reverse=True):
+        url = str(item.get("url", "")).strip()
+        if not url.startswith(("http://", "https://")) or url in seen_urls:
+            continue
+        domain = _source_domain(url)
+        if not domain:
+            continue
+        if per_domain.get(domain, 0) >= 2:
+            continue
+        seen_urls.add(url)
+        per_domain[domain] = per_domain.get(domain, 0) + 1
+        ranked.append(item)
+        if len(ranked) >= SEARCH_LIMIT:
+            break
+
+    return ranked
+
+
+def _search_duckduckgo(query: str) -> list[dict]:
+    response = _SESSION.post(
+        DDG_HTML_URL,
+        data={"q": query, "kl": "us-es"},
+        timeout=SEARCH_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    results = []
+
+    for block in soup.select(".result"):
+        anchor = block.select_one("a.result__a")
+        if anchor is None:
+            continue
+        url = _unwrap_ddg_url(anchor.get("href", ""))
+        if not url.startswith(("http://", "https://")):
+            continue
+        snippet_node = block.select_one(".result__snippet")
+        results.append(
             {
-                "title": str(title or _source_title(url)).strip()[:180] or "Fuente web",
-                "url": url[:2_000],
+                "title": _clean_text(anchor.get_text(" ", strip=True)) or _source_domain(url),
+                "url": url,
+                "snippet": _clean_text(snippet_node.get_text(" ", strip=True) if snippet_node else ""),
             }
         )
 
-    for item in data.get("output", []) or []:
-        if not isinstance(item, dict):
-            continue
+    return results
 
-        if item.get("type") == "web_search_call":
-            action = item.get("action") or {}
-            if isinstance(action, dict):
-                for source in action.get("sources", []) or []:
-                    if isinstance(source, dict):
-                        add_source(source.get("url"), source.get("title"))
 
-        if item.get("type") == "message":
-            for content in item.get("content", []) or []:
-                if not isinstance(content, dict):
-                    continue
-                for annotation in content.get("annotations", []) or []:
-                    if not isinstance(annotation, dict):
-                        continue
-                    if annotation.get("type") == "url_citation":
-                        add_source(annotation.get("url"), annotation.get("title"))
+def _search_wikipedia(query: str) -> list[dict]:
+    response = _SESSION.get(
+        WIKIPEDIA_API_URL,
+        params={
+            "action": "opensearch",
+            "search": query,
+            "limit": min(SEARCH_LIMIT, 6),
+            "namespace": 0,
+            "format": "json",
+        },
+        timeout=SEARCH_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, list) or len(data) < 4:
+        return []
 
-    return sources[:10]
+    titles = data[1] if isinstance(data[1], list) else []
+    descriptions = data[2] if isinstance(data[2], list) else []
+    urls = data[3] if isinstance(data[3], list) else []
+    return [
+        {
+            "title": _clean_text(title),
+            "url": str(url).strip(),
+            "snippet": _clean_text(descriptions[index] if index < len(descriptions) else ""),
+        }
+        for index, (title, url) in enumerate(zip(titles, urls))
+        if str(url).startswith(("http://", "https://"))
+    ]
+
+
+def _search_web(query: str) -> list[dict]:
+    results = []
+    try:
+        results.extend(_search_duckduckgo(query))
+    except requests.RequestException:
+        app.logger.exception("DuckDuckGo search failed")
+
+    if len(results) < 3:
+        try:
+            results.extend(_search_wikipedia(query))
+        except requests.RequestException:
+            app.logger.exception("Wikipedia fallback search failed")
+
+    return _dedupe_rank(query, results)
+
+
+def _build_reply(query: str, results: list[dict]) -> str:
+    if not results:
+        return "No encontré resultados confiables para esa búsqueda ahorita."
+
+    snippets = []
+    for item in results[:4]:
+        snippet = _clean_text(item.get("snippet", ""))
+        title = _clean_text(item.get("title", ""))
+        if snippet:
+            snippets.append(snippet.rstrip(". "))
+        elif title:
+            snippets.append(f"Encontré la fuente {title}")
+
+    if not snippets:
+        return f"Encontré {len(results)} fuentes sobre {query}. Revisalas en la pantalla de EDDY."
+
+    first = snippets[0]
+    extras = snippets[1:3]
+    reply = f"Encontré información sobre {query}. Lo más relevante: {first}."
+    if extras:
+        reply += " También encontré: " + ". ".join(extras) + "."
+    reply += " Te dejé las fuentes para que podás abrirlas y verificar los detalles."
+    return reply[:1800]
 
 
 @app.get("/health")
 def health():
-    return jsonify(status="ok", model=MODEL, web_search=WEB_SEARCH_ENABLED)
+    return jsonify(
+        status="ok",
+        engine="eddy-web",
+        provider="duckduckgo+wikipedia",
+        chatgpt=False,
+        openai=False,
+    )
 
 
-@app.post("/chat")
-def chat():
+def _search_response():
     payload = request.get_json(silent=True) or {}
-    message = str(payload.get("message", "")).strip()
-    context = str(payload.get("context", "")).strip()
-    force_web = bool(payload.get("force_web", False))
+    message = str(payload.get("message", payload.get("query", ""))).strip()
+    force_web = bool(payload.get("force_web", True))
 
     if not message:
         return jsonify(error="message is required"), 400
-
-    if len(message) > 8_000:
+    if len(message) > 2_000:
         return jsonify(error="message too long"), 413
+    if not force_web:
+        return jsonify(error="web_search_required"), 422
 
-    context = context[:12_000]
-
-    try:
-        request_args = {
-            "model": MODEL,
-            "instructions": SYSTEM_INSTRUCTIONS,
-            "input": (
-                f"Contexto local de EDDY:\n{context or 'Sin memoria disponible.'}\n\n"
-                f"Usuario: {message}"
-            ),
-            "max_output_tokens": 1_200,
-        }
-
-        if WEB_SEARCH_ENABLED:
-            request_args["tools"] = [
-                {
-                    "type": "web_search",
-                    "search_context_size": "high",
-                    "user_location": {
-                        "type": "approximate",
-                        "country": "NI",
-                        "timezone": "America/Managua",
-                    },
-                }
-            ]
-            request_args["tool_choice"] = "required" if force_web else "auto"
-            request_args["include"] = ["web_search_call.action.sources"]
-
-        response = get_client().responses.create(**request_args)
-        reply = (response.output_text or "").strip()
-        if not reply:
-            return jsonify(error="empty model response"), 502
-
-        sources = _extract_sources(response)
+    results = _search_web(message)
+    if not results:
         return jsonify(
-            reply=reply,
-            web_used=bool(sources),
-            sources=sources,
-        )
-    except Exception:
-        app.logger.exception("AI request failed")
-        return jsonify(error="ai_request_failed"), 502
+            reply=_build_reply(message, []),
+            web_used=False,
+            sources=[],
+        ), 502
+
+    sources = [
+        {
+            "title": item["title"][:180] or _source_domain(item["url"]) or "Fuente web",
+            "url": item["url"][:2_000],
+        }
+        for item in results
+    ]
+    return jsonify(
+        reply=_build_reply(message, results),
+        web_used=True,
+        sources=sources,
+    )
+
+
+@app.post("/search")
+def search():
+    return _search_response()
+
+
+@app.post("/chat")
+def chat_compatibility():
+    # Compatibilidad con APK anteriores: ya no existe ningún modelo de ChatGPT/OpenAI.
+    return _search_response()
 
 
 if __name__ == "__main__":
