@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -36,8 +37,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var permissionLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var overlayLauncher: ActivityResultLauncher<Intent>
     private lateinit var fullScreenLauncher: ActivityResultLauncher<Intent>
+    private lateinit var batteryLauncher: ActivityResultLauncher<Intent>
     private var overlayPromptedThisSession = false
     private var fullScreenPromptedThisSession = false
+    private var batteryPromptedThisSession = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,10 +50,17 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
 
+        batteryLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            refreshLockScreenSetupStatus()
+        }
+
         fullScreenLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) {
-            // Android aplica el cambio de permiso al volver de Configuración.
+            maybeRequestBatteryOptimizationExemption()
+            refreshLockScreenSetupStatus()
         }
 
         overlayLauncher = registerForActivityResult(
@@ -102,6 +112,7 @@ class MainActivity : ComponentActivity() {
             startAssistantService()
             sendServiceAction(EddyAssistantService.ACTION_HIDE_BUBBLE)
         }
+        refreshLockScreenSetupStatus()
     }
 
     override fun onStop() {
@@ -154,11 +165,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun maybeRequestFullScreenIntentPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
-        if (fullScreenPromptedThisSession) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            maybeRequestBatteryOptimizationExemption()
+            return
+        }
+        if (fullScreenPromptedThisSession) {
+            maybeRequestBatteryOptimizationExemption()
+            return
+        }
 
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.canUseFullScreenIntent()) return
+        if (manager.canUseFullScreenIntent()) {
+            maybeRequestBatteryOptimizationExemption()
+            return
+        }
 
         fullScreenPromptedThisSession = true
         val intent = Intent(
@@ -166,6 +186,56 @@ class MainActivity : ComponentActivity() {
             Uri.parse("package:$packageName"),
         )
         fullScreenLauncher.launch(intent)
+    }
+
+    private fun maybeRequestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        if (batteryPromptedThisSession) return
+
+        val powerManager = getSystemService(PowerManager::class.java) ?: return
+        if (powerManager.isIgnoringBatteryOptimizations(packageName)) return
+
+        batteryPromptedThisSession = true
+        val directIntent = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:$packageName"),
+        )
+
+        runCatching {
+            batteryLauncher.launch(directIntent)
+        }.onFailure {
+            runCatching {
+                batteryLauncher.launch(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+    }
+
+    private fun refreshLockScreenSetupStatus() {
+        if (!assistantEnabled() || !hasMicrophonePermission()) return
+
+        val fullScreenReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true
+        } else {
+            true
+        }
+
+        val batteryReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true
+        } else {
+            true
+        }
+
+        if (!fullScreenReady) {
+            EddyRuntimeState.setResponse(
+                applicationContext,
+                "Activa 'pantalla completa' para que EDDY pueda mostrarse cuando el teléfono esté bloqueado.",
+            )
+        } else if (!batteryReady) {
+            EddyRuntimeState.setResponse(
+                applicationContext,
+                "Permite a EDDY funcionar sin optimización de batería para mantener activa la palabra EDDY con la pantalla apagada.",
+            )
+        }
     }
 
     private fun startAssistantService() {
