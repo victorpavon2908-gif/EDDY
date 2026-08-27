@@ -43,7 +43,7 @@ class EddyMemory(context: Context) {
     fun describeLearnedPatterns(): String {
         val total = prefs.getInt(KEY_TOTAL_INTERACTIONS, 0)
         if (total == 0) {
-            return "Todavía estoy empezando a conocerte. Habla conmigo y recordaré localmente lo importante para ayudarte mejor."
+            return "Todavía estoy empezando a conocerte. Hablá conmigo y voy recordando localmente lo importante para ayudarte mejor."
         }
 
         val facts = learnedFacts()
@@ -57,7 +57,7 @@ class EddyMemory(context: Context) {
             ?.takeIf { it.first > 0 }
 
         return buildString {
-            append("He registrado $total interacciones contigo.")
+            append("He registrado $total interacciones con vos.")
             if (factText.isNotBlank()) append(" Recuerdo que $factText.")
             if (favoriteAction != null) append(" Lo que más me has pedido hasta ahora es ${favoriteAction.second}.")
             append(" Esta memoria se guarda en tu teléfono.")
@@ -108,9 +108,9 @@ class EddyMemory(context: Context) {
     }
 
     fun proactiveMessage(command: AssistantCommand): String? = when (command) {
-        is AssistantCommand.OpenApp -> "Sueles abrir ${command.app.displayName} a esta hora. EDDY está listo si lo necesitas."
-        AssistantCommand.OpenCamera -> "Sueles usar la cámara a esta hora. EDDY está atento por si la necesitas."
-        is AssistantCommand.OpenMaps -> "Sueles consultar mapas a esta hora. Puedo ayudarte con una ruta cuando quieras."
+        is AssistantCommand.OpenApp -> "Sos de abrir ${command.app.displayName} a esta hora. EDDY está listo si lo ocupás."
+        AssistantCommand.OpenCamera -> "Sos de usar la cámara a esta hora. Aquí estoy por si la ocupás."
+        is AssistantCommand.OpenMaps -> "Sos de consultar mapas a esta hora. Puedo ayudarte con una ruta cuando querás."
         else -> null
     }
 
@@ -153,7 +153,7 @@ class EddyMemory(context: Context) {
                 JSONObject()
                     .put("role", turn.role)
                     .put("text", turn.text)
-                    .put("timestamp", turn.timestamp)
+                    .put("timestamp", turn.timestamp),
             )
         }
         prefs.edit().putString(KEY_TURNS, array.toString()).apply()
@@ -208,10 +208,10 @@ class EddyMemory(context: Context) {
     private fun factLabel(key: String): String = when (key) {
         "name" -> "tu nombre es"
         "likes" -> "te gusta"
-        "prefers" -> "prefieres"
-        "lives" -> "vives en"
-        "work" -> "trabajas en/como"
-        "studies" -> "estudias"
+        "prefers" -> "preferís"
+        "lives" -> "vivís en"
+        "work" -> "trabajás en/como"
+        "studies" -> "estudiás"
         else -> key
     }
 
@@ -221,6 +221,10 @@ class EddyMemory(context: Context) {
         add("maps" to "usar mapas")
         add("alarm" to "crear alarmas")
         add("timer" to "crear temporizadores")
+        add("whatsapp" to "usar WhatsApp")
+        add("spotify" to "poner música en Spotify")
+        add("torch" to "usar la linterna")
+        add("smart_home" to "controlar la casa inteligente")
     }
 
     private fun commandKey(command: AssistantCommand): String? = when (command) {
@@ -232,9 +236,22 @@ class EddyMemory(context: Context) {
         AssistantCommand.ClearMemory -> "clear_memory"
         is AssistantCommand.Dial -> "dial"
         is AssistantCommand.ComposeMessage -> "message"
+        is AssistantCommand.WhatsAppMessage -> "whatsapp"
+        is AssistantCommand.PlaySpotify -> "spotify"
         is AssistantCommand.SetAlarm -> "alarm"
         is AssistantCommand.SetTimer -> "timer"
         is AssistantCommand.OpenMaps -> "maps"
+        is AssistantCommand.SearchWeb -> "web_search"
+        is AssistantCommand.ShareText -> "share"
+        is AssistantCommand.SetTorch -> "torch"
+        is AssistantCommand.SetVolume,
+        is AssistantCommand.AdjustVolume -> "volume"
+        is AssistantCommand.SetBrightness -> "brightness"
+        is AssistantCommand.OpenSystemPanel -> "system_panel"
+        AssistantCommand.BatteryStatus -> "battery"
+        is AssistantCommand.Vibrate -> "vibrate"
+        is AssistantCommand.SmartHomeControl -> "smart_home"
+        AssistantCommand.OpenSmartHomeSettings -> "smart_home_settings"
         is AssistantCommand.Unknown -> "conversation"
     }
 
