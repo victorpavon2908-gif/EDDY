@@ -57,14 +57,16 @@ class EddyAiClient(
         memoryContext: String,
         forceWeb: Boolean = false,
     ): EddyAiReply? = withContext(Dispatchers.IO) {
+        if (!forceWeb) return@withContext null
+
         val baseUrl = resolvedBaseUrl()
         if (baseUrl.isBlank()) return@withContext null
 
-        val endpoint = "${baseUrl.trimEnd('/')}/chat"
+        val endpoint = "${baseUrl.trimEnd('/')}/search"
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 15_000
-            readTimeout = 75_000
+            readTimeout = 45_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json")
@@ -73,9 +75,8 @@ class EddyAiClient(
 
         try {
             val payload = JSONObject()
-                .put("message", message)
-                .put("context", memoryContext)
-                .put("force_web", forceWeb)
+                .put("query", message)
+                .put("force_web", true)
                 .toString()
 
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { writer -> writer.write(payload) }
