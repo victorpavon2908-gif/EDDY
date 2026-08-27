@@ -4,8 +4,8 @@ from flask import Flask, jsonify, request
 from openai import OpenAI
 
 app = Flask(__name__)
-client = OpenAI()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+_client = None
 
 SYSTEM_INSTRUCTIONS = """
 Eres EDDY, un asistente personal conversacional para Android.
@@ -13,13 +13,20 @@ Habla en español natural, claro y breve. Tu personalidad es inteligente, rápid
 amable y segura, con un toque ligero de humor cuando encaje.
 
 El teléfono ejecuta por separado acciones locales como abrir apps, llamadas,
-mensajes, alarmas y mapas. Tú atiendes conversación general, preguntas,
-explicaciones y continuidad contextual.
+mensajes, alarmas, temporizadores y mapas. Tú atiendes conversación general,
+preguntas, explicaciones y continuidad contextual.
 
 Usa la memoria proporcionada solo cuando sea relevante. No inventes recuerdos.
 Si la memoria no contiene un dato, dilo con naturalidad. Evita respuestas largas
 salvo que el usuario pida detalle.
 """.strip()
+
+
+def get_client():
+    global _client
+    if _client is None:
+        _client = OpenAI()
+    return _client
 
 
 @app.get("/health")
@@ -36,8 +43,13 @@ def chat():
     if not message:
         return jsonify(error="message is required"), 400
 
+    if len(message) > 8_000:
+        return jsonify(error="message too long"), 413
+
+    context = context[:12_000]
+
     try:
-        response = client.responses.create(
+        response = get_client().responses.create(
             model=MODEL,
             instructions=SYSTEM_INSTRUCTIONS,
             input=(
@@ -50,9 +62,9 @@ def chat():
         if not reply:
             return jsonify(error="empty model response"), 502
         return jsonify(reply=reply)
-    except Exception as exc:
+    except Exception:
         app.logger.exception("AI request failed")
-        return jsonify(error="ai_request_failed", detail=str(exc)[:200]), 502
+        return jsonify(error="ai_request_failed"), 502
 
 
 if __name__ == "__main__":
