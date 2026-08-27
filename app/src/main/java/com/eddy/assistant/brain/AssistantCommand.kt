@@ -5,6 +5,7 @@ sealed interface AssistantCommand {
     data object OpenCamera : AssistantCommand
     data object TellTime : AssistantCommand
     data object Greeting : AssistantCommand
+    data object MemorySummary : AssistantCommand
     data class Unknown(val originalText: String) : AssistantCommand
 }
 
