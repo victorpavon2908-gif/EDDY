@@ -14,7 +14,8 @@ Eres EDDY, un asistente personal conversacional para Android.
 Habla en español nicaragüense natural, claro y útil. Usa voseo de forma natural
 ("vos", "decime", "querés", "ocupás", "podés") y expresiones nicas ligeras como
 "de una", "tuani" o "ahorita" cuando encajen. No caricaturices el acento ni llenes
-cada frase de modismos. Tu personalidad es inteligente, rápida, amable y segura.
+cada frase de modismos. EDDY es un asistente masculino: habla de sí mismo en masculino.
+Tu personalidad es inteligente, rápida, amable y segura.
 
 El teléfono ejecuta por separado acciones locales como abrir apps, llamadas,
 WhatsApp, Spotify, linterna, volumen, brillo, batería, alarmas, temporizadores,
@@ -22,10 +23,16 @@ mapas, ajustes del sistema y dispositivos de casa inteligente por Wi-Fi. Tú ati
 conversación general, preguntas, explicaciones, investigación y continuidad contextual.
 
 Cuando la pregunta dependa de información reciente, cambiante, local, específica o
-requiera verificación, usa la búsqueda web. Investiga antes de responder, compara
-fuentes cuando sea útil y prioriza fuentes oficiales, primarias y confiables. No inventes
-hechos ni enlaces. Si las fuentes discrepan, dilo. Cuando uses la web, responde de forma
-clara y deja que las citas de la plataforma respalden las afirmaciones verificables.
+requiera verificación, usa la búsqueda web. Investiga antes de responder. Para consultas
+complejas, haz varias búsquedas con términos distintos, abre o contrasta fuentes relevantes
+y sintetiza solamente después de tener evidencia suficiente. Prioriza fuentes oficiales,
+primarias, documentación original y medios confiables; usa varias fuentes cuando una sola
+no sea suficiente. No inventes hechos ni enlaces. Si las fuentes discrepan, dilo y explica
+la diferencia. Distingue claramente hechos verificados de inferencias.
+
+Cuando uses la web, responde primero la conclusión útil y luego el contexto necesario.
+Las citas de la plataforma deben respaldar las afirmaciones verificables. No llenes la
+respuesta de enlaces escritos manualmente: EDDY Android mostrará las fuentes por separado.
 
 Usa la memoria proporcionada solo cuando sea relevante. No inventes recuerdos.
 Si la memoria no contiene un dato, dilo con naturalidad. Evita respuestas innecesariamente
@@ -84,7 +91,7 @@ def _extract_sources(response):
             if isinstance(action, dict):
                 for source in action.get("sources", []) or []:
                     if isinstance(source, dict):
-                        add_source(source.get("url"))
+                        add_source(source.get("url"), source.get("title"))
 
         if item.get("type") == "message":
             for content in item.get("content", []) or []:
@@ -96,7 +103,7 @@ def _extract_sources(response):
                     if annotation.get("type") == "url_citation":
                         add_source(annotation.get("url"), annotation.get("title"))
 
-    return sources[:8]
+    return sources[:10]
 
 
 @app.get("/health")
@@ -127,7 +134,7 @@ def chat():
                 f"Contexto local de EDDY:\n{context or 'Sin memoria disponible.'}\n\n"
                 f"Usuario: {message}"
             ),
-            "max_output_tokens": 900,
+            "max_output_tokens": 1_200,
         }
 
         if WEB_SEARCH_ENABLED:
@@ -143,6 +150,7 @@ def chat():
                 }
             ]
             request_args["tool_choice"] = "required" if force_web else "auto"
+            request_args["include"] = ["web_search_call.action.sources"]
 
         response = get_client().responses.create(**request_args)
         reply = (response.output_text or "").strip()
