@@ -7,8 +7,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Color
@@ -66,6 +68,8 @@ class EddyAssistantService : Service() {
     private var isListening = false
     private var isThinking = false
     private var isSpeaking = false
+    private var screenReceiverRegistered = false
+    private var lastPartialWakeAt = 0L
 
     private var windowManager: WindowManager? = null
     private var bubbleView: View? = null
@@ -74,6 +78,20 @@ class EddyAssistantService : Service() {
 
     private val bubblePrefs by lazy {
         getSharedPreferences(BUBBLE_PREFS, Context.MODE_PRIVATE)
+    }
+
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    acquireCpuWakeLock()
+                    rearmRecognitionForScreenChange(500L)
+                }
+
+                Intent.ACTION_SCREEN_ON -> rearmRecognitionForScreenChange(250L)
+                Intent.ACTION_USER_PRESENT -> rearmRecognitionForScreenChange(150L)
+            }
+        }
     }
 
     override fun onCreate() {
@@ -95,6 +113,7 @@ class EddyAssistantService : Service() {
             },
             onPartialResult = { partial ->
                 EddyRuntimeState.setHeard(applicationContext, partial)
+                handlePartialWakeWord(partial)
             },
             onResult = { raw -> handleRecognition(raw) },
             onError = { error ->
@@ -117,6 +136,7 @@ class EddyAssistantService : Service() {
         )
 
         acquireCpuWakeLock()
+        registerScreenStateReceiver()
         EddyRuntimeState.setRunning(applicationContext, true)
         EddyRuntimeState.setResponse(applicationContext, "Di EDDY para activarme.")
         createNotificationChannels()
@@ -161,12 +181,25 @@ class EddyAssistantService : Service() {
     override fun onDestroy() {
         bubbleParams?.let(::saveBubblePosition)
         hideBubble()
+        unregisterScreenStateReceiver()
         recognizer.destroy()
         tts.shutdown()
         releaseCpuWakeLock()
         serviceScope.cancel()
         EddyRuntimeState.reset(applicationContext)
         super.onDestroy()
+    }
+
+    private fun handlePartialWakeWord(partial: String) {
+        if (!wakeGate.hasWakeWord(partial)) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastPartialWakeAt < PARTIAL_WAKE_DEBOUNCE_MS) return
+        lastPartialWakeAt = now
+
+        EddyRuntimeState.setHeard(applicationContext, "EDDY")
+        EddyRuntimeState.setResponse(applicationContext, "Te escucho.")
+        revealEddyOnLockScreen()
     }
 
     private fun handleRecognition(raw: String) {
@@ -265,6 +298,38 @@ class EddyAssistantService : Service() {
         EddyRuntimeState.setState(applicationContext, state)
     }
 
+    private fun rearmRecognitionForScreenChange(delayMs: Long) {
+        if (!hasMicrophonePermission() || isSpeaking || isThinking) return
+        serviceScope.launch {
+            delay(delayMs)
+            if (hasMicrophonePermission() && !isSpeaking && !isThinking) {
+                recognizer.restart(0L)
+            }
+        }
+    }
+
+    private fun registerScreenStateReceiver() {
+        if (screenReceiverRegistered) return
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        ContextCompat.registerReceiver(
+            this,
+            screenStateReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        screenReceiverRegistered = true
+    }
+
+    private fun unregisterScreenStateReceiver() {
+        if (!screenReceiverRegistered) return
+        runCatching { unregisterReceiver(screenStateReceiver) }
+        screenReceiverRegistered = false
+    }
+
     private fun hasMicrophonePermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
@@ -323,7 +388,7 @@ class EddyAssistantService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_eddy_notification)
             .setContentTitle("EDDY está activo")
-            .setContentText("Di “EDDY” para activarlo.")
+            .setContentText("Di “EDDY” para activarlo, incluso con la pantalla bloqueada.")
             .setContentIntent(openPendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -381,10 +446,6 @@ class EddyAssistantService : Service() {
             .build()
 
         manager.notify(WAKE_NOTIFICATION_ID, notification)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !manager.canUseFullScreenIntent()) {
-            runCatching { startActivity(wakeIntent) }
-        }
     }
 
     @Suppress("DEPRECATION")
@@ -397,7 +458,7 @@ class EddyAssistantService : Service() {
                 PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                 "$packageName:eddy_screen_wake",
             )
-            wakeLock.acquire(4_000L)
+            wakeLock.acquire(6_000L)
         }
     }
 
@@ -584,6 +645,7 @@ class EddyAssistantService : Service() {
         private const val WAKE_CHANNEL_ID = "eddy_wake_screen"
         private const val NOTIFICATION_ID = 4_310
         private const val WAKE_NOTIFICATION_ID = 4_311
+        private const val PARTIAL_WAKE_DEBOUNCE_MS = 1_500L
 
         private const val BUBBLE_PREFS = "eddy_bubble"
         private const val KEY_BUBBLE_X = "bubble_x"
