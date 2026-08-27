@@ -1,30 +1,34 @@
 @ECHO OFF
-SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
+SETLOCAL ENABLEEXTENSIONS
 
-SET "APP_HOME=%~dp0"
-SET "WRAPPER_JAR=%APP_HOME%gradle\wrapper\gradle-wrapper.jar"
-SET "WRAPPER_URL=https://services.gradle.org/distributions/gradle-8.13-wrapper.jar"
-SET "WRAPPER_SHA256=81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f"
-
-IF EXIST "%WRAPPER_JAR%" (
-  FOR /F %%H IN ('powershell -NoProfile -Command "(Get-FileHash -Algorithm SHA256 '%WRAPPER_JAR%').Hash.ToLower()"') DO SET "ACTUAL_SHA=%%H"
-  IF /I NOT "!ACTUAL_SHA!"=="%WRAPPER_SHA256%" DEL /F /Q "%WRAPPER_JAR%"
-)
-
-IF NOT EXIST "%WRAPPER_JAR%" (
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '%WRAPPER_URL%' -OutFile '%WRAPPER_JAR%.tmp'; $actual=(Get-FileHash -Algorithm SHA256 '%WRAPPER_JAR%.tmp').Hash.ToLower(); if($actual -ne '%WRAPPER_SHA256%'){Remove-Item -Force '%WRAPPER_JAR%.tmp'; throw 'Checksum invalido para gradle-wrapper.jar'}; Move-Item -Force '%WRAPPER_JAR%.tmp' '%WRAPPER_JAR%'"
-  IF ERRORLEVEL 1 (
-    ECHO ERROR: No se pudo descargar o validar el wrapper oficial de Gradle 8.13.
-    EXIT /B 1
-  )
-)
-
-IF DEFINED JAVA_HOME (
-  SET "JAVA_EXE=%JAVA_HOME%\bin\java.exe"
+SET "GRADLE_VERSION=8.13"
+SET "GRADLE_DIST_URL=https://services.gradle.org/distributions/gradle-8.13-bin.zip"
+SET "GRADLE_DIST_SHA256=20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78"
+IF DEFINED GRADLE_USER_HOME (
+  SET "GRADLE_HOME_BASE=%GRADLE_USER_HOME%\eddy-bootstrap"
 ) ELSE (
-  SET "JAVA_EXE=java.exe"
+  SET "GRADLE_HOME_BASE=%USERPROFILE%\.gradle\eddy-bootstrap"
+)
+SET "GRADLE_DIR=%GRADLE_HOME_BASE%\gradle-%GRADLE_VERSION%"
+SET "GRADLE_BIN=%GRADLE_DIR%\bin\gradle.bat"
+SET "ZIP_FILE=%GRADLE_HOME_BASE%\gradle-%GRADLE_VERSION%-bin.zip"
+
+IF EXIST "%GRADLE_BIN%" GOTO RUN_GRADLE
+
+IF NOT EXIST "%GRADLE_HOME_BASE%" MKDIR "%GRADLE_HOME_BASE%"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $zip='%ZIP_FILE%'; $url='%GRADLE_DIST_URL%'; $expected='%GRADLE_DIST_SHA256%'; if(Test-Path $zip){$actual=(Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower(); if($actual -ne $expected){Remove-Item -Force $zip}}; if(-not (Test-Path $zip)){Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile ($zip + '.tmp'); $actual=(Get-FileHash -Algorithm SHA256 ($zip + '.tmp')).Hash.ToLower(); if($actual -ne $expected){Remove-Item -Force ($zip + '.tmp'); throw 'Checksum invalido para Gradle 8.13'}; Move-Item -Force ($zip + '.tmp') $zip}; if(Test-Path '%GRADLE_DIR%'){Remove-Item -Recurse -Force '%GRADLE_DIR%'}; Expand-Archive -Path $zip -DestinationPath '%GRADLE_HOME_BASE%' -Force"
+IF ERRORLEVEL 1 (
+  ECHO ERROR: No se pudo descargar, validar o extraer Gradle 8.13.
+  EXIT /B 1
 )
 
-"%JAVA_EXE%" -classpath "%WRAPPER_JAR%" org.gradle.wrapper.GradleWrapperMain %*
+IF NOT EXIST "%GRADLE_BIN%" (
+  ECHO ERROR: No se pudo preparar Gradle 8.13.
+  EXIT /B 1
+)
+
+:RUN_GRADLE
+CALL "%GRADLE_BIN%" %*
 SET EXIT_CODE=%ERRORLEVEL%
 ENDLOCAL & EXIT /B %EXIT_CODE%
