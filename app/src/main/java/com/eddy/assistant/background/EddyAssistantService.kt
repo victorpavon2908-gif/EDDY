@@ -38,6 +38,7 @@ import com.eddy.assistant.brain.AssistantCommand
 import com.eddy.assistant.brain.LocalBrain
 import com.eddy.assistant.memory.EddyMemory
 import com.eddy.assistant.proactive.EddyProactiveScheduler
+import com.eddy.assistant.smarthome.LocalSmartHomeClient
 import com.eddy.assistant.voice.EddySpeechRecognizer
 import com.eddy.assistant.voice.EddyTextToSpeech
 import com.eddy.assistant.voice.WakeResult
@@ -57,6 +58,7 @@ class EddyAssistantService : Service() {
 
     private lateinit var brain: LocalBrain
     private lateinit var executor: ActionExecutor
+    private lateinit var smartHome: LocalSmartHomeClient
     private lateinit var memory: EddyMemory
     private lateinit var wakeGate: WakeWordGate
     private lateinit var aiClient: EddyAiClient
@@ -99,6 +101,7 @@ class EddyAssistantService : Service() {
 
         brain = LocalBrain()
         executor = ActionExecutor(applicationContext)
+        smartHome = LocalSmartHomeClient(applicationContext)
         memory = EddyMemory(applicationContext)
         wakeGate = WakeWordGate()
         aiClient = EddyAiClient()
@@ -138,7 +141,7 @@ class EddyAssistantService : Service() {
         acquireCpuWakeLock()
         registerScreenStateReceiver()
         EddyRuntimeState.setRunning(applicationContext, true)
-        EddyRuntimeState.setResponse(applicationContext, "Di EDDY para activarme.")
+        EddyRuntimeState.setResponse(applicationContext, "Decí EDDY para activarme.")
         createNotificationChannels()
         startAsForeground()
 
@@ -147,7 +150,7 @@ class EddyAssistantService : Service() {
         } else {
             EddyRuntimeState.setResponse(
                 applicationContext,
-                "Abre EDDY y concede el permiso de micrófono para mantenerme activo.",
+                "Abrí EDDY y concedé el permiso de micrófono para mantenerme activo.",
             )
         }
     }
@@ -206,13 +209,13 @@ class EddyAssistantService : Service() {
         when (val wakeResult = wakeGate.consume(raw)) {
             WakeResult.Ignored -> {
                 EddyRuntimeState.setHeard(applicationContext, "")
-                EddyRuntimeState.setResponse(applicationContext, "Di EDDY para activarme.")
+                EddyRuntimeState.setResponse(applicationContext, "Decí EDDY para activarme.")
                 recognizer.resume()
             }
 
             WakeResult.Activated -> {
                 EddyRuntimeState.setHeard(applicationContext, "EDDY")
-                EddyRuntimeState.setResponse(applicationContext, "Te escucho.")
+                EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime.")
                 revealEddyOnLockScreen()
                 recognizer.resume()
             }
@@ -243,7 +246,7 @@ class EddyAssistantService : Service() {
 
         if (command == AssistantCommand.ClearMemory) {
             memory.clearAll()
-            speakResponse("He borrado mi memoria local y cancelado mis sugerencias programadas. Empezamos de nuevo desde aquí.")
+            speakResponse("De una. Borré mi memoria local y cancelé mis sugerencias programadas. Empezamos de nuevo.")
             return
         }
 
@@ -251,7 +254,7 @@ class EddyAssistantService : Service() {
         proactiveScheduler.maybeSchedule(command)
 
         val response = when (command) {
-            AssistantCommand.Greeting -> "Aquí estoy. Te escucho."
+            AssistantCommand.Greeting -> "De una, aquí estoy. Decime qué ocupás."
 
             AssistantCommand.TellTime -> {
                 val time = SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())
@@ -260,13 +263,26 @@ class EddyAssistantService : Service() {
 
             AssistantCommand.OpenCamera -> executor.openCamera().spokenMessage
             AssistantCommand.MemorySummary -> memory.describeLearnedPatterns()
-            AssistantCommand.ClearMemory -> "He borrado mi memoria local."
+            AssistantCommand.ClearMemory -> "Ya borré mi memoria local."
             is AssistantCommand.OpenApp -> executor.openApp(command.app).spokenMessage
             is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
             is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).spokenMessage
+            is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).spokenMessage
+            is AssistantCommand.PlaySpotify -> executor.playSpotify(command.query).spokenMessage
             is AssistantCommand.SetAlarm -> executor.setAlarm(command.hour, command.minute, command.label).spokenMessage
             is AssistantCommand.SetTimer -> executor.setTimer(command.seconds, command.label).spokenMessage
             is AssistantCommand.OpenMaps -> executor.openMaps(command.query).spokenMessage
+            is AssistantCommand.SearchWeb -> executor.searchWeb(command.query).spokenMessage
+            is AssistantCommand.ShareText -> executor.shareText(command.text).spokenMessage
+            is AssistantCommand.SetTorch -> executor.setTorch(command.enabled).spokenMessage
+            is AssistantCommand.SetVolume -> executor.setVolume(command.percent).spokenMessage
+            is AssistantCommand.AdjustVolume -> executor.adjustVolume(command.direction).spokenMessage
+            is AssistantCommand.SetBrightness -> executor.setBrightness(command.percent).spokenMessage
+            is AssistantCommand.OpenSystemPanel -> executor.openSystemPanel(command.panel).spokenMessage
+            AssistantCommand.BatteryStatus -> executor.batteryStatus().spokenMessage
+            is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).spokenMessage
+            is AssistantCommand.SmartHomeControl -> smartHome.control(command.target, command.enabled).spokenMessage
+            AssistantCommand.OpenSmartHomeSettings -> executor.openSmartHomeSettings().spokenMessage
             is AssistantCommand.Unknown -> {
                 aiClient.reply(
                     message = command.originalText,
@@ -357,7 +373,7 @@ class EddyAssistantService : Service() {
                 "Despertar EDDY",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Permite mostrar EDDY cuando lo llamas con el teléfono bloqueado."
+                description = "Permite mostrar EDDY cuando lo llamás con el teléfono bloqueado."
                 setShowBadge(false)
                 enableVibration(false)
                 setSound(null, null)
@@ -388,7 +404,7 @@ class EddyAssistantService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_eddy_notification)
             .setContentTitle("EDDY está activo")
-            .setContentText("Di “EDDY” para activarlo, incluso con la pantalla bloqueada.")
+            .setContentText("Decí “EDDY” para activarlo, incluso con la pantalla bloqueada.")
             .setContentIntent(openPendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
