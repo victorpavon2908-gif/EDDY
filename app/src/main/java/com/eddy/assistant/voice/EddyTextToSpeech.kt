@@ -21,32 +21,23 @@ class EddyTextToSpeech(
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
-            configureNicaraguanSpanishVoice()
-            tts.setSpeechRate(1.03f)
-            tts.setPitch(0.96f)
+            configureMasculineNicaraguanSpanishVoice()
+            tts.setSpeechRate(0.98f)
+            tts.setPitch(0.82f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String) {
-                    notifySpeaking(true)
-                }
-
-                override fun onDone(utteranceId: String) {
-                    notifySpeaking(false)
-                }
+                override fun onStart(utteranceId: String) = notifySpeaking(true)
+                override fun onDone(utteranceId: String) = notifySpeaking(false)
 
                 @Deprecated("Deprecated in Android API")
-                override fun onError(utteranceId: String) {
-                    notifySpeaking(false)
-                }
+                override fun onError(utteranceId: String) = notifySpeaking(false)
 
-                override fun onStop(utteranceId: String, interrupted: Boolean) {
-                    notifySpeaking(false)
-                }
+                override fun onStop(utteranceId: String, interrupted: Boolean) = notifySpeaking(false)
             })
         }
         onReady(ready)
     }
 
-    private fun configureNicaraguanSpanishVoice() {
+    private fun configureMasculineNicaraguanSpanishVoice() {
         val nicaraguaSpanish = Locale("es", "NI")
         val languageResult = tts.setLanguage(nicaraguaSpanish)
 
@@ -57,6 +48,7 @@ class EddyTextToSpeech(
         val preferred = spanishVoices
             .sortedWith(
                 compareBy<Voice>(
+                    { masculineVoiceRank(it) },
                     { voiceCountryRank(it.locale.country) },
                     { if (it.isNetworkConnectionRequired) 1 else 0 },
                     { it.latency },
@@ -82,10 +74,21 @@ class EddyTextToSpeech(
             )
             for (locale in fallbacks) {
                 val result = tts.setLanguage(locale)
-                if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
-                    break
-                }
+                if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) break
             }
+        }
+    }
+
+    private fun masculineVoiceRank(voice: Voice): Int {
+        val descriptor = buildString {
+            append(voice.name.lowercase(Locale.ROOT))
+            append(' ')
+            append(voice.features.joinToString(" ").lowercase(Locale.ROOT))
+        }
+        return when {
+            listOf("male", "masculino", "masculine", "hombre", "man").any(descriptor::contains) -> 0
+            listOf("female", "femenino", "feminine", "mujer", "woman").any(descriptor::contains) -> 2
+            else -> 1
         }
     }
 
@@ -106,12 +109,7 @@ class EddyTextToSpeech(
 
     fun speak(text: String): Boolean {
         if (!ready) return false
-        val result = tts.speak(
-            text,
-            TextToSpeech.QUEUE_FLUSH,
-            null,
-            "eddy_reply_${System.nanoTime()}",
-        )
+        val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "eddy_reply_${System.nanoTime()}")
         return result == TextToSpeech.SUCCESS
     }
 
