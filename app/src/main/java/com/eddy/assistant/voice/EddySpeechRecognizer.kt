@@ -2,6 +2,7 @@ package com.eddy.assistant.voice
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -47,6 +48,21 @@ class EddySpeechRecognizer(
         scheduleRestart(280)
     }
 
+    /**
+     * Rearma por completo una sesión de escucha. Se usa al apagarse/encenderse la
+     * pantalla porque varios proveedores OEM suspenden la sesión activa aunque el
+     * foreground service siga vivo.
+     */
+    fun restart(delayMs: Long = 420L) {
+        if (destroyed) return
+        continuousMode = true
+        paused = false
+        handler.removeCallbacks(restartRunnable)
+        runCatching { recognizer?.cancel() }
+        setListening(false)
+        scheduleRestart(delayMs)
+    }
+
     fun stopContinuous() {
         continuousMode = false
         paused = true
@@ -70,11 +86,12 @@ class EddySpeechRecognizer(
 
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             onError("El reconocimiento de voz no está disponible en este dispositivo.")
+            scheduleRestart(2_000)
             return
         }
 
         if (recognizer == null) {
-            recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+            recognizer = createRecognizer().apply {
                 setRecognitionListener(listener)
             }
         }
@@ -85,6 +102,7 @@ class EddySpeechRecognizer(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-NI")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 750L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 500L)
         }
@@ -96,6 +114,16 @@ class EddySpeechRecognizer(
             setListening(false)
             scheduleRestart(650)
         }
+    }
+
+    private fun createRecognizer(): SpeechRecognizer {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+        ) {
+            return SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+        }
+        return SpeechRecognizer.createSpeechRecognizer(context)
     }
 
     private fun scheduleRestart(delayMs: Long) {
@@ -145,25 +173,32 @@ class EddySpeechRecognizer(
                 SpeechRecognizer.ERROR_NO_MATCH,
                 SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-                SpeechRecognizer.ERROR_CLIENT -> true
+                SpeechRecognizer.ERROR_CLIENT,
+                SpeechRecognizer.ERROR_NETWORK,
+                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> true
                 else -> false
             }
 
             if (recoverable) {
-                scheduleRestart(if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 700 else 260)
+                scheduleRestart(
+                    when (error) {
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 800
+                        SpeechRecognizer.ERROR_NETWORK,
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> 1_200
+                        else -> 300
+                    },
+                )
                 return
             }
 
             val message = when (error) {
                 SpeechRecognizer.ERROR_AUDIO -> "Hubo un problema con el audio del micrófono."
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Necesito permiso para usar el micrófono."
-                SpeechRecognizer.ERROR_NETWORK,
-                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "No pude usar el reconocimiento de voz por un problema de red."
                 else -> "No pude reconocer la voz. Código: $error"
             }
 
             onError(message)
-            scheduleRestart(1200)
+            scheduleRestart(1_500)
         }
     }
 }
