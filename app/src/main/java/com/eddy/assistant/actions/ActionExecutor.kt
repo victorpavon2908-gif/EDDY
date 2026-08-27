@@ -73,6 +73,29 @@ class ActionExecutor(private val context: Context) {
         )
     }
 
+    fun setTimer(seconds: Int, label: String?): ActionResult {
+        val safeSeconds = seconds.coerceIn(1, 86_400)
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, safeSeconds)
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+            if (!label.isNullOrBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, label)
+        }
+
+        val minutes = safeSeconds / 60
+        val remainingSeconds = safeSeconds % 60
+        val duration = when {
+            minutes > 0 && remainingSeconds > 0 -> "$minutes minutos y $remainingSeconds segundos"
+            minutes > 0 -> "$minutes minutos"
+            else -> "$remainingSeconds segundos"
+        }
+
+        return launch(
+            intent,
+            successMessage = "Preparando un temporizador de $duration.",
+            failureMessage = "No pude abrir el temporizador del teléfono.",
+        )
+    }
+
     fun openMaps(query: String): ActionResult {
         val geoIntent = Intent(
             Intent.ACTION_VIEW,
