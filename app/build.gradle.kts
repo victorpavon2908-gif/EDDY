@@ -11,9 +11,10 @@ val eddyLocalProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-fun configString(envName: String, propertyName: String): String {
+fun configString(envName: String, propertyName: String, defaultValue: String = ""): String {
     val raw = System.getenv(envName)
-        ?: eddyLocalProperties.getProperty(propertyName, "")
+        ?: eddyLocalProperties.getProperty(propertyName)
+        ?: defaultValue
     val escaped = raw.replace("\\", "\\\\").replace("\"", "\\\"")
     return "\"$escaped\""
 }
@@ -26,14 +27,18 @@ android {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.4.2"
+        versionCode = 7
+        versionName = "0.4.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
             "String",
             "EDDY_AI_BASE_URL",
-            configString("EDDY_AI_BASE_URL", "eddy.ai.baseUrl"),
+            configString(
+                "EDDY_AI_BASE_URL",
+                "eddy.ai.baseUrl",
+                "https://eddy-ai-ny8o.onrender.com",
+            ),
         )
     }
 
