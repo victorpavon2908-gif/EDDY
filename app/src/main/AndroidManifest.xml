@@ -49,12 +49,8 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="geo" />
         </intent>
-        <intent>
-            <action android:name="android.intent.action.SET_ALARM" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.SET_TIMER" />
-        </intent>
+        <intent><action android:name="android.intent.action.SET_ALARM" /></intent>
+        <intent><action android:name="android.intent.action.SET_TIMER" /></intent>
     </queries>
 
     <application
@@ -64,7 +60,12 @@
         android:roundIcon="@drawable/ic_eddy"
         android:supportsRtl="true"
         android:theme="@style/Theme.EDDY"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="false">
+
+        <!-- MediaPipe puede aprovechar OpenCL cuando el fabricante lo expone. -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
 
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
