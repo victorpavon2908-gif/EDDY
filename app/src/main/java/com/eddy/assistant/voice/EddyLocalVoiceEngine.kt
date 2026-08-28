@@ -150,6 +150,9 @@ class EddyLocalVoiceEngine(
                 model = failure.spec,
                 detail = cause?.message ?: cause?.javaClass?.simpleName ?: "error desconocido",
             )
+            // Si un modelo pasa la validación de archivos pero falla al abrirse en ONNX,
+            // lo invalidamos. El bootstrap del servicio lo volverá a descargar limpio.
+            failure.spec?.let(models::invalidate)
             onError("El módulo local ${failure.stageName} no pudo iniciar. EDDY intentará repararlo.")
             false
         } catch (error: Throwable) {
@@ -167,29 +170,61 @@ class EddyLocalVoiceEngine(
     private fun initKeywordSpotter() = initStage("activación EDDY", EddyModelCatalog.keyword) {
         val kwsRoot = models.modelDir(EddyModelCatalog.keyword)
         val kwsDir = java.io.File(kwsRoot, KWS_DIR)
-        val modelConfig = OnlineModelConfig(
-            transducer = OnlineTransducerModelConfig(
-                encoder = java.io.File(kwsDir, "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx").absolutePath,
-                decoder = java.io.File(kwsDir, "decoder-epoch-13-avg-2-chunk-16-left-64.onnx").absolutePath,
-                joiner = java.io.File(kwsDir, "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx").absolutePath,
-            ),
-            tokens = java.io.File(kwsDir, "tokens.txt").absolutePath,
-            numThreads = profile.inferenceThreads.coerceAtMost(2),
-            provider = "cpu",
-        )
-        keywordSpotter = KeywordSpotter(
-            config = KeywordSpotterConfig(
-                featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
-                modelConfig = modelConfig,
-                keywordsFile = "",
-                // EDDY es corto: el KWS es sensible y Voice ID funciona como segunda barrera.
-                keywordsScore = 1.8f,
-                keywordsThreshold = 0.18f,
-                numTrailingBlanks = 1,
-            ),
-        )
-        // Pronunciación ARPAbet /ˈɛdi/ según el modelo bilingüe phone+ppinyin.
-        keywordStream = keywordSpotter!!.createStream("EH1 D IY0 @EDDY")
+
+        fun loadKeywordSpotter(encoderName: String, joinerName: String): Pair<KeywordSpotter, OnlineStream> {
+            val modelConfig = OnlineModelConfig(
+                transducer = OnlineTransducerModelConfig(
+                    encoder = java.io.File(kwsDir, encoderName).absolutePath,
+                    decoder = java.io.File(kwsDir, "decoder-epoch-13-avg-2-chunk-16-left-64.onnx").absolutePath,
+                    joiner = java.io.File(kwsDir, joinerName).absolutePath,
+                ),
+                tokens = java.io.File(kwsDir, "tokens.txt").absolutePath,
+                numThreads = profile.inferenceThreads.coerceAtMost(2),
+                provider = "cpu",
+            )
+            val spotter = KeywordSpotter(
+                config = KeywordSpotterConfig(
+                    featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
+                    modelConfig = modelConfig,
+                    keywordsFile = "",
+                    // EDDY es corto: el KWS es sensible y Voice ID funciona como segunda barrera.
+                    keywordsScore = 1.8f,
+                    keywordsThreshold = 0.18f,
+                    numTrailingBlanks = 1,
+                ),
+            )
+            val stream = try {
+                // Pronunciación ARPAbet /ˈɛdi/ según el modelo bilingüe phone+ppinyin.
+                spotter.createStream("EH1 D IY0 @EDDY")
+            } catch (error: Throwable) {
+                runCatching { spotter.release() }
+                throw error
+            }
+            return spotter to stream
+        }
+
+        // En algunos Android/SoC la variante INT8 puede fallar al inicializar aunque los
+        // archivos estén correctos. Probamos primero INT8 por eficiencia y usamos FP32 como
+        // respaldo local sin volver a descargar: el paquete oficial contiene ambas variantes.
+        val loaded = try {
+            loadKeywordSpotter(
+                encoderName = "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
+                joinerName = "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
+            )
+        } catch (quantizedError: Throwable) {
+            try {
+                loadKeywordSpotter(
+                    encoderName = "encoder-epoch-13-avg-2-chunk-16-left-64.onnx",
+                    joinerName = "joiner-epoch-13-avg-2-chunk-16-left-64.onnx",
+                )
+            } catch (fp32Error: Throwable) {
+                fp32Error.addSuppressed(quantizedError)
+                throw fp32Error
+            }
+        }
+
+        keywordSpotter = loaded.first
+        keywordStream = loaded.second
     }
 
     private fun initVad() = initStage("detección de voz", EddyModelCatalog.vad) {
