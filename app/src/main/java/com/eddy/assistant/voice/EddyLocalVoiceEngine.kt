@@ -62,7 +62,7 @@ class EddyLocalVoiceEngine(
     private var speakerExtractor: SpeakerEmbeddingExtractor? = null
     private var recognizer: OfflineRecognizer? = null
 
-    private val rolling = RollingAudio((SAMPLE_RATE * 3.2f).toInt())
+    private val rolling = RollingAudio((SAMPLE_RATE * 2.2f).toInt())
 
     val ready: Boolean get() = models.coreReady()
 
@@ -101,8 +101,6 @@ class EddyLocalVoiceEngine(
             vad?.reset()
             setState(State.SPEAKING)
         } else if (running.get()) {
-            // Después de hablar, EDDY deja un turno corto para que el dueño continúe
-            // sin repetir el nombre, pero cada segmento vuelve a verificar la voz.
             activeUntil = System.currentTimeMillis() + CONTINUATION_MS
             vad?.reset()
             setState(State.ACTIVE)
@@ -127,12 +125,13 @@ class EddyLocalVoiceEngine(
                 featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
                 modelConfig = modelConfig,
                 keywordsFile = "",
-                keywordsScore = 1.65f,
-                keywordsThreshold = 0.28f,
+                // EDDY es una palabra corta; hacemos KWS sensible y dejamos la
+                // verificación del hablante como segunda barrera contra falsos positivos.
+                keywordsScore = 2.0f,
+                keywordsThreshold = 0.15f,
                 numTrailingBlanks = 1,
             ),
         )
-        // CMU phones para la pronunciación inglesa "Eddy".
         keywordStream = keywordSpotter!!.createStream("EH1 D IY0 @EDDY")
 
         vad = Vad(
@@ -178,7 +177,7 @@ class EddyLocalVoiceEngine(
         true
     }.getOrElse {
         releaseModels()
-        onError("No pude iniciar el núcleo de voz local; usaré el modo compatible mientras reviso los modelos.")
+        onError("No pude iniciar el núcleo de voz local. Revisaré los modelos descargados.")
         false
     }
 
@@ -205,7 +204,7 @@ class EddyLocalVoiceEngine(
     }
 
     private fun audioLoop() {
-        val buffer = ShortArray(1600) // 100 ms
+        val buffer = ShortArray(1600)
         while (running.get() && !Thread.currentThread().isInterrupted) {
             val count = runCatching { recorder?.read(buffer, 0, buffer.size) ?: -1 }.getOrDefault(-1)
             if (count <= 0) continue
@@ -233,7 +232,9 @@ class EddyLocalVoiceEngine(
             if (result.keyword.isNotBlank()) {
                 kws.reset(stream)
                 setState(State.VERIFYING)
-                val embedding = embeddingFor(rolling.snapshot())
+                // Usamos solo el tramo más reciente alrededor de "EDDY" para no
+                // contaminar la huella con conversaciones previas del ambiente.
+                val embedding = embeddingFor(rolling.snapshotLast((SAMPLE_RATE * 1.65f).toInt()))
                 val decision = embedding?.let(ownerVoice::acceptAndLearn)
                 if (decision?.accepted == true) {
                     activeUntil = System.currentTimeMillis() + FIRST_COMMAND_MS
@@ -340,10 +341,11 @@ class EddyLocalVoiceEngine(
             }
         }
 
-        @Synchronized fun snapshot(): FloatArray {
-            val result = FloatArray(size)
-            val start = (cursor - size + capacity) % capacity
-            for (i in 0 until size) result[i] = data[(start + i) % capacity]
+        @Synchronized fun snapshotLast(maxSamples: Int): FloatArray {
+            val count = size.coerceAtMost(maxSamples.coerceAtLeast(1))
+            val result = FloatArray(count)
+            val start = (cursor - count + capacity) % capacity
+            for (i in 0 until count) result[i] = data[(start + i) % capacity]
             return result
         }
     }
