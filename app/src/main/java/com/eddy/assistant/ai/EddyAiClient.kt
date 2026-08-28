@@ -17,8 +17,10 @@ data class EddyAiReply(
     val text: String,
     val webUsed: Boolean,
     val sources: List<EddyWebSource>,
+    val evidence: String = "",
 )
 
+/** Cliente del backend WEB de EDDY. No ejecuta ChatGPT/OpenAI. */
 class EddyAiClient(
     private val context: Context,
     private val baseUrlOverride: String? = null,
@@ -57,12 +59,10 @@ class EddyAiClient(
         memoryContext: String,
         forceWeb: Boolean = false,
     ): EddyAiReply? = withContext(Dispatchers.IO) {
-        if (!forceWeb) return@withContext null
-
         val baseUrl = resolvedBaseUrl()
         if (baseUrl.isBlank()) return@withContext null
 
-        val endpoint = "${baseUrl.trimEnd('/')}/search"
+        val endpoint = "${baseUrl.trimEnd('/')}/${if (forceWeb) "search" else "chat"}"
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 15_000
@@ -75,8 +75,8 @@ class EddyAiClient(
 
         try {
             val payload = JSONObject()
-                .put("query", message)
-                .put("force_web", true)
+                .put("message", message)
+                .put("force_web", forceWeb)
                 .toString()
 
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { writer -> writer.write(payload) }
@@ -101,10 +101,24 @@ class EddyAiClient(
                 }
             }
 
+            val evidenceArray = json.optJSONArray("evidence")
+            val evidence = buildString {
+                if (evidenceArray != null) {
+                    for (index in 0 until evidenceArray.length()) {
+                        val item = evidenceArray.optJSONObject(index) ?: continue
+                        val title = item.optString("title").trim()
+                        val snippet = item.optString("snippet").trim()
+                        val url = item.optString("url").trim()
+                        if (snippet.isNotBlank()) appendLine("- $title: $snippet ($url)")
+                    }
+                }
+            }.trim()
+
             EddyAiReply(
                 text = text,
                 webUsed = json.optBoolean("web_used", sources.isNotEmpty()),
                 sources = sources,
+                evidence = evidence,
             )
         } catch (_: Exception) {
             null
