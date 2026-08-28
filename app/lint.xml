@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- NotificationCompat.Builder accepts the same visibility integer values as
+         Notification; this targeted suppression avoids a false-positive caused by
+         mixing the framework constant with the compat annotation. -->
+    <issue id="WrongConstant">
+        <ignore path="src/main/java/com/eddy/assistant/background/EddyAssistantService.kt" />
+    </issue>
+</lint>
