@@ -1,4 +1,4 @@
-name: EDDY v0.4.6 CI
+name: EDDY v0.4.7 CI
 
 on:
   push:
@@ -73,9 +73,9 @@ jobs:
       - name: Verify APK signatures
         run: ${ANDROID_HOME}/build-tools/36.0.0/apksigner verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload EDDY v0.4.6 APK
+      - name: Upload EDDY v0.4.7 APK
         uses: actions/upload-artifact@v4
         with:
-          name: EDDY-v0.4.6-debug
+          name: EDDY-v0.4.7-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
