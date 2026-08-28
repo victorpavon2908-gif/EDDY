@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 import com.eddy.assistant.localai.EddyDeviceProfile
 import com.eddy.assistant.localai.EddyModelCatalog
 import com.eddy.assistant.localai.EddyModelManager
+import com.eddy.assistant.localai.EddyModelSpec
 import com.eddy.assistant.localai.EddyVoiceProfile
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.KeywordSpotter
@@ -48,10 +49,26 @@ class EddyLocalVoiceEngine(
 ) {
     enum class State { PASSIVE, VERIFYING, ACTIVE, PROCESSING, SPEAKING, STOPPED }
 
+    data class InitializationFailure(
+        val stage: String,
+        val model: EddyModelSpec?,
+        val detail: String,
+    )
+
+    private class StageFailure(
+        val stageName: String,
+        val spec: EddyModelSpec?,
+        cause: Throwable,
+    ) : RuntimeException(cause)
+
     private val running = AtomicBoolean(false)
     @Volatile private var speaking = false
     @Volatile private var activeUntil = 0L
     @Volatile private var state = State.STOPPED
+
+    @Volatile
+    var lastInitializationFailure: InitializationFailure? = null
+        private set
 
     private var recorder: AudioRecord? = null
     private var worker: Thread? = null
@@ -107,17 +124,57 @@ class EddyLocalVoiceEngine(
         }
     }
 
-    private fun initializeModels(): Boolean = runCatching {
+    private inline fun <T> initStage(
+        name: String,
+        spec: EddyModelSpec?,
+        block: () -> T,
+    ): T = try {
+        block()
+    } catch (error: Throwable) {
+        throw StageFailure(name, spec, error)
+    }
+
+    private fun initializeModels(): Boolean {
+        lastInitializationFailure = null
+        return try {
+            initKeywordSpotter()
+            initVad()
+            initSpeakerId()
+            initSpanishAsr()
+            true
+        } catch (failure: StageFailure) {
+            releaseModels()
+            val cause = failure.cause
+            lastInitializationFailure = InitializationFailure(
+                stage = failure.stageName,
+                model = failure.spec,
+                detail = cause?.message ?: cause?.javaClass?.simpleName ?: "error desconocido",
+            )
+            onError("El módulo local ${failure.stageName} no pudo iniciar. EDDY intentará repararlo.")
+            false
+        } catch (error: Throwable) {
+            releaseModels()
+            lastInitializationFailure = InitializationFailure(
+                stage = "núcleo",
+                model = null,
+                detail = error.message ?: error.javaClass.simpleName,
+            )
+            onError("No pude iniciar el núcleo de voz local. Revisaré los modelos descargados.")
+            false
+        }
+    }
+
+    private fun initKeywordSpotter() = initStage("activación EDDY", EddyModelCatalog.keyword) {
         val kwsRoot = models.modelDir(EddyModelCatalog.keyword)
         val kwsDir = java.io.File(kwsRoot, KWS_DIR)
         val modelConfig = OnlineModelConfig(
             transducer = OnlineTransducerModelConfig(
-                encoder = java.io.File(kwsDir, "encoder-epoch-13-avg-2-chunk-8-left-64.int8.onnx").absolutePath,
-                decoder = java.io.File(kwsDir, "decoder-epoch-13-avg-2-chunk-8-left-64.onnx").absolutePath,
-                joiner = java.io.File(kwsDir, "joiner-epoch-13-avg-2-chunk-8-left-64.int8.onnx").absolutePath,
+                encoder = java.io.File(kwsDir, "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx").absolutePath,
+                decoder = java.io.File(kwsDir, "decoder-epoch-13-avg-2-chunk-16-left-64.onnx").absolutePath,
+                joiner = java.io.File(kwsDir, "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx").absolutePath,
             ),
             tokens = java.io.File(kwsDir, "tokens.txt").absolutePath,
-            numThreads = profile.inferenceThreads,
+            numThreads = profile.inferenceThreads.coerceAtMost(2),
             provider = "cpu",
         )
         keywordSpotter = KeywordSpotter(
@@ -125,15 +182,17 @@ class EddyLocalVoiceEngine(
                 featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
                 modelConfig = modelConfig,
                 keywordsFile = "",
-                // EDDY es una palabra corta; hacemos KWS sensible y dejamos la
-                // verificación del hablante como segunda barrera contra falsos positivos.
-                keywordsScore = 2.0f,
-                keywordsThreshold = 0.15f,
+                // EDDY es corto: el KWS es sensible y Voice ID funciona como segunda barrera.
+                keywordsScore = 1.8f,
+                keywordsThreshold = 0.18f,
                 numTrailingBlanks = 1,
             ),
         )
+        // Pronunciación ARPAbet /ˈɛdi/ según el modelo bilingüe phone+ppinyin.
         keywordStream = keywordSpotter!!.createStream("EH1 D IY0 @EDDY")
+    }
 
+    private fun initVad() = initStage("detección de voz", EddyModelCatalog.vad) {
         vad = Vad(
             config = VadModelConfig(
                 sileroVadModelConfig = SileroVadModelConfig(
@@ -149,7 +208,9 @@ class EddyLocalVoiceEngine(
                 provider = "cpu",
             ),
         )
+    }
 
+    private fun initSpeakerId() = initStage("identificación de voz", EddyModelCatalog.speaker) {
         speakerExtractor = SpeakerEmbeddingExtractor(
             config = SpeakerEmbeddingExtractorConfig(
                 model = models.file(EddyModelCatalog.speaker).absolutePath,
@@ -157,7 +218,9 @@ class EddyLocalVoiceEngine(
                 provider = "cpu",
             ),
         )
+    }
 
+    private fun initSpanishAsr() = initStage("reconocimiento español", EddyModelCatalog.spanishAsr) {
         val asrRoot = java.io.File(models.modelDir(EddyModelCatalog.spanishAsr), ASR_DIR)
         recognizer = OfflineRecognizer(
             config = OfflineRecognizerConfig(
@@ -168,17 +231,14 @@ class EddyLocalVoiceEngine(
                         mergedDecoder = java.io.File(asrRoot, "decoder_model_merged.ort").absolutePath,
                     ),
                     tokens = java.io.File(asrRoot, "tokens.txt").absolutePath,
-                    numThreads = profile.inferenceThreads,
+                    numThreads = profile.inferenceThreads.coerceAtMost(2),
                     provider = "cpu",
-                    modelType = "moonshine",
+                    // No fijar modelType="moonshine": sherpa 1.13.6 no lo acepta como
+                    // hint válido y puede intentar cargar el modelo más de una vez.
                 ),
+                decodingMethod = "greedy_search",
             ),
         )
-        true
-    }.getOrElse {
-        releaseModels()
-        onError("No pude iniciar el núcleo de voz local. Revisaré los modelos descargados.")
-        false
     }
 
     private fun initializeMicrophone(): Boolean = runCatching {
@@ -232,8 +292,6 @@ class EddyLocalVoiceEngine(
             if (result.keyword.isNotBlank()) {
                 kws.reset(stream)
                 setState(State.VERIFYING)
-                // Usamos solo el tramo más reciente alrededor de "EDDY" para no
-                // contaminar la huella con conversaciones previas del ambiente.
                 val embedding = embeddingFor(rolling.snapshotLast((SAMPLE_RATE * 1.65f).toInt()))
                 val decision = embedding?.let(ownerVoice::acceptAndLearn)
                 if (decision?.accepted == true) {
