@@ -24,16 +24,29 @@ data class EddyDeviceProfile(
             activityManager?.getMemoryInfo(memoryInfo)
             val ramMb = (memoryInfo.totalMem / (1024L * 1024L)).coerceAtLeast(0L)
             val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+            val lowRamDevice = activityManager?.isLowRamDevice == true
+
             val tier = when {
+                lowRamDevice -> Tier.LITE
                 ramMb >= 7_000L && cores >= 8 -> Tier.POWER
                 ramMb >= 4_500L && cores >= 6 -> Tier.BALANCED
                 else -> Tier.LITE
             }
+
+            // Más hilos no siempre significan más velocidad en teléfonos: en equipos
+            // modestos provocan presión de RAM, calentamiento y throttling. EDDY escala
+            // conservadoramente y deja recursos al sistema y al servicio de micrófono.
+            val threads = when (tier) {
+                Tier.LITE -> 1
+                Tier.BALANCED -> 2
+                Tier.POWER -> (cores - 2).coerceIn(2, 4)
+            }
+
             return EddyDeviceProfile(
                 tier = tier,
                 totalRamMb = ramMb,
                 cpuCores = cores,
-                inferenceThreads = (cores - 2).coerceIn(1, 4),
+                inferenceThreads = threads,
                 abi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty(),
             )
         }
