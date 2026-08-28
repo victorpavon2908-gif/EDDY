@@ -1,3 +1,4 @@
+import java.net.URI
 import java.util.Properties
 
 plugins {
@@ -19,6 +20,29 @@ fun configString(envName: String, propertyName: String, defaultValue: String = "
     return "\"$escaped\""
 }
 
+val sherpaVersion = "1.13.6"
+val sherpaAar = layout.projectDirectory.file("libs/sherpa-onnx-$sherpaVersion.aar").asFile
+val downloadSherpaAar = tasks.register("downloadSherpaAar") {
+    outputs.file(sherpaAar)
+    doLast {
+        if (!sherpaAar.exists() || sherpaAar.length() < 40_000_000L) {
+            sherpaAar.parentFile.mkdirs()
+            val temp = java.io.File(sherpaAar.parentFile, sherpaAar.name + ".part")
+            URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v$sherpaVersion/sherpa-onnx-$sherpaVersion.aar")
+                .toURL()
+                .openStream()
+                .use { input -> temp.outputStream().use { output -> input.copyTo(output) } }
+            check(temp.length() > 40_000_000L) { "sherpa-onnx AAR incompleto" }
+            if (sherpaAar.exists()) sherpaAar.delete()
+            check(temp.renameTo(sherpaAar)) { "No se pudo instalar sherpa-onnx AAR" }
+        }
+    }
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn(downloadSherpaAar)
+}
+
 android {
     namespace = "com.eddy.assistant"
     compileSdk = 36
@@ -27,8 +51,8 @@ android {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.4.7"
+        versionCode = 12
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
@@ -75,6 +99,9 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/DEPENDENCIES"
+            excludes += "/META-INF/NOTICE*"
+            excludes += "/META-INF/LICENSE*"
         }
     }
 }
@@ -89,6 +116,10 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
+
+    implementation(files(sherpaAar))
+    implementation("com.google.mediapipe:tasks-genai:0.10.24")
+    implementation("org.apache.commons:commons-compress:1.27.1")
 
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.13.0")
