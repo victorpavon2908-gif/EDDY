@@ -73,7 +73,9 @@ object EddyModelCatalog {
             "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/decoder_model_merged.ort",
             "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/tokens.txt",
         ),
-        minBytes = 55_000_000L,
+        // La comprobación fuerte ocurre después de extraer, archivo por archivo.
+        // Un umbral bajo aquí evita rechazar un tar.bz2 oficial por su compresión.
+        minBytes = 10_000_000L,
         expectedMinBytes = mapOf(
             "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/encoder_model.ort" to 15_000_000L,
             "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/decoder_model_merged.ort" to 35_000_000L,
