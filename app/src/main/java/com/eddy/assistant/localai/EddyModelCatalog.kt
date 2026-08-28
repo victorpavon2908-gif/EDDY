@@ -40,6 +40,10 @@ object EddyModelCatalog {
         requireInstallMarker = true,
     )
 
+    /**
+     * Modelo KWS anterior. Se conserva solo para poder identificar y borrar instalaciones
+     * viejas durante una actualización. Ya NO forma parte del núcleo ni se vuelve a bajar.
+     */
     val keyword = EddyModelSpec(
         id = "kws-eddy-zh-en-2025-v2",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2",
@@ -73,8 +77,6 @@ object EddyModelCatalog {
             "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/decoder_model_merged.ort",
             "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/tokens.txt",
         ),
-        // La comprobación fuerte ocurre después de extraer, archivo por archivo.
-        // Un umbral bajo aquí evita rechazar un tar.bz2 oficial por su compresión.
         minBytes = 10_000_000L,
         expectedMinBytes = mapOf(
             "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/encoder_model.ort" to 15_000_000L,
@@ -97,8 +99,6 @@ object EddyModelCatalog {
         minBytes = 10_000_000L,
         expectedMinBytes = mapOf(
             "vits-piper-es_ES-miro-high/es_ES-miro-high.onnx" to 10_000_000L,
-            // El archivo oficial actual tiene 954 bytes. 512 detecta truncamientos reales
-            // sin rechazar una distribución válida del modelo Miro.
             "vits-piper-es_ES-miro-high/tokens.txt" to 512L,
         ),
         requireInstallMarker = true,
@@ -116,12 +116,12 @@ object EddyModelCatalog {
         ),
     )
 
-    // El micrófono privado puede funcionar sin el TTS neuronal: si la voz Miro no puede
-    // instalarse en un equipo concreto, EDDY conserva KWS + Voice ID + VAD + ASR y usa TTS
-    // de plataforma como alternativa. Un accesorio opcional nunca debe bloquear el núcleo.
-    val voiceCore = listOf(vad, speaker, keyword, spanishAsr)
+    // Activación adaptativa: Silero VAD detecta voz y Moonshine (ya necesario para comandos)
+    // comprueba si la frase contiene "EDDY". No existe un modelo KWS adicional que pueda
+    // bloquear el arranque en determinados SoC/Android.
+    val voiceCore = listOf(vad, speaker, spanishAsr)
     val acousticCore = voiceCore + spanishVoice
 
     fun byId(id: String): EddyModelSpec? =
-        (acousticCore + localLlm).firstOrNull { it.id == id }
+        (acousticCore + localLlm + keyword).firstOrNull { it.id == id }
 }
