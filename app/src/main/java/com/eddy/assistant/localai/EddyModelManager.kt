@@ -35,7 +35,9 @@ class EddyModelManager(context: Context) {
 
     fun isInstalled(spec: EddyModelSpec): Boolean = validateDirectory(spec, modelDir(spec)) == null
 
-    fun coreReady(): Boolean = EddyModelCatalog.acousticCore.all(::isInstalled)
+    // TTS neuronal y LLM enriquecen a EDDY, pero no deben impedir que el núcleo privado
+    // de activación, Voice ID, VAD y reconocimiento español pueda iniciar.
+    fun coreReady(): Boolean = EddyModelCatalog.voiceCore.all(::isInstalled)
 
     fun invalidReason(spec: EddyModelSpec): String? = validateDirectory(spec, modelDir(spec))
 
@@ -58,9 +60,7 @@ class EddyModelManager(context: Context) {
         for (spec in models) {
             var installed = ensure(spec, onProgress)
 
-            // Los modelos del núcleo son obligatorios. Si la descarga terminó pero la
-            // extracción/validación falló, hacemos una segunda instalación completamente
-            // limpia. Esto evita que EDDY quede clavado para siempre en el último 100%.
+            // Reintento limpio para cualquier modelo descargable del núcleo acústico.
             if (!installed && spec != EddyModelCatalog.localLlm) {
                 onProgress(
                     EddyModelProgress(
@@ -76,10 +76,8 @@ class EddyModelManager(context: Context) {
 
             if (!installed) {
                 allReady = false
-                if (spec != EddyModelCatalog.localLlm) {
-                    // EddyAssistantService actualmente muestra DOWNLOADING en pantalla.
-                    // Emitimos además este estado visible para no dejar un 100% obsoleto
-                    // cuando los dos intentos de instalación hayan fallado.
+                val essential = spec in EddyModelCatalog.voiceCore
+                if (essential) {
                     onProgress(
                         EddyModelProgress(
                             "${spec.id} · error de instalación",
@@ -89,6 +87,17 @@ class EddyModelManager(context: Context) {
                         ),
                     )
                     break
+                } else {
+                    // La voz neural y el LLM son mejoras opcionales. EDDY continúa con el
+                    // fallback del sistema en vez de bloquear el asistente completo.
+                    onProgress(
+                        EddyModelProgress(
+                            "${spec.id} · alternativa activa",
+                            0,
+                            0,
+                            EddyModelProgress.State.DOWNLOADING,
+                        ),
+                    )
                 }
             }
         }
@@ -99,7 +108,7 @@ class EddyModelManager(context: Context) {
         onProgress: (EddyModelProgress) -> Unit = {},
     ): Boolean = withContext(Dispatchers.IO) {
         var ready = true
-        for (spec in EddyModelCatalog.acousticCore) {
+        for (spec in EddyModelCatalog.voiceCore) {
             var installed = ensure(spec, onProgress)
             if (!installed) {
                 onProgress(
@@ -163,9 +172,6 @@ class EddyModelManager(context: Context) {
             download(spec, part, onProgress)
             check(part.renameTo(archive)) { "No se pudo preparar ${spec.id}" }
 
-            // La interfaz existente solo pinta DOWNLOADING. Antes, desde aquí en adelante,
-            // se quedaba mostrando el 100% de descarga aunque Android estuviera varios
-            // minutos descomprimiendo. Publicamos una fase visible de instalación.
             onProgress(
                 EddyModelProgress(
                     "${spec.id} · instalando",
@@ -220,7 +226,6 @@ class EddyModelManager(context: Context) {
                 File(installDir, INSTALL_MARKER).writeText(spec.id)
             }
 
-            // Verificamos también el marcador antes de hacer visible la instalación.
             val finalProblemInTemp = validateDirectory(spec, installDir)
             check(finalProblemInTemp == null) { finalProblemInTemp ?: "Modelo inválido" }
 
@@ -234,8 +239,8 @@ class EddyModelManager(context: Context) {
             true
         }.getOrElse { error ->
             if (error is CancellationException) throw error
-            // Conservamos .part si el fallo fue durante la red. Así EDDY puede reanudar.
-            // Los temporales posteriores a la descarga sí se descartan para no activar basura.
+            // Conservamos .part si el fallo fue durante la red. Los temporales posteriores
+            // a una descarga sí se descartan para no activar contenido incompleto.
             archive.delete()
             installDir.deleteRecursively()
             if (validateDirectory(spec, finalDir) != null) finalDir.deleteRecursively()
@@ -287,8 +292,6 @@ class EddyModelManager(context: Context) {
                 lastFailure = error
                 if (attempt == DOWNLOAD_ATTEMPTS - 1) return@repeat
 
-                // Mantenemos el mismo modelId para no romper consumidores del progreso.
-                // El próximo intento usa HTTP Range y continúa el .part existente.
                 onProgress(
                     EddyModelProgress(
                         spec.id,
@@ -347,8 +350,6 @@ class EddyModelManager(context: Context) {
 
             val append = existingBytes > 0L && responseCode == HttpURLConnection.HTTP_PARTIAL
             if (existingBytes > 0L && !append) {
-                // Algunos CDN ignoran Range y responden 200. En ese caso reiniciamos solo
-                // este intento para no concatenar dos archivos y corromper el modelo.
                 output.delete()
             }
 
@@ -388,8 +389,6 @@ class EddyModelManager(context: Context) {
                 }
             }
 
-            // Siempre enviamos el progreso final. Antes el último callback podía quedar en
-            // 55%, 95%, etc. aunque la descarga ya hubiese terminado y estuviera extrayendo.
             val finalTotal = if (totalBytes > 0L) totalBytes else done
             onProgress(EddyModelProgress(spec.id, done, finalTotal, EddyModelProgress.State.DOWNLOADING))
 
@@ -422,12 +421,21 @@ class EddyModelManager(context: Context) {
         val countingInput = CountingInputStream(archive.inputStream())
         var nextReport = 0L
 
+        fun reportProgress(force: Boolean = false) {
+            val consumed = countingInput.bytesRead.coerceAtMost(totalBytes)
+            if (force || consumed >= nextReport) {
+                onInstallProgress(consumed, totalBytes)
+                nextReport = consumed + INSTALL_PROGRESS_REPORT_BYTES
+            }
+        }
+
         onInstallProgress(0L, totalBytes)
 
         BufferedInputStream(countingInput, ARCHIVE_BUFFER_BYTES).use { compressedInput ->
             BZip2CompressorInputStream(compressedInput).use { bz2 ->
                 BufferedInputStream(bz2, ARCHIVE_BUFFER_BYTES).use { decompressedInput ->
                     TarArchiveInputStream(decompressedInput).use { tar ->
+                        val copyBuffer = ByteArray(ARCHIVE_COPY_BUFFER_BYTES)
                         while (true) {
                             val entry = tar.nextEntry ?: break
                             val out = File(destination, entry.name).canonicalFile
@@ -436,17 +444,21 @@ class EddyModelManager(context: Context) {
                             }
                             if (entry.isDirectory) {
                                 out.mkdirs()
+                                reportProgress()
                             } else {
                                 out.parentFile?.mkdirs()
                                 out.outputStream().buffered(ARCHIVE_BUFFER_BYTES).use { target ->
-                                    tar.copyTo(target, ARCHIVE_BUFFER_BYTES)
+                                    // No usamos tar.copyTo(): en modelos con un ONNX grande ese
+                                    // método no devolvía control hasta acabar el archivo completo,
+                                    // dejando teléfonos lentos aparentemente clavados en 1%.
+                                    while (true) {
+                                        val count = tar.read(copyBuffer, 0, copyBuffer.size)
+                                        if (count < 0) break
+                                        target.write(copyBuffer, 0, count)
+                                        reportProgress()
+                                    }
                                 }
-                            }
-
-                            val consumed = countingInput.bytesRead.coerceAtMost(totalBytes)
-                            if (consumed >= nextReport) {
-                                onInstallProgress(consumed, totalBytes)
-                                nextReport = consumed + INSTALL_PROGRESS_REPORT_BYTES
+                                reportProgress(force = true)
                             }
                         }
                     }
@@ -482,9 +494,10 @@ class EddyModelManager(context: Context) {
         private const val RETRY_BASE_DELAY_MS = 1_500L
         private const val REPAIR_RETRY_DELAY_MS = 1_000L
         private const val PROGRESS_REPORT_BYTES = 512L * 1024L
-        private const val INSTALL_PROGRESS_REPORT_BYTES = 1L * 1024L * 1024L
+        private const val INSTALL_PROGRESS_REPORT_BYTES = 512L * 1024L
         private const val DOWNLOAD_BUFFER_BYTES = 256 * 1024
-        private const val ARCHIVE_BUFFER_BYTES = 256 * 1024
+        private const val ARCHIVE_BUFFER_BYTES = 128 * 1024
+        private const val ARCHIVE_COPY_BUFFER_BYTES = 64 * 1024
         private const val HTTP_RANGE_NOT_SATISFIABLE = 416
     }
 }
