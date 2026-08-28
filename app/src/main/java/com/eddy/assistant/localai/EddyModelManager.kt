@@ -3,9 +3,13 @@ package com.eddy.assistant.localai
 import android.content.Context
 import java.io.BufferedInputStream
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
@@ -89,8 +93,9 @@ class EddyModelManager(context: Context) {
             return@withContext true
         }
 
-        // Cualquier instalación vieja/incompleta se descarta. La nueva se prepara
-        // en un directorio temporal y solo sustituye a la anterior cuando valida.
+        // La instalación se arma en un directorio temporal y solo se activa cuando valida.
+        // El archivo .part NO se elimina aquí: si Android o la red interrumpen una descarga,
+        // el siguiente intento continúa desde el último byte en vez de volver a 0%.
         val finalDir = modelDir(spec)
         val installDir = File(root, "${spec.directoryName}.installing")
         val part = File(root, "${spec.id}.part")
@@ -99,7 +104,6 @@ class EddyModelManager(context: Context) {
         runCatching {
             installDir.deleteRecursively()
             installDir.mkdirs()
-            part.delete()
             archive.delete()
 
             download(spec, part, onProgress)
@@ -145,14 +149,14 @@ class EddyModelManager(context: Context) {
 
             onProgress(EddyModelProgress(spec.id, 0, 0, EddyModelProgress.State.READY))
             true
-        }.getOrElse {
-            part.delete()
+        }.getOrElse { error ->
+            if (error is CancellationException) throw error
+            // Conservamos .part si el fallo fue durante la red. Así EDDY puede reanudar.
+            // Los temporales posteriores a la descarga sí se descartan para no activar basura.
             archive.delete()
             installDir.deleteRecursively()
-            // Si había una instalación marcada como inválida, no la conservamos para
-            // evitar que el siguiente arranque vuelva a intentar cargarla.
             if (validateDirectory(spec, finalDir) != null) finalDir.deleteRecursively()
-            onProgress(EddyModelProgress(spec.id, 0, 0, EddyModelProgress.State.FAILED))
+            onProgress(EddyModelProgress(spec.id, part.length(), 0, EddyModelProgress.State.FAILED))
             false
         }
     }
@@ -184,25 +188,102 @@ class EddyModelManager(context: Context) {
         return null
     }
 
-    private fun download(
+    private suspend fun download(
         spec: EddyModelSpec,
         output: File,
         onProgress: (EddyModelProgress) -> Unit,
     ) {
-        if (output.exists()) output.delete()
+        var lastFailure: Throwable? = null
+
+        repeat(DOWNLOAD_ATTEMPTS) { attempt ->
+            try {
+                downloadAttempt(spec, output, onProgress)
+                return
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                lastFailure = error
+                if (attempt == DOWNLOAD_ATTEMPTS - 1) return@repeat
+
+                // Mantenemos el mismo modelId para no romper consumidores del progreso.
+                // El próximo intento usa HTTP Range y continúa el .part existente.
+                onProgress(
+                    EddyModelProgress(
+                        spec.id,
+                        output.length(),
+                        0,
+                        EddyModelProgress.State.DOWNLOADING,
+                    ),
+                )
+                delay(RETRY_BASE_DELAY_MS * (attempt + 1L))
+            }
+        }
+
+        throw IOException("No se pudo completar ${spec.id} tras $DOWNLOAD_ATTEMPTS intentos", lastFailure)
+    }
+
+    private fun downloadAttempt(
+        spec: EddyModelSpec,
+        output: File,
+        onProgress: (EddyModelProgress) -> Unit,
+    ) {
+        val existingBytes = output.takeIf { it.isFile }?.length()?.coerceAtLeast(0L) ?: 0L
         val connection = URL(spec.url).openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
-        connection.connectTimeout = 20_000
-        connection.readTimeout = 90_000
+        connection.connectTimeout = CONNECT_TIMEOUT_MS
+        connection.readTimeout = READ_TIMEOUT_MS
         connection.setRequestProperty("User-Agent", "EDDY-Local-Core/0.5.1")
+        connection.setRequestProperty("Accept-Encoding", "identity")
+        if (existingBytes > 0L) {
+            connection.setRequestProperty("Range", "bytes=$existingBytes-")
+        }
+
         try {
             connection.connect()
-            check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
-            val total = connection.contentLengthLong.coerceAtLeast(0L)
-            var done = 0L
-            var nextReport = 0L
+            val responseCode = connection.responseCode
+
+            if (responseCode == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE && existingBytes > 0L) {
+                val serverTotal = contentRangeTotal(connection.getHeaderField("Content-Range"))
+                if (serverTotal != null && serverTotal == existingBytes && output.length() >= spec.minBytes) {
+                    onProgress(
+                        EddyModelProgress(
+                            spec.id,
+                            existingBytes,
+                            serverTotal,
+                            EddyModelProgress.State.DOWNLOADING,
+                        ),
+                    )
+                    return
+                }
+                output.delete()
+                throw IOException("El servidor rechazó la reanudación de ${spec.id}")
+            }
+
+            if (responseCode !in 200..299) {
+                throw IOException("HTTP $responseCode al descargar ${spec.id}")
+            }
+
+            val append = existingBytes > 0L && responseCode == HttpURLConnection.HTTP_PARTIAL
+            if (existingBytes > 0L && !append) {
+                // Algunos CDN ignoran Range y responden 200. En ese caso reiniciamos solo
+                // este intento para no concatenar dos archivos y corromper el modelo.
+                output.delete()
+            }
+
+            val baseBytes = if (append) existingBytes else 0L
+            val responseBytes = connection.contentLengthLong.coerceAtLeast(0L)
+            val rangedTotal = contentRangeTotal(connection.getHeaderField("Content-Range"))
+            val totalBytes = when {
+                rangedTotal != null -> rangedTotal
+                responseBytes > 0L -> baseBytes + responseBytes
+                else -> 0L
+            }
+
+            var done = baseBytes
+            var nextReport = done
+            onProgress(EddyModelProgress(spec.id, done, totalBytes, EddyModelProgress.State.DOWNLOADING))
+
             BufferedInputStream(connection.inputStream).use { input ->
-                output.outputStream().buffered().use { out ->
+                FileOutputStream(output, append).buffered().use { out ->
                     val buffer = ByteArray(128 * 1024)
                     while (true) {
                         val count = input.read(buffer)
@@ -214,20 +295,38 @@ class EddyModelManager(context: Context) {
                                 EddyModelProgress(
                                     spec.id,
                                     done,
-                                    total,
+                                    totalBytes,
                                     EddyModelProgress.State.DOWNLOADING,
                                 ),
                             )
-                            nextReport = done + 2L * 1024L * 1024L
+                            nextReport = done + PROGRESS_REPORT_BYTES
                         }
                     }
                 }
             }
-            if (total > 0L) check(done == total) { "Descarga truncada: ${spec.id}" }
-            check(output.length() >= spec.minBytes) { "Descarga incompleta: ${spec.id}" }
+
+            // Siempre enviamos el progreso final. Antes el último callback podía quedar en
+            // 55%, 95%, etc. aunque la descarga ya hubiese terminado y estuviera extrayendo.
+            val finalTotal = if (totalBytes > 0L) totalBytes else done
+            onProgress(EddyModelProgress(spec.id, done, finalTotal, EddyModelProgress.State.DOWNLOADING))
+
+            if (totalBytes > 0L && done != totalBytes) {
+                throw IOException("Descarga truncada: ${spec.id} ($done/$totalBytes)")
+            }
+            if (output.length() < spec.minBytes) {
+                throw IOException("Descarga incompleta: ${spec.id}")
+            }
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun contentRangeTotal(value: String?): Long? {
+        if (value.isNullOrBlank()) return null
+        return value.substringAfterLast('/', missingDelimiterValue = "")
+            .trim()
+            .toLongOrNull()
+            ?.takeIf { it > 0L }
     }
 
     private fun extractTarBz2Safely(archive: File, destination: File) {
@@ -253,5 +352,10 @@ class EddyModelManager(context: Context) {
 
     companion object {
         private const val INSTALL_MARKER = ".eddy-model-id"
+        private const val DOWNLOAD_ATTEMPTS = 4
+        private const val CONNECT_TIMEOUT_MS = 20_000
+        private const val READ_TIMEOUT_MS = 45_000
+        private const val RETRY_BASE_DELAY_MS = 1_500L
+        private const val PROGRESS_REPORT_BYTES = 512L * 1024L
     }
 }
