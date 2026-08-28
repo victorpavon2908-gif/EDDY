@@ -21,9 +21,10 @@ class EddyTextToSpeech(
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
-            configureMasculineNicaraguanSpanishVoice()
-            tts.setSpeechRate(0.98f)
-            tts.setPitch(0.82f)
+            configureNaturalMasculineSpanishVoice()
+            // Evitamos bajar demasiado el pitch: sonaba artificial/robótico.
+            tts.setSpeechRate(0.97f)
+            tts.setPitch(0.94f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String) = notifySpeaking(true)
                 override fun onDone(utteranceId: String) = notifySpeaking(false)
@@ -37,7 +38,7 @@ class EddyTextToSpeech(
         onReady(ready)
     }
 
-    private fun configureMasculineNicaraguanSpanishVoice() {
+    private fun configureNaturalMasculineSpanishVoice() {
         val nicaraguaSpanish = Locale("es", "NI")
         val languageResult = tts.setLanguage(nicaraguaSpanish)
 
@@ -47,12 +48,11 @@ class EddyTextToSpeech(
 
         val preferred = spanishVoices
             .sortedWith(
-                compareBy<Voice>(
-                    { masculineVoiceRank(it) },
-                    { voiceCountryRank(it.locale.country) },
-                    { if (it.isNetworkConnectionRequired) 1 else 0 },
-                    { it.latency },
-                ),
+                compareBy<Voice> { masculineVoiceRank(it) }
+                    .thenByDescending { it.quality }
+                    .thenBy { voiceCountryRank(it.locale.country) }
+                    .thenBy { if (it.isNetworkConnectionRequired) 1 else 0 }
+                    .thenBy { it.latency },
             )
             .firstOrNull()
 
