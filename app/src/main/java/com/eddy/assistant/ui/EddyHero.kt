@@ -24,54 +24,79 @@ internal fun EddyHero(
     state: EddyVisualState,
     modifier: Modifier = Modifier,
 ) {
-    val transition = rememberInfiniteTransition(label = "eddyCompactHero")
-    val pulse by transition.animateFloat(
+    val transition = rememberInfiniteTransition(label = "eddyAliveHero")
+    val breath by transition.animateFloat(
         initialValue = 0.94f,
-        targetValue = 1f,
+        targetValue = 1.045f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = when (state) {
-                    EddyVisualState.SPEAKING -> 420
-                    EddyVisualState.LISTENING -> 720
-                    EddyVisualState.THINKING -> 900
-                    EddyVisualState.IDLE -> 1_800
+                    EddyVisualState.SPEAKING -> 360
+                    EddyVisualState.LISTENING -> 620
+                    EddyVisualState.THINKING -> 760
+                    EddyVisualState.IDLE -> 2_200
                 },
             ),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "pulse",
+        label = "breath",
     )
     val orbit by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = if (state == EddyVisualState.THINKING) 1_150 else 3_600,
+                durationMillis = when (state) {
+                    EddyVisualState.THINKING -> 920
+                    EddyVisualState.LISTENING -> 2_200
+                    EddyVisualState.SPEAKING -> 1_700
+                    EddyVisualState.IDLE -> 4_800
+                },
             ),
             repeatMode = RepeatMode.Restart,
         ),
         label = "orbit",
     )
-    val mouth by transition.animateFloat(
-        initialValue = 0.15f,
+    val voice by transition.animateFloat(
+        initialValue = 0.12f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 180),
+            animation = tween(durationMillis = if (state == EddyVisualState.SPEAKING) 145 else 420),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "mouth",
+        label = "voice",
+    )
+    val eyeEnergy by transition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = if (state == EddyVisualState.LISTENING) 520 else 1_300),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "eyes",
     )
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val unit = min(size.width, size.height)
-        val center = Offset(size.width / 2f, size.height / 2f)
+        val center = Offset(size.width / 2f, size.height / 2f - unit * 0.015f)
         val field = unit * 0.34f
-        val graphite = Color(0xFF0A1512)
-        val soft = Color(0xFFCBD8D3)
+        val graphite = Color(0xFF07120F)
+        val soft = Color(0xFFCAD8D3)
         val mint = EddyMint
+        val stateAccent = when (state) {
+            EddyVisualState.THINKING -> EddyBlue
+            EddyVisualState.SPEAKING -> Color(0xFF54DDB4)
+            else -> mint
+        }
         val stroke = (unit * 0.018f).coerceAtLeast(5f)
-        val detail = (unit * 0.009f).coerceAtLeast(2.6f)
+        val detail = (unit * 0.0085f).coerceAtLeast(2.5f)
 
+        // Campo de presencia: respira despacio cuando EDDY está simplemente atento.
+        drawCircle(
+            color = stateAccent.copy(alpha = 0.055f + 0.06f * breath),
+            radius = field * 1.14f * breath,
+            center = center,
+        )
         drawCircle(
             color = soft.copy(alpha = 0.62f),
             radius = field,
@@ -79,17 +104,23 @@ internal fun EddyHero(
             style = Stroke(width = detail),
         )
         drawCircle(
-            color = mint.copy(alpha = 0.12f + 0.12f * pulse),
-            radius = field * (0.80f + 0.07f * pulse),
+            color = stateAccent.copy(alpha = 0.12f + 0.10f * breath),
+            radius = field * (0.78f + 0.08f * breath),
             center = center,
         )
 
+        // Dos nodos orbitales hacen visible que está atento sin fingir que transcribe.
         val angle = Math.toRadians(orbit.toDouble())
         val node = Offset(
             x = center.x + cos(angle).toFloat() * field,
             y = center.y + sin(angle).toFloat() * field,
         )
-        drawCircle(mint, radius = unit * 0.014f, center = node)
+        val opposite = Offset(
+            x = center.x + cos(angle + Math.PI).toFloat() * field,
+            y = center.y + sin(angle + Math.PI).toFloat() * field,
+        )
+        drawCircle(stateAccent, radius = unit * 0.014f, center = node)
+        drawCircle(stateAccent.copy(alpha = 0.42f), radius = unit * 0.007f, center = opposite)
 
         val w = unit * 0.39f
         val h = unit * 0.46f
@@ -110,65 +141,75 @@ internal fun EddyHero(
             lineTo(left, top + cut)
             close()
         }
+        drawPath(shell, graphite, style = Stroke(width = stroke, cap = StrokeCap.Square))
+
+        // Un segundo borde interior le da profundidad sin convertirlo en un robot 3D pesado.
         drawPath(
-            path = shell,
-            color = graphite,
-            style = Stroke(width = stroke, cap = StrokeCap.Square),
+            shell,
+            stateAccent.copy(alpha = 0.18f + if (state == EddyVisualState.LISTENING) 0.12f else 0f),
+            style = Stroke(width = detail),
         )
 
         val midY = center.y + h * 0.08f
-        drawLine(
-            graphite,
-            Offset(left, midY),
-            Offset(right, midY),
-            strokeWidth = stroke,
-            cap = StrokeCap.Square,
-        )
+        drawLine(graphite, Offset(left, midY), Offset(right, midY), stroke, StrokeCap.Square)
 
         val browY = center.y - h * 0.15f
         val eyeHalf = w * 0.12f
-        drawLine(graphite, Offset(center.x - w * 0.25f, browY), Offset(center.x - w * 0.08f, browY + detail), detail, StrokeCap.Round)
-        drawLine(graphite, Offset(center.x + w * 0.08f, browY + detail), Offset(center.x + w * 0.25f, browY), detail, StrokeCap.Round)
-        drawCircle(mint, radius = unit * 0.012f, center = Offset(center.x - eyeHalf, browY + h * 0.055f))
-        drawCircle(mint, radius = unit * 0.012f, center = Offset(center.x + eyeHalf, browY + h * 0.055f))
+        val browLift = if (state == EddyVisualState.LISTENING) -h * 0.012f else 0f
+        drawLine(
+            graphite,
+            Offset(center.x - w * 0.25f, browY + browLift),
+            Offset(center.x - w * 0.08f, browY + detail + browLift),
+            detail,
+            StrokeCap.Round,
+        )
+        drawLine(
+            graphite,
+            Offset(center.x + w * 0.08f, browY + detail + browLift),
+            Offset(center.x + w * 0.25f, browY + browLift),
+            detail,
+            StrokeCap.Round,
+        )
+        val eyeRadius = unit * (0.010f + 0.004f * eyeEnergy)
+        drawCircle(stateAccent.copy(alpha = 0.35f), eyeRadius * 2.1f, Offset(center.x - eyeHalf, browY + h * 0.055f))
+        drawCircle(stateAccent.copy(alpha = 0.35f), eyeRadius * 2.1f, Offset(center.x + eyeHalf, browY + h * 0.055f))
+        drawCircle(stateAccent, eyeRadius, Offset(center.x - eyeHalf, browY + h * 0.055f))
+        drawCircle(stateAccent, eyeRadius, Offset(center.x + eyeHalf, browY + h * 0.055f))
 
         val mouthY = center.y - h * 0.015f
         val mouthWidth = w * 0.25f
-        if (state == EddyVisualState.SPEAKING) {
-            drawLine(
-                graphite,
-                Offset(center.x - mouthWidth, mouthY),
-                Offset(center.x + mouthWidth, mouthY),
-                detail + mouth * unit * 0.004f,
-                StrokeCap.Round,
-            )
-        } else {
-            drawLine(
-                graphite,
-                Offset(center.x - mouthWidth, mouthY),
-                Offset(center.x + mouthWidth, mouthY),
-                detail,
-                StrokeCap.Round,
-            )
-        }
+        val mouthThickness = if (state == EddyVisualState.SPEAKING) detail + voice * unit * 0.004f else detail
+        drawLine(
+            graphite,
+            Offset(center.x - mouthWidth, mouthY),
+            Offset(center.x + mouthWidth, mouthY),
+            mouthThickness,
+            StrokeCap.Round,
+        )
 
         val coreTop = midY + h * 0.055f
         val coreBottom = bottom - h * 0.09f
         drawLine(graphite, Offset(center.x, coreTop), Offset(center.x, coreBottom), detail, StrokeCap.Square)
         drawLine(graphite, Offset(center.x - w * 0.20f, coreTop), Offset(center.x, center.y + h * 0.24f), detail, StrokeCap.Square)
         drawLine(graphite, Offset(center.x + w * 0.20f, coreTop), Offset(center.x, center.y + h * 0.24f), detail, StrokeCap.Square)
+        drawCircle(
+            color = stateAccent.copy(alpha = if (state == EddyVisualState.THINKING) 0.95f else 0.55f),
+            radius = unit * 0.011f * breath,
+            center = Offset(center.x, center.y + h * 0.24f),
+        )
 
         val activity = when (state) {
-            EddyVisualState.IDLE -> 2
-            EddyVisualState.LISTENING -> 4
-            EddyVisualState.THINKING -> 5
-            EddyVisualState.SPEAKING -> 6
+            EddyVisualState.IDLE -> 3
+            EddyVisualState.LISTENING -> 5
+            EddyVisualState.THINKING -> 6
+            EddyVisualState.SPEAKING -> 7
         }
         repeat(activity) { index ->
-            val x = center.x - unit * 0.095f + index * unit * 0.038f
-            val barHeight = unit * (0.026f + ((index % 3) * 0.012f)) * pulse
+            val x = center.x - unit * 0.112f + index * unit * 0.037f
+            val phase = if (state == EddyVisualState.SPEAKING) voice else breath
+            val barHeight = unit * (0.022f + ((index % 4) * 0.010f)) * phase
             drawLine(
-                color = if (state == EddyVisualState.THINKING) EddyBlue else mint,
+                color = stateAccent,
                 start = Offset(x, bottom + unit * 0.075f - barHeight / 2f),
                 end = Offset(x, bottom + unit * 0.075f + barHeight / 2f),
                 strokeWidth = detail,
