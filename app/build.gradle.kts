@@ -1,3 +1,4 @@
+import java.io.File
 import java.net.URI
 import java.util.Properties
 
@@ -27,11 +28,13 @@ val downloadSherpaAar = tasks.register("downloadSherpaAar") {
     doLast {
         if (!sherpaAar.exists() || sherpaAar.length() < 40_000_000L) {
             sherpaAar.parentFile.mkdirs()
-            val temp = java.io.File(sherpaAar.parentFile, sherpaAar.name + ".part")
+            val temp = File(sherpaAar.parentFile, sherpaAar.name + ".part")
             URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v$sherpaVersion/sherpa-onnx-$sherpaVersion.aar")
                 .toURL()
                 .openStream()
-                .use { input -> temp.outputStream().use { output -> input.copyTo(output) } }
+                .use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                }
             check(temp.length() > 40_000_000L) { "sherpa-onnx AAR incompleto" }
             if (sherpaAar.exists()) sherpaAar.delete()
             check(temp.renameTo(sherpaAar)) { "No se pudo instalar sherpa-onnx AAR" }
