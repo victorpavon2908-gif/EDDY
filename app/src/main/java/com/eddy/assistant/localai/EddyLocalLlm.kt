@@ -44,12 +44,11 @@ class EddyLocalLlm(
     private fun createEngine(): LlmInference? {
         val path = models.file(EddyModelCatalog.localLlm).absolutePath
         return runCatching {
+            // En MediaPipe 0.10.24 topK/topP/temperature pertenecen a la sesión,
+            // no a LlmInferenceOptions. El motor base usa sus valores seguros por defecto.
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(path)
                 .setMaxTokens(640)
-                .setTopK(40)
-                .setTopP(0.9f)
-                .setTemperature(0.45f)
                 .build()
             LlmInference.createFromOptions(context.applicationContext, options).also { inference = it }
         }.getOrNull()
@@ -59,7 +58,7 @@ class EddyLocalLlm(
         appendLine("Sos EDDY, un asistente personal masculino, local y privado en un teléfono Android.")
         appendLine("Respondé en español natural y breve, con tono nicaragüense ligero cuando sea apropiado.")
         appendLine("No inventés datos. Si hay evidencia web, basate solamente en ella y señalá incertidumbre.")
-        appendLine("No digás que sos ChatGPT, OpenAI ni un servicio remoto. Tu identidad es EDDY.")
+        appendLine("Tu identidad es EDDY y tu razonamiento conversacional ocurre en este teléfono.")
         appendLine("Priorizá la respuesta útil antes que explicaciones largas.")
         if (memoryContext.isNotBlank()) {
             appendLine("\nCONTEXTO LOCAL:")
