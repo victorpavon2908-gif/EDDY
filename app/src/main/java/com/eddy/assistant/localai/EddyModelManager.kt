@@ -241,7 +241,7 @@ class EddyModelManager(context: Context) {
             connection.connect()
             val responseCode = connection.responseCode
 
-            if (responseCode == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE && existingBytes > 0L) {
+            if (responseCode == HTTP_RANGE_NOT_SATISFIABLE && existingBytes > 0L) {
                 val serverTotal = contentRangeTotal(connection.getHeaderField("Content-Range"))
                 if (serverTotal != null && serverTotal == existingBytes && output.length() >= spec.minBytes) {
                     onProgress(
@@ -357,5 +357,6 @@ class EddyModelManager(context: Context) {
         private const val READ_TIMEOUT_MS = 45_000
         private const val RETRY_BASE_DELAY_MS = 1_500L
         private const val PROGRESS_REPORT_BYTES = 512L * 1024L
+        private const val HTTP_RANGE_NOT_SATISFIABLE = 416
     }
 }
