@@ -5,7 +5,7 @@ import java.util.Locale
 
 class LocalBrain {
     fun understand(input: String): AssistantCommand {
-        val original = input.trim()
+        val original = cleanConversationalInput(input.trim())
         val text = normalize(original)
 
         if (
@@ -69,13 +69,14 @@ class LocalBrain {
 
         if (
             text.contains("camara") &&
-            containsAny(text, "abre", "abri", "abrir", "inicia", "enciende")
+            containsAny(text, "abre", "abri", "abrir", "abrime", "abreme", "inicia", "enciende", "encende")
         ) return AssistantCommand.OpenCamera
 
         parseOpenApp(original, text)?.let { return it }
 
         if (
             text == "eddy" ||
+            text == "edi" ||
             text.contains("hola") ||
             text.contains("como estas") ||
             text.contains("oye eddy") ||
@@ -90,7 +91,8 @@ class LocalBrain {
     private fun parseOpenApp(original: String, normalized: String): AssistantCommand? {
         val openRequested = containsAny(
             normalized,
-            "abre", "abri", "abrir", "inicia", "lanza", "ejecuta", "pon", "pone",
+            "abre", "abri", "abrir", "abrime", "abreme", "abras",
+            "inicia", "lanza", "ejecuta", "entra a", "entra en", "entrar a", "entrar en", "metete en",
         )
         if (!openRequested) return null
 
@@ -101,10 +103,11 @@ class LocalBrain {
             normalized.contains("maps") || normalized.contains("mapas") -> return AssistantCommand.OpenApp(SupportedApp.MAPS)
             normalized.contains("chrome") || normalized.contains("navegador") -> return AssistantCommand.OpenApp(SupportedApp.CHROME)
             normalized.contains("gmail") || normalized.contains("correo") -> return AssistantCommand.OpenApp(SupportedApp.GMAIL)
+            normalized.contains("lafise") || normalized.contains("lafice") -> return AssistantCommand.OpenAppByName("LAFISE")
         }
 
         val match = Regex(
-            """(?i)(?:^|\b)(?:abre|abrí|abri|abrir|inicia|lanza|ejecuta|poné|pone|pon)\s+(?:(?:la|el)\s+)?(?:(?:app|aplicación|aplicacion)\s+)?(.+)$"""
+            """(?i)(?:^|\b)(?:abre|abrí|abri|abrir|ábreme|abreme|abrime|abras|inicia|lanza|ejecuta|entra(?:r)?(?:\s+a|\s+en)?|m[eé]tete\s+en)\s+(?:(?:la|el)\s+)?(?:(?:app|aplicación|aplicacion)\s+)?(.+)$""",
         ).find(original) ?: return null
 
         val name = match.groupValues.getOrNull(1)
@@ -172,8 +175,12 @@ class LocalBrain {
     private fun parseTorch(text: String): AssistantCommand.SetTorch? {
         if (!containsAny(text, "linterna", "flash del telefono", "luz del telefono")) return null
         return when {
-            containsAny(text, "apaga", "apagar", "desactiva", "quita") -> AssistantCommand.SetTorch(false)
-            containsAny(text, "enciende", "encender", "prende", "prender", "activa") -> AssistantCommand.SetTorch(true)
+            containsAny(text, "apaga", "apagar", "apagame", "apagala", "desactiva", "quita") -> AssistantCommand.SetTorch(false)
+            containsAny(
+                text,
+                "enciende", "encender", "encende", "encendeme",
+                "prende", "prender", "prendeme", "activa", "activar",
+            ) -> AssistantCommand.SetTorch(true)
             else -> null
         }
     }
@@ -199,7 +206,7 @@ class LocalBrain {
     private fun parseSystemPanel(text: String): AssistantCommand.OpenSystemPanel? {
         val wantsControl = containsAny(
             text,
-            "abre", "abri", "abrir", "activa", "activar", "enciende", "encender", "prende", "configura", "ajustes",
+            "abre", "abri", "abrir", "abrime", "abreme", "activa", "activar", "enciende", "encende", "encender", "prende", "configura", "ajustes",
         )
         if (!wantsControl) return null
         return when {
@@ -221,12 +228,12 @@ class LocalBrain {
         )
         if (!hasTarget) return null
         val enabled = when {
-            containsAny(text, "apaga", "apagar", "desactiva") -> false
-            containsAny(text, "enciende", "encender", "prende", "prender", "activa") -> true
+            containsAny(text, "apaga", "apagar", "apagame", "desactiva") -> false
+            containsAny(text, "enciende", "encender", "encende", "prende", "prender", "activa") -> true
             else -> return null
         }
         val target = text
-            .replace(Regex("\\b(?:enciende|encender|prende|prender|activa|apaga|apagar|desactiva)\\b"), " ")
+            .replace(Regex("\\b(?:enciende|encender|encende|prende|prender|activa|apaga|apagar|apagame|desactiva)\\b"), " ")
             .replace(Regex("\\b(?:la|el|los|las|de|del)\\b"), " ")
             .replace(Regex("\\s+"), " ")
             .trim(' ', ',', '.')
@@ -299,6 +306,18 @@ class LocalBrain {
         return null
     }
 
+    private fun cleanConversationalInput(value: String): String {
+        var current = value.trim()
+        repeat(5) {
+            val updated = current
+                .replace(CONVERSATIONAL_PREFIX, "")
+                .trim(' ', ',', '.', ':', ';', '-', '¿', '?', '¡', '!')
+            if (updated == current) return current
+            current = updated
+        }
+        return current
+    }
+
     private fun cleanPhone(value: String): String = value.replace(Regex("""[\s-]"""), "")
     private fun containsAny(text: String, vararg values: String): Boolean = values.any(text::contains)
 
@@ -311,5 +330,8 @@ class LocalBrain {
 
     companion object {
         private val PHONE_REGEX = Regex("""\+?\d[\d\s-]{6,}\d""")
+        private val CONVERSATIONAL_PREFIX = Regex(
+            """(?i)^(?:(?:eddy|eddi|eddie|edy|edi)\s*[,.:;!¿?¡-]*\s*)?(?:por\s+favor|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hacés\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey)\s+""",
+        )
     }
 }
