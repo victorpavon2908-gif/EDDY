@@ -28,6 +28,18 @@ class LocalBrainTest {
     }
 
     @Test
+    fun opensLafiseEvenWhenSpeechWritesLafice() {
+        assertEquals(
+            AssistantCommand.OpenAppByName("LAFISE"),
+            brain.understand("abrí lafice digital"),
+        )
+        assertEquals(
+            AssistantCommand.OpenAppByName("LAFISE"),
+            brain.understand("haceme el favor de abrir LAFISE Digital"),
+        )
+    }
+
+    @Test
     fun understandsCameraWithoutAccent() {
         assertEquals(
             AssistantCommand.OpenCamera,
@@ -87,6 +99,18 @@ class LocalBrainTest {
         assertEquals(
             AssistantCommand.SetTorch(true),
             brain.understand("prendé la linterna"),
+        )
+    }
+
+    @Test
+    fun understandsPoliteNicaraguanTorchCommand() {
+        assertEquals(
+            AssistantCommand.SetTorch(true),
+            brain.understand("EDDY haceme el favor encendé la linterna"),
+        )
+        assertEquals(
+            AssistantCommand.SetTorch(false),
+            brain.understand("por favor apagame la linterna"),
         )
     }
 
