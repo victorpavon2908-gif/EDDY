@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FilterInputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -55,9 +56,41 @@ class EddyModelManager(context: Context) {
         }
         var allReady = true
         for (spec in models) {
-            if (!ensure(spec, onProgress)) allReady = false
-            // El LLM es opcional; no debe impedir que voz/ASR terminen de instalarse.
-            if (!allReady && spec != EddyModelCatalog.localLlm && !isInstalled(spec)) break
+            var installed = ensure(spec, onProgress)
+
+            // Los modelos del núcleo son obligatorios. Si la descarga terminó pero la
+            // extracción/validación falló, hacemos una segunda instalación completamente
+            // limpia. Esto evita que EDDY quede clavado para siempre en el último 100%.
+            if (!installed && spec != EddyModelCatalog.localLlm) {
+                onProgress(
+                    EddyModelProgress(
+                        "${spec.id} · reparando",
+                        0,
+                        0,
+                        EddyModelProgress.State.DOWNLOADING,
+                    ),
+                )
+                delay(REPAIR_RETRY_DELAY_MS)
+                installed = repair(spec, onProgress)
+            }
+
+            if (!installed) {
+                allReady = false
+                if (spec != EddyModelCatalog.localLlm) {
+                    // EddyAssistantService actualmente muestra DOWNLOADING en pantalla.
+                    // Emitimos además este estado visible para no dejar un 100% obsoleto
+                    // cuando los dos intentos de instalación hayan fallado.
+                    onProgress(
+                        EddyModelProgress(
+                            "${spec.id} · error de instalación",
+                            0,
+                            0,
+                            EddyModelProgress.State.DOWNLOADING,
+                        ),
+                    )
+                    break
+                }
+            }
         }
         allReady
     }
@@ -67,8 +100,29 @@ class EddyModelManager(context: Context) {
     ): Boolean = withContext(Dispatchers.IO) {
         var ready = true
         for (spec in EddyModelCatalog.acousticCore) {
-            if (!ensure(spec, onProgress)) {
+            var installed = ensure(spec, onProgress)
+            if (!installed) {
+                onProgress(
+                    EddyModelProgress(
+                        "${spec.id} · reparando",
+                        0,
+                        0,
+                        EddyModelProgress.State.DOWNLOADING,
+                    ),
+                )
+                delay(REPAIR_RETRY_DELAY_MS)
+                installed = repair(spec, onProgress)
+            }
+            if (!installed) {
                 ready = false
+                onProgress(
+                    EddyModelProgress(
+                        "${spec.id} · error de instalación",
+                        0,
+                        0,
+                        EddyModelProgress.State.DOWNLOADING,
+                    ),
+                )
                 break
             }
         }
@@ -108,6 +162,18 @@ class EddyModelManager(context: Context) {
 
             download(spec, part, onProgress)
             check(part.renameTo(archive)) { "No se pudo preparar ${spec.id}" }
+
+            // La interfaz existente solo pinta DOWNLOADING. Antes, desde aquí en adelante,
+            // se quedaba mostrando el 100% de descarga aunque Android estuviera varios
+            // minutos descomprimiendo. Publicamos una fase visible de instalación.
+            onProgress(
+                EddyModelProgress(
+                    "${spec.id} · instalando",
+                    0,
+                    archive.length(),
+                    EddyModelProgress.State.DOWNLOADING,
+                ),
+            )
             onProgress(
                 EddyModelProgress(
                     spec.id,
@@ -122,10 +188,27 @@ class EddyModelManager(context: Context) {
                     val destination = File(installDir, spec.expectedFiles.first())
                     destination.parentFile?.mkdirs()
                     archive.copyTo(destination, overwrite = true)
+                    onProgress(
+                        EddyModelProgress(
+                            "${spec.id} · instalando",
+                            archive.length(),
+                            archive.length(),
+                            EddyModelProgress.State.DOWNLOADING,
+                        ),
+                    )
                     archive.delete()
                 }
                 EddyArchiveType.TAR_BZ2 -> {
-                    extractTarBz2Safely(archive, installDir)
+                    extractTarBz2Safely(archive, installDir) { done, total ->
+                        onProgress(
+                            EddyModelProgress(
+                                "${spec.id} · instalando",
+                                done,
+                                total,
+                                EddyModelProgress.State.DOWNLOADING,
+                            ),
+                        )
+                    }
                     archive.delete()
                 }
             }
@@ -282,9 +365,9 @@ class EddyModelManager(context: Context) {
             var nextReport = done
             onProgress(EddyModelProgress(spec.id, done, totalBytes, EddyModelProgress.State.DOWNLOADING))
 
-            BufferedInputStream(connection.inputStream).use { input ->
-                FileOutputStream(output, append).buffered().use { out ->
-                    val buffer = ByteArray(128 * 1024)
+            BufferedInputStream(connection.inputStream, DOWNLOAD_BUFFER_BYTES).use { input ->
+                FileOutputStream(output, append).buffered(DOWNLOAD_BUFFER_BYTES).use { out ->
+                    val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
                     while (true) {
                         val count = input.read(buffer)
                         if (count < 0) break
@@ -329,24 +412,65 @@ class EddyModelManager(context: Context) {
             ?.takeIf { it > 0L }
     }
 
-    private fun extractTarBz2Safely(archive: File, destination: File) {
+    private fun extractTarBz2Safely(
+        archive: File,
+        destination: File,
+        onInstallProgress: (done: Long, total: Long) -> Unit,
+    ) {
         val canonicalRoot = destination.canonicalFile
-        TarArchiveInputStream(
-            BZip2CompressorInputStream(BufferedInputStream(archive.inputStream())),
-        ).use { tar ->
-            while (true) {
-                val entry = tar.nextEntry ?: break
-                val out = File(destination, entry.name).canonicalFile
-                check(out.path == canonicalRoot.path || out.path.startsWith(canonicalRoot.path + File.separator)) {
-                    "Ruta insegura en modelo"
-                }
-                if (entry.isDirectory) {
-                    out.mkdirs()
-                } else {
-                    out.parentFile?.mkdirs()
-                    out.outputStream().buffered().use { target -> tar.copyTo(target) }
+        val totalBytes = archive.length().coerceAtLeast(1L)
+        val countingInput = CountingInputStream(archive.inputStream())
+        var nextReport = 0L
+
+        onInstallProgress(0L, totalBytes)
+
+        BufferedInputStream(countingInput, ARCHIVE_BUFFER_BYTES).use { compressedInput ->
+            BZip2CompressorInputStream(compressedInput).use { bz2 ->
+                BufferedInputStream(bz2, ARCHIVE_BUFFER_BYTES).use { decompressedInput ->
+                    TarArchiveInputStream(decompressedInput).use { tar ->
+                        while (true) {
+                            val entry = tar.nextEntry ?: break
+                            val out = File(destination, entry.name).canonicalFile
+                            check(out.path == canonicalRoot.path || out.path.startsWith(canonicalRoot.path + File.separator)) {
+                                "Ruta insegura en modelo"
+                            }
+                            if (entry.isDirectory) {
+                                out.mkdirs()
+                            } else {
+                                out.parentFile?.mkdirs()
+                                out.outputStream().buffered(ARCHIVE_BUFFER_BYTES).use { target ->
+                                    tar.copyTo(target, ARCHIVE_BUFFER_BYTES)
+                                }
+                            }
+
+                            val consumed = countingInput.bytesRead.coerceAtMost(totalBytes)
+                            if (consumed >= nextReport) {
+                                onInstallProgress(consumed, totalBytes)
+                                nextReport = consumed + INSTALL_PROGRESS_REPORT_BYTES
+                            }
+                        }
+                    }
                 }
             }
+        }
+
+        onInstallProgress(totalBytes, totalBytes)
+    }
+
+    private class CountingInputStream(input: java.io.InputStream) : FilterInputStream(input) {
+        var bytesRead: Long = 0L
+            private set
+
+        override fun read(): Int {
+            val value = super.read()
+            if (value >= 0) bytesRead += 1L
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val count = super.read(buffer, offset, length)
+            if (count > 0) bytesRead += count.toLong()
+            return count
         }
     }
 
@@ -356,7 +480,11 @@ class EddyModelManager(context: Context) {
         private const val CONNECT_TIMEOUT_MS = 20_000
         private const val READ_TIMEOUT_MS = 45_000
         private const val RETRY_BASE_DELAY_MS = 1_500L
+        private const val REPAIR_RETRY_DELAY_MS = 1_000L
         private const val PROGRESS_REPORT_BYTES = 512L * 1024L
+        private const val INSTALL_PROGRESS_REPORT_BYTES = 1L * 1024L * 1024L
+        private const val DOWNLOAD_BUFFER_BYTES = 256 * 1024
+        private const val ARCHIVE_BUFFER_BYTES = 256 * 1024
         private const val HTTP_RANGE_NOT_SATISFIABLE = 416
     }
 }
