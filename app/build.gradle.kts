@@ -27,8 +27,8 @@ android {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.4.5"
+        versionCode = 10
+        versionName = "0.4.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
@@ -86,8 +86,6 @@ kotlin {
 }
 
 dependencies {
-    // Compose 1.12 (BOM 2026.08) already requires API 37 / AGP 9.1.
-    // EDDY stays on the newest stable line compatible with compileSdk 36 / AGP 8.13.
     val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
