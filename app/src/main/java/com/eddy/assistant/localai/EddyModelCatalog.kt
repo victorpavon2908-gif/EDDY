@@ -97,7 +97,9 @@ object EddyModelCatalog {
         minBytes = 10_000_000L,
         expectedMinBytes = mapOf(
             "vits-piper-es_ES-miro-high/es_ES-miro-high.onnx" to 10_000_000L,
-            "vits-piper-es_ES-miro-high/tokens.txt" to 1_000L,
+            // El archivo oficial actual tiene 954 bytes. 512 detecta truncamientos reales
+            // sin rechazar una distribución válida del modelo Miro.
+            "vits-piper-es_ES-miro-high/tokens.txt" to 512L,
         ),
         requireInstallMarker = true,
     )
@@ -114,7 +116,11 @@ object EddyModelCatalog {
         ),
     )
 
-    val acousticCore = listOf(vad, speaker, keyword, spanishAsr, spanishVoice)
+    // El micrófono privado puede funcionar sin el TTS neuronal: si la voz Miro no puede
+    // instalarse en un equipo concreto, EDDY conserva KWS + Voice ID + VAD + ASR y usa TTS
+    // de plataforma como alternativa. Un accesorio opcional nunca debe bloquear el núcleo.
+    val voiceCore = listOf(vad, speaker, keyword, spanishAsr)
+    val acousticCore = voiceCore + spanishVoice
 
     fun byId(id: String): EddyModelSpec? =
         (acousticCore + localLlm).firstOrNull { it.id == id }
