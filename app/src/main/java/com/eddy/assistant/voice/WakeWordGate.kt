@@ -6,6 +6,7 @@ import java.util.Locale
 class WakeWordGate(
     private val wakeWord: String = "eddy",
     private val followUpWindowMs: Long = 20_000L,
+    private val conversationWindowMs: Long = 12_000L,
 ) {
     private var armedUntil: Long = 0L
 
@@ -39,18 +40,18 @@ class WakeWordGate(
         val normalized = normalize(raw)
         val alias = findWakeAlias(normalized)
         if (alias != null) {
-            arm(nowMs)
             val command = removeWakeWord(raw)
             return if (command.isBlank()) {
+                arm(nowMs, followUpWindowMs)
                 WakeResult.Activated
             } else {
-                armedUntil = 0L
+                arm(nowMs, conversationWindowMs)
                 WakeResult.Command(command)
             }
         }
 
         if (isArmed(nowMs)) {
-            armedUntil = 0L
+            arm(nowMs, conversationWindowMs)
             return WakeResult.Command(raw)
         }
 
