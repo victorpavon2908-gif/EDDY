@@ -9,8 +9,25 @@ class WakeWordGate(
 ) {
     private var armedUntil: Long = 0L
 
-    fun arm(nowMs: Long = System.currentTimeMillis()) {
-        armedUntil = nowMs + followUpWindowMs
+    private val wakeAliases: Set<String> by lazy {
+        setOf(
+            normalize(wakeWord),
+            "edi",
+            "eddi",
+            "eddie",
+            "edy",
+        )
+    }
+
+    fun arm(
+        nowMs: Long = System.currentTimeMillis(),
+        durationMs: Long = followUpWindowMs,
+    ) {
+        armedUntil = nowMs + durationMs.coerceAtLeast(500L)
+    }
+
+    fun disarm() {
+        armedUntil = 0L
     }
 
     fun isArmed(nowMs: Long = System.currentTimeMillis()): Boolean = nowMs <= armedUntil
@@ -20,7 +37,8 @@ class WakeWordGate(
         if (raw.isBlank()) return WakeResult.Ignored
 
         val normalized = normalize(raw)
-        if (hasWakeWordNormalized(normalized)) {
+        val alias = findWakeAlias(normalized)
+        if (alias != null) {
             arm(nowMs)
             val command = removeWakeWord(raw)
             return if (command.isBlank()) {
@@ -42,17 +60,21 @@ class WakeWordGate(
     fun hasWakeWord(input: String): Boolean {
         val raw = input.trim()
         if (raw.isBlank()) return false
-        return hasWakeWordNormalized(normalize(raw))
+        return findWakeAlias(normalize(raw)) != null
     }
 
-    private fun hasWakeWordNormalized(normalized: String): Boolean {
-        val escaped = Regex.escape(normalize(wakeWord))
-        return Regex("(?:^|\\s|[,:;.!?¿¡-])$escaped(?:$|\\s|[,:;.!?¿¡-])").containsMatchIn(normalized)
+    private fun findWakeAlias(normalized: String): String? = wakeAliases.firstOrNull { alias ->
+        Regex("(?:^|\\s|[,:;.!?¿¡-])${Regex.escape(alias)}(?:$|\\s|[,:;.!?¿¡-])")
+            .containsMatchIn(normalized)
     }
 
     private fun removeWakeWord(input: String): String {
-        val escaped = Regex.escape(wakeWord)
-        val regex = Regex("(?i)(?:^|(?<=\\s)|(?<=[,:;.!?¿¡-]))$escaped(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*")
+        val aliases = wakeAliases
+            .sortedByDescending(String::length)
+            .joinToString("|") { Regex.escape(it) }
+        val regex = Regex(
+            "(?i)(?:^|(?<=\\s)|(?<=[,:;.!?¿¡-]))(?:$aliases)(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
+        )
         return input.replaceFirst(regex, "").trim()
     }
 
