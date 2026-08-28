@@ -2,6 +2,8 @@ package com.eddy.assistant.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -9,6 +11,7 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import java.text.Normalizer
 import java.util.Locale
 
 class EddySpeechRecognizer(
@@ -32,15 +35,19 @@ class EddySpeechRecognizer(
     private var languageIndex = 0
     private var useDeviceDefaultLanguage = false
 
+    private var interactionUntil = 0L
+    private var lastWakeCueAt = 0L
+
+    private val wakeAliases = setOf("eddy", "edi", "eddi", "eddie", "edy")
+
     private val languageCandidates: List<String> by lazy {
         buildList {
             val defaultTag = Locale.getDefault().toLanguageTag()
-            if (defaultTag.startsWith("es", ignoreCase = true)) {
-                add(defaultTag)
-            }
+            if (defaultTag.startsWith("es", ignoreCase = true)) add(defaultTag)
+            add("es-NI")
             add("es-US")
-            add("es-ES")
             add("es-MX")
+            add("es-ES")
         }.distinct()
     }
 
@@ -55,9 +62,7 @@ class EddySpeechRecognizer(
     fun pause() {
         paused = true
         handler.removeCallbacks(restartRunnable)
-        if (listening) {
-            recognizer?.cancel()
-        }
+        if (listening) recognizer?.cancel()
         setListening(false)
     }
 
@@ -65,14 +70,9 @@ class EddySpeechRecognizer(
         if (destroyed) return
         continuousMode = true
         paused = false
-        scheduleRestart(280)
+        scheduleRestart(260)
     }
 
-    /**
-     * Rearma por completo una sesión de escucha. Se usa al apagarse/encenderse la
-     * pantalla porque varios proveedores OEM suspenden la sesión activa aunque el
-     * foreground service siga vivo.
-     */
     fun restart(delayMs: Long = 420L) {
         if (destroyed) return
         continuousMode = true
@@ -111,9 +111,7 @@ class EddySpeechRecognizer(
         }
 
         if (recognizer == null) {
-            recognizer = createRecognizer().apply {
-                setRecognitionListener(listener)
-            }
+            recognizer = createRecognizer().apply { setRecognitionListener(listener) }
         }
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -124,12 +122,10 @@ class EddySpeechRecognizer(
                 }
             }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            if (preferOffline) {
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            }
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 750L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 500L)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_100L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
         }
 
         runCatching {
@@ -154,12 +150,6 @@ class EddySpeechRecognizer(
         setListening(false)
     }
 
-    /**
-     * ERROR_LANGUAGE_NOT_SUPPORTED / ERROR_LANGUAGE_UNAVAILABLE no deben romper EDDY.
-     * Algunos Samsung anuncian reconocimiento local disponible aunque no tengan el
-     * modelo es-NI descargado. Primero salimos del motor on-device, luego probamos
-     * variantes de español y por último dejamos que Android use el idioma por defecto.
-     */
     private fun recoverFromLanguageError(): Boolean {
         if (useOnDeviceRecognizer) {
             useOnDeviceRecognizer = false
@@ -198,6 +188,42 @@ class EddySpeechRecognizer(
         onListeningChanged(value)
     }
 
+    private fun markWakeInteraction(nowMs: Long = System.currentTimeMillis()) {
+        interactionUntil = nowMs + WAKE_FOLLOWUP_MS
+    }
+
+    private fun markConversationInteraction(nowMs: Long = System.currentTimeMillis()) {
+        interactionUntil = nowMs + CONVERSATION_FOLLOWUP_MS
+    }
+
+    private fun isInteractionActive(nowMs: Long = System.currentTimeMillis()): Boolean = nowMs <= interactionUntil
+
+    private fun looksLikeWakeWord(value: String): Boolean {
+        val normalized = normalize(value)
+        return wakeAliases.any { alias ->
+            Regex("(?:^|\\s|[,:;.!?¿¡-])${Regex.escape(alias)}(?:$|\\s|[,:;.!?¿¡-])")
+                .containsMatchIn(normalized)
+        }
+    }
+
+    private fun normalize(value: String): String {
+        val lower = value.lowercase(Locale.ROOT)
+        return Normalizer.normalize(lower, Normalizer.Form.NFD)
+            .replace("\\p{Mn}+".toRegex(), "")
+            .trim()
+    }
+
+    private fun playWakeCue() {
+        val now = System.currentTimeMillis()
+        if (now - lastWakeCueAt < 1_400L) return
+        lastWakeCueAt = now
+        runCatching {
+            val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 48)
+            tone.startTone(ToneGenerator.TONE_PROP_ACK, 90)
+            handler.postDelayed({ runCatching { tone.release() } }, 180L)
+        }
+    }
+
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) = Unit
         override fun onBeginningOfSpeech() = Unit
@@ -211,7 +237,15 @@ class EddySpeechRecognizer(
                 ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 ?.firstOrNull()
                 .orEmpty()
-            if (partial.isNotBlank()) onPartialResult(partial)
+            if (partial.isBlank()) return
+
+            if (looksLikeWakeWord(partial)) {
+                markWakeInteraction()
+                playWakeCue()
+                onPartialResult(partial)
+            } else if (isInteractionActive()) {
+                onPartialResult(partial)
+            }
         }
 
         override fun onResults(results: Bundle?) {
@@ -220,10 +254,27 @@ class EddySpeechRecognizer(
             val best = matches?.firstOrNull()
             if (best.isNullOrBlank()) {
                 scheduleRestart(280)
-            } else {
-                paused = true
-                onResult(best)
+                return
             }
+
+            val wasInteractionActive = isInteractionActive()
+            val containsWake = looksLikeWakeWord(best)
+
+            if (!containsWake && !wasInteractionActive) {
+                // Conversación ambiental: EDDY no actualiza la UI ni dispara comandos.
+                scheduleRestart(260)
+                return
+            }
+
+            if (containsWake) {
+                markWakeInteraction()
+                playWakeCue()
+            } else {
+                markConversationInteraction()
+            }
+
+            paused = true
+            onResult(best)
         }
 
         override fun onError(error: Int) {
@@ -239,7 +290,7 @@ class EddySpeechRecognizer(
                 paused = true
                 onError(
                     "El motor de voz del teléfono no tiene un modelo de español disponible. " +
-                        "Activa o descarga Español en los ajustes de reconocimiento de voz y vuelve a abrir EDDY.",
+                        "Activá o descargá Español en los ajustes de reconocimiento de voz y volvé a abrir EDDY.",
                 )
                 return
             }
@@ -257,10 +308,10 @@ class EddySpeechRecognizer(
             if (recoverable) {
                 scheduleRestart(
                     when (error) {
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 800
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 850
                         SpeechRecognizer.ERROR_NETWORK,
                         SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> 1_200
-                        else -> 300
+                        else -> 320
                     },
                 )
                 return
@@ -275,5 +326,10 @@ class EddySpeechRecognizer(
             onError(message)
             scheduleRestart(1_500)
         }
+    }
+
+    companion object {
+        private const val WAKE_FOLLOWUP_MS = 20_000L
+        private const val CONVERSATION_FOLLOWUP_MS = 12_000L
     }
 }
