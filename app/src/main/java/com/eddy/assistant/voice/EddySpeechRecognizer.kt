@@ -10,10 +10,11 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 
 /**
- * Reconocedor de compatibilidad para mantener EDDY disponible mientras el núcleo privado
- * se instala o se recupera. Se usa el reconocedor estándar del sistema deliberadamente:
- * en varios Honor/Huawei el recognizer on-device se anuncia como disponible pero devuelve
- * NO_MATCH si no tiene el paquete de español correcto.
+ * Reconocedor de compatibilidad orientado a fiabilidad.
+ *
+ * EDDY permanece pasivo hasta detectar su nombre. En muchos motores Android el sonido
+ * "EDDY" llega escrito como Edi/Edy/Eddie/Eddi; esas variantes se normalizan internamente
+ * a EDDY, sin convertir otras conversaciones en comandos.
  */
 class EddySpeechRecognizer(
     context: Context,
@@ -31,6 +32,8 @@ class EddySpeechRecognizer(
     private var destroyed = false
     private var listening = false
     private var restartGeneration = 0
+    private var wakeDispatchedThisSession = false
+    private var speechStartedThisSession = false
 
     fun startContinuous() {
         continuous = true
@@ -48,10 +51,10 @@ class EddySpeechRecognizer(
         if (destroyed) return
         continuous = true
         paused = false
-        scheduleStart(120L)
+        scheduleStart(100L)
     }
 
-    fun restart(delayMs: Long = 420L) {
+    fun restart(delayMs: Long = 350L) {
         if (destroyed) return
         continuous = true
         paused = false
@@ -84,25 +87,28 @@ class EddySpeechRecognizer(
         val generation = ++restartGeneration
         mainHandler.postDelayed({
             if (generation != restartGeneration || destroyed || paused || !continuous) return@postDelayed
-            startListeningInternal()
+            startListeningInternal(generation)
         }, delayMs.coerceAtLeast(0L))
     }
 
-    private fun startListeningInternal() {
+    private fun startListeningInternal(generation: Int) {
         if (destroyed || paused || !continuous || listening) return
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
             setListening(false)
             onError("No hay reconocimiento de voz disponible en este teléfono.")
-            scheduleRetry(2_500L)
+            scheduleRetry(2_000L)
             return
         }
 
         val engine = ensureRecognizer() ?: run {
             setListening(false)
             onError("No pude iniciar el reconocimiento de voz del teléfono.")
-            scheduleRetry(2_500L)
+            scheduleRetry(2_000L)
             return
         }
+
+        wakeDispatchedThisSession = false
+        speechStartedThisSession = false
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -110,21 +116,32 @@ class EddySpeechRecognizer(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            // Compatibilidad primero. El modo offline real lo proporciona luego el núcleo privado.
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_250L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 850L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 250L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 950L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 180L)
         }
 
         runCatching {
             engine.startListening(intent)
             setListening(true)
+
+            // Watchdog: algunos fabricantes dejan SpeechRecognizer abierto pero sin entregar
+            // callbacks. Si ocurre, lo recreamos automáticamente en lugar de quedar "sordo".
+            mainHandler.postDelayed({
+                if (
+                    generation == restartGeneration &&
+                    continuous && !paused && !destroyed && listening && !speechStartedThisSession
+                ) {
+                    recreateRecognizer()
+                    restart(120L)
+                }
+            }, 6_000L)
         }.onFailure {
             setListening(false)
             onError("No pude abrir el micrófono para escucharte.")
             recreateRecognizer()
-            scheduleRetry(1_200L)
+            scheduleRetry(900L)
         }
     }
 
@@ -143,6 +160,8 @@ class EddySpeechRecognizer(
             runCatching { recognizer?.destroy() }
             recognizer = null
             listening = false
+            speechStartedThisSession = false
+            wakeDispatchedThisSession = false
         }
     }
 
@@ -183,8 +202,16 @@ class EddySpeechRecognizer(
         return normalizeWakeTranscript(selected)
     }
 
+    private fun containsWakeWord(text: String): Boolean =
+        Regex("(?i)(?<![\\p{L}\\p{N}])EDDY(?![\\p{L}\\p{N}])").containsMatchIn(text)
+
     override fun onReadyForSpeech(params: Bundle?) = setListening(true)
-    override fun onBeginningOfSpeech() = setListening(true)
+
+    override fun onBeginningOfSpeech() {
+        speechStartedThisSession = true
+        setListening(true)
+    }
+
     override fun onRmsChanged(rmsdB: Float) = Unit
     override fun onBufferReceived(buffer: ByteArray?) = Unit
     override fun onEndOfSpeech() = setListening(false)
@@ -219,20 +246,30 @@ class EddySpeechRecognizer(
         }
         val retry = when (error) {
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> 4_000L
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 900L
-            else -> 500L
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 700L
+            else -> 350L
         }
         scheduleRetry(retry)
     }
 
     override fun onResults(results: Bundle?) {
         setListening(false)
-        bestText(results)?.let(onResult)
-        scheduleRetry(240L)
+        bestText(results)?.let { text ->
+            if (!wakeDispatchedThisSession || !containsWakeWord(text)) onResult(text)
+        }
+        scheduleRetry(180L)
     }
 
     override fun onPartialResults(partialResults: Bundle?) {
-        bestText(partialResults)?.let(onPartialResult)
+        val text = bestText(partialResults) ?: return
+        onPartialResult(text)
+
+        // Si el motor ya oyó EDDY, no esperamos al resultado final: activamos en ese mismo
+        // instante. Esto evita la sensación de que EDDY ignora el llamado en equipos lentos.
+        if (!wakeDispatchedThisSession && containsWakeWord(text)) {
+            wakeDispatchedThisSession = true
+            onResult(text)
+        }
     }
 
     override fun onEvent(eventType: Int, params: Bundle?) = Unit
