@@ -57,11 +57,8 @@ import com.eddy.assistant.AiSettingsActivity
 import com.eddy.assistant.ai.EddyWebSource
 
 /**
- * Pantalla principal minimalista de EDDY.
- *
- * Diseño centrado en la identidad del asistente, sin encabezados ni rieles de capacidades.
- * La información secundaria solo aparece abajo para mantener la interfaz limpia y cercana
- * a la referencia visual aprobada.
+ * Interfaz principal construida con Jetpack Compose + Material 3.
+ * Mantiene exactamente la jerarquía visual aprobada: EDDY enorme, estado central y dock inferior.
  */
 @Composable
 internal fun EddyReferenceScreen(
@@ -77,9 +74,9 @@ internal fun EddyReferenceScreen(
     val context = LocalContext.current
     val background = Brush.verticalGradient(
         listOf(
+            Color(0xFFFEFEFE),
             Color(0xFFFBFCFC),
-            Color(0xFFF7FAF9),
-            Color(0xFFF2F7F5),
+            Color(0xFFF6FAF8),
         ),
     )
 
@@ -89,22 +86,22 @@ internal fun EddyReferenceScreen(
             .background(background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
+        // Hero grande y protagonista como en el mockup aprobado.
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 2.dp),
             contentAlignment = Alignment.Center,
         ) {
             EddyHero(
                 state = visualState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 2.dp),
+                modifier = Modifier.fillMaxSize(),
             )
         }
 
@@ -115,7 +112,7 @@ internal fun EddyReferenceScreen(
             webUsed = webUsed,
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(30.dp))
 
         BottomControlDock(
             visualState = visualState,
@@ -130,7 +127,7 @@ internal fun EddyReferenceScreen(
             },
         )
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(14.dp))
     }
 }
 
@@ -168,25 +165,23 @@ private fun MinimalStateText(
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(8.dp)) {
-            drawCircle(
-                color = if (active) EddyMintDeep.copy(alpha = alpha) else Color(0xFF9CA6A2),
-            )
+        Canvas(Modifier.size(9.dp)) {
+            drawCircle(if (active) EddyMintDeep.copy(alpha = alpha) else Color(0xFF9CA6A2))
         }
         Spacer(Modifier.width(10.dp))
         Text(
             title,
-            color = Color(0xFF111514),
+            color = Color(0xFF101312),
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 17.sp,
-            letterSpacing = 0.2.sp,
+            fontSize = 18.sp,
+            letterSpacing = 0.1.sp,
         )
     }
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(9.dp))
     Text(
         subtitle,
-        color = Color(0xFF717B77),
-        style = MaterialTheme.typography.bodyMedium,
+        color = Color(0xFF6F7774),
+        fontSize = 15.sp,
         textAlign = TextAlign.Center,
     )
 }
@@ -205,10 +200,10 @@ private fun BottomControlDock(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         RoundActionButton(
-            icon = if (active) Icons.Rounded.Mic else Icons.Rounded.MicOff,
+            icon = if (active) Icons.Rounded.MicOff else Icons.Rounded.Mic,
             contentDescription = if (active) "Pausar EDDY" else "Activar EDDY",
             onClick = { onToggleAssistant?.invoke() },
         )
@@ -238,19 +233,19 @@ private fun RoundActionButton(
 ) {
     Surface(
         modifier = Modifier
-            .size(58.dp)
-            .shadow(10.dp, CircleShape)
+            .size(64.dp)
+            .shadow(12.dp, CircleShape)
             .clickable(onClick = onClick),
         shape = CircleShape,
         color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFE7ECEA)),
+        border = BorderStroke(1.dp, Color(0xFFE8EEEB)),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                tint = Color(0xFF111514),
-                modifier = Modifier.size(27.dp),
+                tint = Color(0xFF111313),
+                modifier = Modifier.size(29.dp),
             )
         }
     }
@@ -273,41 +268,42 @@ private fun ConversationStatusCard(
         EddyVisualState.IDLE -> "TE ESCUCHO"
     }
     val secondary = when {
-        responseText.isNotBlank() && visualState != EddyVisualState.IDLE -> responseText
-        heardText.isNotBlank() -> heardText
+        visualState == EddyVisualState.LISTENING && heardText.isNotBlank() -> heardText
+        visualState == EddyVisualState.THINKING && responseText.isNotBlank() -> responseText
+        visualState == EddyVisualState.SPEAKING && responseText.isNotBlank() -> responseText
         else -> "Solo respondo cuando me llamás"
     }
 
     Surface(
         modifier = modifier.animateContentSize(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(25.dp),
         color = Color.White,
         border = BorderStroke(1.dp, Color(0xFFE5ECE9)),
-        shadowElevation = 9.dp,
+        shadowElevation = 10.dp,
         tonalElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 17.dp, vertical = 14.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = if (webUsed) Icons.Rounded.Language else Icons.Rounded.GraphicEq,
                     contentDescription = null,
                     tint = if (webUsed) EddyBlue else EddyMintDeep,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(26.dp),
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(13.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         primary,
                         color = Color(0xFF171A19),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.6.sp,
+                        letterSpacing = 1.7.sp,
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         secondary,
-                        color = Color(0xFF68726E),
-                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF68716E),
+                        fontSize = 13.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -317,7 +313,7 @@ private fun ConversationStatusCard(
             AnimatedVisibility(sources.isNotEmpty()) {
                 Row(
                     modifier = Modifier
-                        .padding(top = 9.dp)
+                        .padding(top = 10.dp)
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
