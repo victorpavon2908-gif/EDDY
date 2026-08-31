@@ -40,10 +40,6 @@ object EddyModelCatalog {
         requireInstallMarker = true,
     )
 
-    /**
-     * Modelo KWS anterior. Se conserva solo para poder identificar y borrar instalaciones
-     * viejas durante una actualización. Ya NO forma parte del núcleo ni se vuelve a bajar.
-     */
     val keyword = EddyModelSpec(
         id = "kws-eddy-zh-en-2025-v2",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2",
@@ -116,12 +112,12 @@ object EddyModelCatalog {
         ),
     )
 
-    // Activación adaptativa: Silero VAD detecta voz y Moonshine (ya necesario para comandos)
-    // comprueba si la frase contiene "EDDY". No existe un modelo KWS adicional que pueda
-    // bloquear el arranque en determinados SoC/Android.
+    // Se conservan las especificaciones para instalaciones existentes y para una futura
+    // opción manual avanzada. El arranque normal ya no descarga modelos pesados: la voz
+    // usa el reconocedor del sistema y la inteligencia usa API + memoria local.
     val voiceCore = listOf(vad, speaker, spanishAsr)
-    val acousticCore = voiceCore + spanishVoice
+    val acousticCore: List<EddyModelSpec> = emptyList()
 
     fun byId(id: String): EddyModelSpec? =
-        (acousticCore + localLlm + keyword).firstOrNull { it.id == id }
+        (voiceCore + spanishVoice + localLlm + keyword).firstOrNull { it.id == id }
 }
