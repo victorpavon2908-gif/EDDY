@@ -14,9 +14,7 @@ import android.speech.SpeechRecognizer
  * Fallback de voz para cuando el núcleo local todavía no está listo o no pudo iniciar.
  *
  * En Android 12+ prioriza el reconocedor on-device cuando está disponible. Si el teléfono
- * no tiene un motor on-device, usa el reconocedor del sistema sin forzar modo offline,
- * porque varios equipos Honor/Huawei devuelven NO_MATCH continuamente cuando se solicita
- * offline sin tener instalado el paquete de idioma.
+ * no tiene un motor on-device, usa el reconocedor del sistema sin forzar modo offline.
  */
 class EddySpeechRecognizer(
     context: Context,
@@ -110,12 +108,10 @@ class EddySpeechRecognizer(
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            // es-ES tiene mejor compatibilidad entre motores Android que es-NI.
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            // Solo se fuerza offline cuando existe un reconocedor realmente on-device.
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_100L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
@@ -160,11 +156,8 @@ class EddySpeechRecognizer(
 
     private fun stopListeningInternal(cancel: Boolean) {
         mainHandler.post {
-            val current = recognizer
-            if (current != null) {
-                runCatching {
-                    if (cancel) current.cancel() else current.stopListening()
-                }
+            recognizer?.let { current ->
+                runCatching { if (cancel) current.cancel() else current.stopListening() }
             }
             setListening(false)
         }
@@ -181,6 +174,16 @@ class EddySpeechRecognizer(
         onListeningChanged(value)
     }
 
+    /**
+     * Android suele transcribir el sonido /edi/ como Edi, Edy, Eddie o Eddi.
+     * Normalizamos esas grafías a la palabra canónica EDDY ANTES de pasar por WakeWordGate.
+     * Así WakeWordGate puede seguir siendo estricto y nunca aceptar conversación normal.
+     */
+    private fun normalizeWakeTranscript(value: String): String {
+        val wakeAlias = Regex("(?i)(?<![\\p{L}\\p{N}])(?:eddy|edi|edy|eddie|eddi)(?![\\p{L}\\p{N}])")
+        return value.replace(wakeAlias, "EDDY").trim()
+    }
+
     private fun bestText(bundle: Bundle?): String? {
         val results = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             ?.map(String::trim)
@@ -188,10 +191,9 @@ class EddySpeechRecognizer(
             .orEmpty()
         if (results.isEmpty()) return null
 
-        // Distintos ASR escriben el sonido de EDDY como Eddy, Edi, Edy, Eddie o Eddi.
-        // Priorizamos ese candidato para que el wake word no se pierda por ortografía.
-        val wakeRegex = Regex("(?i)(?:^|\\s|[,:;.!?¿¡-])(?:eddy|edi|edy|eddie|eddi)(?:$|\\s|[,:;.!?¿¡-])")
-        return results.firstOrNull { wakeRegex.containsMatchIn(it) } ?: results.first()
+        val wakeAlias = Regex("(?i)(?<![\\p{L}\\p{N}])(?:eddy|edi|edy|eddie|eddi)(?![\\p{L}\\p{N}])")
+        val selected = results.firstOrNull { wakeAlias.containsMatchIn(it) } ?: results.first()
+        return normalizeWakeTranscript(selected)
     }
 
     override fun onReadyForSpeech(params: Bundle?) = setListening(true)
