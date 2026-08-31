@@ -73,6 +73,7 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".EddyToolActivity" android:exported="false" />
         <activity android:name=".SmartHomeSettingsActivity" android:exported="false" />
         <activity android:name=".AiSettingsActivity" android:exported="false" />
 
