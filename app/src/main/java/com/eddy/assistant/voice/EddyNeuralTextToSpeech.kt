@@ -18,7 +18,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/** Voz neural española local. No usa red durante la síntesis. */
+/** Voz neural latina local de EDDY. No usa red durante la síntesis. */
 class EddyNeuralTextToSpeech(
     private val models: EddyModelManager,
     private val profile: EddyDeviceProfile,
@@ -37,7 +37,9 @@ class EddyNeuralTextToSpeech(
             onSpeakingChanged(true)
             try {
                 val engine = tts ?: createEngine() ?: return@launch
-                val audio = engine.generate(text.take(2_000), sid = 0, speed = 1.02f)
+                // Un poco más rápida que el modelo base para que se sienta conversacional,
+                // sin llegar a sonar acelerada o artificial.
+                val audio = engine.generate(text.take(2_000), sid = 0, speed = 1.06f)
                 play(audio.samples, audio.sampleRate)
             } finally {
                 onSpeakingChanged(false)
@@ -69,16 +71,16 @@ class EddyNeuralTextToSpeech(
             config = OfflineTtsConfig(
                 model = OfflineTtsModelConfig(
                     vits = OfflineTtsVitsModelConfig(
-                        model = File(root, "es_ES-miro-high.onnx").absolutePath,
+                        model = File(root, "es_MX-claude-high.onnx").absolutePath,
                         tokens = File(root, "tokens.txt").absolutePath,
                         dataDir = File(root, "espeak-ng-data").absolutePath,
-                        lengthScale = 1.0f,
+                        lengthScale = 0.96f,
                     ),
                     numThreads = profile.inferenceThreads.coerceAtMost(4),
                     provider = "cpu",
                 ),
                 maxNumSentences = 2,
-                silenceScale = 0.15f,
+                silenceScale = 0.12f,
             ),
         ).also { tts = it }
     }.getOrNull()
@@ -124,6 +126,6 @@ class EddyNeuralTextToSpeech(
     }
 
     companion object {
-        private const val MODEL_DIR = "vits-piper-es_ES-miro-high"
+        private const val MODEL_DIR = "vits-piper-es_MX-claude-high"
     }
 }
