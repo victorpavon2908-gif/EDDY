@@ -123,8 +123,14 @@ class EddyAssistantService : Service() {
 
         compatibilityRecognizer = EddySpeechRecognizer(
             context = applicationContext,
-            onListeningChanged = { listening ->
-                if (!localVoiceActive) { isListening = listening; updateVisualState() }
+            onListeningChanged = { recognizerOpen ->
+                if (!localVoiceActive) {
+                    // El recognizer compatible puede necesitar mantener una captura breve para
+                    // detectar la palabra de activación. Eso NO significa que EDDY esté en una
+                    // conversación. La UI solo muestra "escuchando" después de detectar EDDY.
+                    isListening = recognizerOpen && wakeGate.isArmed()
+                    updateVisualState()
+                }
             },
             onPartialResult = { partial ->
                 if (!localVoiceActive) handlePartialWakeWord(partial)
@@ -281,6 +287,7 @@ class EddyAssistantService : Service() {
     private fun startCompatibilityListening(message: String) {
         if (!hasMicrophonePermission() || isSpeaking) return
         localVoiceActive = false
+        isListening = false
         compatibilityRecognizer.startContinuous()
         compatibilityRecognizer.resume()
         isThinking = false
@@ -294,20 +301,29 @@ class EddyAssistantService : Service() {
         if (now - lastPartialWakeAt < PARTIAL_WAKE_DEBOUNCE_MS) return
         lastPartialWakeAt = now
         wakeGate.arm(now)
+        isListening = true
         EddyRuntimeState.setHeard(applicationContext, "EDDY")
         EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
         revealEddyOnLockScreen()
+        updateVisualState()
     }
 
     private fun handleRecognition(raw: String) {
         when (val wakeResult = wakeGate.consume(raw)) {
-            WakeResult.Ignored -> { EddyRuntimeState.setHeard(applicationContext, ""); compatibilityRecognizer.resume() }
+            WakeResult.Ignored -> {
+                isListening = false
+                EddyRuntimeState.setHeard(applicationContext, "")
+                updateVisualState()
+                compatibilityRecognizer.resume()
+            }
             WakeResult.Activated -> {
+                isListening = true
                 EddyRuntimeState.setHeard(applicationContext, "EDDY")
                 EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
-                revealEddyOnLockScreen(); compatibilityRecognizer.restart(220L)
+                revealEddyOnLockScreen(); updateVisualState(); compatibilityRecognizer.restart(220L)
             }
             is WakeResult.Command -> {
+                isListening = false
                 EddyRuntimeState.setHeard(applicationContext, wakeResult.text)
                 revealEddyOnLockScreen(); compatibilityRecognizer.pause(); isThinking = true; updateVisualState()
                 serviceScope.launch { try { delay(80); handleCommand(wakeResult.text) } finally { isThinking = false; updateVisualState() } }
@@ -428,49 +444,53 @@ class EddyAssistantService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE) else startForeground(NOTIFICATION_ID, notification)
     }
     private fun revealEddyOnLockScreen() {
-        val locked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
-        val screenOff = getSystemService(PowerManager::class.java)?.isInteractive == false
-        if (!locked && !screenOff) return
-        wakeScreenBriefly()
-        val wakeIntent = Intent(this, EddyWakeActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP) }
-        val pending = PendingIntent.getActivity(this, 12, wakeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        getSystemService(NotificationManager::class.java)?.notify(WAKE_NOTIFICATION_ID, NotificationCompat.Builder(this, WAKE_CHANNEL_ID).setSmallIcon(R.drawable.ic_eddy_notification).setContentTitle("EDDY").setContentText("Te escucho.").setContentIntent(pending).setFullScreenIntent(pending, true).setPriority(NotificationCompat.PRIORITY_MAX).setCategory(NotificationCompat.CATEGORY_REMINDER).setVisibility(Notification.VISIBILITY_PUBLIC).setAutoCancel(true).setTimeoutAfter(30_000L).build())
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        if (keyguard?.isKeyguardLocked != true) return
+        val show = PendingIntent.getActivity(this, WAKE_REQUEST_CODE, Intent(this, EddyWakeActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP) }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val notification = NotificationCompat.Builder(this, WAKE_CHANNEL_ID).setSmallIcon(R.drawable.ic_eddy_notification).setContentTitle("EDDY").setContentText("Te escucho.").setContentIntent(show).setFullScreenIntent(show, true).setAutoCancel(true).setCategory(NotificationCompat.CATEGORY_CALL).setPriority(NotificationCompat.PRIORITY_MAX).setVisibility(NotificationCompat.VISIBILITY_PUBLIC).build()
+        getSystemService(NotificationManager::class.java)?.notify(WAKE_NOTIFICATION_ID, notification)
     }
-    @Suppress("DEPRECATION") private fun wakeScreenBriefly() {
-        val power = getSystemService(PowerManager::class.java) ?: return
-        if (!power.isInteractive) runCatching { power.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "$packageName:eddy_screen_wake").acquire(6_000L) }
-    }
-    private fun acquireCpuWakeLock() {
-        val power = getSystemService(PowerManager::class.java) ?: return
-        if (cpuWakeLock?.isHeld != true) cpuWakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:eddy_always_listening").apply { setReferenceCounted(false); acquire() }
-    }
-    private fun releaseCpuWakeLock() { cpuWakeLock?.let { if (it.isHeld) runCatching { it.release() } }; cpuWakeLock = null }
 
     private fun showBubble() {
         if (!Settings.canDrawOverlays(this) || bubbleView != null) return
-        val wm = getSystemService(WindowManager::class.java) ?: return; windowManager = wm
-        val bubbleSize = dp(68)
-        val container = FrameLayout(this).apply {
-            elevation = dp(12).toFloat(); background = GradientDrawable().apply { shape = GradientDrawable.OVAL; colors = intArrayOf(Color.WHITE, Color.rgb(232,255,247)); gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TL_BR; setStroke(dp(2), Color.rgb(28,34,32)) }; setPadding(dp(9),dp(9),dp(9),dp(9)); contentDescription = "Abrir EDDY"
+        val wm = getSystemService(WindowManager::class.java); windowManager = wm
+        val size = dp(66); val container = FrameLayout(this).apply {
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.argb(238, 255, 255, 255)); setStroke(dp(2), Color.rgb(0, 205, 160)) }
+            elevation = dp(14).toFloat(); setPadding(dp(10), dp(10), dp(10), dp(10)); addView(ImageView(this@EddyAssistantService).apply { setImageResource(R.drawable.ic_eddy_mark); scaleType = ImageView.ScaleType.CENTER_INSIDE }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         }
-        container.addView(ImageView(this).apply { setImageResource(R.drawable.ic_eddy); scaleType = ImageView.ScaleType.CENTER_INSIDE }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-        val dot = View(this).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.rgb(67,221,179)); setStroke(dp(1), Color.WHITE) } }
-        container.addView(dot, FrameLayout.LayoutParams(dp(14),dp(14),Gravity.END or Gravity.BOTTOM).apply { rightMargin=dp(1); bottomMargin=dp(1) })
-        val metrics=resources.displayMetrics; val maxX=(metrics.widthPixels-bubbleSize).coerceAtLeast(0); val maxY=(metrics.heightPixels-bubbleSize-dp(24)).coerceAtLeast(0)
-        val params=WindowManager.LayoutParams(bubbleSize,bubbleSize,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,PixelFormat.TRANSLUCENT).apply { gravity=Gravity.TOP or Gravity.START; x=bubblePrefs.getInt(KEY_BUBBLE_X,(metrics.widthPixels-bubbleSize-dp(14)).coerceAtLeast(0)).coerceIn(0,maxX); y=bubblePrefs.getInt(KEY_BUBBLE_Y,dp(180).coerceAtMost(maxY)).coerceIn(0,maxY) }
-        container.setOnTouchListener(createBubbleTouchListener(params,container)); runCatching { wm.addView(container,params); bubbleView=container; bubbleParams=params }
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+        val params = WindowManager.LayoutParams(size, size, type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = bubblePrefs.getInt(KEY_BUBBLE_X, dp(18)); y = bubblePrefs.getInt(KEY_BUBBLE_Y, dp(220)) }
+        bubbleParams = params
+        var downX = 0f; var downY = 0f; var originX = 0; var originY = 0; var dragging = false
+        container.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downX = event.rawX; downY = event.rawY; originX = params.x; originY = params.y; dragging = false; true }
+                MotionEvent.ACTION_MOVE -> { val dx = event.rawX - downX; val dy = event.rawY - downY; if (!dragging && (kotlin.math.abs(dx) > dp(6) || kotlin.math.abs(dy) > dp(6))) dragging = true; if (dragging) { params.x = originX + dx.toInt(); params.y = originY + dy.toInt(); runCatching { wm.updateViewLayout(container, params) } }; true }
+                MotionEvent.ACTION_UP -> { if (dragging) saveBubblePosition(params) else startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }
+                else -> false
+            }
+        }
+        runCatching { wm.addView(container, params); bubbleView = container }
     }
-    private fun hideBubble(){ bubbleParams?.let(::saveBubblePosition); bubbleView?.let{runCatching{windowManager?.removeView(it)}}; bubbleView=null; bubbleParams=null }
-    private fun createBubbleTouchListener(params:WindowManager.LayoutParams,view:View):View.OnTouchListener {
-        var startX=0;var startY=0;var downX=0f;var downY=0f;var moved=false
-        return View.OnTouchListener{_,e->when(e.actionMasked){MotionEvent.ACTION_DOWN->{startX=params.x;startY=params.y;downX=e.rawX;downY=e.rawY;moved=false;true};MotionEvent.ACTION_MOVE->{val dx=(e.rawX-downX).toInt();val dy=(e.rawY-downY).toInt();if(kotlin.math.abs(dx)>dp(5)||kotlin.math.abs(dy)>dp(5))moved=true;val m=resources.displayMetrics;params.x=(startX+dx).coerceIn(0,(m.widthPixels-view.width).coerceAtLeast(0));params.y=(startY+dy).coerceIn(0,(m.heightPixels-view.height).coerceAtLeast(0));runCatching{windowManager?.updateViewLayout(view,params)};true};MotionEvent.ACTION_UP->{if(moved)saveBubblePosition(params)else openMainActivity();true};MotionEvent.ACTION_CANCEL->{if(moved)saveBubblePosition(params);true};else->false}}
-    }
-    private fun saveBubblePosition(params:WindowManager.LayoutParams){bubblePrefs.edit().putInt(KEY_BUBBLE_X,params.x).putInt(KEY_BUBBLE_Y,params.y).apply()}
-    private fun openMainActivity(){startActivity(Intent(this,MainActivity::class.java).apply{addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)})}
-    private fun dp(value:Int)=(value*resources.displayMetrics.density).toInt()
+    private fun hideBubble() { bubbleView?.let { view -> runCatching { windowManager?.removeView(view) } }; bubbleView = null }
+    private fun saveBubblePosition(params: WindowManager.LayoutParams) { bubblePrefs.edit().putInt(KEY_BUBBLE_X, params.x).putInt(KEY_BUBBLE_Y, params.y).apply() }
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun acquireCpuWakeLock() { if (cpuWakeLock?.isHeld == true) return; cpuWakeLock = (getSystemService(PowerManager::class.java)?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EDDY:AlwaysOnWake")?.apply { setReferenceCounted(false); acquire() }) }
+    private fun releaseCpuWakeLock() { cpuWakeLock?.let { if (it.isHeld) runCatching { it.release() } }; cpuWakeLock = null }
 
     companion object {
-        const val ACTION_SHOW_BUBBLE="com.eddy.assistant.action.SHOW_BUBBLE"; const val ACTION_HIDE_BUBBLE="com.eddy.assistant.action.HIDE_BUBBLE"; const val ACTION_REFRESH_BUBBLE="com.eddy.assistant.action.REFRESH_BUBBLE"; const val ACTION_STOP="com.eddy.assistant.action.STOP"
-        private const val CHANNEL_ID="eddy_background_service"; private const val WAKE_CHANNEL_ID="eddy_wake_screen"; private const val NOTIFICATION_ID=4310; private const val WAKE_NOTIFICATION_ID=4311; private const val PARTIAL_WAKE_DEBOUNCE_MS=1500L; private const val BUBBLE_PREFS="eddy_bubble"; private const val KEY_BUBBLE_X="bubble_x"; private const val KEY_BUBBLE_Y="bubble_y"
+        private const val CHANNEL_ID = "eddy_assistant_channel"
+        private const val WAKE_CHANNEL_ID = "eddy_wake_channel"
+        private const val NOTIFICATION_ID = 2001
+        private const val WAKE_NOTIFICATION_ID = 2002
+        private const val WAKE_REQUEST_CODE = 2102
+        private const val PARTIAL_WAKE_DEBOUNCE_MS = 1_200L
+        private const val BUBBLE_PREFS = "eddy_bubble_prefs"
+        private const val KEY_BUBBLE_X = "bubble_x"
+        private const val KEY_BUBBLE_Y = "bubble_y"
+        const val ACTION_STOP = "com.eddy.assistant.action.STOP"
+        const val ACTION_SHOW_BUBBLE = "com.eddy.assistant.action.SHOW_BUBBLE"
+        const val ACTION_HIDE_BUBBLE = "com.eddy.assistant.action.HIDE_BUBBLE"
+        const val ACTION_REFRESH_BUBBLE = "com.eddy.assistant.action.REFRESH_BUBBLE"
     }
 }
