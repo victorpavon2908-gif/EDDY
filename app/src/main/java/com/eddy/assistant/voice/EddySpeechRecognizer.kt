@@ -13,10 +13,10 @@ import android.speech.SpeechRecognizer
 /**
  * Fallback de voz para cuando el núcleo local todavía no está listo o no pudo iniciar.
  *
- * En Android 12+ prioriza el reconocedor on-device cuando está disponible. En equipos
- * anteriores usa el reconocedor del sistema con EXTRA_PREFER_OFFLINE=true. El motor local
- * de EDDY sigue siendo la ruta principal; este fallback existe para que el asistente no
- * quede sordo durante descargas, reparaciones o fallos de inicialización.
+ * En Android 12+ prioriza el reconocedor on-device cuando está disponible. Si el teléfono
+ * no tiene un motor on-device, usa el reconocedor del sistema sin forzar modo offline,
+ * porque varios equipos Honor/Huawei devuelven NO_MATCH continuamente cuando se solicita
+ * offline sin tener instalado el paquete de idioma.
  */
 class EddySpeechRecognizer(
     context: Context,
@@ -34,6 +34,7 @@ class EddySpeechRecognizer(
     private var destroyed = false
     private var listening = false
     private var restartGeneration = 0
+    private var usingOnDeviceRecognizer = false
 
     fun startContinuous() {
         continuous = true
@@ -109,14 +110,16 @@ class EddySpeechRecognizer(
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-NI")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-NI")
+            // es-ES tiene mejor compatibilidad entre motores Android que es-NI.
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-ES")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 250L)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            // Solo se fuerza offline cuando existe un reconocedor realmente on-device.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_100L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 300L)
         }
 
         runCatching {
@@ -133,10 +136,9 @@ class EddySpeechRecognizer(
     private fun ensureRecognizer(): SpeechRecognizer? {
         recognizer?.let { return it }
         return runCatching {
-            val created = if (
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            usingOnDeviceRecognizer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
-            ) {
+            val created = if (usingOnDeviceRecognizer) {
                 SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
             } else {
                 SpeechRecognizer.createSpeechRecognizer(appContext)
@@ -152,6 +154,7 @@ class EddySpeechRecognizer(
             runCatching { recognizer?.destroy() }
             recognizer = null
             listening = false
+            usingOnDeviceRecognizer = false
         }
     }
 
@@ -178,11 +181,18 @@ class EddySpeechRecognizer(
         onListeningChanged(value)
     }
 
-    private fun bestText(bundle: Bundle?): String? =
-        bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            ?.firstOrNull()
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
+    private fun bestText(bundle: Bundle?): String? {
+        val results = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?.map(String::trim)
+            ?.filter(String::isNotBlank)
+            .orEmpty()
+        if (results.isEmpty()) return null
+
+        // Distintos ASR escriben el sonido de EDDY como Eddy, Edi, Edy, Eddie o Eddi.
+        // Priorizamos ese candidato para que el wake word no se pierda por ortografía.
+        val wakeRegex = Regex("(?i)(?:^|\\s|[,:;.!?¿¡-])(?:eddy|edi|edy|eddie|eddi)(?:$|\\s|[,:;.!?¿¡-])")
+        return results.firstOrNull { wakeRegex.containsMatchIn(it) } ?: results.first()
+    }
 
     override fun onReadyForSpeech(params: Bundle?) = setListening(true)
     override fun onBeginningOfSpeech() = setListening(true)
@@ -196,10 +206,10 @@ class EddySpeechRecognizer(
 
         val message = when (error) {
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Falta permiso de micrófono para que EDDY pueda escucharte."
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "El micrófono estaba ocupado. Voy a intentar escucharte de nuevo."
-            SpeechRecognizer.ERROR_AUDIO -> "Hubo un problema con el micrófono. Voy a intentar recuperarlo."
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "El micrófono estaba ocupado. Voy a recuperar la escucha."
+            SpeechRecognizer.ERROR_AUDIO -> "Hubo un problema con el micrófono. Voy a recuperar la escucha."
             SpeechRecognizer.ERROR_NETWORK,
-            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "El reconocedor del sistema no respondió. EDDY seguirá intentando en modo local."
+            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "El reconocimiento de voz no respondió. EDDY seguirá intentando."
             SpeechRecognizer.ERROR_CLIENT -> "El reconocimiento de voz se reinició."
             SpeechRecognizer.ERROR_SERVER,
             SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "El reconocimiento del sistema se desconectó. Voy a reiniciarlo."
@@ -210,17 +220,25 @@ class EddySpeechRecognizer(
             onError(message)
         }
 
-        if (error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+        if (
+            error == SpeechRecognizer.ERROR_CLIENT ||
+            error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED
+        ) {
             recreateRecognizer()
         }
-        val retry = if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) 4_000L else 550L
+        val retry = when (error) {
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> 4_000L
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 900L
+            else -> 450L
+        }
         scheduleRetry(retry)
     }
 
     override fun onResults(results: Bundle?) {
         setListening(false)
         bestText(results)?.let(onResult)
-        scheduleRetry(280L)
+        scheduleRetry(220L)
     }
 
     override fun onPartialResults(partialResults: Bundle?) {
