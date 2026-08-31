@@ -8,13 +8,15 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import com.eddy.assistant.ai.EddyBackendPrewarmer
 
 /**
- * Reconocedor de compatibilidad orientado a fiabilidad.
+ * Reconocedor compatible de baja latencia.
  *
- * EDDY permanece pasivo hasta detectar su nombre. En muchos motores Android el sonido
- * "EDDY" llega escrito como Edi/Edy/Eddie/Eddi; esas variantes se normalizan internamente
- * a EDDY, sin convertir otras conversaciones en comandos.
+ * Importante: los parciales NUNCA se despachan como una orden final. Antes hacíamos eso
+ * al detectar EDDY y Android podía entregar después "EDDY, abre..." como resultado final,
+ * pero ese resultado quedaba descartado. Ese bug hacía que pareciera que EDDY se activaba
+ * y luego ignoraba exactamente la orden que el usuario acababa de decir.
  */
 class EddySpeechRecognizer(
     context: Context,
@@ -32,8 +34,8 @@ class EddySpeechRecognizer(
     private var destroyed = false
     private var listening = false
     private var restartGeneration = 0
-    private var wakeDispatchedThisSession = false
     private var speechStartedThisSession = false
+    private var backendWarmRequested = false
 
     fun startContinuous() {
         continuous = true
@@ -51,10 +53,10 @@ class EddySpeechRecognizer(
         if (destroyed) return
         continuous = true
         paused = false
-        scheduleStart(100L)
+        scheduleStart(80L)
     }
 
-    fun restart(delayMs: Long = 350L) {
+    fun restart(delayMs: Long = 300L) {
         if (destroyed) return
         continuous = true
         paused = false
@@ -107,8 +109,8 @@ class EddySpeechRecognizer(
             return
         }
 
-        wakeDispatchedThisSession = false
         speechStartedThisSession = false
+        backendWarmRequested = false
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -117,31 +119,28 @@ class EddySpeechRecognizer(
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 950L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 180L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 780L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 140L)
         }
 
         runCatching {
             engine.startListening(intent)
             setListening(true)
-
-            // Watchdog: algunos fabricantes dejan SpeechRecognizer abierto pero sin entregar
-            // callbacks. Si ocurre, lo recreamos automáticamente en lugar de quedar "sordo".
             mainHandler.postDelayed({
                 if (
-                    generation == restartGeneration &&
-                    continuous && !paused && !destroyed && listening && !speechStartedThisSession
+                    generation == restartGeneration && continuous && !paused && !destroyed &&
+                    listening && !speechStartedThisSession
                 ) {
                     recreateRecognizer()
-                    restart(120L)
+                    restart(100L)
                 }
-            }, 6_000L)
+            }, 5_500L)
         }.onFailure {
             setListening(false)
             onError("No pude abrir el micrófono para escucharte.")
             recreateRecognizer()
-            scheduleRetry(900L)
+            scheduleRetry(800L)
         }
     }
 
@@ -161,7 +160,7 @@ class EddySpeechRecognizer(
             recognizer = null
             listening = false
             speechStartedThisSession = false
-            wakeDispatchedThisSession = false
+            backendWarmRequested = false
         }
     }
 
@@ -237,38 +236,34 @@ class EddySpeechRecognizer(
         }
 
         if (
-            error == SpeechRecognizer.ERROR_CLIENT ||
-            error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
-            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED ||
-            error == SpeechRecognizer.ERROR_AUDIO
-        ) {
-            recreateRecognizer()
-        }
-        val retry = when (error) {
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> 4_000L
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 700L
-            else -> 350L
-        }
-        scheduleRetry(retry)
+            error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED || error == SpeechRecognizer.ERROR_AUDIO
+        ) recreateRecognizer()
+
+        scheduleRetry(
+            when (error) {
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> 4_000L
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 650L
+                else -> 300L
+            },
+        )
     }
 
     override fun onResults(results: Bundle?) {
         setListening(false)
-        bestText(results)?.let { text ->
-            if (!wakeDispatchedThisSession || !containsWakeWord(text)) onResult(text)
-        }
-        scheduleRetry(180L)
+        bestText(results)?.let(onResult)
+        scheduleRetry(150L)
     }
 
     override fun onPartialResults(partialResults: Bundle?) {
         val text = bestText(partialResults) ?: return
         onPartialResult(text)
 
-        // Si el motor ya oyó EDDY, no esperamos al resultado final: activamos en ese mismo
-        // instante. Esto evita la sensación de que EDDY ignora el llamado en equipos lentos.
-        if (!wakeDispatchedThisSession && containsWakeWord(text)) {
-            wakeDispatchedThisSession = true
-            onResult(text)
+        // Solo calentamos Render después de EDDY; el parcial NO se ejecuta como orden.
+        // Así se gana tiempo de cold start sin perder "EDDY, hacé X" cuando llega el final.
+        if (!backendWarmRequested && containsWakeWord(text)) {
+            backendWarmRequested = true
+            EddyBackendPrewarmer.wake(appContext)
         }
     }
 
