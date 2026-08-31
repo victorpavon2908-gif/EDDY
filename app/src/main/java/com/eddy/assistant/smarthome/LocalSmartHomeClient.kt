@@ -7,13 +7,22 @@ import java.net.URL
 import java.text.Normalizer
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 class LocalSmartHomeClient(private val context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    suspend fun control(target: String, enabled: Boolean): ActionResult = withContext(Dispatchers.IO) {
+    /**
+     * Entrada compatible con el planificador de acciones actual. La operación de red se
+     * ejecuta en Dispatchers.IO, nunca directamente sobre el hilo de Android.
+     */
+    fun control(target: String, enabled: Boolean): ActionResult = runBlocking(Dispatchers.IO) {
+        controlAsync(target, enabled)
+    }
+
+    suspend fun controlAsync(target: String, enabled: Boolean): ActionResult = withContext(Dispatchers.IO) {
         val baseUrl = prefs.getString(KEY_BASE_URL, "").orEmpty().trim().trimEnd('/')
         val token = prefs.getString(KEY_TOKEN, "").orEmpty().trim()
 
@@ -51,11 +60,7 @@ class LocalSmartHomeClient(private val context: Context) {
             when (code) {
                 in 200..299 -> ActionResult(
                     true,
-                    if (enabled) {
-                        "De una, encendí $target."
-                    } else {
-                        "Listo, apagué $target."
-                    },
+                    if (enabled) "De una, encendí $target." else "Listo, apagué $target.",
                 )
                 401, 403 -> ActionResult(
                     false,
@@ -65,10 +70,7 @@ class LocalSmartHomeClient(private val context: Context) {
                     false,
                     "No encontré $target en Home Assistant. Revisá el nombre de la entidad.",
                 )
-                else -> ActionResult(
-                    false,
-                    "La casa inteligente respondió con código $code.",
-                )
+                else -> ActionResult(false, "La casa inteligente respondió con código $code.")
             }
         } catch (_: Exception) {
             ActionResult(
