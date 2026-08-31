@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -19,27 +20,34 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
+/**
+ * Identidad visual minimalista de EDDY.
+ *
+ * El personaje se dibuja directamente con Canvas para conservar nitidez a cualquier
+ * resolución y evitar agregar imágenes pesadas al APK. La forma sigue la identidad de
+ * una E geométrica con rostro y corbata, mientras el halo comunica estado de escucha.
+ */
 @Composable
 internal fun EddyHero(
     state: EddyVisualState,
     modifier: Modifier = Modifier,
 ) {
-    val transition = rememberInfiniteTransition(label = "eddyAliveHero")
-    val breath by transition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.045f,
+    val transition = rememberInfiniteTransition(label = "eddyMinimalHero")
+    val pulse by transition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = when (state) {
-                    EddyVisualState.SPEAKING -> 360
-                    EddyVisualState.LISTENING -> 620
-                    EddyVisualState.THINKING -> 760
-                    EddyVisualState.IDLE -> 2_200
+                    EddyVisualState.LISTENING -> 720
+                    EddyVisualState.THINKING -> 920
+                    EddyVisualState.SPEAKING -> 520
+                    EddyVisualState.IDLE -> 2_400
                 },
             ),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "breath",
+        label = "pulse",
     )
     val orbit by transition.animateFloat(
         initialValue = 0f,
@@ -47,174 +55,143 @@ internal fun EddyHero(
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = when (state) {
-                    EddyVisualState.THINKING -> 920
-                    EddyVisualState.LISTENING -> 2_200
-                    EddyVisualState.SPEAKING -> 1_700
-                    EddyVisualState.IDLE -> 4_800
+                    EddyVisualState.LISTENING -> 2_500
+                    EddyVisualState.THINKING -> 1_300
+                    EddyVisualState.SPEAKING -> 1_900
+                    EddyVisualState.IDLE -> 5_200
                 },
             ),
             repeatMode = RepeatMode.Restart,
         ),
         label = "orbit",
     )
-    val voice by transition.animateFloat(
-        initialValue = 0.12f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (state == EddyVisualState.SPEAKING) 145 else 420),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "voice",
-    )
-    val eyeEnergy by transition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (state == EddyVisualState.LISTENING) 520 else 1_300),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "eyes",
-    )
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val unit = min(size.width, size.height)
-        val center = Offset(size.width / 2f, size.height / 2f - unit * 0.015f)
-        val field = unit * 0.34f
-        val graphite = Color(0xFF07120F)
-        val soft = Color(0xFFCAD8D3)
-        val mint = EddyMint
-        val stateAccent = when (state) {
-            EddyVisualState.THINKING -> EddyBlue
-            EddyVisualState.SPEAKING -> Color(0xFF54DDB4)
+        val center = Offset(size.width / 2f, size.height / 2f - unit * 0.01f)
+        val graphite = Color(0xFF0A0B0B)
+        val mint = Color(0xFF35D7AA)
+        val blue = Color(0xFF58A8FF)
+        val accent = when (state) {
+            EddyVisualState.THINKING -> blue
             else -> mint
         }
-        val stroke = (unit * 0.018f).coerceAtLeast(5f)
-        val detail = (unit * 0.0085f).coerceAtLeast(2.5f)
 
-        // Campo de presencia: respira despacio cuando EDDY está simplemente atento.
+        val haloRadius = unit * 0.44f
         drawCircle(
-            color = stateAccent.copy(alpha = 0.055f + 0.06f * breath),
-            radius = field * 1.14f * breath,
+            color = accent.copy(alpha = 0.035f + 0.035f * pulse),
+            radius = haloRadius * 1.18f,
             center = center,
         )
         drawCircle(
-            color = soft.copy(alpha = 0.62f),
-            radius = field,
+            color = accent.copy(alpha = 0.09f),
+            radius = haloRadius * 1.06f,
             center = center,
-            style = Stroke(width = detail),
         )
         drawCircle(
-            color = stateAccent.copy(alpha = 0.12f + 0.10f * breath),
-            radius = field * (0.78f + 0.08f * breath),
+            color = accent.copy(alpha = 0.40f),
+            radius = haloRadius,
             center = center,
+            style = Stroke(width = (unit * 0.004f).coerceAtLeast(2f)),
         )
 
-        // Dos nodos orbitales hacen visible que está atento sin fingir que transcribe.
         val angle = Math.toRadians(orbit.toDouble())
         val node = Offset(
-            x = center.x + cos(angle).toFloat() * field,
-            y = center.y + sin(angle).toFloat() * field,
+            center.x + cos(angle).toFloat() * haloRadius,
+            center.y + sin(angle).toFloat() * haloRadius,
         )
-        val opposite = Offset(
-            x = center.x + cos(angle + Math.PI).toFloat() * field,
-            y = center.y + sin(angle + Math.PI).toFloat() * field,
-        )
-        drawCircle(stateAccent, radius = unit * 0.014f, center = node)
-        drawCircle(stateAccent.copy(alpha = 0.42f), radius = unit * 0.007f, center = opposite)
+        drawCircle(accent, unit * 0.012f * pulse, node)
 
-        val w = unit * 0.39f
-        val h = unit * 0.46f
+        // EDDY ocupa la mayor parte del hero, tal como en la referencia aprobada.
+        val w = unit * 0.52f
+        val h = unit * 0.62f
         val left = center.x - w / 2f
         val right = center.x + w / 2f
         val top = center.y - h / 2f
         val bottom = center.y + h / 2f
-        val cut = unit * 0.065f
+        val stroke = (unit * 0.052f).coerceAtLeast(11f)
+        val detail = (unit * 0.020f).coerceAtLeast(5f)
 
-        val shell = Path().apply {
-            moveTo(left + cut, top)
-            lineTo(right - cut, top)
-            lineTo(right, top + cut)
-            lineTo(right, bottom - cut)
-            lineTo(right - cut, bottom)
-            lineTo(left + cut, bottom)
-            lineTo(left, bottom - cut)
-            lineTo(left, top + cut)
-            close()
-        }
-        drawPath(shell, graphite, style = Stroke(width = stroke, cap = StrokeCap.Square))
-
-        // Un segundo borde interior le da profundidad sin convertirlo en un robot 3D pesado.
-        drawPath(
-            shell,
-            stateAccent.copy(alpha = 0.18f + if (state == EddyVisualState.LISTENING) 0.12f else 0f),
-            style = Stroke(width = detail),
-        )
-
-        val midY = center.y + h * 0.08f
-        drawLine(graphite, Offset(left, midY), Offset(right, midY), stroke, StrokeCap.Square)
-
-        val browY = center.y - h * 0.15f
-        val eyeHalf = w * 0.12f
-        val browLift = if (state == EddyVisualState.LISTENING) -h * 0.012f else 0f
-        drawLine(
-            graphite,
-            Offset(center.x - w * 0.25f, browY + browLift),
-            Offset(center.x - w * 0.08f, browY + detail + browLift),
-            detail,
-            StrokeCap.Round,
-        )
-        drawLine(
-            graphite,
-            Offset(center.x + w * 0.08f, browY + detail + browLift),
-            Offset(center.x + w * 0.25f, browY + browLift),
-            detail,
-            StrokeCap.Round,
-        )
-        val eyeRadius = unit * (0.010f + 0.004f * eyeEnergy)
-        drawCircle(stateAccent.copy(alpha = 0.35f), eyeRadius * 2.1f, Offset(center.x - eyeHalf, browY + h * 0.055f))
-        drawCircle(stateAccent.copy(alpha = 0.35f), eyeRadius * 2.1f, Offset(center.x + eyeHalf, browY + h * 0.055f))
-        drawCircle(stateAccent, eyeRadius, Offset(center.x - eyeHalf, browY + h * 0.055f))
-        drawCircle(stateAccent, eyeRadius, Offset(center.x + eyeHalf, browY + h * 0.055f))
-
-        val mouthY = center.y - h * 0.015f
-        val mouthWidth = w * 0.25f
-        val mouthThickness = if (state == EddyVisualState.SPEAKING) detail + voice * unit * 0.004f else detail
-        drawLine(
-            graphite,
-            Offset(center.x - mouthWidth, mouthY),
-            Offset(center.x + mouthWidth, mouthY),
-            mouthThickness,
-            StrokeCap.Round,
-        )
-
-        val coreTop = midY + h * 0.055f
-        val coreBottom = bottom - h * 0.09f
-        drawLine(graphite, Offset(center.x, coreTop), Offset(center.x, coreBottom), detail, StrokeCap.Square)
-        drawLine(graphite, Offset(center.x - w * 0.20f, coreTop), Offset(center.x, center.y + h * 0.24f), detail, StrokeCap.Square)
-        drawLine(graphite, Offset(center.x + w * 0.20f, coreTop), Offset(center.x, center.y + h * 0.24f), detail, StrokeCap.Square)
-        drawCircle(
-            color = stateAccent.copy(alpha = if (state == EddyVisualState.THINKING) 0.95f else 0.55f),
-            radius = unit * 0.011f * breath,
-            center = Offset(center.x, center.y + h * 0.24f),
-        )
-
-        val activity = when (state) {
-            EddyVisualState.IDLE -> 3
-            EddyVisualState.LISTENING -> 5
-            EddyVisualState.THINKING -> 6
-            EddyVisualState.SPEAKING -> 7
-        }
-        repeat(activity) { index ->
-            val x = center.x - unit * 0.112f + index * unit * 0.037f
-            val phase = if (state == EddyVisualState.SPEAKING) voice else breath
-            val barHeight = unit * (0.022f + ((index % 4) * 0.010f)) * phase
-            drawLine(
-                color = stateAccent,
-                start = Offset(x, bottom + unit * 0.075f - barHeight / 2f),
-                end = Offset(x, bottom + unit * 0.075f + barHeight / 2f),
-                strokeWidth = detail,
-                cap = StrokeCap.Square,
+        // Trazo exterior tipo E: arco superior + columna izquierda + base inferior.
+        val arch = Path().apply {
+            moveTo(left, bottom)
+            lineTo(left, top + h * 0.30f)
+            cubicTo(
+                left, top + h * 0.07f,
+                left + w * 0.18f, top,
+                left + w * 0.42f, top,
+            )
+            cubicTo(
+                left + w * 0.72f, top,
+                right, top + h * 0.08f,
+                right, top + h * 0.31f,
             )
         }
+        drawPath(arch, graphite, style = Stroke(width = stroke, cap = StrokeCap.Butt))
+        drawLine(graphite, Offset(left, bottom), Offset(right, bottom), stroke, StrokeCap.Butt)
+
+        // Barra central de la E, también funciona como hombros.
+        val midY = center.y + h * 0.10f
+        drawLine(graphite, Offset(left, midY), Offset(right * 0.98f, midY), stroke * 0.78f, StrokeCap.Butt)
+
+        // Ojos semicirculares cerrados/amables.
+        val eyeY = center.y - h * 0.15f
+        val eyeW = w * 0.19f
+        val eyeH = h * 0.10f
+        listOf(center.x - w * 0.16f, center.x + w * 0.16f).forEach { eyeX ->
+            drawArc(
+                color = graphite,
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = false,
+                topLeft = Offset(eyeX - eyeW / 2f, eyeY - eyeH / 2f),
+                size = androidx.compose.ui.geometry.Size(eyeW, eyeH),
+                style = Stroke(width = detail, cap = StrokeCap.Butt),
+            )
+            drawLine(
+                graphite,
+                Offset(eyeX - eyeW / 2f, eyeY),
+                Offset(eyeX + eyeW / 2f, eyeY),
+                detail,
+                StrokeCap.Butt,
+            )
+        }
+
+        // Sonrisa geométrica abierta.
+        val mouthRect = Rect(
+            left = center.x - w * 0.15f,
+            top = center.y - h * 0.045f,
+            right = center.x + w * 0.15f,
+            bottom = center.y + h * 0.105f,
+        )
+        drawArc(
+            color = graphite,
+            startAngle = 0f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = mouthRect.topLeft,
+            size = mouthRect.size,
+            style = Stroke(width = detail, cap = StrokeCap.Butt),
+        )
+        drawLine(
+            graphite,
+            Offset(mouthRect.left, mouthRect.top),
+            Offset(mouthRect.right, mouthRect.top),
+            detail,
+            StrokeCap.Butt,
+        )
+
+        // Corbata minimalista.
+        val tieTopY = midY + stroke * 0.34f
+        val tieKnotY = center.y + h * 0.31f
+        val tieBottomY = bottom - stroke * 0.48f
+        val tie = Path().apply {
+            moveTo(center.x - w * 0.16f, tieTopY)
+            lineTo(center.x, tieKnotY)
+            lineTo(center.x + w * 0.16f, tieTopY)
+            moveTo(center.x, tieKnotY)
+            lineTo(center.x, tieBottomY)
+        }
+        drawPath(tie, graphite, style = Stroke(width = detail, cap = StrokeCap.Butt))
     }
 }
