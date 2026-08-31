@@ -14,8 +14,12 @@ data class EddyDeviceProfile(
 ) {
     enum class Tier { LITE, BALANCED, POWER }
 
-    val supportsLocalLlm: Boolean get() = tier != Tier.LITE
-    val prefersGpuLlm: Boolean get() = tier == Tier.POWER
+    // EDDY ahora prioriza APIs + memoria local ligera. El LLM local pesado queda
+    // desactivado por defecto incluso en gama media/alta para evitar descargas de
+    // cientos de MB, presión de RAM y calentamiento. Puede reactivarse más adelante
+    // como opción avanzada, pero ya no forma parte del arranque normal.
+    val supportsLocalLlm: Boolean get() = false
+    val prefersGpuLlm: Boolean get() = false
 
     companion object {
         fun detect(context: Context): EddyDeviceProfile {
@@ -33,9 +37,6 @@ data class EddyDeviceProfile(
                 else -> Tier.LITE
             }
 
-            // Más hilos no siempre significan más velocidad en teléfonos: en equipos
-            // modestos provocan presión de RAM, calentamiento y throttling. EDDY escala
-            // conservadoramente y deja recursos al sistema y al servicio de micrófono.
             val threads = when (tier) {
                 Tier.LITE -> 1
                 Tier.BALANCED -> 2
