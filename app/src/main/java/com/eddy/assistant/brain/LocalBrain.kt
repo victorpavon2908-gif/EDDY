@@ -15,11 +15,6 @@ class LocalBrain {
 
     fun understand(input: String): AssistantCommand = understandSingle(input)
 
-    /**
-     * Convierte una petición natural en una secuencia ordenada de acciones.
-     * Ejemplo: "EDDY, entra a WhatsApp y prende la linterna" ->
-     * [OpenApp(WHATSAPP), SetTorch(true)].
-     */
     fun understandMany(input: String): List<AssistantCommand> {
         val cleaned = cleanConversationalInput(input.trim())
         if (cleaned.isBlank()) return listOf(AssistantCommand.Unknown(input.trim()))
@@ -30,9 +25,6 @@ class LocalBrain {
 
         val parsed = pieces.map(::understandSingle)
         val knownCount = parsed.count { it !is AssistantCommand.Unknown }
-
-        // Solo aceptamos el corte cuando realmente produjo varias intenciones útiles.
-        // Esto evita romper textos como "manda un mensaje que diga pan y leche".
         return if (knownCount >= 2) parsed.filter { it !is AssistantCommand.Unknown } else listOf(whole)
     }
 
@@ -40,21 +32,14 @@ class LocalBrain {
         val original = cleanConversationalInput(input.trim())
         val text = normalize(original)
 
-        if (containsAny(text, "olvida todo", "borra tu memoria", "borra lo que sabes de mi")) {
-            return AssistantCommand.ClearMemory
-        }
-        if (containsAny(text, "que sabes de mi", "que has aprendido de mi", "que recuerdas de mi", "que hago mas", "que uso mas")) {
-            return AssistantCommand.MemorySummary
-        }
+        if (containsAny(text, "olvida todo", "borra tu memoria", "borra lo que sabes de mi")) return AssistantCommand.ClearMemory
+        if (containsAny(text, "que sabes de mi", "que has aprendido de mi", "que recuerdas de mi", "que hago mas", "que uso mas")) return AssistantCommand.MemorySummary
         if (text.contains("que hora") || text.contains("hora es")) return AssistantCommand.TellTime
 
-        if (containsAny(text, "configura casa inteligente", "configurar casa inteligente", "configura domotica", "configurar domotica", "configura home assistant", "configurar home assistant")) {
-            return AssistantCommand.OpenSmartHomeSettings
-        }
-        if (containsAny(text, "configura inteligencia", "configurar inteligencia", "configura ia", "configurar ia", "configura busqueda web", "configurar busqueda web", "configura internet de eddy")) {
-            return AssistantCommand.OpenAiSettings
-        }
+        if (containsAny(text, "configura casa inteligente", "configurar casa inteligente", "configura domotica", "configurar domotica", "configura home assistant", "configurar home assistant")) return AssistantCommand.OpenSmartHomeSettings
+        if (containsAny(text, "configura inteligencia", "configurar inteligencia", "configura ia", "configurar ia", "configura busqueda web", "configurar busqueda web", "configura internet de eddy")) return AssistantCommand.OpenAiSettings
 
+        parseDynamicTool(text)?.let { return it }
         parseWhatsApp(original, text)?.let { return it }
         parseMessage(original, text)?.let { return it }
         parseDial(text)?.let { return it }
@@ -70,27 +55,33 @@ class LocalBrain {
         parseWebSearch(original)?.let { return it }
         parseShare(original, text)?.let { return it }
 
-        if (text.contains("bateria") && containsAny(text, "cuanta", "porcentaje", "nivel", "queda", "tengo")) {
-            return AssistantCommand.BatteryStatus
-        }
+        if (text.contains("bateria") && containsAny(text, "cuanta", "porcentaje", "nivel", "queda", "tengo")) return AssistantCommand.BatteryStatus
         if (containsAny(text, "vibra", "vibrar", "haz vibrar", "hace vibrar")) return AssistantCommand.Vibrate()
-
-        if (text.contains("camara") && containsAny(text, "abre", "abri", "abrir", "abrime", "abreme", "inicia", "enciende", "encende")) {
-            return AssistantCommand.OpenCamera
-        }
+        if (text.contains("camara") && containsAny(text, "abre", "abri", "abrir", "abrime", "abreme", "inicia", "enciende", "encende")) return AssistantCommand.OpenCamera
 
         parseOpenApp(original, text)?.let { return it }
-
-        if (text == "eddy" || text == "edi" || containsAny(text, "hola", "como estas", "oye eddy", "buenos dias", "buenas tardes", "buenas noches")) {
-            return AssistantCommand.Greeting
-        }
+        if (text == "eddy" || text == "edi" || containsAny(text, "hola", "como estas", "oye eddy", "buenos dias", "buenas tardes", "buenas noches")) return AssistantCommand.Greeting
         return AssistantCommand.Unknown(original)
+    }
+
+    private fun parseDynamicTool(text: String): AssistantCommand? {
+        val wantsTool = containsAny(
+            text,
+            "convertite en", "conviertete en", "modo calculadora", "modo cronometro",
+            "abre calculadora", "abri calculadora", "quiero calculadora",
+            "abre cronometro", "abri cronometro", "quiero cronometro",
+        )
+        if (!wantsTool) return null
+        return when {
+            text.contains("calculadora") -> AssistantCommand.OpenAppByName("EDDY_TOOL_CALCULATOR")
+            text.contains("cronometro") -> AssistantCommand.OpenAppByName("EDDY_TOOL_STOPWATCH")
+            else -> null
+        }
     }
 
     private fun splitActionClauses(value: String): List<String> {
         val protectedMessage = normalize(value).contains("mensaje") && containsAny(normalize(value), "que diga", "diciendo", "con el texto", "con mensaje")
         if (protectedMessage) return listOf(value)
-
         return value
             .split(Regex("(?i)\\s*(?:,?\\s+(?:y\\s+despu[eé]s|despu[eé]s|luego|adem[aá]s|y\\s+luego|y))\\s+(?=(?:abre|abr[ií]|entra|enciende|encend[eé]|prende|apaga|llama|marca|pon|reproduce|sube|baja|activa|desactiva|busca|manda|env[ií]a|escribe|pon[eé]|quiero|necesito|haceme|hazme)\\b)"))
             .map { cleanConversationalInput(it).trim() }
