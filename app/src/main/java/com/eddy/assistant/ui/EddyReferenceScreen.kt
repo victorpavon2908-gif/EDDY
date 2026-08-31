@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,7 +35,6 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +54,10 @@ import androidx.compose.ui.unit.sp
 import com.eddy.assistant.AiSettingsActivity
 import com.eddy.assistant.ai.EddyWebSource
 
+/**
+ * Pantalla PRO: identidad grande, aire visual y controles mínimos. No hay header, chips ni
+ * bloques técnicos. El estado operativo se expresa con color, animación y una sola línea.
+ */
 @Composable
 internal fun EddyReferenceScreen(
     visualState: EddyVisualState,
@@ -69,152 +71,163 @@ internal fun EddyReferenceScreen(
 ) {
     val context = LocalContext.current
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    0f to Color(0xFFFFFFFF),
-                    0.72f to Color(0xFFFCFEFD),
-                    1f to Color(0xFFF4F9F7),
+                    listOf(
+                        Color(0xFFFFFFFF),
+                        Color(0xFFFCFEFD),
+                        Color(0xFFF4FAF7),
+                    ),
                 ),
             )
             .statusBarsPadding()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // EDDY es el protagonista de la pantalla: grande, limpio y sin cabeceras extra.
+        Spacer(Modifier.height(8.dp))
+
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.72f)
-                .padding(horizontal = 2.dp),
+                .weight(1f)
+                .fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
-            EddyHero(
-                state = visualState,
-                modifier = Modifier.fillMaxSize(),
-            )
+            // El halo tiene un campo de luz independiente del personaje para que el centro
+            // se sienta profundo sin llenar la pantalla de tarjetas o efectos pesados.
+            Box(
+                modifier = Modifier
+                    .size(350.dp)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color(0x163EDDB1),
+                                Color(0x083EDDB1),
+                                Color.Transparent,
+                            ),
+                        ),
+                        CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                EddyHero(
+                    state = visualState,
+                    modifier = Modifier.size(330.dp),
+                )
+            }
         }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(start = 18.dp, end = 18.dp, bottom = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            StatusBlock(
-                state = visualState,
-                active = autoListeningEnabled,
-                voiceReady = voiceReady,
-                webUsed = webUsed,
-            )
+        ProStateLine(
+            state = visualState,
+            active = autoListeningEnabled,
+            webUsed = webUsed,
+        )
 
-            Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(22.dp))
 
-            ControlDock(
-                visualState = visualState,
-                active = autoListeningEnabled,
-                heardText = heardText,
-                responseText = responseText,
-                webUsed = webUsed,
-                sources = webSources,
-                onToggleAssistant = onToggleAssistant,
-                onOpenSettings = {
-                    context.startActivity(Intent(context, AiSettingsActivity::class.java))
-                },
-            )
-        }
+        ProDock(
+            visualState = visualState,
+            active = autoListeningEnabled,
+            heardText = heardText,
+            responseText = responseText,
+            webUsed = webUsed,
+            sources = webSources,
+            onToggleAssistant = { onToggleAssistant?.invoke() },
+            onSettings = {
+                context.startActivity(Intent(context, AiSettingsActivity::class.java))
+            },
+        )
+
+        Spacer(Modifier.height(14.dp))
     }
 }
 
 @Composable
-private fun StatusBlock(
+private fun ProStateLine(
     state: EddyVisualState,
     active: Boolean,
-    voiceReady: Boolean,
     webUsed: Boolean,
 ) {
-    val transition = rememberInfiniteTransition(label = "eddyStatusPulse")
+    val transition = rememberInfiniteTransition(label = "proStatusPulse")
     val alpha by transition.animateFloat(
         initialValue = 0.42f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(760), RepeatMode.Reverse),
-        label = "statusAlpha",
+        animationSpec = infiniteRepeatable(tween(720), RepeatMode.Reverse),
+        label = "proStatusAlpha",
     )
 
     val title = when {
         !active -> "EN PAUSA"
-        !voiceReady -> "PREPARANDO VOZ..."
-        state == EddyVisualState.THINKING && webUsed -> "BUSCANDO EN INTERNET..."
-        state == EddyVisualState.THINKING -> "PENSANDO..."
-        state == EddyVisualState.SPEAKING -> "HABLANDO..."
-        state == EddyVisualState.LISTENING -> "TE ESCUCHO..."
-        else -> "ESCUCHANDO..."
+        state == EddyVisualState.THINKING && webUsed -> "BUSCANDO EN INTERNET"
+        state == EddyVisualState.THINKING -> "PENSANDO"
+        state == EddyVisualState.SPEAKING -> "HABLANDO"
+        state == EddyVisualState.LISTENING -> "TE ESCUCHO"
+        else -> "ESCUCHANDO"
     }
-
     val subtitle = when {
         !active -> "Tocá el micrófono para activar EDDY"
-        !voiceReady -> "Preparando el sistema de voz"
         state == EddyVisualState.LISTENING -> "Decime qué necesitás"
         state == EddyVisualState.THINKING && webUsed -> "Consultando fuentes"
         state == EddyVisualState.THINKING -> "Procesando tu petición"
         state == EddyVisualState.SPEAKING -> "Ahora hablo yo"
-        else -> "Di “EDDY” para hablar conmigo"
+        else -> "Decí “EDDY” para hablar conmigo"
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Canvas(Modifier.size(8.dp)) {
             drawCircle(
                 color = when {
-                    !active -> Color(0xFFA5AEAA)
+                    !active -> Color(0xFF9DA6A2)
                     webUsed && state == EddyVisualState.THINKING -> EddyBlue.copy(alpha = alpha)
                     else -> EddyMintDeep.copy(alpha = alpha)
                 },
             )
         }
-        Spacer(Modifier.size(10.dp))
+        Spacer(Modifier.size(9.dp))
         Text(
             text = title,
-            color = Color(0xFF101312),
+            color = Color(0xFF0C100E),
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 16.sp,
-            letterSpacing = 0.35.sp,
+            fontSize = 15.sp,
+            letterSpacing = 0.6.sp,
         )
     }
-
-    Spacer(Modifier.height(7.dp))
-
+    Spacer(Modifier.height(6.dp))
     Text(
         text = subtitle,
-        color = Color(0xFF747D79),
-        fontSize = 13.5.sp,
+        color = Color(0xFF737C78),
+        fontSize = 13.sp,
         textAlign = TextAlign.Center,
     )
 }
 
 @Composable
-private fun ControlDock(
+private fun ProDock(
     visualState: EddyVisualState,
     active: Boolean,
     heardText: String,
     responseText: String,
     webUsed: Boolean,
     sources: List<EddyWebSource>,
-    onToggleAssistant: (() -> Unit)?,
-    onOpenSettings: () -> Unit,
+    onToggleAssistant: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        PremiumCircleButton(
+        ProCircleButton(
             active = active,
-            onClick = { onToggleAssistant?.invoke() },
+            icon = if (active) Icons.Rounded.Mic else Icons.Rounded.MicOff,
+            description = if (active) "Pausar EDDY" else "Activar EDDY",
+            onClick = onToggleAssistant,
         )
 
-        PremiumStatusCard(
+        ProConversationCard(
             modifier = Modifier.weight(1f),
             visualState = visualState,
             heardText = heardText,
@@ -223,56 +236,45 @@ private fun ControlDock(
             sources = sources,
         )
 
-        Surface(
-            modifier = Modifier
-                .size(56.dp)
-                .shadow(11.dp, CircleShape)
-                .clickable(onClick = onOpenSettings),
-            shape = CircleShape,
-            color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFE7ECEA)),
-            tonalElevation = 1.dp,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Rounded.Settings,
-                    contentDescription = "Configuración",
-                    tint = Color(0xFF0F1311),
-                    modifier = Modifier.size(25.dp),
-                )
-            }
-        }
+        ProCircleButton(
+            active = true,
+            icon = Icons.Rounded.Settings,
+            description = "Configuración",
+            onClick = onSettings,
+        )
     }
 }
 
 @Composable
-private fun PremiumCircleButton(
+private fun ProCircleButton(
     active: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
     onClick: () -> Unit,
 ) {
     Surface(
         modifier = Modifier
-            .size(56.dp)
-            .shadow(11.dp, CircleShape)
+            .size(54.dp)
+            .shadow(9.dp, CircleShape)
             .clickable(onClick = onClick),
         shape = CircleShape,
         color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFE7ECEA)),
-        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, Color(0xFFE8EEEB)),
+        shadowElevation = 1.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
-                imageVector = if (active) Icons.Rounded.Mic else Icons.Rounded.MicOff,
-                contentDescription = if (active) "Pausar EDDY" else "Activar EDDY",
-                tint = Color(0xFF0F1311),
-                modifier = Modifier.size(25.dp),
+                imageVector = icon,
+                contentDescription = description,
+                tint = if (active) Color(0xFF0B0F0D) else Color(0xFF8D9692),
+                modifier = Modifier.size(24.dp),
             )
         }
     }
 }
 
 @Composable
-private fun PremiumStatusCard(
+private fun ProConversationCard(
     modifier: Modifier,
     visualState: EddyVisualState,
     heardText: String,
@@ -281,33 +283,32 @@ private fun PremiumStatusCard(
     sources: List<EddyWebSource>,
 ) {
     val uriHandler = LocalUriHandler.current
-
     val primary = when (visualState) {
         EddyVisualState.LISTENING -> "TE ESCUCHO"
         EddyVisualState.THINKING -> if (webUsed) "BUSCANDO" else "PENSANDO"
-        EddyVisualState.SPEAKING -> "EDDY HABLA"
+        EddyVisualState.SPEAKING -> "EDDY"
         EddyVisualState.IDLE -> "TE ESCUCHO"
     }
-
     val secondary = when {
-        responseText.isNotBlank() && visualState != EddyVisualState.IDLE -> responseText
+        visualState == EddyVisualState.THINKING -> responseText.ifBlank { "Procesando…" }
+        visualState == EddyVisualState.SPEAKING -> responseText.ifBlank { "Respondiendo…" }
         heardText.isNotBlank() -> heardText
         else -> "Solo respondo cuando me llamás"
     }
 
     Surface(
         modifier = modifier
-            .shadow(15.dp, RoundedCornerShape(23.dp))
+            .shadow(12.dp, RoundedCornerShape(24.dp))
             .animateContentSize(),
-        shape = RoundedCornerShape(23.dp),
-        color = Color(0xFFFFFFFF),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White,
         border = BorderStroke(1.dp, Color(0xFFE6ECE9)),
-        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
-                    modifier = Modifier.size(34.dp),
+                    modifier = Modifier.size(32.dp),
                     shape = CircleShape,
                     color = if (webUsed) Color(0xFFEEF6FF) else Color(0xFFEAFBF5),
                 ) {
@@ -316,26 +317,24 @@ private fun PremiumStatusCard(
                             imageVector = if (webUsed) Icons.Rounded.Language else Icons.Rounded.GraphicEq,
                             contentDescription = null,
                             tint = if (webUsed) EddyBlue else EddyMintDeep,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }
-
-                Spacer(Modifier.size(11.dp))
-
+                Spacer(Modifier.size(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = primary,
-                        color = Color(0xFF151817),
+                        color = Color(0xFF111513),
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 13.sp,
-                        letterSpacing = 1.4.sp,
+                        fontSize = 12.5.sp,
+                        letterSpacing = 1.25.sp,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = secondary,
-                        color = Color(0xFF747D79),
-                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF6F7975),
+                        fontSize = 11.5.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -355,13 +354,13 @@ private fun PremiumStatusCard(
                                 runCatching { uriHandler.openUri(source.url) }
                             },
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFF4F8F6),
+                            color = Color(0xFFF3F7F5),
                         ) {
                             Text(
                                 text = "${index + 1} · ${source.title}",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFF56615D),
+                                fontSize = 10.5.sp,
                                 maxLines = 1,
                             )
                         }
