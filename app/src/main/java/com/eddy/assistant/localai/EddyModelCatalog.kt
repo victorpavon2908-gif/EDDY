@@ -82,8 +82,8 @@ object EddyModelCatalog {
         requireInstallMarker = true,
     )
 
-    // Voz masculina latinoamericana. Es un salto importante frente a la anterior es-ES:
-    // la base mexicana se aproxima mucho más al ritmo y color de voz centroamericano.
+    // Voz masculina latinoamericana. La base mexicana se acerca mucho más al color de voz
+    // centroamericano que la antigua voz es-ES y sigue funcionando 100% local.
     val spanishVoice = EddyModelSpec(
         id = "tts-claude-es-mx-high-v3",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_MX-claude-high.tar.bz2",
@@ -114,8 +114,10 @@ object EddyModelCatalog {
         ),
     )
 
+    // KWS/VAD/ASR bloquean el modo PRO. La voz y Voice ID son mejoras opcionales:
+    // se descargan solas, pero si fallan EDDY sigue funcionando con la voz del sistema.
     val voiceCore = listOf(keyword, vad, spanishAsr)
-    val acousticCore: List<EddyModelSpec> = voiceCore + speaker
+    val acousticCore: List<EddyModelSpec> = voiceCore + speaker + spanishVoice
 
     fun byId(id: String): EddyModelSpec? =
         (voiceCore + speaker + spanishVoice + localLlm).firstOrNull { it.id == id }
