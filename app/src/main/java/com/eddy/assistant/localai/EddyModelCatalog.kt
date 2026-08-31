@@ -40,8 +40,6 @@ object EddyModelCatalog {
         requireInstallMarker = true,
     )
 
-    // Streaming KWS: chunk 8 is the low-latency variant. It listens locally only for EDDY;
-    // Moonshine is not invoked until after the wake word has been detected.
     val keyword = EddyModelSpec(
         id = "kws-eddy-zh-en-2025-v3",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2",
@@ -84,20 +82,22 @@ object EddyModelCatalog {
         requireInstallMarker = true,
     )
 
+    // Voz masculina latinoamericana. Es un salto importante frente a la anterior es-ES:
+    // la base mexicana se aproxima mucho más al ritmo y color de voz centroamericano.
     val spanishVoice = EddyModelSpec(
-        id = "tts-miro-es-high-v2",
-        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_ES-miro-high.tar.bz2",
+        id = "tts-claude-es-mx-high-v3",
+        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_MX-claude-high.tar.bz2",
         archiveType = EddyArchiveType.TAR_BZ2,
         directoryName = "tts",
         expectedFiles = listOf(
-            "vits-piper-es_ES-miro-high/es_ES-miro-high.onnx",
-            "vits-piper-es_ES-miro-high/tokens.txt",
-            "vits-piper-es_ES-miro-high/espeak-ng-data",
+            "vits-piper-es_MX-claude-high/es_MX-claude-high.onnx",
+            "vits-piper-es_MX-claude-high/tokens.txt",
+            "vits-piper-es_MX-claude-high/espeak-ng-data",
         ),
         minBytes = 10_000_000L,
         expectedMinBytes = mapOf(
-            "vits-piper-es_ES-miro-high/es_ES-miro-high.onnx" to 10_000_000L,
-            "vits-piper-es_ES-miro-high/tokens.txt" to 512L,
+            "vits-piper-es_MX-claude-high/es_MX-claude-high.onnx" to 10_000_000L,
+            "vits-piper-es_MX-claude-high/tokens.txt" to 512L,
         ),
         requireInstallMarker = true,
     )
@@ -114,8 +114,6 @@ object EddyModelCatalog {
         ),
     )
 
-    // Core que debe estar listo para el modo PRO de escucha: KWS local inmediato + VAD + ASR.
-    // Voice ID se descarga también, pero no bloquea la activación ni los comandos.
     val voiceCore = listOf(keyword, vad, spanishAsr)
     val acousticCore: List<EddyModelSpec> = voiceCore + speaker
 
