@@ -57,6 +57,7 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -89,6 +90,7 @@ class EddyAssistantService : Service() {
     private var isSpeaking = false
     private var screenReceiverRegistered = false
     private var lastPartialWakeAt = 0L
+    private var pendingWakeAck: Job? = null
     private var windowManager: WindowManager? = null
     private var bubbleView: View? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
@@ -125,9 +127,6 @@ class EddyAssistantService : Service() {
             context = applicationContext,
             onListeningChanged = { recognizerOpen ->
                 if (!localVoiceActive) {
-                    // El recognizer compatible puede necesitar mantener una captura breve para
-                    // detectar la palabra de activación. Eso NO significa que EDDY esté en una
-                    // conversación. La UI solo muestra "escuchando" después de detectar EDDY.
                     isListening = recognizerOpen && wakeGate.isArmed()
                     updateVisualState()
                 }
@@ -190,6 +189,8 @@ class EddyAssistantService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        pendingWakeAck?.cancel()
+        pendingWakeAck = null
         bubbleParams?.let(::saveBubblePosition)
         hideBubble()
         unregisterScreenStateReceiver()
@@ -249,8 +250,15 @@ class EddyAssistantService : Service() {
                 val profileText = if (enrolled) "voz verificada" else "aprendiendo tu voz"
                 EddyRuntimeState.setResponse(applicationContext, "Te escucho · $profileText")
                 revealEddyOnLockScreen()
+                scheduleWakeAcknowledgement()
             }},
+            onCommandSpeechStarted = {
+                pendingWakeAck?.cancel()
+                pendingWakeAck = null
+            },
             onCommand = { text -> serviceScope.launch {
+                pendingWakeAck?.cancel()
+                pendingWakeAck = null
                 EddyRuntimeState.setHeard(applicationContext, text)
                 revealEddyOnLockScreen()
                 isListening = false; isThinking = true; updateVisualState()
@@ -270,7 +278,20 @@ class EddyAssistantService : Service() {
         } else false
     }
 
+    private fun scheduleWakeAcknowledgement() {
+        pendingWakeAck?.cancel()
+        pendingWakeAck = serviceScope.launch {
+            delay(WAKE_ACK_DELAY_MS)
+            if (localVoiceActive && isListening && !isThinking && !isSpeaking) {
+                speakResponse("Ajá.")
+            }
+            pendingWakeAck = null
+        }
+    }
+
     private fun fallbackToCompatibilityRecognizer(error: String) {
+        pendingWakeAck?.cancel()
+        pendingWakeAck = null
         localVoice?.stop()
         localVoice = null
         localVoiceActive = false
@@ -319,10 +340,14 @@ class EddyAssistantService : Service() {
             WakeResult.Activated -> {
                 isListening = true
                 EddyRuntimeState.setHeard(applicationContext, "EDDY")
-                EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
-                revealEddyOnLockScreen(); updateVisualState(); compatibilityRecognizer.restart(220L)
+                EddyRuntimeState.setResponse(applicationContext, "Ajá.")
+                revealEddyOnLockScreen()
+                updateVisualState()
+                speakOnly("Ajá.")
             }
             is WakeResult.Command -> {
+                pendingWakeAck?.cancel()
+                pendingWakeAck = null
                 isListening = false
                 EddyRuntimeState.setHeard(applicationContext, wakeResult.text)
                 revealEddyOnLockScreen(); compatibilityRecognizer.pause(); isThinking = true; updateVisualState()
@@ -485,6 +510,7 @@ class EddyAssistantService : Service() {
         private const val WAKE_NOTIFICATION_ID = 2002
         private const val WAKE_REQUEST_CODE = 2102
         private const val PARTIAL_WAKE_DEBOUNCE_MS = 1_200L
+        private const val WAKE_ACK_DELAY_MS = 950L
         private const val BUBBLE_PREFS = "eddy_bubble_prefs"
         private const val KEY_BUBBLE_X = "bubble_x"
         private const val KEY_BUBBLE_Y = "bubble_y"
