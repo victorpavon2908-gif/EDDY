@@ -15,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,7 +26,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.eddy.assistant.background.EddyAssistantService
 import com.eddy.assistant.background.EddyRuntimeState
+import com.eddy.assistant.ui.EddyEmbeddedApp
 import com.eddy.assistant.ui.EddyReferenceScreen
+import com.eddy.assistant.ui.EddyUiMode
+import com.eddy.assistant.ui.EddyUiModeStore
 import com.eddy.assistant.ui.EddyVisualState
 import com.eddy.assistant.ui.theme.EddyTheme
 import kotlinx.coroutines.delay
@@ -50,24 +54,18 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
 
-        batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            refreshLockScreenSetupStatus()
-        }
+        batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refreshLockScreenSetupStatus() }
         fullScreenLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            maybeRequestBatteryOptimizationExemption()
-            refreshLockScreenSetupStatus()
+            maybeRequestBatteryOptimizationExemption(); refreshLockScreenSetupStatus()
         }
         overlayLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (Settings.canDrawOverlays(this) && assistantEnabled()) {
-                sendServiceAction(EddyAssistantService.ACTION_REFRESH_BUBBLE)
-            }
+            if (Settings.canDrawOverlays(this) && assistantEnabled()) sendServiceAction(EddyAssistantService.ACTION_REFRESH_BUBBLE)
             maybeRequestFullScreenIntentPermission()
         }
         permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             val micGranted = grants[Manifest.permission.RECORD_AUDIO] ?: hasMicrophonePermission()
             if (micGranted && assistantEnabled()) {
-                startAssistantService()
-                maybeRequestOverlayPermission()
+                startAssistantService(); maybeRequestOverlayPermission()
             } else if (!micGranted) {
                 EddyRuntimeState.setResponse(applicationContext, "Necesito permiso de micrófono para funcionar fuera de la aplicación.")
             }
@@ -80,16 +78,14 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         if (hasMicrophonePermission() && assistantEnabled()) {
-            startAssistantService()
-            sendServiceAction(EddyAssistantService.ACTION_HIDE_BUBBLE)
+            startAssistantService(); sendServiceAction(EddyAssistantService.ACTION_HIDE_BUBBLE)
         }
     }
 
     override fun onResume() {
         super.onResume()
         if (hasMicrophonePermission() && assistantEnabled()) {
-            startAssistantService()
-            sendServiceAction(EddyAssistantService.ACTION_HIDE_BUBBLE)
+            startAssistantService(); sendServiceAction(EddyAssistantService.ACTION_HIDE_BUBBLE)
         }
         refreshLockScreenSetupStatus()
     }
@@ -106,10 +102,7 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) add(Manifest.permission.POST_NOTIFICATIONS)
         }
         if (missing.isEmpty()) {
-            if (assistantEnabled()) {
-                startAssistantService()
-                maybeRequestOverlayPermission()
-            }
+            if (assistantEnabled()) { startAssistantService(); maybeRequestOverlayPermission() }
         } else permissionLauncher.launch(missing.toTypedArray())
     }
 
@@ -142,14 +135,8 @@ class MainActivity : ComponentActivity() {
     private fun refreshLockScreenSetupStatus() {
         if (!assistantEnabled() || !hasMicrophonePermission()) return
         if (EddyRuntimeState.read(applicationContext).running) return
-
-        val fullScreenReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true
-        } else true
-        val batteryReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true
-        } else true
-
+        val fullScreenReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true else true
+        val batteryReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true else true
         if (!fullScreenReady) {
             EddyRuntimeState.setResponse(applicationContext, "Activá pantalla completa para que EDDY pueda mostrarse con el teléfono bloqueado.")
         } else if (!batteryReady) {
@@ -174,8 +161,7 @@ class MainActivity : ComponentActivity() {
     private fun setAssistantEnabled(enabled: Boolean) {
         getSharedPreferences(CONTROL_PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ASSISTANT_ENABLED, enabled).apply()
         if (enabled) {
-            requestAssistantPermissions()
-            if (hasMicrophonePermission()) startAssistantService()
+            requestAssistantPermissions(); if (hasMicrophonePermission()) startAssistantService()
         } else stopService(Intent(this, EddyAssistantService::class.java))
     }
 
@@ -183,28 +169,36 @@ class MainActivity : ComponentActivity() {
     private fun EddyAppScreen() {
         var snapshot by remember { mutableStateOf(EddyRuntimeState.read(applicationContext)) }
         var enabled by remember { mutableStateOf(assistantEnabled()) }
+        var uiMode by remember { mutableStateOf(EddyUiModeStore.read(applicationContext)) }
         LaunchedEffect(Unit) {
             while (true) {
                 snapshot = EddyRuntimeState.read(applicationContext)
                 enabled = assistantEnabled()
-                delay(180L)
+                uiMode = EddyUiModeStore.read(applicationContext)
+                delay(120L)
             }
         }
-        val visualState = when (snapshot.state) {
-            EddyRuntimeState.State.IDLE -> EddyVisualState.IDLE
-            EddyRuntimeState.State.LISTENING -> EddyVisualState.LISTENING
-            EddyRuntimeState.State.THINKING -> EddyVisualState.THINKING
-            EddyRuntimeState.State.SPEAKING -> EddyVisualState.SPEAKING
+        Crossfade(targetState = uiMode, label = "eddy-transform") { mode ->
+            if (mode == EddyUiMode.ASSISTANT) {
+                val visualState = when (snapshot.state) {
+                    EddyRuntimeState.State.IDLE -> EddyVisualState.IDLE
+                    EddyRuntimeState.State.LISTENING -> EddyVisualState.LISTENING
+                    EddyRuntimeState.State.THINKING -> EddyVisualState.THINKING
+                    EddyRuntimeState.State.SPEAKING -> EddyVisualState.SPEAKING
+                }
+                EddyReferenceScreen(
+                    visualState = visualState,
+                    heardText = snapshot.heardText,
+                    responseText = snapshot.responseText,
+                    voiceReady = snapshot.voiceReady,
+                    autoListeningEnabled = enabled && snapshot.running,
+                    webUsed = snapshot.webUsed,
+                    webSources = snapshot.webSources,
+                    onToggleAssistant = { setAssistantEnabled(!enabled) },
+                )
+            } else {
+                EddyEmbeddedApp(mode = mode, onHome = { EddyUiModeStore.set(applicationContext, EddyUiMode.ASSISTANT) })
+            }
         }
-        EddyReferenceScreen(
-            visualState = visualState,
-            heardText = snapshot.heardText,
-            responseText = snapshot.responseText,
-            voiceReady = snapshot.voiceReady,
-            autoListeningEnabled = enabled && snapshot.running,
-            webUsed = snapshot.webUsed,
-            webSources = snapshot.webSources,
-            onToggleAssistant = { setAssistantEnabled(!enabled) },
-        )
     }
 }
