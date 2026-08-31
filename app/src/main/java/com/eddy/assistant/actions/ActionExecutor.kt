@@ -17,6 +17,7 @@ import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.provider.Settings
 import com.eddy.assistant.AiSettingsActivity
+import com.eddy.assistant.EddyToolActivity
 import com.eddy.assistant.SmartHomeSettingsActivity
 import com.eddy.assistant.brain.SupportedApp
 import com.eddy.assistant.brain.SystemPanel
@@ -38,6 +39,19 @@ class ActionExecutor(private val context: Context) {
     }
 
     fun openAppByName(requestedName: String): ActionResult {
+        when (requestedName) {
+            "EDDY_TOOL_CALCULATOR" -> return launch(
+                Intent(context, EddyToolActivity::class.java).putExtra(EddyToolActivity.EXTRA_TOOL, EddyToolActivity.TOOL_CALCULATOR),
+                "De una. Me convertí en calculadora.",
+                "No pude abrir mi calculadora interna.",
+            )
+            "EDDY_TOOL_STOPWATCH" -> return launch(
+                Intent(context, EddyToolActivity::class.java).putExtra(EddyToolActivity.EXTRA_TOOL, EddyToolActivity.TOOL_STOPWATCH),
+                "De una. Me convertí en cronómetro.",
+                "No pude abrir mi cronómetro interno.",
+            )
+        }
+
         val cleanTarget = normalizeAppName(requestedName)
         if (cleanTarget.isBlank()) {
             return ActionResult(false, "Decime el nombre de la app que querés abrir.")
