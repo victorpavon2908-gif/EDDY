@@ -6,200 +6,109 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import com.eddy.assistant.R
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
+/**
+ * Hero visual PRO. El personaje ya no se calcula con geometría dependiente del Canvas:
+ * usa un vector fijo y escalable para mantener exactamente las mismas proporciones en
+ * teléfonos pequeños y grandes. El Canvas queda únicamente para el halo de estado.
+ */
 @Composable
 internal fun EddyHero(
     state: EddyVisualState,
     modifier: Modifier = Modifier,
 ) {
-    val transition = rememberInfiniteTransition(label = "eddyPremiumHero")
+    val transition = rememberInfiniteTransition(label = "eddyProHero")
     val pulse by transition.animateFloat(
-        initialValue = 0.98f,
+        initialValue = 0.985f,
         targetValue = 1.025f,
         animationSpec = infiniteRepeatable(
-            tween(
+            animation = tween(
                 durationMillis = when (state) {
-                    EddyVisualState.LISTENING -> 560
-                    EddyVisualState.THINKING -> 780
-                    EddyVisualState.SPEAKING -> 400
-                    EddyVisualState.IDLE -> 2_300
+                    EddyVisualState.LISTENING -> 520
+                    EddyVisualState.THINKING -> 760
+                    EddyVisualState.SPEAKING -> 390
+                    EddyVisualState.IDLE -> 2_400
                 },
             ),
-            RepeatMode.Reverse,
+            repeatMode = RepeatMode.Reverse,
         ),
         label = "pulse",
     )
-
     val orbit by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            tween(
+            animation = tween(
                 durationMillis = when (state) {
-                    EddyVisualState.THINKING -> 1_100
-                    EddyVisualState.LISTENING -> 2_100
-                    EddyVisualState.SPEAKING -> 1_500
-                    EddyVisualState.IDLE -> 5_000
+                    EddyVisualState.THINKING -> 1_050
+                    EddyVisualState.LISTENING -> 1_900
+                    EddyVisualState.SPEAKING -> 1_450
+                    EddyVisualState.IDLE -> 5_200
                 },
             ),
-            RepeatMode.Restart,
+            repeatMode = RepeatMode.Restart,
         ),
         label = "orbit",
     )
 
-    Canvas(modifier.fillMaxSize()) {
-        val unit = min(size.width, size.height)
-        val center = Offset(size.width / 2f, size.height / 2f + unit * 0.015f)
-        val black = Color(0xFF090A0A)
-        val mint = Color(0xFF42DDB4)
-        val blue = Color(0xFF66AEFF)
-        val accent = if (state == EddyVisualState.THINKING) blue else mint
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val unit = min(size.width, size.height)
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val accent = if (state == EddyVisualState.THINKING) Color(0xFF6EAEFF) else Color(0xFF42DDB4)
+            val halo = unit * 0.465f
 
-        // Halo muy limpio, como en el mockup aprobado.
-        val halo = unit * 0.485f
-        drawCircle(accent.copy(alpha = 0.025f + 0.025f * pulse), halo * 1.16f, center)
-        drawCircle(accent.copy(alpha = 0.055f), halo * 1.06f, center)
-        drawCircle(
-            color = accent.copy(alpha = 0.40f),
-            radius = halo,
-            center = center,
-            style = Stroke(width = (unit * 0.0035f).coerceAtLeast(1.5f)),
-        )
-
-        val angle = Math.toRadians(orbit.toDouble())
-        drawCircle(
-            color = accent,
-            radius = unit * 0.010f * pulse,
-            center = Offset(
-                x = center.x + cos(angle).toFloat() * halo,
-                y = center.y + sin(angle).toFloat() * halo,
-            ),
-        )
-
-        // EDDY ocupa casi todo el interior del halo.
-        val w = unit * 0.78f
-        val h = unit * 0.78f
-        val left = center.x - w / 2f
-        val right = center.x + w / 2f
-        val top = center.y - h / 2f
-        val bottom = center.y + h / 2f
-        val outerStroke = (unit * 0.053f).coerceAtLeast(11f)
-        val detailStroke = (unit * 0.0175f).coerceAtLeast(4.5f)
-
-        // Forma exterior: gran E redondeada y abierta a la derecha.
-        val shell = Path().apply {
-            moveTo(left, bottom)
-            lineTo(left, top + h * 0.28f)
-            cubicTo(
-                left, top + h * 0.10f,
-                left + w * 0.13f, top,
-                left + w * 0.36f, top,
+            drawCircle(
+                color = accent.copy(alpha = 0.035f + 0.025f * pulse),
+                radius = halo * 1.15f,
+                center = center,
             )
-            cubicTo(
-                left + w * 0.68f, top,
-                right, top + h * 0.08f,
-                right, top + h * 0.29f,
+            drawCircle(
+                color = accent.copy(alpha = 0.065f),
+                radius = halo * 1.045f,
+                center = center,
             )
-        }
-        drawPath(
-            path = shell,
-            color = black,
-            style = Stroke(width = outerStroke, cap = StrokeCap.Butt),
-        )
-        drawLine(
-            color = black,
-            start = Offset(left, bottom),
-            end = Offset(right, bottom),
-            strokeWidth = outerStroke,
-            cap = StrokeCap.Butt,
-        )
-
-        // Barra central de la E.
-        val middleY = center.y + h * 0.085f
-        drawLine(
-            color = black,
-            start = Offset(left, middleY),
-            end = Offset(right - w * 0.015f, middleY),
-            strokeWidth = outerStroke * 0.68f,
-            cap = StrokeCap.Butt,
-        )
-
-        // Ojos semicerrados, más grandes y amistosos.
-        val eyeY = center.y - h * 0.18f
-        val eyeW = w * 0.205f
-        val eyeH = h * 0.105f
-        listOf(center.x - w * 0.17f, center.x + w * 0.17f).forEach { x ->
-            drawArc(
-                color = black,
-                startAngle = 180f,
-                sweepAngle = 180f,
-                useCenter = false,
-                topLeft = Offset(x - eyeW / 2f, eyeY - eyeH / 2f),
-                size = Size(eyeW, eyeH),
-                style = Stroke(width = detailStroke, cap = StrokeCap.Butt),
+            drawCircle(
+                color = accent.copy(alpha = 0.42f),
+                radius = halo,
+                center = center,
+                style = Stroke(width = (unit * 0.0038f).coerceAtLeast(1.7f)),
             )
-            drawLine(
-                color = black,
-                start = Offset(x - eyeW / 2f, eyeY),
-                end = Offset(x + eyeW / 2f, eyeY),
-                strokeWidth = detailStroke,
-                cap = StrokeCap.Butt,
+
+            val radians = Math.toRadians(orbit.toDouble())
+            drawCircle(
+                color = accent,
+                radius = unit * 0.0115f * pulse,
+                center = Offset(
+                    x = center.x + cos(radians).toFloat() * halo,
+                    y = center.y + sin(radians).toFloat() * halo,
+                ),
             )
         }
 
-        // Sonrisa abierta inspirada directamente en la referencia.
-        val mouth = Rect(
-            left = center.x - w * 0.17f,
-            top = center.y - h * 0.055f,
-            right = center.x + w * 0.17f,
-            bottom = center.y + h * 0.105f,
-        )
-        drawLine(
-            color = black,
-            start = Offset(mouth.left, mouth.top),
-            end = Offset(mouth.right, mouth.top),
-            strokeWidth = detailStroke,
-            cap = StrokeCap.Butt,
-        )
-        drawArc(
-            color = black,
-            startAngle = 0f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = mouth.topLeft,
-            size = mouth.size,
-            style = Stroke(width = detailStroke, cap = StrokeCap.Butt),
-        )
-
-        // Corbata limpia, sin adornos extra.
-        val tieTop = middleY + outerStroke * 0.28f
-        val knot = center.y + h * 0.30f
-        val tieBottom = bottom - outerStroke * 0.46f
-        val tie = Path().apply {
-            moveTo(center.x - w * 0.15f, tieTop)
-            lineTo(center.x, knot)
-            lineTo(center.x + w * 0.15f, tieTop)
-            moveTo(center.x, knot)
-            lineTo(center.x, tieBottom)
-        }
-        drawPath(
-            path = tie,
-            color = black,
-            style = Stroke(width = detailStroke, cap = StrokeCap.Butt),
+        Image(
+            painter = painterResource(R.drawable.ic_eddy_mascot_pro),
+            contentDescription = "EDDY",
+            modifier = Modifier.size(width = 300.dp, height = 338.dp),
+            contentScale = ContentScale.Fit,
         )
     }
 }
