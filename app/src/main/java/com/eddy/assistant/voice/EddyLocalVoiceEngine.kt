@@ -287,7 +287,7 @@ class EddyLocalVoiceEngine(
     }
 
     private fun audioLoop() {
-        val buffer = ShortArray(800) // 50 ms: alimenta el KWS con baja latencia.
+        val buffer = ShortArray(800)
         while (running.get() && !Thread.currentThread().isInterrupted) {
             val count = runCatching { recorder?.read(buffer, 0, buffer.size) ?: -1 }.getOrDefault(-1)
             if (count <= 0) continue
@@ -413,7 +413,16 @@ class EddyLocalVoiceEngine(
         private const val KWS_ENCODER = "encoder-epoch-13-avg-2-chunk-8-left-64.int8.onnx"
         private const val KWS_DECODER = "decoder-epoch-13-avg-2-chunk-8-left-64.onnx"
         private const val KWS_JOINER = "joiner-epoch-13-avg-2-chunk-8-left-64.int8.onnx"
-        // CMU/ARPABET pronunciation of “Eddy”. We include a close unstressed variant too.
-        private const val EDDY_KEYWORDS = "EH1 D IY0 :3.0 #0.08 @EDDY\nEH1 D IY1 :3.0 #0.08 @EDDY"
+
+        // EDDY no se detecta por cómo Android escriba el nombre, sino por su sonido.
+        // Priorizamos /EH-D-IY/ ("édi") y añadimos variantes cercanas de acento/estrés.
+        // La forma corta "Ed" usa un umbral más estricto para evitar falsos positivos.
+        private const val EDDY_KEYWORDS =
+            "EH1 D IY0 :3.2 #0.07 @EDDY\n" +
+            "EH1 D IY1 :3.2 #0.07 @EDDY\n" +
+            "EH0 D IY0 :3.0 #0.08 @EDDY\n" +
+            "EH0 D IY1 :3.0 #0.08 @EDDY\n" +
+            "EH1 D IH0 :2.8 #0.10 @EDDY\n" +
+            "EH1 D :2.0 #0.18 @EDDY_SHORT"
     }
 }
