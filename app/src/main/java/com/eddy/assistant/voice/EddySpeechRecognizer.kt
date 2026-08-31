@@ -2,7 +2,6 @@ package com.eddy.assistant.voice
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -11,10 +10,10 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 
 /**
- * Fallback de voz para cuando el núcleo local todavía no está listo o no pudo iniciar.
- *
- * En Android 12+ prioriza el reconocedor on-device cuando está disponible. Si el teléfono
- * no tiene un motor on-device, usa el reconocedor del sistema sin forzar modo offline.
+ * Reconocedor de compatibilidad para mantener EDDY disponible mientras el núcleo privado
+ * se instala o se recupera. Se usa el reconocedor estándar del sistema deliberadamente:
+ * en varios Honor/Huawei el recognizer on-device se anuncia como disponible pero devuelve
+ * NO_MATCH si no tiene el paquete de español correcto.
  */
 class EddySpeechRecognizer(
     context: Context,
@@ -32,7 +31,6 @@ class EddySpeechRecognizer(
     private var destroyed = false
     private var listening = false
     private var restartGeneration = 0
-    private var usingOnDeviceRecognizer = false
 
     fun startContinuous() {
         continuous = true
@@ -112,10 +110,11 @@ class EddySpeechRecognizer(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_100L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 300L)
+            // Compatibilidad primero. El modo offline real lo proporciona luego el núcleo privado.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_250L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 850L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 250L)
         }
 
         runCatching {
@@ -125,23 +124,17 @@ class EddySpeechRecognizer(
             setListening(false)
             onError("No pude abrir el micrófono para escucharte.")
             recreateRecognizer()
-            scheduleRetry(1_500L)
+            scheduleRetry(1_200L)
         }
     }
 
     private fun ensureRecognizer(): SpeechRecognizer? {
         recognizer?.let { return it }
         return runCatching {
-            usingOnDeviceRecognizer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
-            val created = if (usingOnDeviceRecognizer) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
-            } else {
-                SpeechRecognizer.createSpeechRecognizer(appContext)
+            SpeechRecognizer.createSpeechRecognizer(appContext).also {
+                it.setRecognitionListener(this)
+                recognizer = it
             }
-            created.setRecognitionListener(this)
-            recognizer = created
-            created
         }.getOrNull()
     }
 
@@ -150,7 +143,6 @@ class EddySpeechRecognizer(
             runCatching { recognizer?.destroy() }
             recognizer = null
             listening = false
-            usingOnDeviceRecognizer = false
         }
     }
 
@@ -174,11 +166,6 @@ class EddySpeechRecognizer(
         onListeningChanged(value)
     }
 
-    /**
-     * Android suele transcribir el sonido /edi/ como Edi, Edy, Eddie o Eddi.
-     * Normalizamos esas grafías a la palabra canónica EDDY ANTES de pasar por WakeWordGate.
-     * Así WakeWordGate puede seguir siendo estricto y nunca aceptar conversación normal.
-     */
     private fun normalizeWakeTranscript(value: String): String {
         val wakeAlias = Regex("(?i)(?<![\\p{L}\\p{N}])(?:eddy|edi|edy|eddie|eddi)(?![\\p{L}\\p{N}])")
         return value.replace(wakeAlias, "EDDY").trim()
@@ -208,13 +195,13 @@ class EddySpeechRecognizer(
 
         val message = when (error) {
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Falta permiso de micrófono para que EDDY pueda escucharte."
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "El micrófono estaba ocupado. Voy a recuperar la escucha."
-            SpeechRecognizer.ERROR_AUDIO -> "Hubo un problema con el micrófono. Voy a recuperar la escucha."
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "El micrófono estaba ocupado. Recuperando escucha."
+            SpeechRecognizer.ERROR_AUDIO -> "Hubo un problema con el micrófono. Recuperando escucha."
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "El reconocimiento de voz no respondió. EDDY seguirá intentando."
             SpeechRecognizer.ERROR_CLIENT -> "El reconocimiento de voz se reinició."
             SpeechRecognizer.ERROR_SERVER,
-            SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "El reconocimiento del sistema se desconectó. Voy a reiniciarlo."
+            SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "El reconocimiento del sistema se desconectó. Reiniciando."
             else -> "No te pude escuchar bien. Intentando de nuevo."
         }
 
@@ -225,14 +212,15 @@ class EddySpeechRecognizer(
         if (
             error == SpeechRecognizer.ERROR_CLIENT ||
             error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
-            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED
+            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED ||
+            error == SpeechRecognizer.ERROR_AUDIO
         ) {
             recreateRecognizer()
         }
         val retry = when (error) {
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> 4_000L
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 900L
-            else -> 450L
+            else -> 500L
         }
         scheduleRetry(retry)
     }
@@ -240,7 +228,7 @@ class EddySpeechRecognizer(
     override fun onResults(results: Bundle?) {
         setListening(false)
         bestText(results)?.let(onResult)
-        scheduleRetry(220L)
+        scheduleRetry(240L)
     }
 
     override fun onPartialResults(partialResults: Bundle?) {
