@@ -50,51 +50,30 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
 
-        batteryLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult(),
-        ) {
+        batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             refreshLockScreenSetupStatus()
         }
-
-        fullScreenLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult(),
-        ) {
+        fullScreenLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             maybeRequestBatteryOptimizationExemption()
             refreshLockScreenSetupStatus()
         }
-
-        overlayLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult(),
-        ) {
+        overlayLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (Settings.canDrawOverlays(this) && assistantEnabled()) {
                 sendServiceAction(EddyAssistantService.ACTION_REFRESH_BUBBLE)
             }
             maybeRequestFullScreenIntentPermission()
         }
-
-        permissionLauncher = registerForActivityResult(
-            ActivityResultContracts.RequestMultiplePermissions(),
-        ) { grants ->
-            val micGranted = grants[Manifest.permission.RECORD_AUDIO]
-                ?: hasMicrophonePermission()
-
+        permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            val micGranted = grants[Manifest.permission.RECORD_AUDIO] ?: hasMicrophonePermission()
             if (micGranted && assistantEnabled()) {
                 startAssistantService()
                 maybeRequestOverlayPermission()
             } else if (!micGranted) {
-                EddyRuntimeState.setResponse(
-                    applicationContext,
-                    "Necesito permiso de micrófono para funcionar fuera de la aplicación.",
-                )
+                EddyRuntimeState.setResponse(applicationContext, "Necesito permiso de micrófono para funcionar fuera de la aplicación.")
             }
         }
 
-        setContent {
-            EddyTheme {
-                EddyAppScreen()
-            }
-        }
-
+        setContent { EddyTheme { EddyAppScreen() } }
         requestAssistantPermissions()
     }
 
@@ -116,229 +95,119 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        if (hasMicrophonePermission() && assistantEnabled()) {
-            sendServiceAction(EddyAssistantService.ACTION_SHOW_BUBBLE)
-        }
+        if (hasMicrophonePermission() && assistantEnabled()) sendServiceAction(EddyAssistantService.ACTION_SHOW_BUBBLE)
         super.onStop()
     }
 
     private fun requestAssistantPermissions() {
         val missing = buildList {
-            if (!hasMicrophonePermission()) {
-                add(Manifest.permission.RECORD_AUDIO)
-            }
-
-            if (
-                ContextCompat.checkSelfPermission(
-                    this@MainActivity,
-                    Manifest.permission.CAMERA,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                add(Manifest.permission.CAMERA)
-            }
-
-            if (
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(
-                    this@MainActivity,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
+            if (!hasMicrophonePermission()) add(Manifest.permission.RECORD_AUDIO)
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) add(Manifest.permission.CAMERA)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) add(Manifest.permission.POST_NOTIFICATIONS)
         }
-
         if (missing.isEmpty()) {
             if (assistantEnabled()) {
                 startAssistantService()
                 maybeRequestOverlayPermission()
             }
-        } else {
-            permissionLauncher.launch(missing.toTypedArray())
-        }
+        } else permissionLauncher.launch(missing.toTypedArray())
     }
 
     private fun maybeRequestOverlayPermission() {
-        if (Settings.canDrawOverlays(this)) {
-            maybeRequestFullScreenIntentPermission()
-            return
-        }
+        if (Settings.canDrawOverlays(this)) { maybeRequestFullScreenIntentPermission(); return }
         if (overlayPromptedThisSession) return
         overlayPromptedThisSession = true
-
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:$packageName"),
-        )
-        overlayLauncher.launch(intent)
+        overlayLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
     }
 
     private fun maybeRequestFullScreenIntentPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            maybeRequestBatteryOptimizationExemption()
-            return
-        }
-        if (fullScreenPromptedThisSession) {
-            maybeRequestBatteryOptimizationExemption()
-            return
-        }
-
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { maybeRequestBatteryOptimizationExemption(); return }
+        if (fullScreenPromptedThisSession) { maybeRequestBatteryOptimizationExemption(); return }
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.canUseFullScreenIntent()) {
-            maybeRequestBatteryOptimizationExemption()
-            return
-        }
-
+        if (manager.canUseFullScreenIntent()) { maybeRequestBatteryOptimizationExemption(); return }
         fullScreenPromptedThisSession = true
-        val intent = Intent(
-            Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-            Uri.parse("package:$packageName"),
-        )
-        fullScreenLauncher.launch(intent)
+        fullScreenLauncher.launch(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName")))
     }
 
     private fun maybeRequestBatteryOptimizationExemption() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        if (batteryPromptedThisSession) return
-
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || batteryPromptedThisSession) return
         val powerManager = getSystemService(PowerManager::class.java) ?: return
         if (powerManager.isIgnoringBatteryOptimizations(packageName)) return
-
         batteryPromptedThisSession = true
-        val directIntent = Intent(
-            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-            Uri.parse("package:$packageName"),
-        )
-
-        runCatching {
-            batteryLauncher.launch(directIntent)
-        }.onFailure {
-            runCatching {
-                batteryLauncher.launch(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            }
-        }
+        val directIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+        runCatching { batteryLauncher.launch(directIntent) }
+            .onFailure { runCatching { batteryLauncher.launch(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } }
     }
 
     private fun refreshLockScreenSetupStatus() {
         if (!assistantEnabled() || !hasMicrophonePermission()) return
+        // No pisar el estado vivo de escucha/respuesta una vez que el servicio está corriendo.
+        // Los recordatorios de permisos solo deben mostrarse antes de que EDDY arranque.
+        if (EddyRuntimeState.read(applicationContext).running) return
 
         val fullScreenReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true
-        } else {
-            true
-        }
-
+        } else true
         val batteryReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true
-        } else {
-            true
-        }
+        } else true
 
         if (!fullScreenReady) {
-            EddyRuntimeState.setResponse(
-                applicationContext,
-                "Activá pantalla completa para que EDDY pueda mostrarse con el teléfono bloqueado.",
-            )
+            EddyRuntimeState.setResponse(applicationContext, "Activá pantalla completa para que EDDY pueda mostrarse con el teléfono bloqueado.")
         } else if (!batteryReady) {
-            EddyRuntimeState.setResponse(
-                applicationContext,
-                "Permití a EDDY funcionar sin optimización de batería para mantener activa la palabra EDDY con la pantalla apagada.",
-            )
+            EddyRuntimeState.setResponse(applicationContext, "Permití a EDDY funcionar sin optimización de batería para mantener activa la palabra EDDY con la pantalla apagada.")
         }
     }
 
     private fun startAssistantService() {
         if (!hasMicrophonePermission() || !assistantEnabled()) return
-
         val intent = Intent(this, EddyAssistantService::class.java)
-        runCatching {
-            ContextCompat.startForegroundService(this, intent)
-        }.onFailure {
-            EddyRuntimeState.setResponse(
-                applicationContext,
-                "No pude iniciar el modo permanente de EDDY. Abrí la aplicación nuevamente.",
-            )
-        }
+        runCatching { ContextCompat.startForegroundService(this, intent) }
+            .onFailure { EddyRuntimeState.setResponse(applicationContext, "No pude iniciar el modo permanente de EDDY. Abrí la aplicación nuevamente.") }
     }
 
     private fun sendServiceAction(action: String) {
-        val intent = Intent(this, EddyAssistantService::class.java).apply {
-            this.action = action
-        }
-        runCatching { startService(intent) }
+        runCatching { startService(Intent(this, EddyAssistantService::class.java).apply { this.action = action }) }
     }
 
-    private fun assistantEnabled(): Boolean = getSharedPreferences(
-        CONTROL_PREFS,
-        Context.MODE_PRIVATE,
-    ).getBoolean(KEY_ASSISTANT_ENABLED, true)
+    private fun hasMicrophonePermission(): Boolean = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    private fun assistantEnabled(): Boolean = getSharedPreferences(CONTROL_PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ASSISTANT_ENABLED, true)
 
-    private fun hasMicrophonePermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.RECORD_AUDIO,
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-}
-
-@Composable
-private fun EddyAppScreen() {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val appContext = context.applicationContext
-    val controlPrefs = remember {
-        appContext.getSharedPreferences(CONTROL_PREFS, Context.MODE_PRIVATE)
-    }
-    var snapshot by remember {
-        mutableStateOf(EddyRuntimeState.read(appContext))
-    }
-    var assistantEnabled by remember {
-        mutableStateOf(controlPrefs.getBoolean(KEY_ASSISTANT_ENABLED, true))
+    private fun setAssistantEnabled(enabled: Boolean) {
+        getSharedPreferences(CONTROL_PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ASSISTANT_ENABLED, enabled).apply()
+        if (enabled) {
+            requestAssistantPermissions()
+            if (hasMicrophonePermission()) startAssistantService()
+        } else stopService(Intent(this, EddyAssistantService::class.java))
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            snapshot = EddyRuntimeState.read(appContext)
-            assistantEnabled = controlPrefs.getBoolean(KEY_ASSISTANT_ENABLED, true)
-            delay(180)
-        }
-    }
-
-    val visualState = when (snapshot.state) {
-        EddyRuntimeState.State.IDLE -> EddyVisualState.IDLE
-        EddyRuntimeState.State.LISTENING -> EddyVisualState.LISTENING
-        EddyRuntimeState.State.THINKING -> EddyVisualState.THINKING
-        EddyRuntimeState.State.SPEAKING -> EddyVisualState.SPEAKING
-    }
-
-    EddyReferenceScreen(
-        visualState = visualState,
-        heardText = snapshot.heardText,
-        responseText = snapshot.responseText,
-        voiceReady = snapshot.voiceReady,
-        autoListeningEnabled = assistantEnabled && snapshot.running,
-        webUsed = snapshot.webUsed,
-        webSources = snapshot.webSources,
-        onToggleAssistant = {
-            val enable = !assistantEnabled
-            assistantEnabled = enable
-            controlPrefs.edit().putBoolean(KEY_ASSISTANT_ENABLED, enable).apply()
-
-            val serviceIntent = Intent(appContext, EddyAssistantService::class.java)
-            if (enable) {
-                val micGranted = ContextCompat.checkSelfPermission(
-                    appContext,
-                    Manifest.permission.RECORD_AUDIO,
-                ) == PackageManager.PERMISSION_GRANTED
-                if (micGranted) {
-                    ContextCompat.startForegroundService(appContext, serviceIntent)
-                    EddyRuntimeState.setResponse(appContext, "EDDY está activo. Decí EDDY para llamarme.")
-                } else {
-                    EddyRuntimeState.setResponse(appContext, "Concedé el permiso de micrófono para activar EDDY.")
-                }
-            } else {
-                appContext.stopService(serviceIntent)
-                EddyRuntimeState.setResponse(appContext, "EDDY está pausado. Tocá Activar cuando querás continuar.")
+    @Composable
+    private fun EddyAppScreen() {
+        var snapshot by remember { mutableStateOf(EddyRuntimeState.read(applicationContext)) }
+        var enabled by remember { mutableStateOf(assistantEnabled()) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                snapshot = EddyRuntimeState.read(applicationContext)
+                enabled = assistantEnabled()
+                delay(180L)
             }
-        },
-    )
+        }
+        val visualState = when (snapshot.state) {
+            EddyRuntimeState.State.IDLE -> EddyVisualState.IDLE
+            EddyRuntimeState.State.LISTENING -> EddyVisualState.LISTENING
+            EddyRuntimeState.State.THINKING -> EddyVisualState.THINKING
+            EddyRuntimeState.State.SPEAKING -> EddyVisualState.SPEAKING
+        }
+        EddyReferenceScreen(
+            visualState = visualState,
+            assistantEnabled = enabled,
+            runtimeRunning = snapshot.running,
+            voiceReady = snapshot.voiceReady,
+            heardText = snapshot.heardText,
+            responseText = snapshot.responseText,
+            webUsed = snapshot.webUsed,
+            webSources = snapshot.webSources,
+            onAssistantEnabledChange = { setAssistantEnabled(it) },
+        )
+    }
 }
