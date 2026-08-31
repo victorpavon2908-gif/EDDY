@@ -6,15 +6,13 @@ import java.util.Locale
 /**
  * Puerta de activación de EDDY.
  *
- * EDDY sigue exigiendo que el usuario lo llame antes de ejecutar o responder. Los alias
- * de esta clase NO son palabras alternativas de activación: representan transcripciones
- * habituales del mismo sonido "EDDY" producidas por distintos motores ASR (edi/edy/eddie).
- * Esto evita que una pronunciación correcta se pierda solo porque Android la escribió distinto.
+ * EDDY exige que el usuario lo llame antes de ejecutar o responder. Los alias internos
+ * representan únicamente transcripciones habituales del mismo sonido "EDDY".
  */
 class WakeWordGate(
     private val wakeWord: String = "eddy",
     private val followUpWindowMs: Long = 20_000L,
-    private val conversationWindowMs: Long = 12_000L,
+    private val conversationWindowMs: Long = 14_000L,
 ) {
     private var armedUntil: Long = 0L
 
@@ -44,8 +42,11 @@ class WakeWordGate(
         if (matched != null) {
             val command = removeWakeWord(raw, matched)
             return if (command.isBlank()) {
+                // Un "EDDY" aislado ya no deja al usuario mirando la pantalla sin saber si
+                // fue oído. Lo convertimos en saludo local; el servicio responde por TTS y
+                // mantiene la ventana conversacional abierta para la siguiente orden.
                 arm(nowMs, followUpWindowMs)
-                WakeResult.Activated
+                WakeResult.Command("hola")
             } else {
                 arm(nowMs, conversationWindowMs)
                 WakeResult.Command(command)
