@@ -6,6 +6,9 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import androidx.core.content.ContextCompat
 import com.eddy.assistant.localai.EddyDeviceProfile
 import com.eddy.assistant.localai.EddyModelCatalog
@@ -34,11 +37,9 @@ import kotlin.concurrent.thread
  * ACTIVE: VAD + Moonshine procesan órdenes y CAMPPlus mantiene Voice ID.
  * SPEAKING: el micrófono ignora el audio para que EDDY no se active a sí mismo.
  *
- * Ventajas frente al KWS anterior:
- * - un modelo menos que descargar/cargar;
- * - elimina incompatibilidades de KeywordSpotter/Transducer entre SoC;
- * - mantiene funcionamiento completamente local;
- * - conserva Voice ID y comandos en una sola frase: "EDDY, abre la cámara".
+ * La captura activa el procesamiento de audio del dispositivo cuando está disponible:
+ * NoiseSuppressor, AutomaticGainControl y AcousticEchoCanceler. Esto mejora la relación
+ * voz/ruido antes de que Silero y Moonshine reciban las muestras, sin enviar audio a red.
  */
 class EddyLocalVoiceEngine(
     private val context: Context,
@@ -79,6 +80,9 @@ class EddyLocalVoiceEngine(
 
     private var recorder: AudioRecord? = null
     private var worker: Thread? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
+    private var automaticGainControl: AutomaticGainControl? = null
+    private var acousticEchoCanceler: AcousticEchoCanceler? = null
 
     private var vad: Vad? = null
     private var speakerExtractor: SpeakerEmbeddingExtractor? = null
@@ -94,8 +98,6 @@ class EddyLocalVoiceEngine(
             return false
         }
 
-        // EDDY ya no usa el KWS Zipformer. Borramos sus restos al actualizar para recuperar
-        // espacio y evitar que un archivo viejo vuelva a participar en reparaciones futuras.
         runCatching { models.invalidate(EddyModelCatalog.keyword) }
 
         if (!initializeModels()) return false
@@ -113,6 +115,7 @@ class EddyLocalVoiceEngine(
         runCatching { recorder?.stop() }
         worker?.interrupt()
         worker = null
+        releaseAudioEffects()
         recorder?.release()
         recorder = null
         releaseModels()
@@ -178,11 +181,11 @@ class EddyLocalVoiceEngine(
             config = VadModelConfig(
                 sileroVadModelConfig = SileroVadModelConfig(
                     model = models.file(EddyModelCatalog.vad).absolutePath,
-                    threshold = 0.52f,
-                    minSilenceDuration = 0.42f,
-                    minSpeechDuration = 0.16f,
+                    threshold = 0.48f,
+                    minSilenceDuration = 0.72f,
+                    minSpeechDuration = 0.12f,
                     windowSize = 512,
-                    maxSpeechDuration = 12f,
+                    maxSpeechDuration = 20f,
                 ),
                 sampleRate = SAMPLE_RATE,
                 numThreads = 1,
@@ -202,7 +205,6 @@ class EddyLocalVoiceEngine(
                         mergedDecoder = java.io.File(asrRoot, "decoder_model_merged.ort").absolutePath,
                     ),
                     tokens = java.io.File(asrRoot, "tokens.txt").absolutePath,
-                    // Equipos LITE usan 1 hilo por EddyDeviceProfile; no forzamos paralelismo.
                     numThreads = profile.inferenceThreads.coerceIn(1, 2),
                     provider = "cpu",
                 ),
@@ -234,13 +236,44 @@ class EddyLocalVoiceEngine(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            maxOf(minimum * 2, 8192),
+            maxOf(minimum * 4, 16_384),
         )
-        check(recorder?.state == AudioRecord.STATE_INITIALIZED)
+        val localRecorder = recorder
+        check(localRecorder?.state == AudioRecord.STATE_INITIALIZED)
+        initializeAudioEffects(localRecorder.audioSessionId)
         true
     }.getOrElse {
+        releaseAudioEffects()
         onError("No pude abrir el micrófono local de EDDY.")
         false
+    }
+
+    private fun initializeAudioEffects(audioSessionId: Int) {
+        releaseAudioEffects()
+        if (NoiseSuppressor.isAvailable()) {
+            noiseSuppressor = runCatching { NoiseSuppressor.create(audioSessionId) }.getOrNull()?.also {
+                runCatching { it.enabled = true }
+            }
+        }
+        if (AutomaticGainControl.isAvailable()) {
+            automaticGainControl = runCatching { AutomaticGainControl.create(audioSessionId) }.getOrNull()?.also {
+                runCatching { it.enabled = true }
+            }
+        }
+        if (AcousticEchoCanceler.isAvailable()) {
+            acousticEchoCanceler = runCatching { AcousticEchoCanceler.create(audioSessionId) }.getOrNull()?.also {
+                runCatching { it.enabled = true }
+            }
+        }
+    }
+
+    private fun releaseAudioEffects() {
+        runCatching { noiseSuppressor?.release() }
+        runCatching { automaticGainControl?.release() }
+        runCatching { acousticEchoCanceler?.release() }
+        noiseSuppressor = null
+        automaticGainControl = null
+        acousticEchoCanceler = null
     }
 
     private fun audioLoop() {
@@ -261,10 +294,6 @@ class EddyLocalVoiceEngine(
         }
     }
 
-    /**
-     * Activación sin KWS dedicado. Silero entrega una frase completa; Moonshine solo se
-     * ejecuta cuando hubo voz real y únicamente para segmentos razonablemente cortos.
-     */
     private fun processPassiveWake(samples: FloatArray) {
         val localVad = vad ?: return
         localVad.acceptWaveform(samples)
@@ -281,7 +310,7 @@ class EddyLocalVoiceEngine(
             if (now - lastPassiveDecodeAt < PASSIVE_DECODE_COOLDOWN_MS) continue
             lastPassiveDecodeAt = now
 
-            val text = transcribe(speech).trim()
+            val text = transcribe(speech)
             if (text.isBlank() || !wakeGate.hasWakeWord(text)) continue
 
             val result = wakeGate.consume(text, now)
@@ -309,7 +338,7 @@ class EddyLocalVoiceEngine(
                 is WakeResult.Command -> {
                     activeUntil = System.currentTimeMillis() + CONVERSATION_MS
                     setState(State.ACTIVE)
-                    val command = result.text.trim()
+                    val command = normalizeTranscript(result.text)
                     if (command.isNotBlank()) onCommand(command)
                 }
                 WakeResult.Ignored -> Unit
@@ -331,7 +360,7 @@ class EddyLocalVoiceEngine(
         while (!localVad.empty()) {
             val segment = localVad.front()
             localVad.pop()
-            if (segment.samples.size < SAMPLE_RATE / 4) continue
+            if (segment.samples.size < MIN_COMMAND_SAMPLES) continue
             setState(State.PROCESSING)
 
             val embedding = embeddingFor(segment.samples)
@@ -342,7 +371,7 @@ class EddyLocalVoiceEngine(
                 continue
             }
 
-            val text = transcribe(segment.samples).trim()
+            val text = transcribe(segment.samples)
             if (text.isNotBlank()) {
                 activeUntil = System.currentTimeMillis() + CONVERSATION_MS
                 onCommand(text)
@@ -358,12 +387,17 @@ class EddyLocalVoiceEngine(
             try {
                 stream.acceptWaveform(samples, SAMPLE_RATE)
                 asr.decode(stream)
-                asr.getResult(stream).text
+                normalizeTranscript(asr.getResult(stream).text)
             } finally {
                 stream.release()
             }
         }.getOrDefault("")
     }
+
+    private fun normalizeTranscript(value: String): String = value
+        .replace(Regex("\\s+"), " ")
+        .replace(Regex("\\s+([,.;:!?])"), "$1")
+        .trim()
 
     private fun embeddingFor(samples: FloatArray): FloatArray? {
         if (samples.size < SAMPLE_RATE / 2) return null
@@ -397,12 +431,13 @@ class EddyLocalVoiceEngine(
 
     companion object {
         private const val SAMPLE_RATE = 16_000
-        private const val FIRST_COMMAND_MS = 16_000L
-        private const val CONVERSATION_MS = 12_000L
-        private const val CONTINUATION_MS = 8_000L
-        private const val PASSIVE_DECODE_COOLDOWN_MS = 250L
-        private const val MIN_WAKE_SAMPLES = SAMPLE_RATE / 4
-        private const val MAX_WAKE_SCAN_SAMPLES = SAMPLE_RATE * 6
+        private const val FIRST_COMMAND_MS = 20_000L
+        private const val CONVERSATION_MS = 18_000L
+        private const val CONTINUATION_MS = 12_000L
+        private const val PASSIVE_DECODE_COOLDOWN_MS = 200L
+        private const val MIN_WAKE_SAMPLES = SAMPLE_RATE / 5
+        private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 8
+        private const val MAX_WAKE_SCAN_SAMPLES = SAMPLE_RATE * 8
         private const val ASR_DIR = "sherpa-onnx-moonshine-base-es-quantized-2026-02-27"
     }
 }
