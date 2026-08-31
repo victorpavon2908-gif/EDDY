@@ -4,14 +4,12 @@ import java.text.Normalizer
 import java.util.Locale
 
 /**
- * Puerta estricta de activación de EDDY.
+ * Puerta de activación de EDDY.
  *
- * En reposo, ningún texto se convierte en comando salvo que contenga la palabra exacta
- * "EDDY" como palabra independiente. No usamos alias fonéticos (edi/edy/eddie) porque
- * aumentaban activaciones falsas con conversaciones, TV o audio cercano.
- *
- * Una vez llamado EDDY, se abre una ventana corta de conversación para permitir respuestas
- * naturales sin repetir el nombre en cada frase. Al vencer esa ventana vuelve a modo pasivo.
+ * EDDY sigue exigiendo que el usuario lo llame antes de ejecutar o responder. Los alias
+ * de esta clase NO son palabras alternativas de activación: representan transcripciones
+ * habituales del mismo sonido "EDDY" producidas por distintos motores ASR (edi/edy/eddie).
+ * Esto evita que una pronunciación correcta se pierda solo porque Android la escribió distinto.
  */
 class WakeWordGate(
     private val wakeWord: String = "eddy",
@@ -19,7 +17,10 @@ class WakeWordGate(
     private val conversationWindowMs: Long = 12_000L,
 ) {
     private var armedUntil: Long = 0L
-    private val strictWakeWord: String by lazy { normalize(wakeWord) }
+
+    private val wakeForms: Set<String> by lazy {
+        setOf(normalize(wakeWord), "edi", "edy", "eddi", "eddie")
+    }
 
     fun arm(
         nowMs: Long = System.currentTimeMillis(),
@@ -39,8 +40,9 @@ class WakeWordGate(
         val raw = input.trim()
         if (raw.isBlank()) return WakeResult.Ignored
 
-        if (hasWakeWord(raw)) {
-            val command = removeWakeWord(raw)
+        val matched = findWakeForm(raw)
+        if (matched != null) {
+            val command = removeWakeWord(raw, matched)
             return if (command.isBlank()) {
                 arm(nowMs, followUpWindowMs)
                 WakeResult.Activated
@@ -50,7 +52,6 @@ class WakeWordGate(
             }
         }
 
-        // Solo aceptamos una frase sin "EDDY" si la conversación YA fue activada por EDDY.
         if (isArmed(nowMs)) {
             arm(nowMs, conversationWindowMs)
             return WakeResult.Command(raw)
@@ -59,19 +60,20 @@ class WakeWordGate(
         return WakeResult.Ignored
     }
 
-    fun hasWakeWord(input: String): Boolean {
+    fun hasWakeWord(input: String): Boolean = findWakeForm(input) != null
+
+    private fun findWakeForm(input: String): String? {
         val normalized = normalize(input.trim())
-        if (normalized.isBlank()) return false
-        return wakeRegex().containsMatchIn(normalized)
+        if (normalized.isBlank()) return null
+        return wakeForms.firstOrNull { form ->
+            Regex("(?:^|\\s|[,:;.!?¿¡-])${Regex.escape(form)}(?:$|\\s|[,:;.!?¿¡-])")
+                .containsMatchIn(normalized)
+        }
     }
 
-    private fun wakeRegex(): Regex = Regex(
-        "(?:^|\\s|[,:;.!?¿¡-])${Regex.escape(strictWakeWord)}(?:$|\\s|[,:;.!?¿¡-])",
-    )
-
-    private fun removeWakeWord(input: String): String {
+    private fun removeWakeWord(input: String, matched: String): String {
         val regex = Regex(
-            "(?i)(?:^|(?<=\\s)|(?<=[,:;.!?¿¡-]))${Regex.escape(strictWakeWord)}(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
+            "(?i)(?:^|(?<=\\s)|(?<=[,:;.!?¿¡-]))${Regex.escape(matched)}(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
         )
         return input.replaceFirst(regex, "").trim()
     }
