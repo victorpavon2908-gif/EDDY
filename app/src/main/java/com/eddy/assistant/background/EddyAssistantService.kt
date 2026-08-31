@@ -44,6 +44,7 @@ import com.eddy.assistant.localai.EddyModelManager
 import com.eddy.assistant.localai.EddyModelProgress
 import com.eddy.assistant.localai.EddyVoiceProfile
 import com.eddy.assistant.memory.EddyMemory
+import com.eddy.assistant.programming.EddyCodeAgent
 import com.eddy.assistant.proactive.EddyProactiveScheduler
 import com.eddy.assistant.smarthome.LocalSmartHomeClient
 import com.eddy.assistant.voice.EddyLocalVoiceEngine
@@ -79,6 +80,7 @@ class EddyAssistantService : Service() {
     private lateinit var deviceProfile: EddyDeviceProfile
     private lateinit var ownerVoice: EddyVoiceProfile
     private lateinit var localLlm: EddyLocalLlm
+    private lateinit var codeAgent: EddyCodeAgent
     private var localVoice: EddyLocalVoiceEngine? = null
     private var localVoiceActive = false
     private lateinit var compatibilityRecognizer: EddySpeechRecognizer
@@ -122,6 +124,7 @@ class EddyAssistantService : Service() {
         deviceProfile = EddyDeviceProfile.detect(applicationContext)
         ownerVoice = EddyVoiceProfile(applicationContext)
         localLlm = EddyLocalLlm(applicationContext, modelManager)
+        codeAgent = EddyCodeAgent(applicationContext)
 
         compatibilityRecognizer = EddySpeechRecognizer(
             context = applicationContext,
@@ -282,9 +285,7 @@ class EddyAssistantService : Service() {
         pendingWakeAck?.cancel()
         pendingWakeAck = serviceScope.launch {
             delay(WAKE_ACK_DELAY_MS)
-            if (localVoiceActive && isListening && !isThinking && !isSpeaking) {
-                speakResponse("Ajá.")
-            }
+            if (localVoiceActive && isListening && !isThinking && !isSpeaking) speakResponse("Ajá.")
             pendingWakeAck = null
         }
     }
@@ -377,13 +378,41 @@ class EddyAssistantService : Service() {
             val remote = if (webClient.isConfigured) webClient.reply(command.originalText, memory.contextForAi(), false) else null
             if (remote != null) {
                 memory.rememberLearnedAnswer(command.originalText, remote.text, remote.webUsed)
+                if (looksLikeCapabilityRequest(command.originalText)) {
+                    val plan = codeAgent.analyze(command.originalText)
+                    codeAgent.registerNativeProposal(
+                        capability = plan.capability,
+                        summary = "${plan.strategy}: ${plan.explanation}",
+                        candidateCode = remote.text,
+                        currentVersion = "0.5.1",
+                    )
+                }
                 if (remote.webUsed) speakResearchResponse(command.originalText, remote) else speakResponse(remote.text)
                 return
             }
             val localReply = localLlm.reply(command.originalText, memory.contextForAi())
-            speakResponse(localReply ?: fallbackConversation.reply(command.originalText, memory)); return
+            val finalReply = localReply ?: fallbackConversation.reply(command.originalText, memory)
+            if (looksLikeCapabilityRequest(command.originalText)) {
+                val plan = codeAgent.analyze(command.originalText)
+                codeAgent.registerNativeProposal(
+                    capability = plan.capability,
+                    summary = "${plan.strategy}: ${plan.explanation}",
+                    candidateCode = finalReply,
+                    currentVersion = "0.5.1",
+                )
+            }
+            speakResponse(finalReply); return
         }
         speakResponse(executeDirectCommand(command) ?: "Listo.")
+    }
+
+    private fun looksLikeCapabilityRequest(text: String): Boolean {
+        val value = text.lowercase(Locale.ROOT)
+        return listOf(
+            "aprende a", "aprendé a", "programate", "programáte", "prográmate", "mejorate", "mejoráte", "mejórate",
+            "agrega una funcion", "agregá una función", "agrega una función", "crea una funcion", "creá una función",
+            "quiero que puedas", "necesito que puedas", "haz que puedas", "hacé que puedas", "convertite en", "conviértete en",
+        ).any(value::contains)
     }
 
     private fun executeDirectCommand(command: AssistantCommand): String? = when (command) {
