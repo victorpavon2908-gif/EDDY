@@ -35,31 +35,24 @@ class EddyAiClient(
         appContext.getSharedPreferences(KNOWLEDGE_PREFS, Context.MODE_PRIVATE)
     }
 
-    @Volatile
-    private var pendingActions: JSONArray? = null
-
-    @Volatile
-    private var pendingAt: Long = 0L
+    @Volatile private var pendingActions: JSONArray? = null
+    @Volatile private var pendingAt: Long = 0L
 
     private fun resolvedBaseUrl(): String =
         baseUrlOverride?.trim()?.trimEnd('/')?.takeIf { it.isNotBlank() }
             ?: EddyAiSettings.baseUrl(context)
 
-    val isConfigured: Boolean
-        get() = resolvedBaseUrl().isNotBlank()
+    val isConfigured: Boolean get() = resolvedBaseUrl().isNotBlank()
 
     suspend fun healthCheck(): Boolean = withContext(Dispatchers.IO) {
         val base = resolvedBaseUrl()
         if (base.isBlank()) return@withContext false
-
-        val connection = runCatching {
-            URL("$base/health").openConnection() as HttpURLConnection
-        }.getOrNull() ?: return@withContext false
-
+        val connection = runCatching { URL("$base/health").openConnection() as HttpURLConnection }.getOrNull()
+            ?: return@withContext false
         try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = 1_500
-            connection.readTimeout = 2_500
+            connection.connectTimeout = 3_000
+            connection.readTimeout = 6_000
             connection.responseCode in 200..299
         } catch (_: Exception) {
             false
@@ -75,12 +68,25 @@ class EddyAiClient(
     ): EddyAiReply? {
         val cleaned = message.trim()
         if (cleaned.isBlank()) return null
-        if (forceWeb) return requestWebSearch(cleaned, memoryContext)
 
         consumePendingConfirmation(cleaned)?.let { return it }
+
+        // Preguntas que claramente necesitan información externa van directo al buscador.
+        // Antes dependían del planner, y un timeout corto hacía que EDDY pareciera quedarse pegado.
+        if (forceWeb || looksLikeWebRequest(cleaned)) {
+            return requestWebSearch(cleaned, memoryContext)
+        }
+
+        // La memoria local se usa para conversación estable, no para preguntas que pueden cambiar.
         findLearnedReply(cleaned)?.let { return it }
 
-        val plan = requestPlan(cleaned, memoryContext) ?: return null
+        val plan = requestPlan(cleaned, memoryContext)
+        if (plan == null) {
+            // Segundo camino de recuperación: si el planner no respondió, probamos conversación
+            // del backend antes de rendirnos y caer al cerebro local.
+            return requestChat(cleaned, memoryContext)
+        }
+
         val actions = plan.optJSONArray("actions") ?: JSONArray()
         val modelReply = plan.optString("reply").trim()
 
@@ -99,9 +105,7 @@ class EddyAiClient(
         val directMessages = executePlannedActions(withoutWebActions(actions))
         val webReply = if (webQueries.isNotEmpty()) {
             requestWebSearch(webQueries.joinToString(" "), memoryContext)
-        } else {
-            null
-        }
+        } else null
 
         val text = when {
             webReply != null -> webReply.text
@@ -117,9 +121,7 @@ class EddyAiClient(
             evidence = webReply?.evidence.orEmpty(),
         )
 
-        if (actions.length() == 0 && !reply.webUsed) {
-            rememberLearnedReply(cleaned, reply)
-        }
+        if (actions.length() == 0 && !reply.webUsed) rememberLearnedReply(cleaned, reply)
         return reply
     }
 
@@ -129,14 +131,12 @@ class EddyAiClient(
             clearPending()
             return null
         }
-
         val normalized = normalize(message)
         if (normalized in NEGATIVE_CONFIRMATIONS) {
             clearPending()
             return EddyAiReply("Cancelado.", false, emptyList())
         }
         if (normalized !in POSITIVE_CONFIRMATIONS) return null
-
         clearPending()
         val messages = executePlannedActions(pending)
         return EddyAiReply(messages.joinToString(" ").ifBlank { "Listo." }, false, emptyList())
@@ -147,60 +147,89 @@ class EddyAiClient(
         pendingAt = 0L
     }
 
-    private suspend fun requestPlan(message: String, memoryContext: String): JSONObject? =
-        withContext(Dispatchers.IO) {
-            postJson(
-                "${resolvedBaseUrl()}/plan",
-                JSONObject()
-                    .put("message", message)
-                    .put("memory_context", memoryContext.takeLast(8_000)),
-                900,
-                2_200,
-            )?.let(::JSONObject)
-        }
+    private suspend fun requestPlan(message: String, memoryContext: String): JSONObject? = withContext(Dispatchers.IO) {
+        postJsonWithRetry(
+            endpoint = "${resolvedBaseUrl()}/plan",
+            payload = JSONObject().put("message", message).put("memory_context", memoryContext.takeLast(8_000)),
+            connect = 2_500,
+            read = 8_000,
+            attempts = 2,
+        )?.let { runCatching { JSONObject(it) }.getOrNull() }
+    }
 
-    private suspend fun requestWebSearch(query: String, memoryContext: String): EddyAiReply? =
-        withContext(Dispatchers.IO) {
-            val body = postJson(
-                "${resolvedBaseUrl()}/search",
-                JSONObject()
-                    .put("message", query)
-                    .put("force_web", true)
-                    .put("memory_context", memoryContext.takeLast(8_000)),
-                5_000,
-                18_000,
-            ) ?: return@withContext null
+    private suspend fun requestChat(message: String, memoryContext: String): EddyAiReply? = withContext(Dispatchers.IO) {
+        val body = postJsonWithRetry(
+            endpoint = "${resolvedBaseUrl()}/chat",
+            payload = JSONObject()
+                .put("message", message)
+                .put("force_web", false)
+                .put("memory_context", memoryContext.takeLast(8_000)),
+            connect = 2_500,
+            read = 9_000,
+            attempts = 2,
+        ) ?: return@withContext null
+        parseReply(body)
+    }
 
-            val json = JSONObject(body)
-            val text = json.optString("reply").trim()
-            if (text.isBlank()) return@withContext null
+    private suspend fun requestWebSearch(query: String, memoryContext: String): EddyAiReply? = withContext(Dispatchers.IO) {
+        val body = postJsonWithRetry(
+            endpoint = "${resolvedBaseUrl()}/search",
+            payload = JSONObject()
+                .put("message", query)
+                .put("force_web", true)
+                .put("memory_context", memoryContext.takeLast(8_000)),
+            connect = 3_500,
+            read = 20_000,
+            attempts = 2,
+        ) ?: return@withContext null
+        parseReply(body)
+    }
 
-            val sources = json.optJSONArray("sources").toWebSources()
-            EddyAiReply(
-                text = text,
-                webUsed = json.optBoolean("web_used", sources.isNotEmpty()),
-                sources = sources,
-                evidence = buildEvidence(json.optJSONArray("evidence")),
-            )
-        }
+    private fun parseReply(body: String): EddyAiReply? {
+        val json = runCatching { JSONObject(body) }.getOrNull() ?: return null
+        val text = json.optString("reply").trim()
+        if (text.isBlank()) return null
+        val sources = json.optJSONArray("sources").toWebSources()
+        return EddyAiReply(
+            text = text,
+            webUsed = json.optBoolean("web_used", sources.isNotEmpty()),
+            sources = sources,
+            evidence = buildEvidence(json.optJSONArray("evidence")),
+        )
+    }
 
-    private fun postJson(
+    private suspend fun postJsonWithRetry(
         endpoint: String,
         payload: JSONObject,
         connect: Int,
         read: Int,
+        attempts: Int,
     ): String? {
+        var delayMs = 250L
+        repeat(attempts.coerceAtLeast(1)) { index ->
+            postJson(endpoint, payload, connect, read)?.let { return it }
+            if (index < attempts - 1) {
+                delay(delayMs)
+                delayMs = (delayMs * 2).coerceAtMost(1_000L)
+            }
+        }
+        return null
+    }
+
+    private fun postJson(endpoint: String, payload: JSONObject, connect: Int, read: Int): String? {
         if (resolvedBaseUrl().isBlank()) return null
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+        val connection = runCatching { URL(endpoint).openConnection() as HttpURLConnection }.getOrNull() ?: return null
+        connection.apply {
             requestMethod = "POST"
             connectTimeout = connect
             readTimeout = read
             doOutput = true
+            useCaches = false
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("Connection", "keep-alive")
             setRequestProperty("User-Agent", "EDDY-Android/${BuildConfig.VERSION_NAME}")
         }
-
         return try {
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(payload.toString()) }
             val code = connection.responseCode
@@ -214,19 +243,30 @@ class EddyAiClient(
         }
     }
 
+    private fun looksLikeWebRequest(message: String): Boolean {
+        val n = normalize(message)
+        if (n.isBlank()) return false
+        if (WEB_HINTS.any { n.contains(it) }) return true
+        return n.startsWith("quien ") ||
+            n.startsWith("cuando ") ||
+            n.startsWith("donde ") ||
+            n.startsWith("por que ") ||
+            n.startsWith("cual ") ||
+            n.startsWith("noticias ") ||
+            n.startsWith("precio ") ||
+            n.startsWith("clima ") ||
+            n.startsWith("busca ") ||
+            n.startsWith("investiga ") ||
+            n.startsWith("averigua ") ||
+            n.startsWith("compara ")
+    }
+
     private fun JSONArray?.toWebSources(): List<EddyWebSource> = buildList {
         val array = this@toWebSources ?: return@buildList
         for (i in 0 until array.length()) {
             val item = array.optJSONObject(i) ?: continue
             val url = item.optString("url").trim()
-            if (url.isNotBlank()) {
-                add(
-                    EddyWebSource(
-                        item.optString("title").trim().ifBlank { "Fuente web" },
-                        url,
-                    ),
-                )
-            }
+            if (url.isNotBlank()) add(EddyWebSource(item.optString("title").trim().ifBlank { "Fuente web" }, url))
         }
     }
 
@@ -235,9 +275,7 @@ class EddyAiClient(
         for (i in 0 until array.length()) {
             val item = array.optJSONObject(i) ?: continue
             val snippet = item.optString("snippet").trim()
-            if (snippet.isNotBlank()) {
-                appendLine("- ${item.optString("title")}: $snippet")
-            }
+            if (snippet.isNotBlank()) appendLine("- ${item.optString("title")}: $snippet")
         }
     }.trim()
 
@@ -257,21 +295,18 @@ class EddyAiClient(
         }
     }
 
-    private suspend fun executePlannedActions(actions: JSONArray?): List<String> =
-        withContext(Dispatchers.Main) {
-            if (actions == null) return@withContext emptyList()
-            buildList {
-                for (i in 0 until actions.length()) {
-                    val item = actions.optJSONObject(i) ?: continue
-                    val type = item.optString("type").trim().lowercase()
-                    val args = item.optJSONObject("args") ?: JSONObject()
-                    executeAction(type, args)?.spokenMessage
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let(::add)
-                    if (type in ACCESSIBILITY_ACTIONS) delay(70)
-                }
+    private suspend fun executePlannedActions(actions: JSONArray?): List<String> = withContext(Dispatchers.Main) {
+        if (actions == null) return@withContext emptyList()
+        buildList {
+            for (i in 0 until actions.length()) {
+                val item = actions.optJSONObject(i) ?: continue
+                val type = item.optString("type").trim().lowercase()
+                val args = item.optJSONObject("args") ?: JSONObject()
+                executeAction(type, args)?.spokenMessage?.takeIf { it.isNotBlank() }?.let(::add)
+                if (type in ACCESSIBILITY_ACTIONS) delay(70)
             }
         }
+    }
 
     private suspend fun executeAction(type: String, args: JSONObject): ActionResult? = when (type) {
         "open_app" -> executor.openAppByName(arg(args, "app", "name"))
@@ -299,23 +334,13 @@ class EddyAiClient(
         else -> null
     }
 
-    private suspend fun accessibilityWithRetry(
-        success: String,
-        action: (EddyAccessibilityService) -> Boolean,
-    ): ActionResult {
+    private suspend fun accessibilityWithRetry(success: String, action: (EddyAccessibilityService) -> Boolean): ActionResult {
         val service = EddyAccessibilityService.instance
             ?: return ActionResult(false, "Necesito que activés el servicio de accesibilidad de EDDY para hacer eso.")
-
-        if (runCatching { action(service) }.getOrDefault(false)) {
-            return ActionResult(true, success)
-        }
-
+        if (runCatching { action(service) }.getOrDefault(false)) return ActionResult(true, success)
         delay(140)
         val ok = runCatching { action(service) }.getOrDefault(false)
-        return ActionResult(
-            ok,
-            if (ok) success else "No pude completar esa acción en pantalla. Probé dos veces.",
-        )
+        return ActionResult(ok, if (ok) success else "No pude completar esa acción en pantalla. Probé dos veces.")
     }
 
     private fun systemPanel(value: String): SystemPanel = when (normalize(value)) {
@@ -329,9 +354,7 @@ class EddyAiClient(
     }
 
     private fun arg(json: JSONObject, vararg keys: String): String {
-        for (key in keys) {
-            json.optString(key).trim().takeIf { it.isNotBlank() }?.let { return it }
-        }
+        for (key in keys) json.optString(key).trim().takeIf { it.isNotBlank() }?.let { return it }
         return ""
     }
 
@@ -349,9 +372,7 @@ class EddyAiClient(
         return when (raw) {
             is Boolean -> raw
             is Number -> raw.toInt() != 0
-            else -> normalize(raw.toString()) in setOf(
-                "true", "1", "on", "yes", "si", "encender", "encendido", "prender", "prendido",
-            )
+            else -> normalize(raw.toString()) in setOf("true", "1", "on", "yes", "si", "encender", "encendido", "prender", "prendido")
         }
     }
 
@@ -362,7 +383,6 @@ class EddyAiClient(
         var best: KnowledgeEntry? = null
         var bestScore = 0.0
         val now = System.currentTimeMillis()
-
         for (entry in readKnowledge()) {
             if (now - entry.savedAt > KNOWLEDGE_TTL_MS) continue
             val candidate = normalize(entry.question)
@@ -372,7 +392,6 @@ class EddyAiClient(
                 best = entry
             }
         }
-
         val hit = best?.takeIf { bestScore >= 0.88 } ?: return null
         return EddyAiReply(hit.answer, false, emptyList())
     }
@@ -384,16 +403,8 @@ class EddyAiClient(
         entries.removeAll { normalize(it.question) == normalized }
         entries += KnowledgeEntry(question.take(500), reply.text.take(6_000), System.currentTimeMillis())
         while (entries.size > 120) entries.removeAt(0)
-
         val array = JSONArray()
-        entries.forEach {
-            array.put(
-                JSONObject()
-                    .put("q", it.question)
-                    .put("a", it.answer)
-                    .put("t", it.savedAt),
-            )
-        }
+        entries.forEach { array.put(JSONObject().put("q", it.question).put("a", it.answer).put("t", it.savedAt)) }
         knowledgePrefs.edit().putString(KEY_KNOWLEDGE, array.toString()).apply()
     }
 
@@ -406,9 +417,7 @@ class EddyAiClient(
                     val item = array.optJSONObject(i) ?: continue
                     val question = item.optString("q").trim()
                     val answer = item.optString("a").trim()
-                    if (question.isNotBlank() && answer.isNotBlank()) {
-                        add(KnowledgeEntry(question, answer, item.optLong("t")))
-                    }
+                    if (question.isNotBlank() && answer.isNotBlank()) add(KnowledgeEntry(question, answer, item.optLong("t")))
                 }
             }
         }.getOrDefault(emptyList())
@@ -421,18 +430,12 @@ class EddyAiClient(
             .replace(Regex("\\s+"), " ")
             .trim()
 
-    private fun tokens(value: String): Set<String> =
-        value.split(' ').filter { it.length >= 3 && it !in STOP_WORDS }.toSet()
+    private fun tokens(value: String): Set<String> = value.split(' ').filter { it.length >= 3 && it !in STOP_WORDS }.toSet()
 
     private fun similarity(a: Set<String>, b: Set<String>): Double =
-        if (a.isEmpty() || b.isEmpty()) 0.0
-        else a.intersect(b).size.toDouble() / a.union(b).size
+        if (a.isEmpty() || b.isEmpty()) 0.0 else a.intersect(b).size.toDouble() / a.union(b).size
 
-    private data class KnowledgeEntry(
-        val question: String,
-        val answer: String,
-        val savedAt: Long,
-    )
+    private data class KnowledgeEntry(val question: String, val answer: String, val savedAt: Long)
 
     companion object {
         private const val KNOWLEDGE_PREFS = "eddy_learned_knowledge_v1"
@@ -440,12 +443,15 @@ class EddyAiClient(
         private const val KNOWLEDGE_TTL_MS = 30L * 24 * 60 * 60 * 1000
         private const val CONFIRMATION_TTL_MS = 30_000L
 
+        private val WEB_HINTS = setOf(
+            "internet", "web", "actual", "actualmente", "hoy", "ahora", "ultimo", "ultima", "ultimos", "ultimas",
+            "noticia", "noticias", "precio", "cotizacion", "clima", "resultado", "resultados", "presidente", "quien gano",
+            "busca", "buscar", "investiga", "investigar", "averigua", "averiguar", "compara", "comparar",
+        )
         private val POSITIVE_CONFIRMATIONS = setOf(
             "si", "sí", "dale", "confirmo", "confirmado", "hazlo", "hacelo", "hacele", "procede", "adelante", "ok", "okay",
         )
-        private val NEGATIVE_CONFIRMATIONS = setOf(
-            "no", "cancela", "cancelalo", "cancelar", "dejalo", "mejor no", "olvidalo",
-        )
+        private val NEGATIVE_CONFIRMATIONS = setOf("no", "cancela", "cancelalo", "cancelar", "dejalo", "mejor no", "olvidalo")
         private val ACCESSIBILITY_ACTIONS = setOf(
             "back", "home", "recents", "notifications", "quick_settings", "click_text", "type_text", "scroll_forward", "scroll_backward",
         )
