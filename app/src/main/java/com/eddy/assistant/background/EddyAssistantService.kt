@@ -388,7 +388,25 @@ class EddyAssistantService : Service() {
             return
         }
 
-        val command = brain.understand(text)
+        val commands = brain.understandMany(text)
+        if (commands.size > 1) {
+            val responses = mutableListOf<String>()
+            for (command in commands) {
+                memory.rememberCommand(command)
+                proactiveScheduler.maybeSchedule(command)
+                val response = executeDirectCommand(command)
+                if (!response.isNullOrBlank()) responses += response
+                delay(120L)
+            }
+            speakResponse(
+                responses.joinToString(" ").ifBlank {
+                    "Listo. Ejecuté las acciones que entendí."
+                },
+            )
+            return
+        }
+
+        val command = commands.firstOrNull() ?: AssistantCommand.Unknown(text)
         if (command == AssistantCommand.ClearMemory) {
             memory.clearAll()
             speakResponse("De una. Borré mi memoria local y cancelé mis sugerencias programadas. Empezamos de nuevo.")
@@ -404,7 +422,12 @@ class EddyAssistantService : Service() {
         }
 
         if (command is AssistantCommand.Unknown) {
-            // Primero dejamos que el backend de EDDY decida si la pregunta necesita Internet.
+            val learned = memory.recallLearnedAnswer(command.originalText)
+            if (learned != null) {
+                speakResponse(learned)
+                return
+            }
+
             val webOrCalculation = if (webClient.isConfigured) {
                 webClient.reply(
                     message = command.originalText,
@@ -414,6 +437,11 @@ class EddyAssistantService : Service() {
             } else null
 
             if (webOrCalculation != null) {
+                memory.rememberLearnedAnswer(
+                    question = command.originalText,
+                    answer = webOrCalculation.text,
+                    webDerived = webOrCalculation.webUsed,
+                )
                 if (webOrCalculation.webUsed) {
                     speakResearchResponse(command.originalText, webOrCalculation)
                 } else {
@@ -434,39 +462,43 @@ class EddyAssistantService : Service() {
             return
         }
 
-        val response = when (command) {
-            AssistantCommand.Greeting -> "Aquí estoy. Decime."
-            AssistantCommand.TellTime -> {
-                val time = SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())
-                "Son las $time."
-            }
-            AssistantCommand.OpenCamera -> executor.openCamera().spokenMessage
-            AssistantCommand.MemorySummary -> memory.describeLearnedPatterns()
-            AssistantCommand.ClearMemory -> "Ya borré mi memoria local."
-            is AssistantCommand.OpenApp -> executor.openApp(command.app).spokenMessage
-            is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).spokenMessage
-            is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
-            is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).spokenMessage
-            is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).spokenMessage
-            is AssistantCommand.PlaySpotify -> executor.playSpotify(command.query).spokenMessage
-            is AssistantCommand.SetAlarm -> executor.setAlarm(command.hour, command.minute, command.label).spokenMessage
-            is AssistantCommand.SetTimer -> executor.setTimer(command.seconds, command.label).spokenMessage
-            is AssistantCommand.OpenMaps -> executor.openMaps(command.query).spokenMessage
-            is AssistantCommand.SearchWeb -> "Estoy investigando eso."
-            is AssistantCommand.ShareText -> executor.shareText(command.text).spokenMessage
-            is AssistantCommand.SetTorch -> executor.setTorch(command.enabled).spokenMessage
-            is AssistantCommand.SetVolume -> executor.setVolume(command.percent).spokenMessage
-            is AssistantCommand.AdjustVolume -> executor.adjustVolume(command.direction).spokenMessage
-            is AssistantCommand.SetBrightness -> executor.setBrightness(command.percent).spokenMessage
-            is AssistantCommand.OpenSystemPanel -> executor.openSystemPanel(command.panel).spokenMessage
-            AssistantCommand.BatteryStatus -> executor.batteryStatus().spokenMessage
-            is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).spokenMessage
-            is AssistantCommand.SmartHomeControl -> smartHome.control(command.target, command.enabled).spokenMessage
-            AssistantCommand.OpenSmartHomeSettings -> executor.openSmartHomeSettings().spokenMessage
-            AssistantCommand.OpenAiSettings -> executor.openAiSettings().spokenMessage
-            is AssistantCommand.Unknown -> "Decime de otra forma y lo intento de nuevo."
+        speakResponse(executeDirectCommand(command) ?: "Listo.")
+    }
+
+    private fun executeDirectCommand(command: AssistantCommand): String? = when (command) {
+        AssistantCommand.Greeting -> "Aquí estoy. Decime."
+        AssistantCommand.TellTime -> {
+            val time = SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())
+            "Son las $time."
         }
-        speakResponse(response)
+        AssistantCommand.OpenCamera -> executor.openCamera().spokenMessage
+        AssistantCommand.MemorySummary -> memory.describeLearnedPatterns()
+        AssistantCommand.ClearMemory -> {
+            memory.clearAll()
+            "Borré mi memoria local."
+        }
+        is AssistantCommand.OpenApp -> executor.openApp(command.app).spokenMessage
+        is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).spokenMessage
+        is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
+        is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).spokenMessage
+        is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).spokenMessage
+        is AssistantCommand.PlaySpotify -> executor.playSpotify(command.query).spokenMessage
+        is AssistantCommand.SetAlarm -> executor.setAlarm(command.hour, command.minute, command.label).spokenMessage
+        is AssistantCommand.SetTimer -> executor.setTimer(command.seconds, command.label).spokenMessage
+        is AssistantCommand.OpenMaps -> executor.openMaps(command.query).spokenMessage
+        is AssistantCommand.SearchWeb -> null
+        is AssistantCommand.ShareText -> executor.shareText(command.text).spokenMessage
+        is AssistantCommand.SetTorch -> executor.setTorch(command.enabled).spokenMessage
+        is AssistantCommand.SetVolume -> executor.setVolume(command.percent).spokenMessage
+        is AssistantCommand.AdjustVolume -> executor.adjustVolume(command.direction).spokenMessage
+        is AssistantCommand.SetBrightness -> executor.setBrightness(command.percent).spokenMessage
+        is AssistantCommand.OpenSystemPanel -> executor.openSystemPanel(command.panel).spokenMessage
+        AssistantCommand.BatteryStatus -> executor.batteryStatus().spokenMessage
+        is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).spokenMessage
+        is AssistantCommand.SmartHomeControl -> smartHome.control(command.target, command.enabled).spokenMessage
+        AssistantCommand.OpenSmartHomeSettings -> executor.openSmartHomeSettings().spokenMessage
+        AssistantCommand.OpenAiSettings -> executor.openAiSettings().spokenMessage
+        is AssistantCommand.Unknown -> null
     }
 
     private suspend fun researchAndSpeak(query: String, forceWeb: Boolean) {
