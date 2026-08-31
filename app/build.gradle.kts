@@ -62,14 +62,10 @@ android {
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
-repositories { flatDir { dirs("libs") } }
-
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
-
-    // Map notation is the Kotlin-DSL-safe form for a flatDir AAR.
     implementation(mapOf("name" to "sherpa-onnx-$sherpaVersion", "ext" to "aar"))
     implementation("com.google.mediapipe:tasks-genai:0.10.24")
     implementation("org.apache.commons:commons-compress:1.27.1")
