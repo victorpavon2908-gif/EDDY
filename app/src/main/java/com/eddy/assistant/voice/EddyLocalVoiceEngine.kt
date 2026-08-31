@@ -33,6 +33,7 @@ import com.k2fsa.sherpa.onnx.VadModelConfig
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+import kotlin.math.sqrt
 
 /**
  * Núcleo PRO local de voz.
@@ -49,6 +50,7 @@ class EddyLocalVoiceEngine(
     private val ownerVoice: EddyVoiceProfile,
     private val onState: (State) -> Unit = {},
     private val onWake: (ownerConfidence: Float, enrolled: Boolean) -> Unit,
+    private val onCommandSpeechStarted: () -> Unit = {},
     private val onCommand: (String) -> Unit,
     private val onUnauthorizedVoice: () -> Unit = {},
     private val onError: (String) -> Unit = {},
@@ -73,6 +75,8 @@ class EddyLocalVoiceEngine(
     @Volatile private var activeUntil = 0L
     @Volatile private var state = State.STOPPED
     @Volatile private var lastWakeAt = 0L
+    @Volatile private var commandSpeechNotified = false
+    @Volatile private var commandSpeechFrames = 0
 
     @Volatile
     var lastInitializationFailure: InitializationFailure? = null
@@ -131,6 +135,8 @@ class EddyLocalVoiceEngine(
         } else if (running.get()) {
             activeUntil = System.currentTimeMillis() + CONTINUATION_MS
             vad?.reset()
+            commandSpeechNotified = true
+            commandSpeechFrames = 0
             setState(State.ACTIVE)
         }
     }
@@ -312,6 +318,8 @@ class EddyLocalVoiceEngine(
             return
         }
         lastWakeAt = now
+        commandSpeechNotified = false
+        commandSpeechFrames = 0
         spotter.reset(stream)
         vad?.reset()
         activeUntil = now + FIRST_COMMAND_MS
@@ -327,6 +335,9 @@ class EddyLocalVoiceEngine(
             setState(State.PASSIVE)
             return
         }
+
+        detectCommandContinuation(samples)
+
         val localVad = vad ?: return
         localVad.acceptWaveform(samples)
         while (!localVad.empty()) {
@@ -342,6 +353,25 @@ class EddyLocalVoiceEngine(
                 onCommand(text)
             }
             if (!speaking) setState(State.ACTIVE)
+        }
+    }
+
+    private fun detectCommandContinuation(samples: FloatArray) {
+        if (commandSpeechNotified) return
+        if (System.currentTimeMillis() - lastWakeAt < POST_WAKE_GUARD_MS) return
+        if (samples.isEmpty()) return
+
+        var energy = 0.0
+        for (sample in samples) energy += sample * sample
+        val rms = sqrt(energy / samples.size).toFloat()
+        if (rms >= COMMAND_CONTINUATION_RMS) {
+            commandSpeechFrames++
+            if (commandSpeechFrames >= COMMAND_CONTINUATION_FRAMES) {
+                commandSpeechNotified = true
+                onCommandSpeechStarted()
+            }
+        } else {
+            commandSpeechFrames = 0
         }
     }
 
@@ -407,6 +437,9 @@ class EddyLocalVoiceEngine(
         private const val CONVERSATION_MS = 14_000L
         private const val CONTINUATION_MS = 10_000L
         private const val WAKE_DEBOUNCE_MS = 1_000L
+        private const val POST_WAKE_GUARD_MS = 180L
+        private const val COMMAND_CONTINUATION_RMS = 0.012f
+        private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
         private const val ASR_DIR = "sherpa-onnx-moonshine-base-es-quantized-2026-02-27"
         private const val KWS_DIR = "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20"
@@ -414,9 +447,6 @@ class EddyLocalVoiceEngine(
         private const val KWS_DECODER = "decoder-epoch-13-avg-2-chunk-8-left-64.onnx"
         private const val KWS_JOINER = "joiner-epoch-13-avg-2-chunk-8-left-64.int8.onnx"
 
-        // EDDY no se detecta por cómo Android escriba el nombre, sino por su sonido.
-        // Priorizamos /EH-D-IY/ ("édi") y añadimos variantes cercanas de acento/estrés.
-        // La forma corta "Ed" usa un umbral más estricto para evitar falsos positivos.
         private const val EDDY_KEYWORDS =
             "EH1 D IY0 :3.2 #0.07 @EDDY\n" +
             "EH1 D IY1 :3.2 #0.07 @EDDY\n" +
