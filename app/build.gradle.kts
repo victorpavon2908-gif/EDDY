@@ -30,15 +30,38 @@ android {
         versionName = "0.5.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "EDDY_AI_BASE_URL", configString("EDDY_AI_BASE_URL", "eddy.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
+
+        // EDDY is optimized for modern Android phones. Packaging only ARM64 removes
+        // duplicate Sherpa/MediaPipe native binaries for x86/x86_64/32-bit ARM while
+        // keeping the exact same recognition, TTS and local-AI model quality.
+        ndk {
+            abiFilters += setOf("arm64-v8a")
+        }
     }
     signingConfigs { getByName("debug") { enableV1Signing = true; enableV2Signing = true } }
     buildTypes {
         debug { signingConfig = signingConfigs.getByName("debug") }
-        release { isMinifyEnabled = false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildFeatures { compose = true; buildConfig = true }
-    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}"; excludes += "/META-INF/DEPENDENCIES"; excludes += "/META-INF/NOTICE*"; excludes += "/META-INF/LICENSE*" } }
+    packaging {
+        // Compress native .so files inside the APK. Android extracts them when needed;
+        // inference precision and model quality are unchanged.
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/DEPENDENCIES"
+            excludes += "/META-INF/NOTICE*"
+            excludes += "/META-INF/LICENSE*"
+        }
+    }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
