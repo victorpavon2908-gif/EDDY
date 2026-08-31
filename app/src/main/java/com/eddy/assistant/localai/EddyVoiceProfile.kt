@@ -16,14 +16,17 @@ class EddyVoiceProfile(context: Context) {
     val sampleCount: Int get() = prefs.getInt(KEY_COUNT, 0)
     val isEnrolled: Boolean get() = sampleCount >= MIN_ENROLLMENT_SAMPLES && loadCentroid() != null
 
+    fun hasProfile(): Boolean = isEnrolled
+
     fun score(embedding: FloatArray): Float {
         val centroid = loadCentroid() ?: return if (sampleCount == 0) 1f else 0f
         return cosine(centroid, embedding)
     }
 
     /**
-     * Durante el arranque aprende de las primeras activaciones explícitas con EDDY.
-     * Una vez formado el perfil, solo se adapta a muestras que ya se parecen al dueño.
+     * Aprende gradualmente la voz del propietario. En el núcleo PRO esta decisión sirve
+     * para personalización y aprendizaje, no para silenciar una orden que ya fue activada
+     * explícitamente con EDDY.
      */
     fun acceptAndLearn(embedding: FloatArray, threshold: Float = 0.58f): VoiceDecision {
         if (embedding.isEmpty()) return VoiceDecision(false, 0f, isEnrolled)
