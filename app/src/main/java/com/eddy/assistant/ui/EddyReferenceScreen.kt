@@ -74,21 +74,20 @@ internal fun EddyReferenceScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(
-                        Color(0xFFFEFFFF),
-                        Color(0xFFFBFDFC),
-                        Color(0xFFF5FAF8),
-                    ),
+                    0f to Color(0xFFFFFFFF),
+                    0.72f to Color(0xFFFCFEFD),
+                    1f to Color(0xFFF4F9F7),
                 ),
             )
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
+        // EDDY es el protagonista de la pantalla: grande, limpio y sin cabeceras extra.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.69f)
-                .padding(horizontal = 10.dp, vertical = 2.dp),
+                .fillMaxHeight(0.72f)
+                .padding(horizontal = 2.dp),
             contentAlignment = Alignment.Center,
         ) {
             EddyHero(
@@ -101,7 +100,7 @@ internal fun EddyReferenceScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 16.dp),
+                .padding(start = 18.dp, end = 18.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             StatusBlock(
@@ -110,7 +109,9 @@ internal fun EddyReferenceScreen(
                 voiceReady = voiceReady,
                 webUsed = webUsed,
             )
-            Spacer(Modifier.height(28.dp))
+
+            Spacer(Modifier.height(24.dp))
+
             ControlDock(
                 visualState = visualState,
                 active = autoListeningEnabled,
@@ -119,7 +120,9 @@ internal fun EddyReferenceScreen(
                 webUsed = webUsed,
                 sources = webSources,
                 onToggleAssistant = onToggleAssistant,
-                onOpenSettings = { context.startActivity(Intent(context, AiSettingsActivity::class.java)) },
+                onOpenSettings = {
+                    context.startActivity(Intent(context, AiSettingsActivity::class.java))
+                },
             )
         }
     }
@@ -134,9 +137,9 @@ private fun StatusBlock(
 ) {
     val transition = rememberInfiniteTransition(label = "eddyStatusPulse")
     val alpha by transition.animateFloat(
-        initialValue = 0.4f,
+        initialValue = 0.42f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(820), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(760), RepeatMode.Reverse),
         label = "statusAlpha",
     )
 
@@ -149,38 +152,43 @@ private fun StatusBlock(
         state == EddyVisualState.LISTENING -> "TE ESCUCHO..."
         else -> "ESCUCHANDO..."
     }
+
     val subtitle = when {
         !active -> "Tocá el micrófono para activar EDDY"
         !voiceReady -> "Preparando el sistema de voz"
         state == EddyVisualState.LISTENING -> "Decime qué necesitás"
-        state == EddyVisualState.THINKING && webUsed -> "Consultando y contrastando fuentes"
-        state == EddyVisualState.THINKING -> "Un momento"
+        state == EddyVisualState.THINKING && webUsed -> "Consultando fuentes"
+        state == EddyVisualState.THINKING -> "Procesando tu petición"
         state == EddyVisualState.SPEAKING -> "Ahora hablo yo"
         else -> "Di “EDDY” para hablar conmigo"
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(9.dp)) {
+        Canvas(Modifier.size(8.dp)) {
             drawCircle(
-                if (webUsed && state == EddyVisualState.THINKING) EddyBlue.copy(alpha = alpha)
-                else if (active) EddyMintDeep.copy(alpha = alpha)
-                else Color(0xFFA7AFAC),
+                color = when {
+                    !active -> Color(0xFFA5AEAA)
+                    webUsed && state == EddyVisualState.THINKING -> EddyBlue.copy(alpha = alpha)
+                    else -> EddyMintDeep.copy(alpha = alpha)
+                },
             )
         }
-        Spacer(Modifier.size(9.dp))
+        Spacer(Modifier.size(10.dp))
         Text(
-            title,
-            color = Color(0xFF111514),
-            fontWeight = FontWeight.Black,
-            fontSize = 17.sp,
-            letterSpacing = 0.5.sp,
+            text = title,
+            color = Color(0xFF101312),
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 16.sp,
+            letterSpacing = 0.35.sp,
         )
     }
-    Spacer(Modifier.height(8.dp))
+
+    Spacer(Modifier.height(7.dp))
+
     Text(
-        subtitle,
-        color = Color(0xFF7A827F),
-        fontSize = 14.sp,
+        text = subtitle,
+        color = Color(0xFF747D79),
+        fontSize = 13.5.sp,
         textAlign = TextAlign.Center,
     )
 }
@@ -199,10 +207,14 @@ private fun ControlDock(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        FloatingCircleButton(active = active, onClick = { onToggleAssistant?.invoke() })
-        GlassStatusCard(
+        PremiumCircleButton(
+            active = active,
+            onClick = { onToggleAssistant?.invoke() },
+        )
+
+        PremiumStatusCard(
             modifier = Modifier.weight(1f),
             visualState = visualState,
             heardText = heardText,
@@ -210,48 +222,57 @@ private fun ControlDock(
             webUsed = webUsed,
             sources = sources,
         )
+
         Surface(
             modifier = Modifier
-                .size(58.dp)
-                .shadow(12.dp, CircleShape)
+                .size(56.dp)
+                .shadow(11.dp, CircleShape)
                 .clickable(onClick = onOpenSettings),
             shape = CircleShape,
             color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFE9EEEC)),
+            border = BorderStroke(1.dp, Color(0xFFE7ECEA)),
             tonalElevation = 1.dp,
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Settings, "Configuración", tint = Color(0xFF111514), modifier = Modifier.size(27.dp))
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = "Configuración",
+                    tint = Color(0xFF0F1311),
+                    modifier = Modifier.size(25.dp),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun FloatingCircleButton(active: Boolean, onClick: () -> Unit) {
+private fun PremiumCircleButton(
+    active: Boolean,
+    onClick: () -> Unit,
+) {
     Surface(
         modifier = Modifier
-            .size(58.dp)
-            .shadow(12.dp, CircleShape)
+            .size(56.dp)
+            .shadow(11.dp, CircleShape)
             .clickable(onClick = onClick),
         shape = CircleShape,
         color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFE9EEEC)),
+        border = BorderStroke(1.dp, Color(0xFFE7ECEA)),
         tonalElevation = 1.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = if (active) Icons.Rounded.Mic else Icons.Rounded.MicOff,
                 contentDescription = if (active) "Pausar EDDY" else "Activar EDDY",
-                tint = Color(0xFF111514),
-                modifier = Modifier.size(27.dp),
+                tint = Color(0xFF0F1311),
+                modifier = Modifier.size(25.dp),
             )
         }
     }
 }
 
 @Composable
-private fun GlassStatusCard(
+private fun PremiumStatusCard(
     modifier: Modifier,
     visualState: EddyVisualState,
     heardText: String,
@@ -260,12 +281,14 @@ private fun GlassStatusCard(
     sources: List<EddyWebSource>,
 ) {
     val uriHandler = LocalUriHandler.current
+
     val primary = when (visualState) {
         EddyVisualState.LISTENING -> "TE ESCUCHO"
         EddyVisualState.THINKING -> if (webUsed) "BUSCANDO" else "PENSANDO"
         EddyVisualState.SPEAKING -> "EDDY HABLA"
         EddyVisualState.IDLE -> "TE ESCUCHO"
     }
+
     val secondary = when {
         responseText.isNotBlank() && visualState != EddyVisualState.IDLE -> responseText
         heardText.isNotBlank() -> heardText
@@ -274,34 +297,44 @@ private fun GlassStatusCard(
 
     Surface(
         modifier = modifier
-            .shadow(16.dp, RoundedCornerShape(25.dp))
+            .shadow(15.dp, RoundedCornerShape(23.dp))
             .animateContentSize(),
-        shape = RoundedCornerShape(25.dp),
-        color = Color(0xFCFFFFFF),
-        border = BorderStroke(1.dp, Color(0xFFE7ECEA)),
-        tonalElevation = 2.dp,
+        shape = RoundedCornerShape(23.dp),
+        color = Color(0xFFFFFFFF),
+        border = BorderStroke(1.dp, Color(0xFFE6ECE9)),
+        tonalElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 17.dp, vertical = 13.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (webUsed) Icons.Rounded.Language else Icons.Rounded.GraphicEq,
-                    contentDescription = null,
-                    tint = if (webUsed) EddyBlue else EddyMintDeep,
-                    modifier = Modifier.size(23.dp),
-                )
+                Surface(
+                    modifier = Modifier.size(34.dp),
+                    shape = CircleShape,
+                    color = if (webUsed) Color(0xFFEEF6FF) else Color(0xFFEAFBF5),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (webUsed) Icons.Rounded.Language else Icons.Rounded.GraphicEq,
+                            contentDescription = null,
+                            tint = if (webUsed) EddyBlue else EddyMintDeep,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+
                 Spacer(Modifier.size(11.dp))
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        primary,
+                        text = primary,
                         color = Color(0xFF151817),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 14.sp,
-                        letterSpacing = 1.8.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        letterSpacing = 1.4.sp,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        secondary,
-                        color = Color(0xFF747C79),
+                        text = secondary,
+                        color = Color(0xFF747D79),
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -318,12 +351,14 @@ private fun GlassStatusCard(
                 ) {
                     sources.take(4).forEachIndexed { index, source ->
                         Surface(
-                            modifier = Modifier.clickable { runCatching { uriHandler.openUri(source.url) } },
-                            shape = RoundedCornerShape(11.dp),
+                            modifier = Modifier.clickable {
+                                runCatching { uriHandler.openUri(source.url) }
+                            },
+                            shape = RoundedCornerShape(10.dp),
                             color = Color(0xFFF4F8F6),
                         ) {
                             Text(
-                                "${index + 1} · ${source.title}",
+                                text = "${index + 1} · ${source.title}",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFF56615D),
