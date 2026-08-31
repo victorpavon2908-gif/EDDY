@@ -41,7 +41,6 @@ tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadSherp
 android {
     namespace = "com.eddy.assistant"
     compileSdk = 36
-
     defaultConfig {
         applicationId = "com.eddy.assistant"
         minSdk = 29
@@ -51,39 +50,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "EDDY_AI_BASE_URL", configString("EDDY_AI_BASE_URL", "eddy.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
     }
-
-    signingConfigs {
-        getByName("debug") { enableV1Signing = true; enableV2Signing = true }
-    }
+    signingConfigs { getByName("debug") { enableV1Signing = true; enableV2Signing = true } }
     buildTypes {
         debug { signingConfig = signingConfigs.getByName("debug") }
-        release {
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
+        release { isMinifyEnabled = false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildFeatures { compose = true; buildConfig = true }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            excludes += "/META-INF/DEPENDENCIES"
-            excludes += "/META-INF/NOTICE*"
-            excludes += "/META-INF/LICENSE*"
-        }
-    }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}"; excludes += "/META-INF/DEPENDENCIES"; excludes += "/META-INF/NOTICE*"; excludes += "/META-INF/LICENSE*" } }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+
+repositories { flatDir { dirs("libs") } }
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    // Use Gradle's flatDir AAR resolution instead of implementation(files(...)).
-    // Android Studio/AGP can then model and extract the Android archive correctly.
-    implementation(name = "sherpa-onnx-$sherpaVersion", ext = "aar")
+    // Map notation is the Kotlin-DSL-safe form for a flatDir AAR.
+    implementation(mapOf("name" to "sherpa-onnx-$sherpaVersion", "ext" to "aar"))
     implementation("com.google.mediapipe:tasks-genai:0.10.24")
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("androidx.core:core-ktx:1.17.0")
@@ -102,8 +89,4 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-}
-
-repositories {
-    flatDir { dirs("libs") }
 }
