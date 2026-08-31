@@ -3,14 +3,6 @@ package com.eddy.assistant.brain
 import java.text.Normalizer
 import java.util.Locale
 
-/**
- * Intérprete local de intención de EDDY.
- *
- * No obliga al usuario a memorizar frases exactas. Limpia lenguaje conversacional,
- * tolera cortesía y muletillas, y puede convertir una frase en varias acciones.
- * Las órdenes que no se puedan resolver localmente quedan como Unknown para que el
- * planificador por API (capa que se conectará aparte) pueda interpretarlas.
- */
 class LocalBrain {
 
     fun understand(input: String): AssistantCommand = understandSingle(input)
@@ -18,11 +10,9 @@ class LocalBrain {
     fun understandMany(input: String): List<AssistantCommand> {
         val cleaned = cleanConversationalInput(input.trim())
         if (cleaned.isBlank()) return listOf(AssistantCommand.Unknown(input.trim()))
-
         val whole = understandSingle(cleaned)
         val pieces = splitActionClauses(cleaned)
         if (pieces.size <= 1) return listOf(whole)
-
         val parsed = pieces.map(::understandSingle)
         val knownCount = parsed.count { it !is AssistantCommand.Unknown }
         return if (knownCount >= 2) parsed.filter { it !is AssistantCommand.Unknown } else listOf(whole)
@@ -65,16 +55,29 @@ class LocalBrain {
     }
 
     private fun parseDynamicTool(text: String): AssistantCommand? {
-        val wantsTool = containsAny(
+        if (
+            containsAny(text, "vuelve a tu pantalla principal", "vuelve a la pantalla principal", "regresa a tu pantalla principal", "regresa a la pantalla principal", "vuelve a inicio", "regresa a inicio", "volver a eddy", "regresar a eddy")
+        ) return AssistantCommand.OpenAppByName("EDDY_HOME")
+
+        val wantsTransformation = containsAny(
             text,
-            "convertite en", "conviertete en", "modo calculadora", "modo cronometro",
+            "convertite en", "conviertete en", "transformate en", "transforma tu pantalla en",
+            "modo calculadora", "modo cronometro", "modo temporizador", "modo reloj", "modo notas", "modo conversor",
             "abre calculadora", "abri calculadora", "quiero calculadora",
             "abre cronometro", "abri cronometro", "quiero cronometro",
+            "abre temporizador", "abri temporizador", "quiero temporizador",
+            "abre reloj", "abri reloj", "quiero reloj",
+            "abre notas", "abri notas", "quiero notas", "abre bloc de notas",
+            "abre conversor", "abri conversor", "quiero conversor", "abre convertidor",
         )
-        if (!wantsTool) return null
+        if (!wantsTransformation) return null
         return when {
             text.contains("calculadora") -> AssistantCommand.OpenAppByName("EDDY_TOOL_CALCULATOR")
             text.contains("cronometro") -> AssistantCommand.OpenAppByName("EDDY_TOOL_STOPWATCH")
+            text.contains("temporizador") || text.contains("cuenta regresiva") -> AssistantCommand.OpenAppByName("EDDY_TOOL_TIMER")
+            text.contains("reloj") -> AssistantCommand.OpenAppByName("EDDY_TOOL_CLOCK")
+            text.contains("nota") || text.contains("bloc") -> AssistantCommand.OpenAppByName("EDDY_TOOL_NOTES")
+            text.contains("conversor") || text.contains("convertidor") || text.contains("unidades") -> AssistantCommand.OpenAppByName("EDDY_TOOL_CONVERTER")
             else -> null
         }
     }
@@ -250,33 +253,21 @@ class LocalBrain {
     private fun cleanConversationalInput(value: String): String {
         var current = value.trim()
         repeat(8) {
-            val updated = current
-                .replace(CONVERSATIONAL_PREFIX, "")
-                .replace(FILLER_PREFIX, "")
-                .trim(' ', ',', '.', ':', ';', '-', '¿', '?', '¡', '!')
+            val updated = current.replace(CONVERSATIONAL_PREFIX, "").replace(FILLER_PREFIX, "").trim(' ', ',', '.', ':', ';', '-', '¿', '?', '¡', '!')
             if (updated == current) return current
             current = updated
         }
         return current
     }
 
-    private fun stripPolitenessTail(value: String): String = value
-        .replace(Regex("(?i)\\s+(?:por favor|porfa|si podes|si pod[eé]s|haceme el favor)\\s*$"), "")
-        .trim(' ', ',', '.', '!', '?')
-
+    private fun stripPolitenessTail(value: String): String = value.replace(Regex("(?i)\\s+(?:por favor|porfa|si podes|si pod[eé]s|haceme el favor)\\s*$"), "").trim(' ', ',', '.', '!', '?')
     private fun cleanPhone(value: String): String = value.replace(Regex("[\\s-]"), "")
     private fun containsAny(text: String, vararg values: String): Boolean = values.any(text::contains)
-
-    private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
-        .replace("\\p{Mn}+".toRegex(), "")
-        .replace(Regex("\\s+"), " ")
-        .trim()
+    private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD).replace("\\p{Mn}+".toRegex(), "").replace(Regex("\\s+"), " ").trim()
 
     companion object {
         private val PHONE_REGEX = Regex("""\+?\d[\d\s-]{6,}\d""")
         private val FILLER_PREFIX = Regex("""(?i)^(?:este+|eh+|em+|mmm+|mira|fijate|bueno|a ver)\s*[,.:;!-]*\s*""")
-        private val CONVERSATIONAL_PREFIX = Regex(
-            """(?i)^(?:(?:eddy|eddi|eddie|edy|edi)\s*[,.:;!¿?¡-]*\s*)?(?:(?:por\s+favor|porfa|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hac[eé]s\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey|mira|mir[aá])\s+)+""",
-        )
+        private val CONVERSATIONAL_PREFIX = Regex("""(?i)^(?:(?:eddy|eddi|eddie|edy|edi)\s*[,.:;!¿?¡-]*\s*)?(?:(?:por\s+favor|porfa|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hac[eé]s\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey|mira|mir[aá])\s+)+""")
     }
 }
