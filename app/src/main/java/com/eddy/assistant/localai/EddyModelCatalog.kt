@@ -112,11 +112,11 @@ object EddyModelCatalog {
         ),
     )
 
-    // Se conservan las especificaciones para instalaciones existentes y para una futura
-    // opción manual avanzada. El arranque normal ya no descarga modelos pesados: la voz
-    // usa el reconocedor del sistema y la inteligencia usa API + memoria local.
+    // El núcleo de voz privado se instala después del APK. Esto mantiene el APK más liviano
+    // sin sacrificar la calidad: VAD + Voice ID + ASR español quedan disponibles localmente
+    // y sustituyen al reconocedor compatible en cuanto terminan de descargarse.
     val voiceCore = listOf(vad, speaker, spanishAsr)
-    val acousticCore: List<EddyModelSpec> = emptyList()
+    val acousticCore: List<EddyModelSpec> = voiceCore
 
     fun byId(id: String): EddyModelSpec? =
         (voiceCore + spanishVoice + localLlm + keyword).firstOrNull { it.id == id }
