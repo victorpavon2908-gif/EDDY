@@ -12,7 +12,7 @@ import java.util.Locale
 class WakeWordGate(
     private val wakeWord: String = "eddy",
     private val followUpWindowMs: Long = 20_000L,
-    private val conversationWindowMs: Long = 14_000L,
+    private val conversationWindowMs: Long = 12_000L,
 ) {
     private var armedUntil: Long = 0L
 
@@ -42,11 +42,8 @@ class WakeWordGate(
         if (matched != null) {
             val command = removeWakeWord(raw, matched)
             return if (command.isBlank()) {
-                // Un "EDDY" aislado ya no deja al usuario mirando la pantalla sin saber si
-                // fue oído. Lo convertimos en saludo local; el servicio responde por TTS y
-                // mantiene la ventana conversacional abierta para la siguiente orden.
                 arm(nowMs, followUpWindowMs)
-                WakeResult.Command("hola")
+                WakeResult.Activated
             } else {
                 arm(nowMs, conversationWindowMs)
                 WakeResult.Command(command)
