@@ -141,8 +141,6 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshLockScreenSetupStatus() {
         if (!assistantEnabled() || !hasMicrophonePermission()) return
-        // No pisar el estado vivo de escucha/respuesta una vez que el servicio está corriendo.
-        // Los recordatorios de permisos solo deben mostrarse antes de que EDDY arranque.
         if (EddyRuntimeState.read(applicationContext).running) return
 
         val fullScreenReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -200,14 +198,13 @@ class MainActivity : ComponentActivity() {
         }
         EddyReferenceScreen(
             visualState = visualState,
-            assistantEnabled = enabled,
-            runtimeRunning = snapshot.running,
-            voiceReady = snapshot.voiceReady,
             heardText = snapshot.heardText,
             responseText = snapshot.responseText,
+            voiceReady = snapshot.voiceReady,
+            autoListeningEnabled = enabled && snapshot.running,
             webUsed = snapshot.webUsed,
             webSources = snapshot.webSources,
-            onAssistantEnabledChange = { setAssistantEnabled(it) },
+            onToggleAssistant = { setAssistantEnabled(!enabled) },
         )
     }
 }
