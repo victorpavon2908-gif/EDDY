@@ -112,11 +112,11 @@ object EddyModelCatalog {
         ),
     )
 
-    // El núcleo de voz privado se instala después del APK. Esto mantiene el APK más liviano
-    // sin sacrificar la calidad: VAD + Voice ID + ASR español quedan disponibles localmente
-    // y sustituyen al reconocedor compatible en cuanto terminan de descargarse.
+    // Se conservan los modelos privados para una activación futura/manual, pero el arranque
+    // normal prioriza el SpeechRecognizer Android, que es más estable en el dispositivo de
+    // prueba. Así evitamos que un núcleo local recién descargado sustituya una ruta que sí oye.
     val voiceCore = listOf(vad, speaker, spanishAsr)
-    val acousticCore: List<EddyModelSpec> = voiceCore
+    val acousticCore: List<EddyModelSpec> = emptyList()
 
     fun byId(id: String): EddyModelSpec? =
         (voiceCore + spanishVoice + localLlm + keyword).firstOrNull { it.id == id }
