@@ -3,6 +3,7 @@ package com.eddy.assistant.brain
 sealed interface AssistantCommand {
     data class OpenApp(val app: SupportedApp) : AssistantCommand
     data class OpenAppByName(val name: String) : AssistantCommand
+    data class LaunchTool(val tool: EddyTool) : AssistantCommand
     data object OpenCamera : AssistantCommand
     data object TellTime : AssistantCommand
     data object Greeting : AssistantCommand
@@ -31,6 +32,11 @@ sealed interface AssistantCommand {
     data object OpenSmartHomeSettings : AssistantCommand
     data object OpenAiSettings : AssistantCommand
     data class Unknown(val originalText: String) : AssistantCommand
+}
+
+enum class EddyTool {
+    CALCULATOR,
+    STOPWATCH,
 }
 
 enum class VolumeDirection {
