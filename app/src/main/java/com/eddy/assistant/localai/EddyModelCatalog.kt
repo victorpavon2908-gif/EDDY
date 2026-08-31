@@ -40,23 +40,25 @@ object EddyModelCatalog {
         requireInstallMarker = true,
     )
 
+    // Streaming KWS: chunk 8 is the low-latency variant. It listens locally only for EDDY;
+    // Moonshine is not invoked until after the wake word has been detected.
     val keyword = EddyModelSpec(
-        id = "kws-eddy-zh-en-2025-v2",
+        id = "kws-eddy-zh-en-2025-v3",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2",
         archiveType = EddyArchiveType.TAR_BZ2,
         directoryName = "kws",
         expectedFiles = listOf(
-            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
-            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/decoder-epoch-13-avg-2-chunk-16-left-64.onnx",
-            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
+            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/encoder-epoch-13-avg-2-chunk-8-left-64.int8.onnx",
+            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/decoder-epoch-13-avg-2-chunk-8-left-64.onnx",
+            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/joiner-epoch-13-avg-2-chunk-8-left-64.int8.onnx",
             "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/tokens.txt",
             "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/en.phone",
         ),
         minBytes = 30_000_000L,
         expectedMinBytes = mapOf(
-            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx" to 4_000_000L,
-            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/decoder-epoch-13-avg-2-chunk-16-left-64.onnx" to 600_000L,
-            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx" to 70_000L,
+            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/encoder-epoch-13-avg-2-chunk-8-left-64.int8.onnx" to 4_000_000L,
+            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/decoder-epoch-13-avg-2-chunk-8-left-64.onnx" to 600_000L,
+            "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/joiner-epoch-13-avg-2-chunk-8-left-64.int8.onnx" to 70_000L,
             "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/tokens.txt" to 1_000L,
             "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/en.phone" to 1_000_000L,
         ),
@@ -112,12 +114,11 @@ object EddyModelCatalog {
         ),
     )
 
-    // Se conservan los modelos privados para una activación futura/manual, pero el arranque
-    // normal prioriza el SpeechRecognizer Android, que es más estable en el dispositivo de
-    // prueba. Así evitamos que un núcleo local recién descargado sustituya una ruta que sí oye.
-    val voiceCore = listOf(vad, speaker, spanishAsr)
-    val acousticCore: List<EddyModelSpec> = emptyList()
+    // Core que debe estar listo para el modo PRO de escucha: KWS local inmediato + VAD + ASR.
+    // Voice ID se descarga también, pero no bloquea la activación ni los comandos.
+    val voiceCore = listOf(keyword, vad, spanishAsr)
+    val acousticCore: List<EddyModelSpec> = voiceCore + speaker
 
     fun byId(id: String): EddyModelSpec? =
-        (voiceCore + spanishVoice + localLlm + keyword).firstOrNull { it.id == id }
+        (voiceCore + speaker + spanishVoice + localLlm).firstOrNull { it.id == id }
 }
