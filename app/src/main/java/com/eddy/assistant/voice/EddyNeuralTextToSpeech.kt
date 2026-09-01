@@ -28,7 +28,7 @@ class EddyNeuralTextToSpeech(
     private val models: EddyModelManager,
     private val profile: EddyDeviceProfile,
     private val onSpeakingChanged: (Boolean) -> Unit = {},
-    private val onFailure: (String) -> Unit = {},
+    private val onFailure: (text: String, audioStarted: Boolean) -> Unit = { _, _ -> },
 ) {
     private val mutex = Mutex()
     @Volatile private var generation = 0
@@ -47,12 +47,13 @@ class EddyNeuralTextToSpeech(
                 if (closed || token != generation) return@withLock
                 onSpeakingChanged(true)
                 var failed = false
+                var audioStarted = false
                 try {
                     val engine = tts ?: createEngine() ?: error("Voz local no disponible")
                     for (chunk in SpeechProsody.chunks(text, 1_000)) {
                         if (closed || token != generation) break
                         val audio = engine.generate(chunk, sid = 0, speed = speed.coerceIn(0.85f, 1.15f))
-                        if (!closed && token == generation) play(audio.samples, audio.sampleRate, token)
+                        if (!closed && token == generation) play(audio.samples, audio.sampleRate, token) { audioStarted = true }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -61,7 +62,7 @@ class EddyNeuralTextToSpeech(
                 } finally {
                     if (closed) { runCatching { tts?.release() }; tts = null }
                     if (token == generation && !closed) {
-                        if (failed) onFailure(text) else onSpeakingChanged(false)
+                        if (failed) onFailure(text, audioStarted) else onSpeakingChanged(false)
                     }
                 }
             }
@@ -105,8 +106,8 @@ class EddyNeuralTextToSpeech(
         ).also { tts = it }
     }.getOrNull()
 
-    private suspend fun play(samples: FloatArray, sampleRate: Int, token: Int) {
-        if (samples.isEmpty()) return
+    private suspend fun play(samples: FloatArray, sampleRate: Int, token: Int, onAudioQueued: () -> Unit) {
+        check(samples.isNotEmpty()) { "La síntesis local no produjo audio" }
         val pcm = ShortArray(samples.size) { index ->
             (samples[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
         }
@@ -139,6 +140,7 @@ class EddyNeuralTextToSpeech(
             while (offset < pcm.size && !closed && token == generation) {
                 val written = audioTrack.write(pcm, offset, minOf(4_096, pcm.size - offset), AudioTrack.WRITE_BLOCKING)
                 check(written > 0) { "No pude reproducir la voz" }
+                onAudioQueued()
                 offset += written
             }
             // write() only queues audio. Wait for playback so the final words are not cut off.

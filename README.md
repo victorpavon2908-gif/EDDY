@@ -54,12 +54,18 @@ Véase [configuración y validación de GroqCloud](docs/GROQ_CLOUD.md).
   prueba su arranque y decodificación con el modelo real, además de pruebas y Lint.
 - Activación exclusivamente por «EDDY», sin botones Hablar/Pausar en la pantalla principal.
   El interruptor queda en Ajustes; detener la notificación persiste al reabrir la app.
+- La activación incluye variantes de la «d» suave en español. La CI compara audio
+  con el detector anterior para conservar llamadas y evitar nuevas falsas activaciones
+  en el corpus. Las limitaciones conocidas están en [validación de voz](docs/VOICE_DIALOGUE_VALIDATION.md).
 - No se usa SpeechRecognizer por sesiones para la escucha permanente. Preparación,
   disponibilidad y errores del micrófono tienen estados separados. La recuperación
   espera el cierre del capturador anterior y usa reintentos espaciados.
 - GroqCloud tiene 18 segundos de presupuesto total y hasta tres intentos. Claves
   inválidas, cuota agotada y respuestas bloqueadas no generan reintentos en cadena.
 - La voz neuronal espera a que suenen las últimas palabras antes de cerrar audio.
+- La voz se mantiene durante la sesión de escucha. La alternativa de Android guarda
+  el motor y la voz española instalada; perder Internet no selecciona otro hablante.
+  Ajustes muestra qué voz se usa. El ritmo puede adaptarse, pero el tono base se conserva.
 - No se reutilizan respuestas antiguas como si fueran información actual.
 
 La escucha continua requiere el núcleo local instalado; hasta que esté listo se

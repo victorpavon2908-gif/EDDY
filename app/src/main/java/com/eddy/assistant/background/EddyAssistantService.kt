@@ -60,6 +60,7 @@ import com.eddy.assistant.voice.EddyLocalVoiceEngine
 import com.eddy.assistant.voice.EddyNeuralTextToSpeech
 import com.eddy.assistant.voice.EddyTextToSpeech
 import com.eddy.assistant.voice.VoiceRecoveryPolicy
+import com.eddy.assistant.voice.SpeechOutputPolicy
 import com.eddy.assistant.voice.SpeechProsody
 import java.io.File
 import java.text.SimpleDateFormat
@@ -94,6 +95,7 @@ class EddyAssistantService : Service() {
     private var adaptiveNetwork: OnlineIntentNetwork? = null
     private var adaptiveUnavailable = false
     private var replyProsody = SpeechProsody()
+    private val speechOutput = SpeechOutputPolicy()
     private var localVoice: EddyLocalVoiceEngine? = null
     private var localVoiceActive = false
     private lateinit var platformTts: EddyTextToSpeech
@@ -148,14 +150,27 @@ class EddyAssistantService : Service() {
 
         platformTts = EddyTextToSpeech(
             context = applicationContext,
-            onReady = { ready -> EddyRuntimeState.setVoiceReady(applicationContext, ready) },
+            onReady = { ready ->
+                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) EddyRuntimeState.setVoiceReady(applicationContext, ready)
+            },
+            onVoiceSelected = { description ->
+                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) EddyRuntimeState.setVoiceStatus(applicationContext, description)
+            },
             onSpeakingChanged = ::onSpeakingChanged,
         )
         neuralTts = EddyNeuralTextToSpeech(
             models = modelManager,
             profile = deviceProfile,
             onSpeakingChanged = ::onSpeakingChanged,
-            onFailure = { text -> serviceScope.launch { if (!destroyed && !platformTts.speak(text, replyProsody)) onSpeakingChanged(false) } },
+            onFailure = { text, audioStarted -> serviceScope.launch {
+                if (!destroyed) {
+                    speechOutput.neuralFailed()
+                    EddyRuntimeState.setVoiceStatus(applicationContext, "La voz local se interrumpió. ${platformTts.voiceDescription}")
+                    // Once audio has started, retain the visible answer instead of repeating it in another voice.
+                    if (audioStarted || !platformTts.speak(text, replyProsody)) onSpeakingChanged(false)
+                    EddyRuntimeState.setVoiceReady(applicationContext, platformTts.isReady)
+                }
+            } },
         )
 
         if (!EddyVoiceSettings.enabled(this) || !hasMicrophonePermission()) {
@@ -589,7 +604,18 @@ class EddyAssistantService : Service() {
                 onSpeakingChanged(false)
             }
         }
-        val queued = if (neuralTts.isAvailable) neuralTts.speak(text, replyProsody.speed) else platformTts.speak(text, replyProsody)
+        val backend = speechOutput.choose(neuralTts.isAvailable)
+        val queued = if (backend == SpeechOutputPolicy.Backend.NEURAL) {
+            EddyRuntimeState.setVoiceStatus(applicationContext, "Voz local de EDDY · español de México · sin conexión")
+            if (neuralTts.speak(text, replyProsody.speed)) true else {
+                speechOutput.neuralFailed()
+                EddyRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
+                platformTts.speak(text, replyProsody)
+            }
+        } else {
+            EddyRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
+            platformTts.speak(text, replyProsody)
+        }
         if (queued) EddyRuntimeState.setVoiceReady(applicationContext, true)
         else { EddyRuntimeState.setVoiceReady(applicationContext, false); onSpeakingChanged(false) }
     }

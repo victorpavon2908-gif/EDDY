@@ -5,9 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import android.speech.tts.Voice
 import java.text.Normalizer
-import java.util.Locale
 
 /**
  * Voz del sistema con perfil latino/nicaragüense.
@@ -21,11 +19,17 @@ class EddyTextToSpeech(
     context: Context,
     private val onReady: (Boolean) -> Unit = {},
     private val onSpeakingChanged: (Boolean) -> Unit = {},
+    private val onVoiceSelected: (String) -> Unit = {},
 ) : TextToSpeech.OnInitListener {
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val tts = TextToSpeech(context.applicationContext, this)
+    private val voicePrefs = context.applicationContext.getSharedPreferences("eddy_voice_output", Context.MODE_PRIVATE)
+    private val requestedEngine = voicePrefs.getString("system_engine", null)
+    private val tts = TextToSpeech(context.applicationContext, this, requestedEngine)
     private var ready = false
+    val isReady: Boolean get() = ready
+    var voiceDescription: String = "Falta una voz española instalada para usar sin conexión"
+        private set
     @Volatile private var notificationEpoch = 0
     @Volatile private var currentUtterance: String? = null
     @Volatile private var currentPrefix: String? = null
@@ -48,64 +52,28 @@ class EddyTextToSpeech(
         onReady(ready)
     }
 
-    private fun spanishLocale(country: String): Locale = Locale.Builder()
-        .setLanguage("es")
-        .setRegion(country)
-        .build()
-
     private fun configureNicaraguanLatinVoice(): Boolean {
-        // Pedimos es-NI primero para que el motor pueda cargar sus datos/voz si los tiene.
-        val nicaraguaSpanish = spanishLocale("NI")
-        val languageResult = tts.setLanguage(nicaraguaSpanish)
-
-        val spanishVoices = runCatching { tts.voices.orEmpty() }
-            .getOrDefault(emptySet())
-            .filter { it.locale.language.equals("es", ignoreCase = true) }
-
-        val preferred = spanishVoices.sortedWith(
-            compareBy<Voice> { if (it.isNetworkConnectionRequired) 1 else 0 }
-                .thenBy { voiceCountryRank(it.locale.country) }
-                .thenBy { naturalVoiceRank(it) }
-                .thenByDescending { it.quality }
-                .thenBy { it.latency },
-        ).firstOrNull()
-
-        if (preferred != null) {
-            if (runCatching { tts.setVoice(preferred) == TextToSpeech.SUCCESS }.getOrDefault(false)) return true
+        val voices = runCatching { tts.voices.orEmpty() }.getOrDefault(emptySet())
+        val engine = requestedEngine?.takeIf { requested -> tts.engines.any { it.name == requested } } ?: tts.defaultEngine
+        val saved = voicePrefs.getString("system_voice", null).takeIf {
+            voicePrefs.getString("system_engine", null) == engine
         }
-
-        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-            // Centroamérica primero; es-US suele ser latino en Google TTS y funciona bien como fallback.
-            val fallbacks = listOf("CR", "HN", "SV", "GT", "US", "MX", "CO", "ES").map(::spanishLocale)
-            for (locale in fallbacks) {
-                val result = tts.setLanguage(locale)
-                if (result >= TextToSpeech.LANG_AVAILABLE) return true
+        val candidates = voices.map {
+            OfflineVoiceSelector.Candidate(it.name, it.locale.language, it.locale.country,
+                it.quality, it.latency, it.isNetworkConnectionRequired, it.features.orEmpty())
+        }
+        for (candidate in OfflineVoiceSelector.ranked(candidates, saved)) {
+            val voice = voices.first { it.name == candidate.name }
+            if (runCatching { tts.setVoice(voice) == TextToSpeech.SUCCESS }.getOrDefault(false)) {
+                voicePrefs.edit().putString("system_engine", engine).putString("system_voice", voice.name).apply()
+                voiceDescription = "Voz del teléfono · ${voice.locale.toLanguageTag()} · sin conexión"
+                onVoiceSelected(voiceDescription)
+                return true
             }
         }
-        return languageResult >= TextToSpeech.LANG_AVAILABLE
-    }
-
-    private fun naturalVoiceRank(voice: Voice): Int {
-        val descriptor = buildString {
-            append(voice.name.lowercase(Locale.ROOT)); append(' ')
-            append(voice.features.joinToString(" ").lowercase(Locale.ROOT))
-        }
-        return when {
-            listOf("natural", "neural", "wavenet", "premium", "enhanced", "studio").any(descriptor::contains) -> 0
-            listOf("male", "masculino", "masculine", "hombre", "man").any(descriptor::contains) -> 1
-            listOf("female", "femenino", "feminine", "mujer", "woman").any(descriptor::contains) -> 3
-            else -> 2
-        }
-    }
-
-    private fun voiceCountryRank(country: String): Int = when (country.uppercase(Locale.ROOT)) {
-        "NI" -> 0
-        "CR", "HN", "SV", "GT" -> 1
-        "US", "MX" -> 2
-        "CO", "VE", "PA", "DO", "PR" -> 3
-        "AR", "UY", "CL", "PE", "EC", "BO", "PY" -> 4
-        "ES" -> 8
-        else -> 6
+        // Do not fall back to a network voice whose identity/availability changes with connectivity.
+        onVoiceSelected(voiceDescription)
+        return false
     }
 
     /**

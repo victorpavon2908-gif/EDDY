@@ -12,6 +12,7 @@ object EddyRuntimeState {
     private const val KEY_RESPONSE = "response"
     private const val KEY_RUNNING = "running"
     private const val KEY_VOICE_READY = "voice_ready"
+    private const val KEY_VOICE_STATUS = "voice_status"
     private const val KEY_INPUT_STATUS = "input_status"
     private const val KEY_INPUT_STATE = "input_state"
     private const val KEY_SEARCHING = "searching"
@@ -33,6 +34,7 @@ object EddyRuntimeState {
         val responseText: String = "Di EDDY para activarme.",
         val running: Boolean = false,
         val voiceReady: Boolean = false,
+        val voiceStatus: String = "Preparando voz de respuesta",
         val inputState: InputState = InputState.STOPPED,
         val inputStatus: String = "Micrófono sin iniciar",
         val webSearching: Boolean = false,
@@ -54,6 +56,7 @@ object EddyRuntimeState {
                 .ifBlank { "Di EDDY para activarme." },
             running = prefs.getBoolean(KEY_RUNNING, false),
             voiceReady = prefs.getBoolean(KEY_VOICE_READY, false),
+            voiceStatus = prefs.getString(KEY_VOICE_STATUS, "Preparando voz de respuesta").orEmpty(),
             inputState = runCatching {
                 InputState.valueOf(prefs.getString(KEY_INPUT_STATE, InputState.STOPPED.name).orEmpty())
             }.getOrDefault(InputState.STOPPED),
@@ -85,6 +88,10 @@ object EddyRuntimeState {
 
     fun setRunning(context: Context, value: Boolean) {
         edit(context) { putBoolean(KEY_RUNNING, value) }
+    }
+
+    fun setVoiceStatus(context: Context, value: String) {
+        edit(context) { putString(KEY_VOICE_STATUS, value) }
     }
 
     fun setVoiceReady(context: Context, value: Boolean) {
@@ -130,6 +137,7 @@ object EddyRuntimeState {
             putBoolean(KEY_SEARCHING, false)
             putBoolean(KEY_RUNNING, false)
             putBoolean(KEY_VOICE_READY, false)
+            putString(KEY_VOICE_STATUS, "Voz en pausa")
             putBoolean(KEY_WEB_USED, false)
             putString(KEY_WEB_SOURCES, "[]")
         }

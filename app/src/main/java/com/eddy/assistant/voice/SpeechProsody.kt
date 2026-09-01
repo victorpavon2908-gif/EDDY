@@ -9,8 +9,8 @@ data class SpeechProsody(val speed: Float = 1.03f, val pitch: Float = 0.92f) {
                 Regex("\\bno (?:estoy (?:triste|preocupado|preocupada)|me siento mal)\\b"), " ",
             )
             return when {
-                Regex("\\b(?:mas despacio|habla lento|estoy triste|me siento mal|estoy preocupado|estoy preocupada)\\b").containsMatchIn(text) -> SpeechProsody(0.93f, 0.94f)
-                Regex("\\b(?:mas rapido|date prisa|apurate)\\b").containsMatchIn(text) -> SpeechProsody(1.10f, 0.96f)
+                Regex("\\b(?:mas despacio|habla lento|estoy triste|me siento mal|estoy preocupado|estoy preocupada)\\b").containsMatchIn(text) -> SpeechProsody(speed = 0.93f)
+                Regex("\\b(?:mas rapido|date prisa|apurate)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.10f)
                 else -> SpeechProsody()
             }
         }

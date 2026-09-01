@@ -19,4 +19,10 @@ class SpeechProsodyTest {
         assertTrue(parts.all { it.length <= 30 })
         assertEquals(listOf("Hola."), SpeechProsody.chunks("Hola.", 30))
     }
+
+    @Test fun emotionalAndSpeedRequestsKeepTheSameVocalPitch() {
+        listOf("estoy triste", "hablá más rápido", "hablá más despacio", "qué hora es").forEach {
+            assertEquals(SpeechProsody().pitch, SpeechProsody.forInput(it).pitch, 0f)
+        }
+    }
 }

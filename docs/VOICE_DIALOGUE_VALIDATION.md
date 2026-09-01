@@ -43,13 +43,55 @@ catálogo, y ejecuta `EddyKeywordNativeTest` con las clases Kotlin del AAR Andro
 reproduce el error anterior y comprueba que la configuración corregida carga el
 modelo, decodifica silencio, no activa EDDY con ese silencio, reinicia el stream y
 permite liberar y crear de nuevo el detector. No crea APK. Si se ejecutan pruebas
-locales sin `EDDY_NATIVE_KWS_MODELS`, esas dos pruebas nativas se omiten; en CI la
+locales sin `EDDY_NATIVE_KWS_MODELS`, las pruebas nativas se omiten; en CI la
 preparación es obligatoria. Esto no sustituye probar el micrófono ni la precisión
 con voces reales en el teléfono.
 
 Referencia: [validación de KeywordSpotterConfig en Sherpa 1.13.6](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.6/sherpa-onnx/csrc/keyword-spotter.cc).
 
+## Pronunciación de EDDY
+
+Se mantienen las cinco variantes originales y se añaden cuatro aproximaciones de
+la «d» suave entre vocales del español, con acentuaciones alternativas. Comparten
+la etiqueta EDDY; no hace falta decir un nombre distinto. Se conserva el micrófono
+continuo y la búsqueda de palabras local, sin transcribir conversaciones ambientales.
+El cambio actualiza el archivo de palabras al iniciar; no descarga otros pesos.
+
+La regresión usa las clases del AAR Android y JNI real con 19 muestras sintéticas
+en bloques de 512 muestras a 16 kHz. Frente a 07997e6, reconoce 3 de 5 llamadas
+(antes 2), conservando las dos anteriores. No aumenta las falsas activaciones en
+las 14 frases negativas: siguen siendo 3. El texto «Eddy.» sintetizado mejora;
+«Edi.» y «Oye Eddy.» de ese sintetizador aún fallan. «El edificio es alto»,
+«Le di la comida» y «Ayer pedí ayuda» siguen provocando activaciones incorrectas.
+
+No se presenta esto como entrenamiento del modelo ni como reconocimiento perfecto:
+el modelo acústico original es chino/inglés y se adaptan sus palabras fonéticas.
+Este corpus pequeño no representa el acento del usuario. Se necesita comprobar la
+pronunciación natural y los falsos disparos en el teléfono. El corpus, su procedencia
+y la comparación reproducible están en [los recursos de prueba](../app/src/test/resources/voice/wake/README.md).
+
 ## Verificación en un teléfono
+
+### Voz de respuesta estable
+
+- La voz neuronal o la de Android se elige en la primera respuesta de la sesión de
+  escucha. Preparar una voz adicional no cambia de hablante a mitad de conversación;
+  se incorpora al detener y volver a habilitar la escucha desde Ajustes.
+- Android conserva el motor y el nombre de la voz elegida. Si esa voz ya no está
+  instalada, se elige otra voz española disponible sin conexión en un orden estable.
+  Si falta una voz local, Ajustes lo indica y la respuesta sigue visible.
+- Si falla la síntesis neuronal antes de emitir audio, se intenta la voz del teléfono
+  y se mantiene durante esa sesión. Si ya había comenzado a sonar, no se repite la
+  respuesta completa con otro hablante; el texto permanece en pantalla y las próximas
+  respuestas usan la alternativa. Ajustes indica el cambio.
+- Pedir hablar más lento o más rápido modifica el ritmo, conservando el tono base.
+  La selección ya no confunde `female` con `male` ni `woman` con `man`.
+
+Las pruebas de selección y sesión cubren persistencia de la elección ante cambios de
+catálogo, orden de enumeración, voces de red y fallos de la voz neuronal. La persistencia
+real del motor, su sonido y el cambio de salida de audio se verifican en el teléfono.
+
+### Comprobaciones físicas
 
 La CI ejecuta pruebas unitarias y Lint sin empaquetar APK. No sustituye las siguientes comprobaciones físicas:
 
@@ -62,5 +104,11 @@ La CI ejecuta pruebas unitarias y Lint sin empaquetar APK. No sustituye las sigu
 7. Durante la preparación de modelos, comprobar que no se anuncia «Te escucho». Sin modelos ni red debe explicar el problema; al restaurar la red debe prepararlos y pasar a espera de EDDY. Deshabilitar la escucha en Ajustes, reabrir la app y comprobar que sigue deshabilitada.
 8. Comprobar que una interrupción del micrófono sale de «Te escucho», recupera la escucha sin dos capturadores simultáneos y vuelve a exigir el nombre.
 9. Desactivar temporalmente la voz española del sistema: la respuesta debe permanecer visible y no bloquear la siguiente activación.
+10. Con una voz preparada, pedir varias respuestas y alternar modo avión. Confirmar
+    que conserva el hablante y el tono. Reiniciar la escucha y comprobar que Android
+    conserva la voz elegida si sigue instalada. Revisar la indicación de voz en Ajustes.
+11. Probar «Eddy» con la pronunciación habitual, sin exagerar la «d», en silencio y
+    con ruido moderado. Comparar llamadas aisladas y seguidas de una orden; comprobar
+    que hablar de otras cosas no activa el asistente. Anotar qué pronunciaciones fallan.
 
 Los cambios de código no actualizan una instalación existente hasta que se prepare e instale una versión posterior, cuando el usuario lo solicite. En esta revisión solo se entregan commits.

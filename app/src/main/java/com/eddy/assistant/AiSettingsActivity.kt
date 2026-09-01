@@ -88,10 +88,12 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
     val scope = rememberCoroutineScope()
     var voiceEnabled by remember { mutableStateOf(EddyVoiceSettings.enabled(context)) }
     var voiceStatus by remember { mutableStateOf(EddyRuntimeState.read(context).inputStatus) }
+    var outputVoiceStatus by remember { mutableStateOf(EddyRuntimeState.read(context).voiceStatus) }
     LaunchedEffect(Unit) {
         while (true) {
             voiceEnabled = EddyVoiceSettings.enabled(context)
             voiceStatus = EddyRuntimeState.read(context).inputStatus
+            outputVoiceStatus = EddyRuntimeState.read(context).voiceStatus
             delay(500L)
         }
     }
@@ -117,7 +119,9 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                         scope.launch { if (preparing) modelStatus = "${progress.modelId}: ${progress.downloadedBytes / 1_000_000} MB" }
                     }
                 }
-                modelStatus = if (ready) "Preparado para usar sin Internet." else "No se pudo preparar. Comprobá conexión y espacio disponible."
+                modelStatus = if (ready) {
+                    if (spec == EddyModelCatalog.spanishVoice) "Voz preparada. Se usará al volver a iniciar la escucha desde Ajustes." else "Preparado para usar sin Internet."
+                } else "No se pudo preparar. Comprobá conexión y espacio disponible."
             } finally { preparing = false }
         }
     }
@@ -158,6 +162,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             OutlinedButton(onClick = { prepareModel(EddyModelCatalog.localLlm) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN SIN INTERNET") }
             OutlinedButton(onClick = { prepareModel(EddyModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }
             Text(modelStatus, style = MaterialTheme.typography.bodySmall)
+            Text(outputVoiceStatus, style = MaterialTheme.typography.bodySmall)
             Text("GROQCLOUD", style = MaterialTheme.typography.headlineMedium)
             Text(
                 "EDDY usa GroqCloud para conversar y Groq Compound para consultar la web. Guardá la clave de tu cuenta de Groq; la memoria y la voz local siguen en el teléfono.",

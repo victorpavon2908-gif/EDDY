@@ -45,10 +45,17 @@ object EddyKeywordConfig {
         return destination
     }
 
+    // Keep the original calls and add the softer Spanish intervocalic /d/.
+    // Added variants use a stricter threshold. Widening the beam also woke on
+    // ordinary speech in the audio regression set, so keep four active paths.
     private const val KEYWORDS =
         "EH1 D IY0 :3.2 #0.07 @EDDY\n" +
         "EH1 D IY1 :3.2 #0.07 @EDDY\n" +
         "EH0 D IY0 :3.0 #0.08 @EDDY\n" +
         "EH0 D IY1 :3.0 #0.08 @EDDY\n" +
-        "EH1 D IH0 :2.8 #0.10 @EDDY\n"
+        "EH1 D IH0 :2.8 #0.10 @EDDY\n" +
+        "EH0 DH IY0 :4.5 #0.20 @EDDY\n" +
+        "EH0 DH IY1 :4.5 #0.20 @EDDY\n" +
+        "EH1 DH IY0 :4.5 #0.20 @EDDY\n" +
+        "EH1 DH IY1 :4.5 #0.20 @EDDY\n"
 }
