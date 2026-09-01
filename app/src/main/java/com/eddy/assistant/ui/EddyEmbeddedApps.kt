@@ -57,8 +57,8 @@ private fun AppShell(title: String, onHome: () -> Unit, content: @Composable () 
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onHome) { Text("EDDY") }
         }
         content()
@@ -82,7 +82,7 @@ private fun CalculatorApp(onHome: () -> Unit) {
             listOf("4", "5", "6", "−"), listOf("1", "2", "3", "+"),
             listOf("0", ".", "⌫", "="),
         ).forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 row.forEach { key ->
                     Button(onClick = {
                         when (key) {
@@ -91,7 +91,7 @@ private fun CalculatorApp(onHome: () -> Unit) {
                             "=" -> result = EmbeddedMath.evaluate(expression) ?: "Error"
                             else -> expression += key
                         }
-                    }, modifier = Modifier.weight(1f).height(58.dp), shape = RoundedCornerShape(18.dp)) {
+                    }, modifier = Modifier.height(58.dp), shape = RoundedCornerShape(18.dp)) {
                         Text(key, style = MaterialTheme.typography.titleLarge)
                     }
                 }
@@ -111,15 +111,15 @@ private fun StopwatchApp(onHome: () -> Unit) {
     }
     val elapsed = accumulated + if (running) now - startedAt else 0L
     AppShell("Cronómetro", onHome) {
-        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
             Text(formatMillis(elapsed), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { running = false; accumulated = 0L; startedAt = 0L }, modifier = Modifier.weight(1f).height(58.dp)) { Text("Reiniciar") }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            OutlinedButton(onClick = { running = false; accumulated = 0L; startedAt = 0L }, modifier = Modifier.height(58.dp)) { Text("Reiniciar") }
             Button(onClick = {
                 if (running) { accumulated += SystemClock.elapsedRealtime() - startedAt; running = false }
                 else { startedAt = SystemClock.elapsedRealtime(); now = startedAt; running = true }
-            }, modifier = Modifier.weight(1f).height(58.dp)) { Text(if (running) "Pausar" else "Iniciar") }
+            }, modifier = Modifier.height(58.dp)) { Text(if (running) "Pausar" else "Iniciar") }
         }
     }
 }
@@ -135,15 +135,15 @@ private fun TimerApp(onHome: () -> Unit) {
     }
     AppShell("Temporizador", onHome) {
         OutlinedTextField(value = minutesText, onValueChange = { minutesText = it.filter(Char::isDigit).take(4) }, label = { Text("Minutos") }, modifier = Modifier.fillMaxWidth())
-        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
             Text(formatCountdown(remaining), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { running = false; remaining = 0L }, modifier = Modifier.weight(1f)) { Text("Reiniciar") }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            OutlinedButton(onClick = { running = false; remaining = 0L }) { Text("Reiniciar") }
             Button(onClick = {
                 if (remaining == 0L) remaining = (minutesText.toLongOrNull() ?: 0L).coerceIn(0, 1440) * 60_000L
                 running = !running && remaining > 0L
-            }, modifier = Modifier.weight(1f)) { Text(if (running) "Pausar" else "Iniciar") }
+            }) { Text(if (running) "Pausar" else "Iniciar") }
         }
     }
 }
@@ -155,7 +155,7 @@ private fun ClockApp(onHome: () -> Unit) {
     val time = remember(now) { SimpleDateFormat("h:mm:ss a", Locale.forLanguageTag("es-NI")).format(Date(now)) }
     val date = remember(now / 60_000L) { SimpleDateFormat("EEEE, d 'de' MMMM", Locale.forLanguageTag("es-NI")).format(Date(now)) }
     AppShell("Reloj", onHome) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxWidth().height(360.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(time, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
                 Text(date, style = MaterialTheme.typography.titleMedium)
@@ -170,7 +170,7 @@ private fun NotesApp(onHome: () -> Unit) {
     val prefs = remember { context.getSharedPreferences("eddy_notes", Context.MODE_PRIVATE) }
     var note by remember { mutableStateOf(prefs.getString("quick_note", "").orEmpty()) }
     AppShell("Notas", onHome) {
-        OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Nota rápida") }, modifier = Modifier.fillMaxWidth().weight(1f))
+        OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Nota rápida") }, modifier = Modifier.fillMaxWidth().height(320.dp))
         Button(onClick = { prefs.edit().putString("quick_note", note).apply() }, modifier = Modifier.fillMaxWidth()) { Text("Guardar en EDDY") }
     }
 }
@@ -188,9 +188,9 @@ private fun ConverterApp(onHome: () -> Unit) {
     }
     AppShell("Conversor", onHome) {
         OutlinedTextField(value = input, onValueChange = { input = it.filter { ch -> ch.isDigit() || ch == '.' || ch == '-' } }, label = { Text("Valor") }, modifier = Modifier.fillMaxWidth())
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("km-mi" to "km→mi", "mi-km" to "mi→km", "c-f" to "°C→°F", "f-c" to "°F→°C").forEach { (id, label) ->
-                OutlinedButton(onClick = { mode = id }, modifier = Modifier.weight(1f)) { Text(label) }
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("km-mi" to "km → mi", "mi-km" to "mi → km", "c-f" to "°C → °F", "f-c" to "°F → °C").forEach { (id, label) ->
+                OutlinedButton(onClick = { mode = id }, modifier = Modifier.fillMaxWidth()) { Text(label) }
             }
         }
         Card(modifier = Modifier.fillMaxWidth()) { Text("%.3f".format(output), modifier = Modifier.padding(22.dp), style = MaterialTheme.typography.displaySmall) }
