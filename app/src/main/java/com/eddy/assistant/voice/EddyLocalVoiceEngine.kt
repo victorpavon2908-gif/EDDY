@@ -70,6 +70,7 @@ class EddyLocalVoiceEngine(
     ) : RuntimeException(cause)
 
     private val running = AtomicBoolean(false)
+    private val emotionEngine = EddyEmotionEngine(context)
 
     @Volatile private var speaking = false
     @Volatile private var activeUntil = 0L
@@ -206,11 +207,11 @@ class EddyLocalVoiceEngine(
             config = VadModelConfig(
                 sileroVadModelConfig = SileroVadModelConfig(
                     model = models.file(EddyModelCatalog.vad).absolutePath,
-                    threshold = 0.42f,
-                    minSilenceDuration = 0.45f,
+                    threshold = 0.40f,
+                    minSilenceDuration = 0.55f,
                     minSpeechDuration = 0.08f,
                     windowSize = 512,
-                    maxSpeechDuration = 15f,
+                    maxSpeechDuration = 18f,
                 ),
                 sampleRate = SAMPLE_RATE,
                 numThreads = 1,
@@ -345,6 +346,7 @@ class EddyLocalVoiceEngine(
             localVad.pop()
             val speech = segment.samples
             if (speech.size < MIN_COMMAND_SAMPLES) continue
+            emotionEngine.observeSpeech(speech, SAMPLE_RATE)
             setState(State.PROCESSING)
             val text = transcribe(speech)
             if (text.isNotBlank()) {
@@ -433,12 +435,12 @@ class EddyLocalVoiceEngine(
 
     companion object {
         private const val SAMPLE_RATE = 16_000
-        private const val FIRST_COMMAND_MS = 12_000L
-        private const val CONVERSATION_MS = 14_000L
-        private const val CONTINUATION_MS = 10_000L
-        private const val WAKE_DEBOUNCE_MS = 1_000L
+        private const val FIRST_COMMAND_MS = 15_000L
+        private const val CONVERSATION_MS = 18_000L
+        private const val CONTINUATION_MS = 12_000L
+        private const val WAKE_DEBOUNCE_MS = 900L
         private const val POST_WAKE_GUARD_MS = 180L
-        private const val COMMAND_CONTINUATION_RMS = 0.012f
+        private const val COMMAND_CONTINUATION_RMS = 0.011f
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
         private const val ASR_DIR = "sherpa-onnx-moonshine-base-es-quantized-2026-02-27"
