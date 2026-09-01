@@ -19,14 +19,11 @@ import com.eddy.assistant.localai.EddyModelSpec
 import com.eddy.assistant.localai.EddyVoiceProfile
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.KeywordSpotter
-import com.k2fsa.sherpa.onnx.KeywordSpotterConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineMoonshineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
-import com.k2fsa.sherpa.onnx.OnlineModelConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
-import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
@@ -226,31 +223,16 @@ class EddyLocalVoiceEngine(
         }
     }
 
-    private fun initKeywordSpotter() = initStage("activación EDDY", EddyModelCatalog.keyword) {
-        val root = File(models.modelDir(EddyModelCatalog.keyword), KWS_DIR)
-        val config = KeywordSpotterConfig(
-            featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
-            modelConfig = OnlineModelConfig(
-                transducer = OnlineTransducerModelConfig(
-                    encoder = File(root, KWS_ENCODER).absolutePath,
-                    decoder = File(root, KWS_DECODER).absolutePath,
-                    joiner = File(root, KWS_JOINER).absolutePath,
-                ),
-                tokens = File(root, "tokens.txt").absolutePath,
-                numThreads = 1,
-                provider = "cpu",
-                modelType = "zipformer2",
-                modelingUnit = "phone+ppinyin",
-            ),
-            maxActivePaths = 4,
-            keywordsFile = "",
-            keywordsScore = 3.0f,
-            keywordsThreshold = 0.08f,
-            numTrailingBlanks = 1,
-        )
-        keywordSpotter = KeywordSpotter(config = config)
-        keywordStream = keywordSpotter?.createStream(EDDY_KEYWORDS)
-        check(keywordStream != null)
+    private fun initKeywordSpotter() {
+        // Configuration/storage failures must not trigger a download of healthy model weights.
+        val config = initStage("configuración de activación", null) {
+            EddyKeywordConfig.create(models.modelDir(EddyModelCatalog.keyword), File(context.filesDir, "voice-config"))
+        }
+        initStage("activación EDDY", EddyModelCatalog.keyword) {
+            keywordSpotter = KeywordSpotter(config = config)
+            keywordStream = keywordSpotter?.createStream()
+            check(keywordStream != null)
+        }
     }
 
     private fun initVad() = initStage("detección de voz", EddyModelCatalog.vad) {
@@ -572,16 +554,5 @@ class EddyLocalVoiceEngine(
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
         private const val ASR_DIR = "sherpa-onnx-moonshine-base-es-quantized-2026-02-27"
-        private const val KWS_DIR = "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20"
-        private const val KWS_ENCODER = "encoder-epoch-13-avg-2-chunk-8-left-64.int8.onnx"
-        private const val KWS_DECODER = "decoder-epoch-13-avg-2-chunk-8-left-64.onnx"
-        private const val KWS_JOINER = "joiner-epoch-13-avg-2-chunk-8-left-64.int8.onnx"
-
-        private const val EDDY_KEYWORDS =
-            "EH1 D IY0 :3.2 #0.07 @EDDY\n" +
-            "EH1 D IY1 :3.2 #0.07 @EDDY\n" +
-            "EH0 D IY0 :3.0 #0.08 @EDDY\n" +
-            "EH0 D IY1 :3.0 #0.08 @EDDY\n" +
-            "EH1 D IH0 :2.8 #0.10 @EDDY"
     }
 }

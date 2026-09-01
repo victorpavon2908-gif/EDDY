@@ -29,6 +29,26 @@ Las respuestas personales se recuperan desde memoria; no modifican los pesos de 
 
 Las órdenes del teléfono, cálculos y memoria personal funcionan localmente. El reconocimiento continuo propio necesita los modelos acústicos instalados; si faltan o no pueden iniciarse, la pantalla indica que la escucha no está disponible en vez de simularla con sesiones de Android. La conversación generativa local requiere preparar el modelo opcional en Ajustes. Su presupuesto real es de 1.280 tokens entre entrada y salida; la entrada se mide con el tokenizador y se reduce a 960 como máximo para dejar espacio a la respuesta.
 
+## Regresión de inicio del detector
+
+El error `Invalid KeywordSpotterConfig: failed to create native KeywordSpotter` se
+reproducía porque `keywordsFile` estaba vacío. Sherpa 1.13.6 valida ese archivo en
+el constructor; entregar palabras a `createStream` después no evita el fallo.
+La configuración ahora escribe `voice-config/eddy-keywords.txt` antes de construir
+el detector y usa esa misma lista al crear el stream. No hace falta cambiar ni
+volver a descargar los pesos instalados por este arreglo.
+
+La CI prepara las bibliotecas JNI oficiales de Linux y el modelo de activación del
+catálogo, y ejecuta `EddyKeywordNativeTest` con las clases Kotlin del AAR Android:
+reproduce el error anterior y comprueba que la configuración corregida carga el
+modelo, decodifica silencio, no activa EDDY con ese silencio, reinicia el stream y
+permite liberar y crear de nuevo el detector. No crea APK. Si se ejecutan pruebas
+locales sin `EDDY_NATIVE_KWS_MODELS`, esas dos pruebas nativas se omiten; en CI la
+preparación es obligatoria. Esto no sustituye probar el micrófono ni la precisión
+con voces reales en el teléfono.
+
+Referencia: [validación de KeywordSpotterConfig en Sherpa 1.13.6](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.6/sherpa-onnx/csrc/keyword-spotter.cc).
+
 ## Verificación en un teléfono
 
 La CI ejecuta pruebas unitarias y Lint sin empaquetar APK. No sustituye las siguientes comprobaciones físicas:

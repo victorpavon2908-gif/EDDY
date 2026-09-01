@@ -50,6 +50,8 @@ Véase [configuración y validación de GroqCloud](docs/GROQ_CLOUD.md).
 - AudioRecord permanece abierto; se descarta el audio durante respuestas y no se
   envía audio ambiental a GroqCloud. Una reserva breve conserva el inicio de la orden.
 - Una orden a la vez, regreso a modo pasivo y liberación de recursos en su hilo.
+- Las palabras de activación se guardan antes de crear el detector nativo. La CI
+  prueba su arranque y decodificación con el modelo real, además de pruebas y Lint.
 - Activación exclusivamente por «EDDY», sin botones Hablar/Pausar en la pantalla principal.
   El interruptor queda en Ajustes; detener la notificación persiste al reabrir la app.
 - No se usa SpeechRecognizer por sesiones para la escucha permanente. Preparación,

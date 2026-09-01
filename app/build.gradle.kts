@@ -53,6 +53,9 @@ android {
     testOptions {
         unitTests.all {
             it.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            System.getenv("EDDY_NATIVE_LIB_DIR")?.let { nativeDirectory ->
+                it.systemProperty("java.library.path", nativeDirectory)
+            }
         }
     }
     packaging {

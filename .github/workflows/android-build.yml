@@ -48,6 +48,15 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x gradlew
 
+      - name: Cache native wake detector test dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/eddy-kws-native
+          key: ${{ runner.os }}-kws-native-${{ hashFiles('app/src/main/java/com/eddy/assistant/localai/EddyModelCatalog.kt') }}
+
+      - name: Prepare real wake detector test
+        run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/eddy-kws-native" --github-env "$GITHUB_ENV"
+
       - name: Android unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
