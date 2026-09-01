@@ -18,8 +18,30 @@ class EddyGeminiClient(context: Context) {
 
     val isConfigured: Boolean get() = EddyAiSettings.apiKey(appContext).isNotBlank()
 
-    suspend fun testConnection(): Boolean =
-        reply("Respondé únicamente con OK.", "Prueba local de conexión de EDDY.")?.isNotBlank() == true
+    /**
+     * Uses the smallest valid generateContent request possible so connection tests
+     * diagnose API-key/model/network problems independently from EDDY's full prompt.
+     */
+    suspend fun testConnection(): Boolean = withContext(Dispatchers.IO) {
+        lastError = null
+        val key = EddyAiSettings.apiKey(appContext)
+        if (key.isBlank()) {
+            lastError = "Falta la API key de Gemini."
+            return@withContext false
+        }
+        val model = EddyAiSettings.model(appContext)
+        val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
+        val payload = JSONObject().put(
+            "contents",
+            JSONArray().put(
+                JSONObject().put(
+                    "parts",
+                    JSONArray().put(JSONObject().put("text", "Respondé únicamente con OK.")),
+                ),
+            ),
+        )
+        execute(endpoint, key, payload, model)?.isNotBlank() == true
+    }
 
     suspend fun reply(message: String, memoryContext: String): String? = withContext(Dispatchers.IO) {
         lastError = null
@@ -45,7 +67,6 @@ class EddyGeminiClient(context: Context) {
             ${memoryContext.takeLast(12_000)}
         """.trimIndent()
 
-        // Gemini 3.7 no admite los parámetros de muestreo heredados (temperature/top_p/top_k).
         val payload = JSONObject()
             .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
             .put("contents", JSONArray().put(
@@ -58,15 +79,19 @@ class EddyGeminiClient(context: Context) {
                 .put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
             )
 
+        execute(endpoint, key, payload, model)
+    }
+
+    private fun execute(endpoint: String, key: String, payload: JSONObject, model: String): String? {
         val connection = runCatching { URL(endpoint).openConnection() as HttpURLConnection }
             .getOrElse {
                 lastError = "No pude abrir la conexión con Gemini: ${it.message.orEmpty()}"
-                return@withContext null
+                return null
             }
         try {
             connection.requestMethod = "POST"
-            connection.connectTimeout = 8_000
-            connection.readTimeout = 30_000
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 35_000
             connection.doOutput = true
             connection.useCaches = false
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -76,16 +101,21 @@ class EddyGeminiClient(context: Context) {
 
             val code = connection.responseCode
             if (code !in 200..299) {
-                val raw = runCatching { connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } }.getOrNull().orEmpty()
-                val apiMessage = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
+                val raw = runCatching {
+                    connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                }.getOrNull().orEmpty()
+                val apiMessage = runCatching {
+                    JSONObject(raw).optJSONObject("error")?.optString("message")
+                }.getOrNull().orEmpty()
                 lastError = when (code) {
-                    400 -> "Gemini rechazó la solicitud (400): ${apiMessage.ifBlank { "revisá el modelo o la configuración." }}"
-                    401, 403 -> "Gemini rechazó la API key ($code): ${apiMessage.ifBlank { "revisá que la clave esté activa y autorizada." }}"
-                    404 -> "El modelo '$model' no está disponible para esta clave (404)."
-                    429 -> "Gemini alcanzó el límite de uso de esta clave (429)."
-                    else -> "Gemini respondió HTTP $code: ${apiMessage.ifBlank { raw.take(220) }}"
+                    400 -> "HTTP 400: ${apiMessage.ifBlank { "Gemini rechazó el cuerpo de la solicitud." }}"
+                    401 -> "HTTP 401: ${apiMessage.ifBlank { "La clave no fue autenticada." }}"
+                    403 -> "HTTP 403: ${apiMessage.ifBlank { "La clave/proyecto no tiene permiso para usar Gemini API." }}"
+                    404 -> "HTTP 404: el modelo '$model' no está disponible para esta clave/proyecto. ${apiMessage}".trim()
+                    429 -> "HTTP 429: ${apiMessage.ifBlank { "Se alcanzó el límite/cuota de Gemini." }}"
+                    else -> "HTTP $code: ${apiMessage.ifBlank { raw.take(300) }}"
                 }
-                return@withContext null
+                return null
             }
 
             val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
@@ -95,10 +125,10 @@ class EddyGeminiClient(context: Context) {
                 ?.optJSONObject("content")
                 ?.optJSONArray("parts")
             if (parts == null) {
-                lastError = "Gemini respondió sin texto utilizable."
-                return@withContext null
+                lastError = "Gemini respondió HTTP 200 pero sin texto utilizable: ${body.take(300)}"
+                return null
             }
-            buildString {
+            return buildString {
                 for (i in 0 until parts.length()) {
                     parts.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() }?.let(::append)
                 }
@@ -107,8 +137,8 @@ class EddyGeminiClient(context: Context) {
                 null
             }
         } catch (e: Exception) {
-            lastError = "Error de conexión con Gemini: ${e.message.orEmpty()}"
-            null
+            lastError = "Error de red/TLS con Gemini: ${e.javaClass.simpleName}: ${e.message.orEmpty()}"
+            return null
         } finally {
             connection.disconnect()
         }
