@@ -8,6 +8,19 @@ class LocalBrainTest {
     private val brain = LocalBrain()
 
     @Test
+    fun negatedOrdersAndExplanationsNeverExecute() {
+        listOf("no abras YouTube", "no quiero que enciendas la linterna", "cómo puedo abrir WhatsApp", "explicame como borrar tu memoria").forEach {
+            assertTrue(it, brain.understand(it) is AssistantCommand.Unknown)
+        }
+    }
+
+    @Test
+    fun greetingInsideAQuestionDoesNotDiscardTheQuestion() {
+        assertTrue(brain.understand("hola contame sobre Nicaragua") is AssistantCommand.Unknown)
+        assertEquals(AssistantCommand.Greeting, brain.understand("buenos días"))
+    }
+
+    @Test
     fun opensYoutube() {
         assertEquals(
             AssistantCommand.OpenApp(SupportedApp.YOUTUBE),
