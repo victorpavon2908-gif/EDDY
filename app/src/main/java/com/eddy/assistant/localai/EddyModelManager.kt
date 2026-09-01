@@ -59,7 +59,7 @@ class EddyModelManager(context: Context) {
         for (spec in models) {
             var installed = ensure(spec, onProgress)
 
-            // Reintento limpio para cualquier modelo descargable del núcleo acústico.
+            // Retain a partial download after a network failure; ensure already rejects invalid installs.
             if (!installed && spec != EddyModelCatalog.localLlm) {
                 onProgress(
                     EddyModelProgress(
@@ -70,7 +70,7 @@ class EddyModelManager(context: Context) {
                     ),
                 )
                 delay(REPAIR_RETRY_DELAY_MS)
-                installed = repair(spec, onProgress)
+                installed = ensure(spec, onProgress)
             }
 
             if (!installed) {
@@ -119,7 +119,7 @@ class EddyModelManager(context: Context) {
                     ),
                 )
                 delay(REPAIR_RETRY_DELAY_MS)
-                installed = repair(spec, onProgress)
+                installed = ensure(spec, onProgress)
             }
             if (!installed) {
                 ready = false

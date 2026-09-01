@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
@@ -32,6 +33,8 @@ import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.math.sqrt
@@ -56,6 +59,7 @@ class EddyLocalVoiceEngine(
     private val onCommand: (String) -> Unit,
     private val onUnauthorizedVoice: () -> Unit = {},
     private val onError: (String) -> Unit = {},
+    private val onMicrophoneSilenced: (Boolean) -> Unit = {},
 ) {
     enum class State { PASSIVE, VERIFYING, ACTIVE, PROCESSING, SPEAKING, STOPPED }
 
@@ -73,7 +77,7 @@ class EddyLocalVoiceEngine(
 
     private val running = AtomicBoolean(false)
     private val lifecycleLock = Any()
-    private val activationRequested = AtomicBoolean(false)
+    private val released = CountDownLatch(1)
     private var initializing = false
     private var stopRequested = false
     @Volatile private var assistantBusy = false
@@ -84,7 +88,7 @@ class EddyLocalVoiceEngine(
     private val emotionEngine = EddyEmotionEngine(context)
 
     @Volatile private var speaking = false
-    @Volatile private var activeUntil = 0L
+    private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS)
     @Volatile private var state = State.STOPPED
     @Volatile private var lastWakeAt = 0L
     private var wakeAcknowledged = false
@@ -94,6 +98,10 @@ class EddyLocalVoiceEngine(
 
     @Volatile
     var lastInitializationFailure: InitializationFailure? = null
+        private set
+
+    @Volatile
+    var isMicrophoneSilenced: Boolean = false
         private set
 
     private var recorder: AudioRecord? = null
@@ -130,7 +138,8 @@ class EddyLocalVoiceEngine(
                 worker = thread(name = "EDDY-ProVoice", isDaemon = true) { audioLoop() }
             }
             return true
-        } catch (_: RuntimeException) {
+        } catch (error: RuntimeException) {
+            lastInitializationFailure = InitializationFailure("micrófono", null, error.message ?: error.javaClass.simpleName)
             onError("No pude iniciar la captura de audio local.")
             return false
         } finally {
@@ -151,8 +160,11 @@ class EddyLocalVoiceEngine(
         }
     }
 
-    /** A visible Hablar tap authorizes one command, just like calling EDDY. */
-    fun activate() { activationRequested.set(true) }
+    /** Call off the main thread. A replacement must wait for both AudioRecord and JNI cleanup. */
+    fun stopAndAwait(timeoutMillis: Long = 5_000L): Boolean {
+        stop()
+        return released.await(timeoutMillis, TimeUnit.MILLISECONDS)
+    }
 
     fun setAssistantBusy(value: Boolean) { assistantBusy = value }
 
@@ -178,6 +190,7 @@ class EddyLocalVoiceEngine(
         runCatching { recorder?.release() }
         recorder = null
         releaseModels()
+        released.countDown()
         setState(State.STOPPED)
     }
 
@@ -203,12 +216,12 @@ class EddyLocalVoiceEngine(
                 failure.spec,
                 cause?.message ?: cause?.javaClass?.simpleName ?: "error desconocido",
             )
-            onError("El módulo local ${failure.stageName} no pudo iniciar. EDDY usará escucha compatible mientras se repara.")
+            onError("El módulo local ${failure.stageName} no pudo iniciar. Voy a intentar reparar ese módulo.")
             false
         } catch (error: Throwable) {
             releaseModels()
             lastInitializationFailure = InitializationFailure("núcleo", null, error.message ?: error.javaClass.simpleName)
-            onError("No pude iniciar el núcleo PRO de voz. EDDY usará escucha compatible.")
+            onError("No pude iniciar el núcleo PRO de voz. Voy a intentar recuperarlo.")
             false
         }
     }
@@ -313,6 +326,7 @@ class EddyLocalVoiceEngine(
         releaseAudioEffects()
         runCatching { recorder?.release() }
         recorder = null
+        lastInitializationFailure = InitializationFailure("micrófono", null, it.message ?: it.javaClass.simpleName)
         onError("No pude abrir el micrófono local de EDDY.")
         false
     }
@@ -336,6 +350,8 @@ class EddyLocalVoiceEngine(
     private fun audioLoop() {
         val buffer = ShortArray(512)
         var failedReads = 0
+        var nextCaptureCheck = 0L
+        val audioManager = context.getSystemService(AudioManager::class.java)
         try {
             while (running.get() && !Thread.currentThread().isInterrupted) {
                 val count = recorder?.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING) ?: -1
@@ -346,25 +362,30 @@ class EddyLocalVoiceEngine(
                     continue
                 }
                 failedReads = 0
+                val now = SystemClock.elapsedRealtime()
+                if (now >= nextCaptureCheck) {
+                    nextCaptureCheck = now + 1_000L
+                    // Android can keep delivering zeroes when another app/privacy silences us.
+                    // Do not mistake that for a healthy listener or repeatedly reopen the mic.
+                    val silenced = recorder?.activeRecordingConfiguration?.isClientSilenced == true || audioManager?.isMicrophoneMute == true
+                    if (silenced != isMicrophoneSilenced) {
+                        isMicrophoneSilenced = silenced
+                        commandWindow.close()
+                        vad?.reset()
+                        resetKeywordStream()
+                        preRoll.clear()
+                        onMicrophoneSilenced(silenced)
+                    }
+                }
+                if (isMicrophoneSilenced) continue
                 if (resetRequested) {
                     resetRequested = false
                     vad?.reset()
                     resetKeywordStream()
                     preRoll.clear()
-                    activeUntil = if (resumeAfterSpeech) SystemClock.elapsedRealtime() + FIRST_COMMAND_MS else 0L
+                    if (resumeAfterSpeech) commandWindow.continueAfterPrompt(SystemClock.elapsedRealtime()) else commandWindow.close()
                     commandSpeechNotified = false
                     commandSpeechFrames = 0
-                }
-                if (!speaking && !assistantBusy && activationRequested.getAndSet(false)) {
-                    vad?.reset()
-                    resetKeywordStream()
-                    preRoll.clear()
-                    activeUntil = SystemClock.elapsedRealtime() + FIRST_COMMAND_MS
-                    wakeAcknowledged = true
-                    emptyRecognitionRetries = 0
-                    commandSpeechNotified = false
-                    commandSpeechFrames = 0
-                    setState(State.ACTIVE)
                 }
                 // Keep AudioRecord open and drain it while speaking/thinking to avoid stale audio/echo.
                 if (speaking || assistantBusy || SystemClock.elapsedRealtime() < suppressUntil) continue
@@ -408,7 +429,7 @@ class EddyLocalVoiceEngine(
         commandSpeechFrames = 0
         spotter.reset(stream)
         vad?.reset()
-        activeUntil = now + FIRST_COMMAND_MS
+        commandWindow.onWake(now)
         // Preserve the syllables immediately following EDDY while the spotter finalizes.
         vad?.acceptWaveform(preRoll.snapshot())
         preRoll.clear()
@@ -418,7 +439,7 @@ class EddyLocalVoiceEngine(
 
     private fun processActive(samples: FloatArray) {
         if (!isActive()) {
-            activeUntil = 0L
+            commandWindow.close()
             vad?.reset()
             resetKeywordStream()
             setState(State.PASSIVE)
@@ -444,7 +465,7 @@ class EddyLocalVoiceEngine(
             }
             if (text.isNotBlank()) {
                 learnOwnerSoftly(speech)
-                activeUntil = 0L
+                commandWindow.close()
                 assistantBusy = true // Before dispatch: never submit two overlapping commands.
                 localVad.reset()
                 onCommand(text)
@@ -454,7 +475,7 @@ class EddyLocalVoiceEngine(
                 val retry = emptyRecognitionRetries++ == 0
                 speaking = true
                 localVad.reset()
-                onAwaitingCommand(if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Llamame de nuevo o tocá Hablar.", retry)
+                onAwaitingCommand(if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Volvé a decir EDDY.", retry)
                 return
             }
             if (!wakeAcknowledged) {
@@ -490,7 +511,7 @@ class EddyLocalVoiceEngine(
     }
 
     private fun transcribe(samples: FloatArray): String {
-        // A native decoding failure must reach the service fallback, not become silent text.
+        // A native decoding failure must reach the service recovery, not become silent text.
         val asr = checkNotNull(recognizer) { "El reconocimiento español no está disponible." }
         val stream = asr.createStream()
         return try {
@@ -526,7 +547,7 @@ class EddyLocalVoiceEngine(
         .replace(Regex("\\s+([,.;:!?])"), "$1")
         .trim()
 
-    private fun isActive(): Boolean = activeUntil > SystemClock.elapsedRealtime()
+    private fun isActive(): Boolean = commandWindow.isOpen(SystemClock.elapsedRealtime())
 
     private fun setState(value: State) {
         if (state == value) return

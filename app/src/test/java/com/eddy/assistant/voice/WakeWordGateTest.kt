@@ -7,7 +7,7 @@ import org.junit.Test
 
 class WakeWordGateTest {
     @Test
-    fun manualActivationAuthorizesExactlyOneCommand() {
+    fun armedContinuationAuthorizesExactlyOneCommand() {
         val gate = WakeWordGate()
         gate.arm(nowMs = 1_000L, durationMs = 30_000L)
         assertEquals(WakeResult.Command("qué hora es"), gate.consume("qué hora es", 2_000L))

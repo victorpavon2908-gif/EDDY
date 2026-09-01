@@ -50,16 +50,19 @@ Véase [configuración y validación de GroqCloud](docs/GROQ_CLOUD.md).
 - AudioRecord permanece abierto; se descarta el audio durante respuestas y no se
   envía audio ambiental a GroqCloud. Una reserva breve conserva el inicio de la orden.
 - Una orden a la vez, regreso a modo pasivo y liberación de recursos en su hilo.
-- El reconocedor compatible espera el resultado final, sin cancelaciones cada
-  14 segundos ni al cambiar la pantalla. Recupera sesiones realmente atascadas.
+- Activación exclusivamente por «EDDY», sin botones Hablar/Pausar en la pantalla principal.
+  El interruptor queda en Ajustes; detener la notificación persiste al reabrir la app.
+- No se usa SpeechRecognizer por sesiones para la escucha permanente. Preparación,
+  disponibilidad y errores del micrófono tienen estados separados. La recuperación
+  espera el cierre del capturador anterior y usa reintentos espaciados.
 - GroqCloud tiene 18 segundos de presupuesto total y hasta tres intentos. Claves
   inválidas, cuota agotada y respuestas bloqueadas no generan reintentos en cadena.
 - La voz neuronal espera a que suenen las últimas palabras antes de cerrar audio.
 - No se reutilizan respuestas antiguas como si fueran información actual.
 
-La escucha continua corresponde al núcleo local. El reconocedor compatible de
-Android puede cerrar sesiones por su cuenta. Llamadas, otras apps, ahorro de batería
- y el interruptor de privacidad pueden interrumpir el micrófono. Falta validar
+La escucha continua requiere el núcleo local instalado; hasta que esté listo se
+muestra la preparación o el error correspondiente. Llamadas, otras apps, ahorro de
+batería y el interruptor de privacidad pueden interrumpir el micrófono. Falta validar
 el comportamiento de audio en un teléfono real; no se garantiza reconocimiento perfecto.
 
 ## Compilar

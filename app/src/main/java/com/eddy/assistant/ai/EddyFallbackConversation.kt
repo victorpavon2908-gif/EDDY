@@ -24,7 +24,7 @@ class EddyFallbackConversation {
                 "Siento que estés pasando por eso. ¿Querés contarme qué pasó?"
 
             text.contains("no me escuchas") || text.contains("no funciona") ->
-                "Entiendo la frustración. Tocá Hablar y probemos con qué hora es; la frase que escuche aparecerá en pantalla."
+                "Entiendo la frustración. Decí EDDY y después qué hora es; la frase que escuche aparecerá en pantalla."
 
             text.contains("gracias") ->
                 "De una. Aquí estoy para lo que ocupés."

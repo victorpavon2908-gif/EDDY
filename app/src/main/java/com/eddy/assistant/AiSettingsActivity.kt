@@ -1,8 +1,13 @@
 package com.eddy.assistant
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.imePadding
@@ -23,6 +28,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.eddy.assistant.ai.EddyPersonality
+import com.eddy.assistant.background.EddyAssistantService
+import com.eddy.assistant.background.EddyRuntimeState
+import com.eddy.assistant.background.EddyVoiceSettings
 import com.eddy.assistant.localai.EddyModelManager
 import com.eddy.assistant.localai.EddyModelCatalog
 import com.eddy.assistant.localai.EddyModelSpec
@@ -41,18 +50,51 @@ import com.eddy.assistant.ai.EddyAiSettings
 import com.eddy.assistant.ai.EddyGroqClient
 import com.eddy.assistant.ui.theme.EddyTheme
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class AiSettingsActivity : ComponentActivity() {
+    private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startVoiceListener() else {
+            EddyVoiceSettings.setEnabled(this, false)
+            EddyRuntimeState.setInput(this, EddyRuntimeState.InputState.ERROR, "Falta el permiso de micrófono para escuchar EDDY.")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { EddyTheme { GroqSettingsScreen(onClose = { finish() }) } }
+        setContent { EddyTheme { GroqSettingsScreen(onClose = { finish() }, onVoiceEnabled = ::setVoiceEnabled) } }
+    }
+
+    private fun setVoiceEnabled(enabled: Boolean) {
+        EddyVoiceSettings.setEnabled(this, enabled)
+        if (!enabled) stopService(Intent(this, EddyAssistantService::class.java))
+        else if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+        } else startVoiceListener()
+    }
+
+    private fun startVoiceListener() {
+        runCatching { ContextCompat.startForegroundService(this, Intent(this, EddyAssistantService::class.java)) }
+            .onFailure {
+                EddyVoiceSettings.setEnabled(this, false)
+                EddyRuntimeState.setInput(this, EddyRuntimeState.InputState.ERROR, "No pude iniciar el micrófono. Volvé a abrir EDDY.")
+            }
     }
 }
 
 @Composable
-private fun GroqSettingsScreen(onClose: () -> Unit) {
+private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
+    var voiceEnabled by remember { mutableStateOf(EddyVoiceSettings.enabled(context)) }
+    var voiceStatus by remember { mutableStateOf(EddyRuntimeState.read(context).inputStatus) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            voiceEnabled = EddyVoiceSettings.enabled(context)
+            voiceStatus = EddyRuntimeState.read(context).inputStatus
+            delay(500L)
+        }
+    }
     var apiKey by remember { mutableStateOf(EddyAiSettings.apiKey(context)) }
     var model by remember { mutableStateOf(EddyAiSettings.model(context)) }
     var status by remember { mutableStateOf("Pegá aquí tu API key de GroqCloud. Se guarda solo en este teléfono.") }
@@ -85,6 +127,13 @@ private fun GroqSettingsScreen(onClose: () -> Unit) {
             modifier = Modifier.systemBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            Text("ACTIVACIÓN POR VOZ", style = MaterialTheme.typography.headlineSmall)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Escuchar la palabra EDDY", modifier = Modifier.weight(1f))
+                Switch(checked = voiceEnabled, onCheckedChange = { voiceEnabled = it; onVoiceEnabled(it) })
+            }
+            Text("Decí EDDY para empezar cada petición. La detección es local y funciona sin Internet una vez preparados los modelos. El micrófono permanece abierto mientras esta opción está activa.", style = MaterialTheme.typography.bodySmall)
+            Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
             Text("EDDY · PERSONALIDAD Y APRENDIZAJE", style = MaterialTheme.typography.headlineSmall)
             Text("Elegí cómo te responde. Los cambios se guardan al instante.")
             EddyPersonality.entries.forEach { option ->

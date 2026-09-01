@@ -13,9 +13,12 @@ object EddyRuntimeState {
     private const val KEY_RUNNING = "running"
     private const val KEY_VOICE_READY = "voice_ready"
     private const val KEY_INPUT_STATUS = "input_status"
+    private const val KEY_INPUT_STATE = "input_state"
     private const val KEY_SEARCHING = "searching"
     private const val KEY_WEB_USED = "web_used"
     private const val KEY_WEB_SOURCES = "web_sources"
+
+    enum class InputState { STOPPED, PREPARING, READY, ERROR }
 
     enum class State {
         IDLE,
@@ -30,6 +33,7 @@ object EddyRuntimeState {
         val responseText: String = "Di EDDY para activarme.",
         val running: Boolean = false,
         val voiceReady: Boolean = false,
+        val inputState: InputState = InputState.STOPPED,
         val inputStatus: String = "Micrófono sin iniciar",
         val webSearching: Boolean = false,
         val webUsed: Boolean = false,
@@ -50,11 +54,25 @@ object EddyRuntimeState {
                 .ifBlank { "Di EDDY para activarme." },
             running = prefs.getBoolean(KEY_RUNNING, false),
             voiceReady = prefs.getBoolean(KEY_VOICE_READY, false),
+            inputState = runCatching {
+                InputState.valueOf(prefs.getString(KEY_INPUT_STATE, InputState.STOPPED.name).orEmpty())
+            }.getOrDefault(InputState.STOPPED),
             inputStatus = prefs.getString(KEY_INPUT_STATUS, "Micrófono sin iniciar").orEmpty(),
             webSearching = prefs.getBoolean(KEY_SEARCHING, false),
             webUsed = prefs.getBoolean(KEY_WEB_USED, false),
             webSources = decodeSources(prefs.getString(KEY_WEB_SOURCES, "[]").orEmpty()),
         )
+    }
+
+    fun setInput(context: Context, state: InputState, status: String) {
+        edit(context) {
+            putString(KEY_INPUT_STATE, state.name)
+            putString(KEY_INPUT_STATUS, status)
+            if (state != InputState.READY) {
+                putString(KEY_STATE, State.IDLE.name)
+                putString(KEY_HEARD, "")
+            }
+        }
     }
 
     fun setInputStatus(context: Context, value: String) {
@@ -108,6 +126,7 @@ object EddyRuntimeState {
             putString(KEY_HEARD, "")
             putString(KEY_RESPONSE, "Di EDDY para activarme.")
             putString(KEY_INPUT_STATUS, "Micrófono en pausa")
+            putString(KEY_INPUT_STATE, InputState.STOPPED.name)
             putBoolean(KEY_SEARCHING, false)
             putBoolean(KEY_RUNNING, false)
             putBoolean(KEY_VOICE_READY, false)
