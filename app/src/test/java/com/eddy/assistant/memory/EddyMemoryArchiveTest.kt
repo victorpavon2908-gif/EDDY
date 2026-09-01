@@ -4,6 +4,8 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -14,6 +16,16 @@ import org.robolectric.annotation.Config
 @Config(sdk = [29], manifest = Config.NONE)
 class EddyMemoryArchiveTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
+
+    @Before fun isolateDatabase() {
+        // Robolectric can reuse this application's singleton across test methods.
+        // Each scenario needs a fresh archive, including its migration marker.
+        val db = EddyMemoryArchive.get(context).writableDatabase
+        listOf("turns", "notes", "lessons", "legacy_backup", "metadata").forEach { db.delete(it, null, null) }
+        context.getSharedPreferences("eddy_memory", Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    @After fun closeDatabase() { EddyMemoryArchive.get(context).close() }
 
     @Test fun migratesExistingDataOnceAndPersistsAcrossDatabaseReopen() {
         val turn = JSONObject().put("role", "user").put("text", "Antes de la migración").put("timestamp", 1L)

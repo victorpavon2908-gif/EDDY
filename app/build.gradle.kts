@@ -50,6 +50,11 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     androidResources { noCompress += listOf("bundle") }
     buildFeatures { compose = true; buildConfig = true }
+    testOptions {
+        unitTests.all {
+            it.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        }
+    }
     packaging {
         // Compress native .so files inside the APK. Android extracts them when needed;
         // inference precision and model quality are unchanged.
