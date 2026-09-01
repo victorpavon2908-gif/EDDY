@@ -22,6 +22,11 @@ class LocalBrain {
         val original = cleanConversationalInput(input.trim())
         val text = normalize(original)
 
+        // Negated orders and questions about an action must never execute that action.
+        if (Regex("^(?:no|nunca|jamas|tampoco|como|por que|explica|explicame|explicame)\\b").containsMatchIn(text)) {
+            return AssistantCommand.Unknown(original)
+        }
+
         if (containsAny(text, "olvida todo", "borra tu memoria", "borra lo que sabes de mi")) return AssistantCommand.ClearMemory
         if (containsAny(text, "que sabes de mi", "que has aprendido de mi", "que recuerdas de mi", "que hago mas", "que uso mas")) return AssistantCommand.MemorySummary
         if (text.contains("que hora") || text.contains("hora es")) return AssistantCommand.TellTime
@@ -50,7 +55,7 @@ class LocalBrain {
         if (text.contains("camara") && containsAny(text, "abre", "abri", "abrir", "abrime", "abreme", "inicia", "enciende", "encende")) return AssistantCommand.OpenCamera
 
         parseOpenApp(original, text)?.let { return it }
-        if (text == "eddy" || text == "edi" || containsAny(text, "hola", "como estas", "oye eddy", "buenos dias", "buenas tardes", "buenas noches")) return AssistantCommand.Greeting
+        if (Regex("^(?:eddy|edi|hola|como estas|oye eddy|buenos dias|buenas tardes|buenas noches)[.!?]*$").matches(text)) return AssistantCommand.Greeting
         return AssistantCommand.Unknown(original)
     }
 
@@ -267,7 +272,7 @@ class LocalBrain {
 
     companion object {
         private val PHONE_REGEX = Regex("""\+?\d[\d\s-]{6,}\d""")
-        private val FILLER_PREFIX = Regex("""(?i)^(?:este+|eh+|em+|mmm+|mira|fijate|bueno|a ver)\s*[,.:;!-]*\s*""")
+        private val FILLER_PREFIX = Regex("""(?i)^(?:este+|eh+|em+|mmm+|mira|fijate|bueno|a ver)\b\s*[,.:;!-]*\s*""")
         private val CONVERSATIONAL_PREFIX = Regex("""(?i)^(?:(?:eddy|eddi|eddie|edy|edi)\s*[,.:;!¿?¡-]*\s*)?(?:(?:por\s+favor|porfa|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hac[eé]s\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey|mira|mir[aá])\s+)+""")
     }
 }
