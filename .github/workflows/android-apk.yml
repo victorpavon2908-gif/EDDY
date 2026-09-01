@@ -1,0 +1,76 @@
+name: NIKO requested APK
+
+# APK delivery is explicit: Run workflow, or create this release request branch.
+# Ordinary commits and pull requests continue to run tests/lint only.
+on:
+  workflow_dispatch:
+  create:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.ref_type == 'branch' && github.event.ref == 'apk-request/niko-0.7.0')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout requested revision
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Restore existing app signing key
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: eddy-debug-keystore-v1
+          fail-on-cache-miss: true
+
+      - name: Check update-compatible signing identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Public certificate fingerprint from the previous shipped build.
+          expected=01c70e705cf72310ce733e3439229d4c545e96ffee0b889c0a52a999156325a8
+          actual=$(keytool -exportcert -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey | sha256sum | cut -d' ' -f1)
+          test "$actual" = "$expected"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Bundle offline wake, VAD and Spanish speech recognition
+        run: python3 scripts/bundle_voice_models.py
+
+      - name: Build requested APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Verify and prepare delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
+          mkdir -p delivery
+          cp "$apk" delivery/Niko-0.7.0-arm64.apk
+          cd delivery
+          sha256sum Niko-0.7.0-arm64.apk > SHA256SUMS
+          git rev-parse HEAD > SOURCE_COMMIT
+
+      - name: Upload requested Niko APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Niko-0.7.0-arm64
+          path: delivery/
+          if-no-files-found: error
+          retention-days: 14
