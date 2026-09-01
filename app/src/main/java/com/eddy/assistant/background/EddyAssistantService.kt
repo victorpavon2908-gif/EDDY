@@ -97,6 +97,7 @@ class EddyAssistantService : Service() {
     private var localRecoveryAttempts = 0
     private var pendingListen = false
     private var isTranscribing = false
+    private var compatibilityCommandPending = false
     private var commandJob: Job? = null
     private var speechTimeout: Job? = null
     private var continueAfterSpeech = false
@@ -151,8 +152,12 @@ class EddyAssistantService : Service() {
             onPartialResult = { partial ->
                 if (!localVoiceActive && !localVoiceStarting) handlePartialWakeWord(partial)
             },
-            onResult = { raw -> if (!localVoiceActive && !localVoiceStarting) handleRecognition(raw) },
+            onResult = { raw ->
+                compatibilityCommandPending = false
+                if (!localVoiceActive && !localVoiceStarting) handleRecognition(raw)
+            },
             onError = { error ->
+                compatibilityCommandPending = false
                 if (!localVoiceActive && !localVoiceStarting && !destroyed) {
                     EddyRuntimeState.setInputStatus(applicationContext, error)
                     if (wakeGate.isArmed(SystemClock.elapsedRealtime())) {
@@ -262,7 +267,7 @@ class EddyAssistantService : Service() {
     }
 
     private suspend fun awaitIdleForVoiceSwitch() {
-        while (!destroyed && (isThinking || isSpeaking || isTranscribing || commandJob?.isActive == true || wakeGate.isArmed(SystemClock.elapsedRealtime()))) delay(250L)
+        while (!destroyed && (isThinking || isSpeaking || isTranscribing || compatibilityCommandPending || commandJob?.isActive == true || wakeGate.isArmed(SystemClock.elapsedRealtime()))) delay(250L)
     }
 
     private fun listenNow() {
@@ -292,7 +297,9 @@ class EddyAssistantService : Service() {
                     EddyLocalVoiceEngine.State.VERIFYING, EddyLocalVoiceEngine.State.PROCESSING -> { isTranscribing = true; isListening = false; updateVisualState() }
                     EddyLocalVoiceEngine.State.ACTIVE -> { isTranscribing = false; isListening = !isThinking && !isSpeaking; updateVisualState() }
                     EddyLocalVoiceEngine.State.SPEAKING -> { isListening = false; updateVisualState() }
-                    EddyLocalVoiceEngine.State.STOPPED -> Unit
+                    EddyLocalVoiceEngine.State.STOPPED -> {
+                        if (localVoiceActive) fallbackToCompatibilityRecognizer("El motor local se detuvo. Recuperando escucha.")
+                    }
                 }
             }},
             onWake = { _, _ -> serviceScope.launch {
@@ -382,6 +389,7 @@ class EddyAssistantService : Service() {
 
     private fun handlePartialWakeWord(partial: String) {
         if (destroyed || isThinking || isSpeaking || !wakeGate.hasWakeWord(partial)) return
+        compatibilityCommandPending = true
         val now = SystemClock.elapsedRealtime()
         if (now - lastPartialWakeAt < PARTIAL_WAKE_DEBOUNCE_MS) return
         lastPartialWakeAt = now
@@ -398,7 +406,6 @@ class EddyAssistantService : Service() {
         when (val wakeResult = wakeGate.consume(raw, SystemClock.elapsedRealtime())) {
             WakeResult.Ignored -> {
                 isListening = false
-                EddyRuntimeState.setHeard(applicationContext, "")
                 updateVisualState()
                 compatibilityRecognizer.resume()
             }
@@ -604,6 +611,7 @@ class EddyAssistantService : Service() {
                 speechTimeout?.cancel()
                 speechTimeout = null
                 if (continueAfterSpeech) {
+                    isListening = true
                     wakeGate.arm(SystemClock.elapsedRealtime())
                     if (!localVoiceActive) compatibilityRecognizer.resume()
                 } else if (!isThinking) finishTurn()

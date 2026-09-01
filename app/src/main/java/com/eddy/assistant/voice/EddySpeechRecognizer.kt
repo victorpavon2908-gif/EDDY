@@ -135,7 +135,7 @@ class EddySpeechRecognizer(
                     if (!current()) return
                     endSession()
                     errors = 0
-                    bestText(results)?.let(onResult)
+                    onResult(bestText(results).orEmpty())
                     schedule(250L)
                 }
                 override fun onPartialResults(partialResults: Bundle?) {
@@ -161,7 +161,8 @@ class EddySpeechRecognizer(
                         if (onDevice) useSystemEngine = true
                         releaseRecognizer()
                     }
-                    if (!quiet) onError("El reconocimiento compatible no respondió. Recuperando escucha.")
+                    if (quiet) onResult("")
+                    else onError("El reconocimiento compatible no respondió. Recuperando escucha.")
                     schedule(if (quiet) 350L else backoff())
                 }
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
