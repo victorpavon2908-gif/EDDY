@@ -457,7 +457,6 @@ class EddyAssistantService : Service() {
     private suspend fun handleCommand(text: String) {
         memory.rememberUserTurn(text)
         memory.learnExplicitly(text)?.let { speakResponse(it); return }
-        memory.personalReply(text)?.let { speakResponse(it); return }
         EddyMathEngine.solve(text)?.let { speakResponse("El resultado es $it."); return }
         val commands = brain.understandMany(text)
         if (commands.size > 1) {
@@ -483,6 +482,8 @@ class EddyAssistantService : Service() {
         memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
         if (command is AssistantCommand.SearchWeb) { researchAndSpeak(command.query, true); return }
         if (command is AssistantCommand.Unknown) {
+            // Learned answers must never shadow real commands such as clearing memory.
+            memory.personalReply(text)?.let { speakResponse(it); return }
             if (WebQueryRouter.needsCurrentInformation(command.originalText)) { researchAndSpeak(text, true); return }
             val remote = if (webClient.isConfigured) webClient.reply(command.originalText, memory.contextForAi(false), false, memory.historyForAi(text)) else null
             if (remote != null) {

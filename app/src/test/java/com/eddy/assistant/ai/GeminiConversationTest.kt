@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GeminiConversationTest {
+    @Test fun tunesVoiceLatencyOnlyForSupportedModelsWithoutMutatingFallbackPayload() {
+        val base = GeminiConversation.payload("Hola", "", emptyList(), true)
+        val fast = GeminiConversation.forModel(base, "models/gemini-3.7-flash")
+        assertEquals("low", fast.getJSONObject("generationConfig").getJSONObject("thinkingConfig").getString("thinkingLevel"))
+        assertTrue(fast.has("tools"))
+        assertFalse(base.getJSONObject("generationConfig").has("thinkingConfig"))
+        assertFalse(GeminiConversation.forModel(base, "gemini-2.5-flash").getJSONObject("generationConfig").has("thinkingConfig"))
+    }
+
     @Test fun sendsRealHistoryRolesWithoutDuplicatingCurrentQuestion() {
         val history = listOf(ConversationTurn("user", "Me llamo Manuel"), ConversationTurn("assistant", "Hola Manuel"), ConversationTurn("user", "Qué recordás"))
         val payload = GeminiConversation.payload("Qué recordás", "te gusta el café", history, false)

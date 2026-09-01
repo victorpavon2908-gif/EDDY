@@ -18,8 +18,20 @@ object GeminiConversation {
         return JSONObject()
             .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
             .put("contents", contents)
-            .put("generationConfig", JSONObject().put("maxOutputTokens", 1_536))
+            .put("generationConfig", JSONObject().put("maxOutputTokens", 2_048))
             .also { if (useWeb) it.put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject()))) }
+    }
+
+    fun forModel(payload: JSONObject, model: String): JSONObject {
+        val request = JSONObject(payload.toString())
+        // These stable models support low effort for interactive voice latency. Keep
+        // other models' schemas untouched when discovery selects a fallback.
+        if (GeminiProtocol.normalizeModel(model) in setOf("gemini-3.7-flash", "gemini-3.6-flash")) {
+            val config = request.optJSONObject("generationConfig") ?: JSONObject()
+            config.put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
+            request.put("generationConfig", config)
+        }
+        return request
     }
 
     private fun content(role: String, text: String) = JSONObject().put("role", role)

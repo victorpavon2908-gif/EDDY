@@ -8,6 +8,7 @@
 - «Búscame en internet…», «consultá…», «podés buscar…» y preguntas de actualidad solicitan Google Search en Gemini. Solo se muestran fuentes verificadas por la respuesta de la API; una solicitud sin fuentes se reconoce como no verificada.
 - Sin clave de Gemini, una búsqueda abre el navegador y explica que hace falta configurar Gemini para leer una respuesta con fuentes. Los errores de clave, cuota, conexión y tiempo de espera son visibles.
 - Gemini recibe el diálogo como turnos `user`/`model`, separados de las notas y del tono acústico. La pregunta actual no se duplica. Se conservan las preferencias aunque el historial crezca.
+- Gemini 3.7/3.6 Flash usan esfuerzo de razonamiento `low` para conversación por voz, según su API documentada. Otros modelos descubiertos conservan su configuración compatible. Las respuestas personales aprendidas no reemplazan órdenes reales como borrar memoria.
 - El análisis acústico existente sigue siendo una estimación del tono, no un diagnóstico emocional. Las palabras explícitas del usuario tienen prioridad.
 
 ## Enseñarle sin conexión

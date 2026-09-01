@@ -67,7 +67,7 @@ class EddyGeminiClient(context: Context) {
             var discovered = false
             while (models.isNotEmpty() && attempts < 3) {
                 val model = models.first(); models.remove(model); attempts++
-                val response = request("models/$model:generateContent", key, payload)
+                val response = request("models/$model:generateContent", key, GeminiConversation.forModel(payload, model))
                 if (response.code in 200..299) {
                     val answer = runCatching { GeminiProtocol.answer(JSONObject(response.body)) }.getOrNull()
                     if (answer != null) {
