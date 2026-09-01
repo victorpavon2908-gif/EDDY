@@ -3,6 +3,10 @@ package com.eddy.assistant.localai
 import android.content.Context
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -16,6 +20,8 @@ class EddyLocalLlm(
     private val models: EddyModelManager,
 ) {
     private val mutex = Mutex()
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @Volatile private var closed = false
     @Volatile private var inference: LlmInference? = null
 
     val isAvailable: Boolean
@@ -26,8 +32,9 @@ class EddyLocalLlm(
         memoryContext: String = "",
         evidence: String = "",
     ): String? = withContext(Dispatchers.Default) {
-        if (!isAvailable) return@withContext null
+        if (closed || !isAvailable) return@withContext null
         mutex.withLock {
+            if (closed) return@withLock null
             val engine = inference ?: createEngine() ?: return@withLock null
             val prompt = buildPrompt(message, memoryContext, evidence)
             runCatching { engine.generateResponse(prompt).trim() }
@@ -37,8 +44,11 @@ class EddyLocalLlm(
     }
 
     fun release() {
-        runCatching { inference?.close() }
-        inference = null
+        closed = true
+        cleanupScope.launch {
+            mutex.withLock { runCatching { inference?.close() }; inference = null }
+            cleanupScope.cancel()
+        }
     }
 
     private fun createEngine(): LlmInference? {

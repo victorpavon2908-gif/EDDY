@@ -52,6 +52,7 @@ class EddyLocalVoiceEngine(
     private val onState: (State) -> Unit = {},
     private val onWake: (ownerConfidence: Float, enrolled: Boolean) -> Unit,
     private val onCommandSpeechStarted: () -> Unit = {},
+    private val onAwaitingCommand: () -> Unit = {},
     private val onCommand: (String) -> Unit,
     private val onUnauthorizedVoice: () -> Unit = {},
     private val onError: (String) -> Unit = {},
@@ -85,6 +86,7 @@ class EddyLocalVoiceEngine(
     @Volatile private var activeUntil = 0L
     @Volatile private var state = State.STOPPED
     @Volatile private var lastWakeAt = 0L
+    private var wakeAcknowledged = false
     @Volatile private var commandSpeechNotified = false
     @Volatile private var commandSpeechFrames = 0
 
@@ -382,6 +384,7 @@ class EddyLocalVoiceEngine(
             return
         }
         lastWakeAt = now
+        wakeAcknowledged = false
         commandSpeechNotified = false
         commandSpeechFrames = 0
         spotter.reset(stream)
@@ -426,6 +429,15 @@ class EddyLocalVoiceEngine(
                 assistantBusy = true // Before dispatch: never submit two overlapping commands.
                 localVad.reset()
                 onCommand(text)
+                return
+            }
+            if (!wakeAcknowledged) {
+                // Acknowledge only after the completed utterance contained no command.
+                // A timer here would speak over a command still being transcribed.
+                wakeAcknowledged = true
+                speaking = true
+                localVad.reset()
+                onAwaitingCommand()
                 return
             }
             if (!speaking) setState(State.ACTIVE)

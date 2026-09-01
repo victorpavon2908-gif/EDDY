@@ -26,7 +26,8 @@ class EddyTextToSpeech(
     private val mainHandler = Handler(Looper.getMainLooper())
     private val tts = TextToSpeech(context.applicationContext, this)
     private var ready = false
-    private var currentUtterance: String? = null
+    @Volatile private var currentUtterance: String? = null
+    @Volatile private var currentPrefix: String? = null
 
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
@@ -39,7 +40,7 @@ class EddyTextToSpeech(
                 override fun onStart(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(true) }
                 override fun onDone(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(false) }
                 @Deprecated("Deprecated in Android API")
-                override fun onError(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(false) }
+                override fun onError(utteranceId: String) { if (currentPrefix?.let { utteranceId.startsWith(it) } == true) notifySpeaking(false) }
                 override fun onStop(utteranceId: String, interrupted: Boolean) { if (utteranceId == currentUtterance) notifySpeaking(false) }
             })
         }
@@ -139,6 +140,7 @@ class EddyTextToSpeech(
         if (spoken.isBlank()) return false
         val chunks = spoken.chunked(TextToSpeech.getMaxSpeechInputLength() - 1)
         val id = "eddy_reply_${System.nanoTime()}"
+        currentPrefix = id
         currentUtterance = "${id}_${chunks.lastIndex}"
         for ((index, chunk) in chunks.withIndex()) {
             val result = tts.speak(chunk, if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "${id}_$index")
@@ -147,6 +149,6 @@ class EddyTextToSpeech(
         return true
     }
 
-    fun stop() { currentUtterance = null; tts.stop(); notifySpeaking(false) }
-    fun shutdown() { ready = false; currentUtterance = null; tts.stop(); tts.shutdown(); notifySpeaking(false) }
+    fun stop() { currentPrefix = null; currentUtterance = null; tts.stop(); notifySpeaking(false) }
+    fun shutdown() { ready = false; currentPrefix = null; currentUtterance = null; tts.stop(); tts.shutdown(); notifySpeaking(false) }
 }
