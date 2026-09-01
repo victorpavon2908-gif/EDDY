@@ -23,7 +23,7 @@ class LocalBrain {
         val text = normalize(original)
 
         // Negated orders and questions about an action must never execute that action.
-        if (Regex("^(?:no|nunca|jamas|tampoco|como|por que|explica|explicame|explicame)\\b").containsMatchIn(text)) {
+        if (Regex("^(?:no|nunca|jamas|tampoco|por que|explica|explicame|como (?:puedo|hago|funciona|se|abrir|borrar|apagar|prender|enviar|llamar|poner))\\b").containsMatchIn(text)) {
             return AssistantCommand.Unknown(original)
         }
 

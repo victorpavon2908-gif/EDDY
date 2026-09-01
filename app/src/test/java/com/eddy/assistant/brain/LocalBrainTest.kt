@@ -8,6 +8,12 @@ class LocalBrainTest {
     private val brain = LocalBrain()
 
     @Test
+    fun navigationQuestionsStillOpenMaps() {
+        assertEquals(AssistantCommand.OpenMaps("masatepe"), brain.understand("cómo llego a Masatepe"))
+        assertEquals(AssistantCommand.Greeting, brain.understand("cómo estás"))
+    }
+
+    @Test
     fun negatedOrdersAndExplanationsNeverExecute() {
         listOf("no abras YouTube", "no quiero que enciendas la linterna", "cómo puedo abrir WhatsApp", "explicame como borrar tu memoria").forEach {
             assertTrue(it, brain.understand(it) is AssistantCommand.Unknown)
