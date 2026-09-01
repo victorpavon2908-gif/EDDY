@@ -1,12 +1,18 @@
 # EDDY 0.6.0
 
+## Flujo de trabajo
+
+Las entregas se realizan mediante commits en GitHub. La integración continua
+comprueba pruebas y Lint, sin generar ni publicar APK automáticamente.
+La compilación manual indicada abajo se usa únicamente cuando se solicita.
+
 Asistente Android por voz, con activación local «EDDY», comandos del teléfono,
 memoria local y conversación directa con Gemini. ARM64, incluido Honor X6c.
 No requiere un servidor propio para conversar.
 
 ## Instalar y usar
 
-1. Instalá el APK `EDDY-v0.6.0-offline-debug` generado por GitHub Actions.
+1. Cuando solicités una compilación, instalá el APK que se genere para esa versión.
 2. Abrí EDDY y concedé el permiso de micrófono. La primera apertura copia el núcleo
    de voz incluido en el APK, sin necesitar Internet.
 3. Esperá «Núcleo privado activo». Decí «EDDY, qué hora es» o «EDDY, encendé la linterna».
@@ -65,8 +71,8 @@ pytest -q backend
 APK: `app/build/outputs/apk/debug/app-debug.apk`. El script usa el catálogo Kotlin,
 valida tamaños y adjunta SHA-256 para comprobar la copia en el teléfono. Los modelos
 no se guardan en Git. El APK pesa más porque incluye la voz offline.
-GitHub Actions conserva la firma de depuración con su caché existente. Si se pierde
-esa caché, una firma distinta puede impedir actualizar un APK anterior. No desinstalés
+Las compilaciones manuales deben conservar la misma clave de firma. Una firma
+distinta puede impedir actualizar un APK anterior. No desinstalés
 sin respaldar los datos que necesités. `backend/` es legado y no interviene en Gemini.
 
 ## Prueba en Honor X6c

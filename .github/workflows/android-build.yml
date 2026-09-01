@@ -1,4 +1,4 @@
-name: EDDY v0.6.0 CI
+name: EDDY tests and lint
 
 on:
   push:
@@ -18,28 +18,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Restore stable EDDY debug keystore
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: eddy-debug-keystore-v1
-
-      - name: Ensure stable EDDY debug keystore
-        shell: bash
-        run: |
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkeypair -v \
-              -keystore ~/.android/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=EDDY Development,O=EDDY,C=NI"
-          fi
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -75,19 +53,3 @@ jobs:
 
       - name: Android lint
         run: ./gradlew :app:lintDebug --stacktrace
-
-      - name: Bundle offline voice core
-        run: python scripts/bundle_voice_models.py
-
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Verify APK signatures
-        run: ${ANDROID_HOME}/build-tools/36.0.0/apksigner verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload EDDY v0.6.0 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: EDDY-v0.6.0-offline-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
