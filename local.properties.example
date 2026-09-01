@@ -1,6 +1,6 @@
 # Copia este archivo como local.properties si Android Studio no lo genera automáticamente.
 # sdk.dir=C:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
 
-# URL pública del backend de EDDY, sin /chat al final.
+# URL pública del backend de NIKO, sin /chat al final.
 # Ejemplo Render:
-# eddy.ai.baseUrl=https://eddy-ai.onrender.com
+# niko.ai.baseUrl=https://eddy-ai.onrender.com

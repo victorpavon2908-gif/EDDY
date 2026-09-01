@@ -1,8 +1,8 @@
-# Aprendizaje local y autonomía de EDDY
+# Aprendizaje local y autonomía de NIKO
 
 ## Qué cambia
 
-EDDY prioriza por defecto la conversación local cuando el modelo está preparado. Conserva el reconocimiento por activación: hay que llamarlo o tocar Hablar para iniciar cada orden. Las nuevas funciones no conceden permisos, instalan la aplicación ni activan un micrófono desde GitHub.
+NIKO prioriza por defecto la conversación local cuando el modelo está preparado. Conserva el reconocimiento por activación: hay que llamarlo o tocar Hablar para iniciar cada orden. Las nuevas funciones no conceden permisos, instalan la aplicación ni activan un micrófono desde GitHub.
 
 En Ajustes se puede elegir una personalidad cercana, directa o irónica; preparar el modelo de conversación y la voz española; y activar o desactivar la prioridad local, la verificación automática y el aprendizaje. La personalidad irónica cuestiona ideas con humor breve y propone una solución, sin humillar y con tono serio ante malestar o peligro. Es una instrucción para el generador, no consciencia ni libre albedrío.
 

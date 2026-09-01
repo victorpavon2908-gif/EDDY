@@ -1,11 +1,15 @@
 import ast
 import math
-import os
 import re
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
 from urllib.parse import parse_qs, unquote, urlparse
+
+try:
+    from .compat import env
+except ImportError:
+    from compat import env
 
 import requests
 from bs4 import BeautifulSoup
@@ -17,13 +21,13 @@ except ImportError:
     from ai_provider import configured as ai_configured, plan as ai_plan, answer_from_web
 
 app = Flask(__name__)
-SEARCH_TIMEOUT_SECONDS = float(os.getenv("EDDY_SEARCH_TIMEOUT", "4.5"))
-SEARCH_LIMIT = max(4, min(int(os.getenv("EDDY_SEARCH_LIMIT", "7")), 10))
+SEARCH_TIMEOUT_SECONDS = float(env("NIKO_SEARCH_TIMEOUT", "4.5"))
+SEARCH_LIMIT = max(4, min(int(env("NIKO_SEARCH_LIMIT", "7")), 10))
 DDG_HTML_URL = "https://html.duckduckgo.com/html/"
 WIKIPEDIA_API_URL = "https://es.wikipedia.org/w/api.php"
 _SESSION = requests.Session()
 _SESSION.headers.update({
-    "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 EDDY/0.5.1",
+    "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 NIKO/0.5.1",
     "Accept-Language": "es-NI,es;q=0.9,en;q=0.7",
 })
 
@@ -145,7 +149,7 @@ def _search_wikipedia(query):
 def _search_variants(query):
     base = _clean_text(query)
     stripped = re.sub(
-        r"\b(?:eddy|por favor|porfa|busca|buscame|investiga|averigua|dime|decime|quiero saber|en internet|en la web)\b",
+        r"\b(?:niko|por favor|porfa|busca|buscame|investiga|averigua|dime|decime|quiero saber|en internet|en la web)\b",
         " ",
         _ascii_text(base),
     )
@@ -203,7 +207,7 @@ def _normalize_math_expression(message):
     text = re.sub(r"\bal cubo\b", " **3 ", text)
     text = text.replace("^", "**")
     text = re.sub(
-        r"^(?:eddy\s*[,.:;-]?\s*)?(?:cuanto\s+es|cuanto\s+da|calcula(?:me)?|resuelve|resultado\s+de)\s+",
+        r"^(?:niko\s*[,.:;-]?\s*)?(?:cuanto\s+es|cuanto\s+da|calcula(?:me)?|resuelve|resultado\s+de)\s+",
         "",
         text,
     ).strip(" ¿?!.:;")
@@ -282,8 +286,8 @@ def _looks_like_research(message):
 def _status_payload():
     return {
         "status": "ok",
-        "service": "EDDY Backend",
-        "engine": "eddy-web+math",
+        "service": "NIKO Backend",
+        "engine": "niko-web+math",
         "provider": "configurable-api+fast-web",
         "mode": "automatic-research+calculator",
         "remote_model": ai_configured(),
@@ -394,4 +398,4 @@ def chat():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
+    app.run(host="0.0.0.0", port=int(env("PORT", "10000")))

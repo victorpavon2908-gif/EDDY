@@ -1,1 +1,1 @@
-# EDDY v0.1 - no custom ProGuard rules yet.
+# NIKO v0.1 - no custom ProGuard rules yet.

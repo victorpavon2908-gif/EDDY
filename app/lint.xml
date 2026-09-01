@@ -4,6 +4,6 @@
          Notification; this targeted suppression avoids a false-positive caused by
          mixing the framework constant with the compat annotation. -->
     <issue id="WrongConstant">
-        <ignore path="src/main/java/com/eddy/assistant/background/EddyAssistantService.kt" />
+        <ignore path="src/main/java/com/niko/assistant/background/NikoAssistantService.kt" />
     </issue>
 </lint>

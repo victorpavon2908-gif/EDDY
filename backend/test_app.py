@@ -1,14 +1,14 @@
 import backend.app as app_module
 
 
-def test_health_reports_eddy_web_math_engine():
+def test_health_reports_niko_web_math_engine():
     client = app_module.app.test_client()
     response = client.get("/health")
 
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["status"] == "ok"
-    assert payload["engine"] == "eddy-web+math"
+    assert payload["engine"] == "niko-web+math"
     assert payload["mode"] == "automatic-research+calculator"
     assert payload["remote_model"] is False
 

@@ -4,7 +4,7 @@ set -eu
 GRADLE_VERSION="8.13"
 GRADLE_DIST_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
 GRADLE_DIST_SHA256="20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78"
-GRADLE_HOME_BASE="${GRADLE_USER_HOME:-${HOME:-/tmp/.gradle}}/eddy-bootstrap"
+GRADLE_HOME_BASE="${GRADLE_USER_HOME:-${HOME:-/tmp/.gradle}}/niko-bootstrap"
 GRADLE_DIR="$GRADLE_HOME_BASE/gradle-${GRADLE_VERSION}"
 GRADLE_BIN="$GRADLE_DIR/bin/gradle"
 ZIP_FILE="$GRADLE_HOME_BASE/gradle-${GRADLE_VERSION}-bin.zip"

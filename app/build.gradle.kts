@@ -6,13 +6,16 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val eddyLocalProperties = Properties().apply {
+val nikoLocalProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
 fun configString(envName: String, propertyName: String, defaultValue: String = ""): String {
-    val raw = System.getenv(envName) ?: eddyLocalProperties.getProperty(propertyName) ?: defaultValue
+    // Accept configuration from previous installations/deployments during the rename.
+    val raw = System.getenv(envName) ?: nikoLocalProperties.getProperty(propertyName)
+        ?: System.getenv(envName.replaceFirst("NIKO_", "EDDY_"))
+        ?: nikoLocalProperties.getProperty(propertyName.replaceFirst("niko.", "eddy.")) ?: defaultValue
     val escaped = raw.replace("\\", "\\\\").replace("\"", "\\\"")
     return "\"$escaped\""
 }
@@ -20,18 +23,18 @@ fun configString(envName: String, propertyName: String, defaultValue: String = "
 val sherpaVersion = "1.13.6"
 
 android {
-    namespace = "com.eddy.assistant"
+    namespace = "com.niko.assistant"
     compileSdk = 36
     defaultConfig {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.6.0"
+        versionCode = 15
+        versionName = "0.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "EDDY_AI_BASE_URL", configString("EDDY_AI_BASE_URL", "eddy.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
+        buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
-        // EDDY is optimized for modern Android phones. Packaging only ARM64 removes
+        // NIKO is optimized for modern Android phones. Packaging only ARM64 removes
         // duplicate Sherpa/MediaPipe native binaries for x86/x86_64/32-bit ARM while
         // keeping the exact same recognition, TTS and local-AI model quality.
         ndk {
@@ -53,7 +56,7 @@ android {
     testOptions {
         unitTests.all {
             it.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
-            System.getenv("EDDY_NATIVE_LIB_DIR")?.let { nativeDirectory ->
+            System.getenv("NIKO_NATIVE_LIB_DIR")?.let { nativeDirectory ->
                 it.systemProperty("java.library.path", nativeDirectory)
             }
         }

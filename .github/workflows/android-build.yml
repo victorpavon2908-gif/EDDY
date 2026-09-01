@@ -1,4 +1,4 @@
-name: EDDY tests and lint
+name: NIKO tests and lint
 
 on:
   push:
@@ -51,11 +51,11 @@ jobs:
       - name: Cache native wake detector test dependencies
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/eddy-kws-native
-          key: ${{ runner.os }}-kws-native-${{ hashFiles('app/src/main/java/com/eddy/assistant/localai/EddyModelCatalog.kt') }}
+          path: ${{ runner.temp }}/niko-kws-native
+          key: ${{ runner.os }}-kws-native-${{ hashFiles('app/src/main/java/com/niko/assistant/localai/NikoModelCatalog.kt') }}
 
       - name: Prepare real wake detector test
-        run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/eddy-kws-native" --github-env "$GITHUB_ENV"
+        run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/niko-kws-native" --github-env "$GITHUB_ENV"
 
       - name: Android unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace

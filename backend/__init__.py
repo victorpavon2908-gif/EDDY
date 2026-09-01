@@ -1,1 +1,1 @@
-"""Backend package for EDDY."""
+"""Backend package for NIKO."""

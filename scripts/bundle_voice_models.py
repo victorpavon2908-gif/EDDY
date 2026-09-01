@@ -9,7 +9,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / 'app/src/main/java/com/eddy/assistant/localai/EddyModelCatalog.kt'
+CATALOG = ROOT / 'app/src/main/java/com/niko/assistant/localai/NikoModelCatalog.kt'
 OUTPUT = ROOT / 'app/src/main/assets/voice-core'
 
 
@@ -17,7 +17,7 @@ def main():
     source = CATALOG.read_text()
     OUTPUT.mkdir(parents=True, exist_ok=True)
     for name in ('keyword', 'vad', 'spanishAsr'):
-        block = re.search(r'val ' + name + r' = EddyModelSpec\((.*?)\n    \)', source, re.S).group(1)
+        block = re.search(r'val ' + name + r' = NikoModelSpec\((.*?)\n    \)', source, re.S).group(1)
         model_id = re.search(r'id = "([^"]+)"', block).group(1)
         url = re.search(r'url = "([^"]+)"', block).group(1)
         minimum = int(re.search(r'minBytes = ([\d_]+)L', block).group(1).replace('_', ''))

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="360dp"
+    android:viewportWidth="220" android:viewportHeight="250">
+    <!-- Niko: a rounded N with the existing mint accent. -->
+    <path android:pathData="M44,198 L44,52 L176,198 L176,52"
+        android:fillColor="@android:color/transparent" android:strokeColor="#090A0A"
+        android:strokeWidth="22" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M190,22a7,7 0,1 0,0 14a7,7 0,1 0,0 -14"
+        android:fillColor="#38E3B1" />
+</vector>

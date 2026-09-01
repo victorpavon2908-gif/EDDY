@@ -30,10 +30,10 @@ def wake(base_url: str, max_wait_seconds: int = 75) -> bool:
             response = requests.get(
                 health_url,
                 timeout=12,
-                headers={"User-Agent": "EDDY-Render-Wakeup/1.0"},
+                headers={"User-Agent": "NIKO-Render-Wakeup/1.0"},
             )
             if 200 <= response.status_code < 300:
-                print(f"EDDY backend listo en intento {attempt}: {health_url}")
+                print(f"NIKO backend listo en intento {attempt}: {health_url}")
                 return True
         except requests.RequestException:
             pass
@@ -43,7 +43,7 @@ def wake(base_url: str, max_wait_seconds: int = 75) -> bool:
             break
         time.sleep(min(3, remaining))
 
-    print(f"EDDY backend no respondió dentro de {max_wait_seconds}s: {health_url}")
+    print(f"NIKO backend no respondió dentro de {max_wait_seconds}s: {health_url}")
     return False
 
 

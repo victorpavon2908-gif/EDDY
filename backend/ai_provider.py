@@ -1,13 +1,17 @@
-"""Provider-agnostic AI brain for EDDY.
+"""Provider-agnostic AI brain for NIKO.
 
 Keys live only on the backend. The provider only needs an OpenAI-compatible
-/chat/completions endpoint, which keeps EDDY swappable between free providers.
+/chat/completions endpoint, which keeps NIKO swappable between free providers.
 """
 import json
-import os
+try:
+    from .compat import env
+except ImportError:
+    from compat import env
+
 import requests
 
-TIMEOUT = float(os.getenv("EDDY_AI_TIMEOUT", "20"))
+TIMEOUT = float(env("NIKO_AI_TIMEOUT", "20"))
 
 NICARAGUAN_VOICE_STYLE = """Tu identidad conversacional es nicaragüense, cercana y moderna.
 Hablá de vos de forma natural: usá voseo (vos, decime, podés, querés, ocupás, tenés, hacé) en lugar de tratar al usuario de usted.
@@ -18,14 +22,14 @@ Para información seria, técnica, médica, financiera o sensible mantené el to
 Evitá español peninsular innecesario y frases demasiado formales o robóticas. No inventés jerga ni capacidades.
 """
 
-PROGRAMMING_EXPERT_STYLE = """También sos el programador principal de EDDY. Tenés nivel experto en Kotlin/Android, Java, Python, JavaScript/TypeScript, HTML/CSS, SQL, APIs REST, Git, testing, arquitectura, concurrencia, seguridad, rendimiento y debugging.
+PROGRAMMING_EXPERT_STYLE = """También sos el programador principal de NIKO. Tenés nivel experto en Kotlin/Android, Java, Python, JavaScript/TypeScript, HTML/CSS, SQL, APIs REST, Git, testing, arquitectura, concurrencia, seguridad, rendimiento y debugging.
 Cuando te consulten código, diagnosticá primero la causa, después proponé la solución más pequeña y robusta, y entregá código completo cuando sea útil.
-Cuando EDDY no tenga una capacidad pedida, analizá si puede resolverse como skill declarativo/local o si requiere un cambio nativo del APK.
+Cuando NIKO no tenga una capacidad pedida, analizá si puede resolverse como skill declarativo/local o si requiere un cambio nativo del APK.
 Nunca afirmés que un cambio se instaló, se compiló o recibió permisos si eso no ocurrió realmente. Para cambios nativos, la ruta correcta es: propuesta -> código -> pruebas -> build firmado -> actualización -> rollback disponible.
 Los permisos de Android y la firma del APK no se pueden saltar desde una app normal. Podés diseñar Device Owner, AccessibilityService o un entorno de laboratorio/root cuando corresponda, pero no inventés privilegios inexistentes.
 """
 
-SYSTEM_PROMPT = f"""Sos el cerebro de EDDY, un asistente personal Android. Hablá español natural, breve y fluido.
+SYSTEM_PROMPT = f"""Sos el cerebro de NIKO, un asistente personal Android. Hablá español natural, breve y fluido.
 {NICARAGUAN_VOICE_STYLE}
 {PROGRAMMING_EXPERT_STYLE}
 Entendé muletillas, cortesía, referencias, correcciones y varias órdenes en una frase.
@@ -41,7 +45,7 @@ Acciones que envían comunicaciones, llaman, cambian algo sensible o son ambigua
 Para preguntas de información actual o cuando el usuario pida investigar/buscar en Internet, usá web_search con args.query.
 """
 
-RESEARCH_PROMPT = f"""Sos el modo de investigación web de EDDY. Respondé en español natural y directo usando SOLO la evidencia suministrada.
+RESEARCH_PROMPT = f"""Sos el modo de investigación web de NIKO. Respondé en español natural y directo usando SOLO la evidencia suministrada.
 {NICARAGUAN_VOICE_STYLE}
 {PROGRAMMING_EXPERT_STYLE}
 Contrastá varias fuentes cuando sea posible. Si las fuentes discrepan, decilo. No inventés datos ausentes.
@@ -51,14 +55,14 @@ La respuesta debe ser apta para voz: normalmente 2 a 6 frases, salvo que la cons
 
 
 def configured() -> bool:
-    return bool(os.getenv("EDDY_AI_API_KEY", "").strip() and os.getenv("EDDY_AI_MODEL", "").strip())
+    return bool(env("NIKO_AI_API_KEY", "").strip() and env("NIKO_AI_MODEL", "").strip())
 
 
 def _provider_config():
     return (
-        os.getenv("EDDY_AI_API_KEY", "").strip(),
-        os.getenv("EDDY_AI_MODEL", "").strip(),
-        os.getenv("EDDY_AI_API_BASE", "https://api.openai.com/v1").strip().rstrip("/"),
+        env("NIKO_AI_API_KEY", "").strip(),
+        env("NIKO_AI_MODEL", "").strip(),
+        env("NIKO_AI_API_BASE", "https://api.openai.com/v1").strip().rstrip("/"),
     )
 
 

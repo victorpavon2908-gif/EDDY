@@ -25,9 +25,9 @@ def main() -> None:
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--github-env", type=Path)
     args = parser.parse_args()
-    catalog = (ROOT / "app/src/main/java/com/eddy/assistant/localai/EddyModelCatalog.kt").read_text()
+    catalog = (ROOT / "app/src/main/java/com/niko/assistant/localai/NikoModelCatalog.kt").read_text()
     version = re.search(r'SHERPA_VERSION = "([^"]+)"', catalog).group(1)
-    keyword = re.search(r'val keyword = EddyModelSpec\((.*?)\n    \)', catalog, re.S).group(1)
+    keyword = re.search(r'val keyword = NikoModelSpec\((.*?)\n    \)', catalog, re.S).group(1)
     model_url = re.search(r'url = "([^"]+)"', keyword).group(1)
     destination = args.destination.resolve()
     destination.mkdir(parents=True, exist_ok=True)
@@ -36,7 +36,7 @@ def main() -> None:
     libraries = destination / f"sherpa-onnx-v{version}-linux-x64-jni/lib"
     if not (libraries / "libsherpa-onnx-jni.so").is_file():
         raise RuntimeError("JNI library missing")
-    settings = f"EDDY_NATIVE_KWS_MODELS={destination}\nEDDY_NATIVE_LIB_DIR={libraries}\n"
+    settings = f"NIKO_NATIVE_KWS_MODELS={destination}\nNIKO_NATIVE_LIB_DIR={libraries}\n"
     if args.github_env:
         with args.github_env.open("a") as output:
             output.write(settings)

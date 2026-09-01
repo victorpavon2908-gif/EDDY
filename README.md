@@ -1,4 +1,4 @@
-# EDDY 0.6.0
+# NIKO 0.7.0
 
 ## Flujo de trabajo
 
@@ -6,24 +6,24 @@ Las entregas se realizan mediante commits en GitHub. La integración continua
 comprueba pruebas y Lint, sin generar ni publicar APK automáticamente.
 La compilación manual indicada abajo se usa únicamente cuando se solicita.
 
-Asistente Android por voz, con activación local «EDDY», comandos del teléfono,
+Asistente Android por voz, con activación local «NIKO», comandos del teléfono,
 memoria local y conversación directa con GroqCloud. ARM64, incluido Honor X6c.
 No requiere un servidor propio para conversar.
 
 ## Instalar y usar
 
 1. Cuando solicités una compilación, instalá el APK que se genere para esa versión.
-2. Abrí EDDY y concedé el permiso de micrófono. La primera apertura copia el núcleo
+2. Abrí NIKO y concedé el permiso de micrófono. La primera apertura copia el núcleo
    de voz incluido en el APK, sin necesitar Internet.
-3. Esperá «Núcleo privado activo». Decí «EDDY, qué hora es» o «EDDY, encendé la linterna».
-   También podés decir «EDDY», esperar «Ajá» y dar la orden.
+3. Esperá «Núcleo privado activo». Decí «NIKO, qué hora es» o «NIKO, encendé la linterna».
+   También podés decir «NIKO», esperar «Ajá» y dar la orden.
 4. Para conversar, abrí **GroqCloud**, guardá tu clave y usá **Guardar y probar**.
 5. Para escuchar con la pantalla apagada, permití funcionar en segundo plano en
    los ajustes de batería de Android/Honor.
 
 Después de cada respuesta vuelve a esperar su nombre. El indicador de micrófono
 permanece visible durante la escucha local: es normal. Podés detenerla desde la
-notificación. No hay autenticación segura del hablante: cualquiera puede decir EDDY.
+notificación. No hay autenticación segura del hablante: cualquiera puede decir NIKO.
 
 ## Con y sin Internet
 
@@ -52,11 +52,11 @@ Véase [configuración y validación de GroqCloud](docs/GROQ_CLOUD.md).
 - Una orden a la vez, regreso a modo pasivo y liberación de recursos en su hilo.
 - Las palabras de activación se guardan antes de crear el detector nativo. La CI
   prueba su arranque y decodificación con el modelo real, además de pruebas y Lint.
-- Activación exclusivamente por «EDDY», sin botones Hablar/Pausar en la pantalla principal.
+- Activación exclusivamente por «NIKO», sin botones Hablar/Pausar en la pantalla principal.
   El interruptor queda en Ajustes; detener la notificación persiste al reabrir la app.
-- La activación incluye variantes de la «d» suave en español. La CI compara audio
-  con el detector anterior para conservar llamadas y evitar nuevas falsas activaciones
-  en el corpus. Las limitaciones conocidas están en [validación de voz](docs/VOICE_DIALOGUE_VALIDATION.md).
+- La activación reconoce «Niko» (ní-ko), con «Nico» como transcripción equivalente.
+  La CI comprueba llamadas, órdenes y rechazo del nombre anterior con audio real
+  procesado por el detector nativo. Las limitaciones conocidas están en [validación de voz](docs/VOICE_DIALOGUE_VALIDATION.md).
 - No se usa SpeechRecognizer por sesiones para la escucha permanente. Preparación,
   disponibilidad y errores del micrófono tienen estados separados. La recuperación
   espera el cierre del capturador anterior y usa reintentos espaciados.
@@ -95,7 +95,7 @@ sin respaldar los datos que necesités. `backend/` es legado y no interviene en 
 
 - Primera apertura en modo avión: preparar voz y pedir hora/linterna.
 - Cinco minutos en silencio: sin ciclos continuos del micrófono.
-- Orden seguida de EDDY sin pausa, y activación en dos pasos.
+- Orden seguida de NIKO sin pausa, y activación en dos pasos.
 - Hablar sin llamarlo, también después de una respuesta: no debe ejecutar órdenes.
 - Perder/restaurar Internet y comprobar que las funciones locales siguen disponibles.
 - Pantalla bloqueada, ahorro de batería y otra app usando el micrófono.

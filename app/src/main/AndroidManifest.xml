@@ -57,29 +57,31 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@drawable/ic_eddy"
-        android:label="EDDY"
-        android:roundIcon="@drawable/ic_eddy"
+        android:icon="@drawable/ic_niko"
+        android:label="NIKO"
+        android:roundIcon="@drawable/ic_niko"
         android:supportsRtl="true"
-        android:theme="@style/Theme.EDDY"
+        android:theme="@style/Theme.NIKO"
         android:usesCleartextTraffic="false">
 
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
 
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity android:name=".MainActivity" android:exported="true" />
+        <!-- Keep existing launcher shortcuts while the implementation lives under Niko. -->
+        <activity-alias android:name="com.eddy.assistant.MainActivity" android:targetActivity=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <activity android:name=".SmartHomeSettingsActivity" android:exported="false" />
         <activity android:name=".AiSettingsActivity" android:exported="false" />
 
         <activity
-            android:name=".EddyWakeActivity"
+            android:name="com.eddy.assistant.EddyWakeActivity"
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleTask"
@@ -87,25 +89,25 @@
             android:turnScreenOn="true" />
 
         <service
-            android:name=".background.EddyAssistantService"
+            android:name="com.eddy.assistant.background.EddyAssistantService"
             android:exported="false"
             android:foregroundServiceType="microphone"
             android:stopWithTask="false" />
 
         <service
-            android:name=".devicecontrol.EddyAccessibilityService"
+            android:name="com.eddy.assistant.devicecontrol.EddyAccessibilityService"
             android:exported="false"
-            android:label="EDDY Device Control"
+            android:label="NIKO Device Control"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
-                android:resource="@xml/eddy_accessibility_service" />
+                android:resource="@xml/niko_accessibility_service" />
         </service>
 
-        <receiver android:name=".proactive.EddyProactiveReceiver" android:exported="false" />
+        <receiver android:name="com.eddy.assistant.proactive.EddyProactiveReceiver" android:exported="false" />
     </application>
 
 </manifest>

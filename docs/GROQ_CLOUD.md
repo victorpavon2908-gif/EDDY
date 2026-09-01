@@ -1,14 +1,14 @@
-# GroqCloud en EDDY
+# GroqCloud en NIKO
 
 ## Conexión directa
 
-EDDY usa `POST https://api.groq.com/openai/v1/chat/completions`, con la clave en
+NIKO usa `POST https://api.groq.com/openai/v1/chat/completions`, con la clave en
 `Authorization: Bearer …`. No consulta Gemini ni el backend legado de Render.
 La pantalla de Ajustes guarda la clave Groq únicamente en el teléfono, en una
 preferencia distinta de las credenciales antiguas. No hay claves incrustadas en Git.
 
 Si la instalación anterior usaba Groq mediante Render, su clave estaba en el servidor:
-EDDY no puede obtenerla automáticamente. Al instalar esta revisión, abrir Ajustes,
+NIKO no puede obtenerla automáticamente. Al instalar esta revisión, abrir Ajustes,
 guardar la clave de GroqCloud y pulsar **Guardar y probar**. La prueba de conexión
 comprueba conversación; una búsqueda aparte comprueba el acceso a Compound.
 
