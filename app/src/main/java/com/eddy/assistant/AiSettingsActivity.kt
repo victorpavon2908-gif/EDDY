@@ -23,29 +23,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.eddy.assistant.ai.EddyAiClient
 import com.eddy.assistant.ai.EddyAiSettings
+import com.eddy.assistant.ai.EddyGeminiClient
 import com.eddy.assistant.ui.theme.EddyTheme
 import kotlinx.coroutines.launch
 
 class AiSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            EddyTheme {
-                BackendWebSettingsScreen(onClose = { finish() })
-            }
-        }
+        setContent { EddyTheme { GeminiSettingsScreen(onClose = { finish() }) } }
     }
 }
 
 @Composable
-private fun BackendWebSettingsScreen(onClose: () -> Unit) {
+private fun GeminiSettingsScreen(onClose: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var url by remember { mutableStateOf(EddyAiSettings.baseUrl(context)) }
-    var status by remember { mutableStateOf("Pegá la URL pública del backend de EDDY, sin /search.") }
+    var apiKey by remember { mutableStateOf(EddyAiSettings.apiKey(context)) }
+    var model by remember { mutableStateOf(EddyAiSettings.model(context)) }
+    var status by remember { mutableStateOf("Pegá aquí tu API key de Gemini. Se guarda solo en este teléfono.") }
     var testing by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -53,51 +51,53 @@ private fun BackendWebSettingsScreen(onClose: () -> Unit) {
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("BACKEND + WEB", style = MaterialTheme.typography.headlineMedium)
+            Text("GEMINI DIRECTO", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Esta conexión permite que EDDY busque información en Internet desde su propio backend y muestre las fuentes dentro de la app.",
+                "EDDY se conecta directamente con Gemini. Ya no necesitás una URL de Render para la conversación de IA. La memoria, voz y funciones locales siguen dentro de EDDY.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
             OutlinedTextField(
-                value = url,
-                onValueChange = { url = it },
-                label = { Text("URL del backend de EDDY") },
-                placeholder = { Text("https://eddy-backend-xxxx.onrender.com") },
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                label = { Text("API key de Gemini") },
+                placeholder = { Text("Pegá tu clave aquí") },
+                visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = CutCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 4.dp),
             )
-
+            OutlinedTextField(
+                value = model,
+                onValueChange = { model = it },
+                label = { Text("Modelo") },
+                placeholder = { Text(EddyAiSettings.DEFAULT_MODEL) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Text(status, style = MaterialTheme.typography.bodyMedium)
-
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = {
-                        EddyAiSettings.saveBaseUrl(context, url)
-                        status = "Guardado. Probando conexión…"
+                        EddyAiSettings.saveGemini(context, apiKey, model)
+                        status = "Guardado en el teléfono. Probando Gemini…"
                         testing = true
                         scope.launch {
-                            val ok = EddyAiClient(context).healthCheck()
+                            val ok = EddyGeminiClient(context).testConnection()
                             testing = false
-                            status = if (ok) {
-                                "Conectado. La búsqueda web de EDDY está lista."
-                            } else {
-                                "No pude conectar. Revisá la URL y que el backend esté desplegado."
-                            }
+                            status = if (ok) "Gemini conectado. EDDY ya puede conversar sin Render." else "No pude conectar. Revisá la clave, el modelo y tu conexión a Internet."
                         }
                     },
-                    enabled = !testing && url.isNotBlank(),
+                    enabled = !testing && apiKey.isNotBlank(),
                     shape = CutCornerShape(topStart = 3.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 3.dp),
-                ) {
-                    Text(if (testing) "PROBANDO" else "GUARDAR Y PROBAR")
-                }
-
-                OutlinedButton(onClick = onClose) {
-                    Text("CERRAR")
-                }
+                ) { Text(if (testing) "PROBANDO" else "GUARDAR Y PROBAR") }
+                OutlinedButton(onClick = onClose) { Text("CERRAR") }
             }
+            Text(
+                "Nota del prototipo: una clave guardada en una app cliente puede extraerse de un dispositivo comprometido. No publiques un APK con una clave preincluida.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
