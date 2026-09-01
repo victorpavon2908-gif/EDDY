@@ -1,6 +1,7 @@
 package com.eddy.assistant.localai
 
 import android.content.Context
+import com.eddy.assistant.ai.ConversationContext
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
@@ -58,27 +59,28 @@ class EddyLocalLlm(
             // no a LlmInferenceOptions. El motor base usa sus valores seguros por defecto.
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(path)
-                .setMaxTokens(640)
+                // This is the combined prompt + reply budget, not just the output length.
+                .setMaxTokens(3_072)
                 .build()
             LlmInference.createFromOptions(context.applicationContext, options).also { inference = it }
         }.getOrNull()
     }
 
     private fun buildPrompt(message: String, memoryContext: String, evidence: String): String = buildString {
-        appendLine("Sos EDDY, un asistente personal masculino, local y privado en un teléfono Android.")
+        appendLine(ConversationContext.instructions)
         appendLine("Respondé en español natural y breve, con tono nicaragüense ligero cuando sea apropiado.")
         appendLine("No inventés datos. Si hay evidencia web, basate solamente en ella y señalá incertidumbre.")
         appendLine("Tu identidad es EDDY y tu razonamiento conversacional ocurre en este teléfono.")
         appendLine("Priorizá la respuesta útil antes que explicaciones largas.")
         if (memoryContext.isNotBlank()) {
             appendLine("\nCONTEXTO LOCAL:")
-            appendLine(memoryContext.take(5_000))
+            appendLine(memoryContext.take(1_800))
         }
         if (evidence.isNotBlank()) {
             appendLine("\nEVIDENCIA WEB RECUPERADA:")
-            appendLine(evidence.take(7_000))
+            appendLine(evidence.take(800))
         }
-        appendLine("\nUSUARIO: ${message.take(2_000)}")
+        appendLine("\nUSUARIO: ${message.take(1_000)}")
         append("EDDY:")
     }
 }

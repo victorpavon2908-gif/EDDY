@@ -26,13 +26,14 @@ class EddyTextToSpeech(
     private val mainHandler = Handler(Looper.getMainLooper())
     private val tts = TextToSpeech(context.applicationContext, this)
     private var ready = false
+    @Volatile private var notificationEpoch = 0
     @Volatile private var currentUtterance: String? = null
     @Volatile private var currentPrefix: String? = null
 
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
-            configureNicaraguanLatinVoice()
+            ready = configureNicaraguanLatinVoice()
             // Un poco más ágil y grave que la voz Android por defecto: se siente más conversacional.
             tts.setSpeechRate(1.03f)
             tts.setPitch(0.92f)
@@ -40,7 +41,7 @@ class EddyTextToSpeech(
                 override fun onStart(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(true) }
                 override fun onDone(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(false) }
                 @Deprecated("Deprecated in Android API")
-                override fun onError(utteranceId: String) { if (currentPrefix?.let { utteranceId.startsWith(it) } == true) notifySpeaking(false) }
+                override fun onError(utteranceId: String) { if (currentPrefix?.let { utteranceId.startsWith(it) } == true) notifyFailure() }
                 override fun onStop(utteranceId: String, interrupted: Boolean) { if (utteranceId == currentUtterance) notifySpeaking(false) }
             })
         }
@@ -52,7 +53,7 @@ class EddyTextToSpeech(
         .setRegion(country)
         .build()
 
-    private fun configureNicaraguanLatinVoice() {
+    private fun configureNicaraguanLatinVoice(): Boolean {
         // Pedimos es-NI primero para que el motor pueda cargar sus datos/voz si los tiene.
         val nicaraguaSpanish = spanishLocale("NI")
         val languageResult = tts.setLanguage(nicaraguaSpanish)
@@ -70,8 +71,7 @@ class EddyTextToSpeech(
         ).firstOrNull()
 
         if (preferred != null) {
-            runCatching { tts.voice = preferred }
-            return
+            if (runCatching { tts.setVoice(preferred) == TextToSpeech.SUCCESS }.getOrDefault(false)) return true
         }
 
         if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
@@ -79,9 +79,10 @@ class EddyTextToSpeech(
             val fallbacks = listOf("CR", "HN", "SV", "GT", "US", "MX", "CO", "ES").map(::spanishLocale)
             for (locale in fallbacks) {
                 val result = tts.setLanguage(locale)
-                if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) break
+                if (result >= TextToSpeech.LANG_AVAILABLE) return true
             }
         }
+        return languageResult >= TextToSpeech.LANG_AVAILABLE
     }
 
     private fun naturalVoiceRank(voice: Voice): Int {
@@ -132,23 +133,32 @@ class EddyTextToSpeech(
         return Normalizer.normalize(value, Normalizer.Form.NFC)
     }
 
-    private fun notifySpeaking(value: Boolean) { mainHandler.post { onSpeakingChanged(value) } }
+    private fun notifySpeaking(value: Boolean) {
+        val epoch = notificationEpoch
+        mainHandler.post { if (epoch == notificationEpoch) onSpeakingChanged(value) }
+    }
+
+    private fun notifyFailure() {
+        val epoch = notificationEpoch
+        mainHandler.post { if (epoch == notificationEpoch) { onReady(false); onSpeakingChanged(false) } }
+    }
 
     fun speak(text: String): Boolean {
         if (!ready) return false
         val spoken = prepareForNicaraguanSpeech(text)
         if (spoken.isBlank()) return false
+        ++notificationEpoch
         val chunks = spoken.chunked(TextToSpeech.getMaxSpeechInputLength() - 1)
         val id = "eddy_reply_${System.nanoTime()}"
         currentPrefix = id
         currentUtterance = "${id}_${chunks.lastIndex}"
         for ((index, chunk) in chunks.withIndex()) {
             val result = tts.speak(chunk, if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "${id}_$index")
-            if (result != TextToSpeech.SUCCESS) { stop(); return false }
+            if (result != TextToSpeech.SUCCESS) { stop(); onReady(false); return false }
         }
         return true
     }
 
-    fun stop() { currentPrefix = null; currentUtterance = null; tts.stop(); notifySpeaking(false) }
-    fun shutdown() { ready = false; currentPrefix = null; currentUtterance = null; tts.stop(); tts.shutdown(); notifySpeaking(false) }
+    fun stop() { ++notificationEpoch; currentPrefix = null; currentUtterance = null; tts.stop(); notifySpeaking(false) }
+    fun shutdown() { ++notificationEpoch; ready = false; currentPrefix = null; currentUtterance = null; tts.stop(); tts.shutdown(); notifySpeaking(false) }
 }

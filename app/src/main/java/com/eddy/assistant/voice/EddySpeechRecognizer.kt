@@ -34,6 +34,7 @@ class EddySpeechRecognizer(
     private val startTask = Runnable { scheduled = false; startSession() }
     private val watchdog = Runnable {
         if (enabled && sessionActive) {
+            if (onDevice) useSystemEngine = true
             releaseRecognizer()
             onError("El reconocimiento dejó de responder. Recuperando escucha.")
             schedule(1_000L)
@@ -155,6 +156,9 @@ class EddySpeechRecognizer(
                         useSystemEngine = true
                         releaseRecognizer()
                     } else if (!quiet && errors >= 2) {
+                        // A present on-device provider can still be broken or lack its model.
+                        // Do not loop forever on that same provider.
+                        if (onDevice) useSystemEngine = true
                         releaseRecognizer()
                     }
                     if (!quiet) onError("El reconocimiento compatible no respondió. Recuperando escucha.")

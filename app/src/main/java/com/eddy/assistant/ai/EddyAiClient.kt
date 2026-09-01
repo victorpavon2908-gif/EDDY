@@ -25,16 +25,14 @@ class EddyAiClient(
 
     val isConfigured: Boolean get() = gemini.isConfigured
 
+    val lastError: String? get() = gemini.lastError
+
     suspend fun healthCheck(): Boolean = gemini.testConnection()
 
     suspend fun reply(
         message: String,
         memoryContext: String,
         forceWeb: Boolean = false,
-    ): EddyAiReply? {
-        val prompt = if (forceWeb) {
-            "El usuario necesita información actual o externa. Respondé con claridad; si no podés verificar actualidad, decilo explícitamente. Pregunta: $message"
-        } else message
-        return gemini.reply(prompt, memoryContext, useWeb = forceWeb)
-    }
+        history: List<ConversationTurn> = emptyList(),
+    ): EddyAiReply? = gemini.reply(message, memoryContext, useWeb = forceWeb, history = history)
 }

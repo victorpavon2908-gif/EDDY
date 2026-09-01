@@ -12,6 +12,8 @@ object EddyRuntimeState {
     private const val KEY_RESPONSE = "response"
     private const val KEY_RUNNING = "running"
     private const val KEY_VOICE_READY = "voice_ready"
+    private const val KEY_INPUT_STATUS = "input_status"
+    private const val KEY_SEARCHING = "searching"
     private const val KEY_WEB_USED = "web_used"
     private const val KEY_WEB_SOURCES = "web_sources"
 
@@ -28,6 +30,8 @@ object EddyRuntimeState {
         val responseText: String = "Di EDDY para activarme.",
         val running: Boolean = false,
         val voiceReady: Boolean = false,
+        val inputStatus: String = "Micrófono sin iniciar",
+        val webSearching: Boolean = false,
         val webUsed: Boolean = false,
         val webSources: List<EddyWebSource> = emptyList(),
     )
@@ -46,9 +50,19 @@ object EddyRuntimeState {
                 .ifBlank { "Di EDDY para activarme." },
             running = prefs.getBoolean(KEY_RUNNING, false),
             voiceReady = prefs.getBoolean(KEY_VOICE_READY, false),
+            inputStatus = prefs.getString(KEY_INPUT_STATUS, "Micrófono sin iniciar").orEmpty(),
+            webSearching = prefs.getBoolean(KEY_SEARCHING, false),
             webUsed = prefs.getBoolean(KEY_WEB_USED, false),
             webSources = decodeSources(prefs.getString(KEY_WEB_SOURCES, "[]").orEmpty()),
         )
+    }
+
+    fun setInputStatus(context: Context, value: String) {
+        edit(context) { putString(KEY_INPUT_STATUS, value) }
+    }
+
+    fun setSearching(context: Context, value: Boolean) {
+        edit(context) { putBoolean(KEY_SEARCHING, value) }
     }
 
     fun setRunning(context: Context, value: Boolean) {
@@ -93,6 +107,8 @@ object EddyRuntimeState {
             putString(KEY_STATE, State.IDLE.name)
             putString(KEY_HEARD, "")
             putString(KEY_RESPONSE, "Di EDDY para activarme.")
+            putString(KEY_INPUT_STATUS, "Micrófono en pausa")
+            putBoolean(KEY_SEARCHING, false)
             putBoolean(KEY_RUNNING, false)
             putBoolean(KEY_VOICE_READY, false)
             putBoolean(KEY_WEB_USED, false)

@@ -52,7 +52,7 @@ class EddyLocalVoiceEngine(
     private val onState: (State) -> Unit = {},
     private val onWake: (ownerConfidence: Float, enrolled: Boolean) -> Unit,
     private val onCommandSpeechStarted: () -> Unit = {},
-    private val onAwaitingCommand: () -> Unit = {},
+    private val onAwaitingCommand: (String, Boolean) -> Unit = { _, _ -> },
     private val onCommand: (String) -> Unit,
     private val onUnauthorizedVoice: () -> Unit = {},
     private val onError: (String) -> Unit = {},
@@ -73,6 +73,7 @@ class EddyLocalVoiceEngine(
 
     private val running = AtomicBoolean(false)
     private val lifecycleLock = Any()
+    private val activationRequested = AtomicBoolean(false)
     private var initializing = false
     private var stopRequested = false
     @Volatile private var assistantBusy = false
@@ -87,6 +88,7 @@ class EddyLocalVoiceEngine(
     @Volatile private var state = State.STOPPED
     @Volatile private var lastWakeAt = 0L
     private var wakeAcknowledged = false
+    private var emptyRecognitionRetries = 0
     @Volatile private var commandSpeechNotified = false
     @Volatile private var commandSpeechFrames = 0
 
@@ -107,6 +109,7 @@ class EddyLocalVoiceEngine(
     private var recognizer: OfflineRecognizer? = null
 
     val ready: Boolean get() = models.coreReady()
+    val isRunning: Boolean get() = running.get()
 
     fun start(): Boolean {
         synchronized(lifecycleLock) {
@@ -148,6 +151,9 @@ class EddyLocalVoiceEngine(
         }
     }
 
+    /** A visible Hablar tap authorizes one command, just like calling EDDY. */
+    fun activate() { activationRequested.set(true) }
+
     fun setAssistantBusy(value: Boolean) { assistantBusy = value }
 
     fun setAssistantSpeaking(value: Boolean, continueCommand: Boolean = false) {
@@ -163,6 +169,7 @@ class EddyLocalVoiceEngine(
     fun finishTurn() {
         resumeAfterSpeech = false
         assistantBusy = false
+        speaking = false
         resetRequested = true
     }
 
@@ -348,6 +355,17 @@ class EddyLocalVoiceEngine(
                     commandSpeechNotified = false
                     commandSpeechFrames = 0
                 }
+                if (!speaking && !assistantBusy && activationRequested.getAndSet(false)) {
+                    vad?.reset()
+                    resetKeywordStream()
+                    preRoll.clear()
+                    activeUntil = SystemClock.elapsedRealtime() + FIRST_COMMAND_MS
+                    wakeAcknowledged = true
+                    emptyRecognitionRetries = 0
+                    commandSpeechNotified = false
+                    commandSpeechFrames = 0
+                    setState(State.ACTIVE)
+                }
                 // Keep AudioRecord open and drain it while speaking/thinking to avoid stale audio/echo.
                 if (speaking || assistantBusy || SystemClock.elapsedRealtime() < suppressUntil) continue
                 val samples = FloatArray(count) { buffer[it] / 32768.0f }
@@ -385,6 +403,7 @@ class EddyLocalVoiceEngine(
         }
         lastWakeAt = now
         wakeAcknowledged = false
+        emptyRecognitionRetries = 0
         commandSpeechNotified = false
         commandSpeechFrames = 0
         spotter.reset(stream)
@@ -431,13 +450,20 @@ class EddyLocalVoiceEngine(
                 onCommand(text)
                 return
             }
+            if (transcript.isBlank()) {
+                val retry = emptyRecognitionRetries++ == 0
+                speaking = true
+                localVad.reset()
+                onAwaitingCommand(if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Llamame de nuevo o tocá Hablar.", retry)
+                return
+            }
             if (!wakeAcknowledged) {
                 // Acknowledge only after the completed utterance contained no command.
                 // A timer here would speak over a command still being transcribed.
                 wakeAcknowledged = true
                 speaking = true
                 localVad.reset()
-                onAwaitingCommand()
+                onAwaitingCommand("Ajá.", true)
                 return
             }
             if (!speaking) setState(State.ACTIVE)
@@ -464,17 +490,14 @@ class EddyLocalVoiceEngine(
     }
 
     private fun transcribe(samples: FloatArray): String {
-        val asr = recognizer ?: return ""
-        return runCatching {
-            val stream = asr.createStream()
-            try {
-                stream.acceptWaveform(samples, SAMPLE_RATE)
-                asr.decode(stream)
-                normalizeTranscript(asr.getResult(stream).text)
-            } finally {
-                stream.release()
-            }
-        }.getOrDefault("")
+        // A native decoding failure must reach the service fallback, not become silent text.
+        val asr = checkNotNull(recognizer) { "El reconocimiento español no está disponible." }
+        val stream = asr.createStream()
+        return try {
+            stream.acceptWaveform(samples, SAMPLE_RATE)
+            asr.decode(stream)
+            normalizeTranscript(asr.getResult(stream).text)
+        } finally { stream.release() }
     }
 
     private fun learnOwnerSoftly(samples: FloatArray) {

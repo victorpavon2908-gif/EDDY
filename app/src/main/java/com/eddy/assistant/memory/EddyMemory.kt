@@ -4,6 +4,8 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.eddy.assistant.ai.ConversationContext
+import com.eddy.assistant.ai.ConversationTurn
 import com.eddy.assistant.brain.AssistantCommand
 import com.eddy.assistant.brain.SupportedApp
 import com.eddy.assistant.proactive.EddyProactiveReceiver
@@ -21,7 +23,7 @@ class EddyMemory(context: Context) {
     fun rememberUtterance(text: String) = rememberUserTurn(text)
 
     fun rememberUserTurn(text: String) {
-        val cleaned = text.trim()
+        val cleaned = text.trim().take(8_000)
         if (cleaned.isBlank()) return
         appendTurn("user", cleaned)
         learnFacts(cleaned)
@@ -29,7 +31,7 @@ class EddyMemory(context: Context) {
     }
 
     fun rememberAssistantTurn(text: String) {
-        val cleaned = text.trim()
+        val cleaned = text.trim().take(8_000)
         if (cleaned.isBlank()) return
         appendTurn("assistant", cleaned)
     }
@@ -76,42 +78,74 @@ class EddyMemory(context: Context) {
         val factText = facts.entries.take(4).joinToString("; ") { (key, value) -> "${factLabel(key)} $value" }
         val favoriteAction = actionCandidates().map { (key, label) -> prefs.getInt("command_$key", 0) to label }
             .maxByOrNull { it.first }?.takeIf { it.first > 0 }
-        val learnedCount = readLearnedAnswers().size
+        val learnedCount = readLessons().size
         return buildString {
             append("He registrado $total interacciones con vos.")
             if (factText.isNotBlank()) append(" Recuerdo que $factText.")
             if (favoriteAction != null) append(" Lo que más me has pedido hasta ahora es ${favoriteAction.second}.")
-            if (learnedCount > 0) append(" También guardé $learnedCount respuestas reutilizables para depender menos de Internet.")
+            if (learnedCount > 0) append(" Me enseñaste $learnedCount respuestas personales.")
+            readNotes().takeLast(3).takeIf { it.isNotEmpty() }?.let { append(" Me pediste recordar: ${it.joinToString("; ")}.") }
             append(" Esta memoria se guarda en tu teléfono.")
         }
     }
 
-    fun contextForAi(): String {
-        val facts = learnedFacts()
-        val factBlock = if (facts.isEmpty()) "Sin datos personales aprendidos todavía." else facts.entries.joinToString("\n") { (key, value) -> "- ${factLabel(key)} $value" }
-        val recent = readTurns().takeLast(24)
-        val conversationBlock = if (recent.isEmpty()) "Sin conversación previa." else recent.joinToString("\n") { turn ->
-            val label = if (turn.role == "user") "Usuario" else "EDDY"
-            "$label: ${turn.text}"
-        }
+    fun historyForAi(currentMessage: String): List<ConversationTurn> = ConversationContext.history(
+        readTurns().map { ConversationTurn(it.role, it.text) }, currentMessage,
+    )
+
+    fun contextForAi(includeDialogue: Boolean = true, currentMessage: String = ""): String {
+        val facts = learnedFacts().entries.joinToString("\n") { (key, value) -> "${factLabel(key)} $value" }.take(if (includeDialogue) 550 else 1_200)
+        val notes = readNotes().takeLast(6).asReversed().joinToString("\n").take(if (includeDialogue) 400 else 3_000)
         val tone = EddyEmotionEngine.latest(appContext)
-        val toneBlock = if (tone == null) {
-            "- sin señal afectiva reciente"
-        } else {
-            val confidence = (tone.confidence * 100).toInt().coerceIn(0, 100)
-            "- tono acústico reciente: ${tone.tone.label} (confianza aproximada $confidence%). Adaptá el tono de tu respuesta con sutileza; no afirmés que conocés la emoción real del usuario."
-        }
-        return """
-            MEMORIA APRENDIDA:
-            $factBlock
-
-            TONO DE VOZ LOCAL:
-            $toneBlock
-
-            CONVERSACIÓN RECIENTE:
-            $conversationBlock
-        """.trimIndent()
+        val toneBlock = tone?.let { "Tono acústico aproximado: ${it.tone.label}. No es una emoción confirmada." }
+            ?: "Sin señal acústica reciente."
+        val dialogue = if (includeDialogue) ConversationContext.history(historyForAi(currentMessage), "", 600).joinToString("\n") { "${it.role}: ${it.text}" } else ""
+        return "MEMORIA PERSONAL:\n$facts\nNOTAS PEDIDAS POR EL USUARIO:\n$notes\nTONO LOCAL:\n$toneBlock\nDIÁLOGO:\n$dialogue"
     }
+
+    /** Teaching is explicit and answers are recalled exactly, never fuzzy-matched into actions. */
+    fun learnExplicitly(text: String): String? {
+        MemoryLearning.lesson(text)?.let { lesson ->
+            val lessons = readLessons().filterNot { MemoryLearning.key(it.question) == MemoryLearning.key(lesson.question) }.toMutableList()
+            lessons.add(lesson)
+            val array = JSONArray()
+            lessons.takeLast(40).forEach { array.put(JSONObject().put("question", it.question).put("answer", it.answer)) }
+            prefs.edit().putString("personal_lessons_v1", array.toString()).apply()
+            return "Aprendido. Cuando me preguntés ${lesson.question}, responderé: ${lesson.answer}"
+        }
+        MemoryLearning.note(text)?.let { note ->
+            val notes = (readNotes().filterNot { MemoryLearning.key(it) == MemoryLearning.key(note) } + note).takeLast(20)
+            prefs.edit().putString("explicit_notes_v1", JSONArray(notes).toString()).apply()
+            return "Lo recordaré: $note"
+        }
+        return null
+    }
+
+    fun personalReply(text: String): String? {
+        val key = MemoryLearning.key(text)
+        readLessons().lastOrNull { MemoryLearning.key(it.question) == key }?.let { return it.answer }
+        val fact = when (key) {
+            "como me llamo", "cual es mi nombre" -> "name"
+            "que me gusta" -> "likes"
+            "que no me gusta" -> "dislikes"
+            "donde vivo" -> "lives"
+            "que prefiero" -> "prefers"
+            "que estudio" -> "studies"
+            else -> null
+        } ?: return null
+        return learnedFacts()[fact]?.let { "Recuerdo que ${factLabel(fact)} $it." }
+            ?: "Todavía no tengo ese dato. Podés enseñármelo diciendo recordá que, seguido del dato."
+    }
+
+    private fun readNotes(): List<String> = runCatching {
+        val array = JSONArray(prefs.getString("explicit_notes_v1", "[]"))
+        List(array.length()) { array.optString(it).take(500) }.filter(String::isNotBlank).takeLast(20)
+    }.getOrDefault(emptyList())
+
+    private fun readLessons(): List<MemoryLearning.Lesson> = runCatching {
+        val array = JSONArray(prefs.getString("personal_lessons_v1", "[]"))
+        List(array.length()) { array.getJSONObject(it).let { item -> MemoryLearning.Lesson(item.getString("question"), item.getString("answer")) } }.takeLast(40)
+    }.getOrDefault(emptyList())
 
     fun shouldScheduleProactive(command: AssistantCommand): Boolean {
         val key = commandKey(command) ?: return false
@@ -187,31 +221,32 @@ class EddyMemory(context: Context) {
         val raw = prefs.getString(KEY_TURNS, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(raw)
-            List(array.length()) { index -> val item = array.getJSONObject(index); MemoryTurn(item.optString("role", "user"), item.optString("text", ""), item.optLong("timestamp", 0L)) }.filter { it.text.isNotBlank() }
+            List(array.length()) { index -> val item = array.getJSONObject(index); MemoryTurn(item.optString("role", "user"), item.optString("text", "").take(8_000), item.optLong("timestamp", 0L)) }.filter { it.text.isNotBlank() }
         }.getOrDefault(emptyList())
     }
 
     private fun learnFacts(text: String) {
-        learn("name", text, """(?i)\b(?:me llamo|mi nombre es)\s+([^,.!?]{1,60})""")
-        learn("likes", text, """(?i)\bme gusta(?:n)?\s+([^.!?]{1,100})""")
-        learn("prefers", text, """(?i)\bprefiero\s+([^.!?]{1,100})""")
-        learn("lives", text, """(?i)\bvivo en\s+([^.!?]{1,80})""")
-        learn("work", text, """(?i)\btrabajo (?:en|como)\s+([^.!?]{1,100})""")
-        learn("studies", text, """(?i)\bestudio\s+([^.!?]{1,100})""")
-    }
-
-    private fun learn(key: String, text: String, pattern: String) {
-        val value = Regex(pattern).find(text)?.groupValues?.getOrNull(1)?.trim()?.take(120).orEmpty()
-        if (value.isNotBlank()) prefs.edit().putString("fact_$key", value).apply()
+        val updates = MemoryLearning.facts(text)
+        if (updates.isEmpty()) return
+        val editor = prefs.edit()
+        updates.forEach { (key, value) -> editor.putString("fact_$key", value) }
+        // A correction such as "no me gusta el café" must not retain the opposite memory.
+        updates["dislikes"]?.let { dislike ->
+            if (MemoryLearning.key(prefs.getString("fact_likes", "").orEmpty()) == MemoryLearning.key(dislike)) editor.remove("fact_likes")
+        }
+        updates["likes"]?.let { like ->
+            if (MemoryLearning.key(prefs.getString("fact_dislikes", "").orEmpty()) == MemoryLearning.key(like)) editor.remove("fact_dislikes")
+        }
+        editor.apply()
     }
 
     private fun learnedFacts(): Map<String, String> {
-        val keys = listOf("name", "likes", "prefers", "lives", "work", "studies")
+        val keys = listOf("name", "likes", "dislikes", "prefers", "lives", "work", "studies")
         return buildMap { keys.forEach { key -> prefs.getString("fact_$key", null)?.takeIf { it.isNotBlank() }?.let { put(key, it) } } }
     }
 
     private fun factLabel(key: String): String = when (key) {
-        "name" -> "tu nombre es"; "likes" -> "te gusta"; "prefers" -> "preferís"; "lives" -> "vivís en"; "work" -> "trabajás en/como"; "studies" -> "estudiás"; else -> key
+        "name" -> "tu nombre es"; "likes" -> "te gusta"; "dislikes" -> "no te gusta"; "prefers" -> "preferís"; "lives" -> "vivís en"; "work" -> "trabajás en/como"; "studies" -> "estudiás"; else -> key
     }
 
     private fun actionCandidates(): List<Pair<String, String>> = buildList {

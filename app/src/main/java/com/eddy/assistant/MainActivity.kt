@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var overlayLauncher: ActivityResultLauncher<Intent>
     private lateinit var fullScreenLauncher: ActivityResultLauncher<Intent>
     private lateinit var batteryLauncher: ActivityResultLauncher<Intent>
+    private var listenAfterPermission = false
     private var overlayPromptedThisSession = false
     private var fullScreenPromptedThisSession = false
     private var batteryPromptedThisSession = false
@@ -65,7 +66,10 @@ class MainActivity : ComponentActivity() {
         permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             val micGranted = grants[Manifest.permission.RECORD_AUDIO] ?: hasMicrophonePermission()
             if (micGranted && assistantEnabled()) {
-                startAssistantService(); maybeRequestOverlayPermission()
+                val shouldListen = listenAfterPermission
+                listenAfterPermission = false
+                startAssistantService(if (shouldListen) EddyAssistantService.ACTION_LISTEN_NOW else null)
+                if (!shouldListen) maybeRequestOverlayPermission()
             } else if (!micGranted) {
                 EddyRuntimeState.setResponse(applicationContext, "Necesito permiso de micrófono para funcionar fuera de la aplicación.")
             }
@@ -144,11 +148,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startAssistantService() {
+    private fun startAssistantService(action: String? = null) {
         if (!hasMicrophonePermission() || !assistantEnabled()) return
-        val intent = Intent(this, EddyAssistantService::class.java)
+        val intent = Intent(this, EddyAssistantService::class.java).apply { this.action = action }
         runCatching { ContextCompat.startForegroundService(this, intent) }
             .onFailure { EddyRuntimeState.setResponse(applicationContext, "No pude iniciar el modo permanente de EDDY. Abrí la aplicación nuevamente.") }
+    }
+
+    private fun listenNow() {
+        getSharedPreferences(CONTROL_PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ASSISTANT_ENABLED, true).apply()
+        if (hasMicrophonePermission()) startAssistantService(EddyAssistantService.ACTION_LISTEN_NOW)
+        else {
+            listenAfterPermission = true
+            permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+        }
     }
 
     private fun sendServiceAction(action: String) {
@@ -191,9 +204,12 @@ class MainActivity : ComponentActivity() {
                     heardText = snapshot.heardText,
                     responseText = snapshot.responseText,
                     voiceReady = snapshot.voiceReady,
-                    autoListeningEnabled = enabled && snapshot.running,
+                    autoListeningEnabled = enabled,
+                    inputStatus = snapshot.inputStatus,
+                    webSearching = snapshot.webSearching,
                     webUsed = snapshot.webUsed,
                     webSources = snapshot.webSources,
+                    onListenNow = ::listenNow,
                     onToggleAssistant = { setAssistantEnabled(!enabled) },
                 )
             } else {

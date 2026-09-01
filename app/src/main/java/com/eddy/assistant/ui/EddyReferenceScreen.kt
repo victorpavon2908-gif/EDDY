@@ -13,6 +13,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +70,9 @@ internal fun EddyReferenceScreen(
     autoListeningEnabled: Boolean,
     webUsed: Boolean = false,
     webSources: List<EddyWebSource> = emptyList(),
+    inputStatus: String = "",
+    webSearching: Boolean = false,
+    onListenNow: (() -> Unit)? = null,
     onToggleAssistant: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -123,10 +129,12 @@ internal fun EddyReferenceScreen(
         ProStateLine(
             state = visualState,
             active = autoListeningEnabled,
-            webUsed = webUsed,
+            webUsed = webSearching,
         )
+        Text(inputStatus, color = Color(0xFF737C78), fontSize = 11.sp, textAlign = TextAlign.Center)
+        if (!voiceReady && autoListeningEnabled) Text("Si no suena la voz, la respuesta queda aquí.", color = Color(0xFF737C78), fontSize = 11.sp)
 
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(14.dp))
 
         ProDock(
             visualState = visualState,
@@ -135,6 +143,7 @@ internal fun EddyReferenceScreen(
             responseText = responseText,
             webUsed = webUsed,
             sources = webSources,
+            onListenNow = { onListenNow?.invoke() },
             onToggleAssistant = { onToggleAssistant?.invoke() },
             onSettings = {
                 context.startActivity(Intent(context, AiSettingsActivity::class.java))
@@ -165,10 +174,10 @@ private fun ProStateLine(
         state == EddyVisualState.THINKING -> "PENSANDO"
         state == EddyVisualState.SPEAKING -> "HABLANDO"
         state == EddyVisualState.LISTENING -> "TE ESCUCHO"
-        else -> "ESCUCHANDO"
+        else -> "DECÍ EDDY"
     }
     val subtitle = when {
-        !active -> "Tocá el micrófono para activar EDDY"
+        !active -> "Tocá Hablar para activar EDDY"
         state == EddyVisualState.LISTENING -> "Decime qué necesitás"
         state == EddyVisualState.THINKING && webUsed -> "Consultando fuentes"
         state == EddyVisualState.THINKING -> "Procesando tu petición"
@@ -212,36 +221,39 @@ private fun ProDock(
     responseText: String,
     webUsed: Boolean,
     sources: List<EddyWebSource>,
+    onListenNow: () -> Unit,
     onToggleAssistant: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(11.dp),
-    ) {
-        ProCircleButton(
-            active = active,
-            icon = if (active) Icons.Rounded.Mic else Icons.Rounded.MicOff,
-            description = if (active) "Pausar EDDY" else "Activar EDDY",
-            onClick = onToggleAssistant,
-        )
-
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ProConversationCard(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             visualState = visualState,
             heardText = heardText,
             responseText = responseText,
             webUsed = webUsed,
             sources = sources,
         )
-
-        ProCircleButton(
-            active = true,
-            icon = Icons.Rounded.Settings,
-            description = "Configuración",
-            onClick = onSettings,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            TextButton(
+                onClick = onListenNow,
+                enabled = visualState != EddyVisualState.THINKING && visualState != EddyVisualState.SPEAKING,
+            ) {
+                Icon(Icons.Rounded.Mic, contentDescription = null)
+                Spacer(Modifier.size(6.dp))
+                Text("Hablar")
+            }
+            TextButton(onClick = onToggleAssistant) {
+                Icon(if (active) Icons.Rounded.MicOff else Icons.Rounded.Mic, contentDescription = null)
+                Spacer(Modifier.size(6.dp))
+                Text(if (active) "Pausar" else "Activar")
+            }
+            ProCircleButton(active = true, icon = Icons.Rounded.Settings, description = "Configuración", onClick = onSettings)
+        }
     }
 }
 
@@ -287,14 +299,9 @@ private fun ProConversationCard(
         EddyVisualState.LISTENING -> "TE ESCUCHO"
         EddyVisualState.THINKING -> if (webUsed) "BUSCANDO" else "PENSANDO"
         EddyVisualState.SPEAKING -> "EDDY"
-        EddyVisualState.IDLE -> "TE ESCUCHO"
+        EddyVisualState.IDLE -> "EDDY"
     }
-    val secondary = when {
-        visualState == EddyVisualState.THINKING -> responseText.ifBlank { "Procesando…" }
-        visualState == EddyVisualState.SPEAKING -> responseText.ifBlank { "Respondiendo…" }
-        heardText.isNotBlank() -> heardText
-        else -> "Solo respondo cuando me llamás"
-    }
+    val secondary = responseText.ifBlank { "Decí EDDY o tocá Hablar." }
 
     Surface(
         modifier = modifier
@@ -305,7 +312,7 @@ private fun ProConversationCard(
         border = BorderStroke(1.dp, Color(0xFFE6ECE9)),
         shadowElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.heightIn(max = 210.dp).verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     modifier = Modifier.size(32.dp),
@@ -335,10 +342,13 @@ private fun ProConversationCard(
                         text = secondary,
                         color = Color(0xFF6F7975),
                         fontSize = 11.5.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+
+            if (heardText.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text("Vos: $heardText", color = Color(0xFF737C78), fontSize = 11.sp)
             }
 
             AnimatedVisibility(sources.isNotEmpty()) {

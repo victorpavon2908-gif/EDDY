@@ -6,7 +6,7 @@ import java.text.Normalizer
 import java.util.Locale
 
 class EddyFallbackConversation {
-    fun reply(input: String, memory: EddyMemory): String {
+    fun reply(input: String, memory: EddyMemory, connectionError: String? = null): String {
         EddyMathEngine.solve(input)?.let { result ->
             return "El resultado es $result."
         }
@@ -20,6 +20,12 @@ class EddyFallbackConversation {
             text.contains("que puedes hacer") || text.contains("que sabes hacer") ->
                 "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería y ajustes del teléfono, controlar dispositivos de tu casa, resolver operaciones matemáticas y conversar y consultar información con Gemini cuando hay Internet."
 
+            text.contains("estoy triste") || text.contains("me siento triste") ->
+                "Siento que estés pasando por eso. ¿Querés contarme qué pasó?"
+
+            text.contains("no me escuchas") || text.contains("no funciona") ->
+                "Entiendo la frustración. Tocá Hablar y probemos con qué hora es; la frase que escuche aparecerá en pantalla."
+
             text.contains("gracias") ->
                 "De una. Aquí estoy para lo que ocupés."
 
@@ -30,7 +36,7 @@ class EddyFallbackConversation {
                 memory.describeLearnedPatterns()
 
             else ->
-                "Ahorita no pude consultar Gemini. Sin conexión puedo ayudarte con la hora, cálculos, alarmas, linterna y otras funciones del teléfono. Para conversar sobre eso necesito recuperar la conexión."
+                "${connectionError ?: "Configurá Gemini en Ajustes o instalá el modelo de conversación local para ampliar mis respuestas."} Puedo seguir ayudándote con órdenes del teléfono y tu memoria personal."
         }
     }
 

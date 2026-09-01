@@ -11,6 +11,7 @@ class LocalBrain {
         val cleaned = cleanConversationalInput(input.trim())
         if (cleaned.isBlank()) return listOf(AssistantCommand.Unknown(input.trim()))
         val whole = understandSingle(cleaned)
+        if (whole is AssistantCommand.SearchWeb || isNegationOrExplanation(normalize(cleaned))) return listOf(whole)
         val pieces = splitActionClauses(cleaned)
         if (pieces.size <= 1) return listOf(whole)
         val parsed = pieces.map(::understandSingle)
@@ -23,12 +24,15 @@ class LocalBrain {
         val text = normalize(original)
 
         // Negated orders and questions about an action must never execute that action.
-        if (Regex("^(?:no|nunca|jamas|tampoco|por que|explica|explicame|como (?:puedo|hago|funciona|se|abrir|borrar|apagar|prender|enviar|llamar|poner))\\b").containsMatchIn(text)) {
+        if (isNegationOrExplanation(text)) {
             return AssistantCommand.Unknown(original)
         }
 
+        // Resolve explicit searches before inspecting words contained in their query.
+        parseWebSearch(original)?.let { return it }
+
         if (containsAny(text, "olvida todo", "borra tu memoria", "borra lo que sabes de mi")) return AssistantCommand.ClearMemory
-        if (containsAny(text, "que sabes de mi", "que has aprendido de mi", "que recuerdas de mi", "que hago mas", "que uso mas")) return AssistantCommand.MemorySummary
+        if (containsAny(text, "que sabes de mi", "que has aprendido de mi", "que recuerdas de mi", "que te pedi que recordaras", "que te ensene", "que hago mas", "que uso mas")) return AssistantCommand.MemorySummary
         if (text.contains("que hora") || text.contains("hora es")) return AssistantCommand.TellTime
 
         if (containsAny(text, "configura casa inteligente", "configurar casa inteligente", "configura domotica", "configurar domotica", "configura home assistant", "configurar home assistant")) return AssistantCommand.OpenSmartHomeSettings
@@ -47,7 +51,6 @@ class LocalBrain {
         parseBrightness(text)?.let { return it }
         parseSystemPanel(text)?.let { return it }
         parseSmartHome(text)?.let { return it }
-        parseWebSearch(original)?.let { return it }
         parseShare(original, text)?.let { return it }
 
         if (text.contains("bateria") && containsAny(text, "cuanta", "porcentaje", "nivel", "queda", "tengo")) return AssistantCommand.BatteryStatus
@@ -58,6 +61,8 @@ class LocalBrain {
         if (Regex("^(?:eddy|edi|hola|como estas|oye eddy|buenos dias|buenas tardes|buenas noches)[.!?]*$").matches(text)) return AssistantCommand.Greeting
         return AssistantCommand.Unknown(original)
     }
+
+    private fun isNegationOrExplanation(text: String): Boolean = Regex("^(?:no|nunca|jamas|tampoco|por que|explica|explicame|como (?:puedo|hago|funciona|se|abrir|borrar|apagar|prender|enviar|llamar|poner))\\b").containsMatchIn(text)
 
     private fun parseDynamicTool(text: String): AssistantCommand? {
         if (
@@ -203,16 +208,8 @@ class LocalBrain {
         return target.takeIf { it.isNotBlank() }?.let { AssistantCommand.SmartHomeControl(it, enabled) }
     }
 
-    private fun parseWebSearch(original: String): AssistantCommand.SearchWeb? {
-        val normalized = normalize(original)
-        val phrases = listOf("busca en internet", "buscar en internet", "busca en google", "investiga en internet", "consulta en internet", "googlea", "busca", "investiga", "averigua")
-        for (phrase in phrases) {
-            val match = Regex("(?:^|\\s)${Regex.escape(phrase)}(?:\\s+|$)").find(normalized) ?: continue
-            val query = normalized.substring(match.range.last + 1).trim(' ', ',', '.', '?', '¿', ':')
-            if (query.isNotBlank()) return AssistantCommand.SearchWeb(query)
-        }
-        return null
-    }
+    private fun parseWebSearch(original: String): AssistantCommand.SearchWeb? =
+        WebQueryRouter.explicitQuery(original)?.let(AssistantCommand::SearchWeb)
 
     private fun parseShare(original: String, text: String): AssistantCommand.ShareText? {
         if (!containsAny(text, "comparte", "comparti", "compartir")) return null
