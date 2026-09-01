@@ -83,9 +83,14 @@ private fun GeminiSettingsScreen(onClose: () -> Unit) {
                         status = "Guardado en el teléfono. Probando Gemini…"
                         testing = true
                         scope.launch {
-                            val ok = EddyGeminiClient(context).testConnection()
+                            val client = EddyGeminiClient(context)
+                            val ok = client.testConnection()
                             testing = false
-                            status = if (ok) "Gemini conectado. EDDY ya puede conversar sin Render." else "No pude conectar. Revisá la clave, el modelo y tu conexión a Internet."
+                            status = if (ok) {
+                                "Gemini conectado. EDDY ya puede conversar sin Render."
+                            } else {
+                                client.lastError ?: "No pude conectar con Gemini."
+                            }
                         }
                     },
                     enabled = !testing && apiKey.isNotBlank(),
