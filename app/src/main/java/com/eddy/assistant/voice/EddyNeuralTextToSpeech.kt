@@ -39,7 +39,7 @@ class EddyNeuralTextToSpeech(
 
     val isAvailable: Boolean get() = models.isInstalled(EddyModelCatalog.spanishVoice)
 
-    fun speak(text: String): Boolean {
+    fun speak(text: String, speed: Float = 1.0f): Boolean {
         if (closed || text.isBlank() || !isAvailable) return false
         val token = ++generation
         scope.launch {
@@ -49,9 +49,9 @@ class EddyNeuralTextToSpeech(
                 var failed = false
                 try {
                     val engine = tts ?: createEngine() ?: error("Voz local no disponible")
-                    for (chunk in text.chunked(1_000)) {
+                    for (chunk in SpeechProsody.chunks(text, 1_000)) {
                         if (closed || token != generation) break
-                        val audio = engine.generate(chunk, sid = 0, speed = 1.0f)
+                        val audio = engine.generate(chunk, sid = 0, speed = speed.coerceIn(0.85f, 1.15f))
                         if (!closed && token == generation) play(audio.samples, audio.sampleRate, token)
                     }
                 } catch (cancelled: CancellationException) {

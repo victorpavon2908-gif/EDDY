@@ -34,7 +34,7 @@ class EddyGeminiClient(context: Context) {
         history: List<ConversationTurn> = emptyList(),
     ): EddyAiReply? {
         if (message.isBlank()) { lastError = "El mensaje está vacío."; return null }
-        return executeWithFallback(GeminiConversation.payload(message, memoryContext, history, useWeb))
+        return executeWithFallback(GeminiConversation.payload(message, memoryContext, history, useWeb, EddyAiSettings.personality(appContext)))
     }
 
     private fun content(text: String) = JSONObject().put("role", "user")

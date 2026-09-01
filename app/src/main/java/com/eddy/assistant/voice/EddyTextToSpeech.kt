@@ -143,12 +143,14 @@ class EddyTextToSpeech(
         mainHandler.post { if (epoch == notificationEpoch) { onReady(false); onSpeakingChanged(false) } }
     }
 
-    fun speak(text: String): Boolean {
+    fun speak(text: String, prosody: SpeechProsody = SpeechProsody()): Boolean {
         if (!ready) return false
         val spoken = prepareForNicaraguanSpeech(text)
         if (spoken.isBlank()) return false
         ++notificationEpoch
-        val chunks = spoken.chunked(TextToSpeech.getMaxSpeechInputLength() - 1)
+        tts.setSpeechRate(prosody.speed.coerceIn(0.85f, 1.15f))
+        tts.setPitch(prosody.pitch.coerceIn(0.85f, 1.05f))
+        val chunks = SpeechProsody.chunks(spoken, TextToSpeech.getMaxSpeechInputLength() - 1)
         val id = "eddy_reply_${System.nanoTime()}"
         currentPrefix = id
         currentUtterance = "${id}_${chunks.lastIndex}"

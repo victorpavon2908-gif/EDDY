@@ -20,6 +20,16 @@ class EddyMemory(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences("eddy_memory", Context.MODE_PRIVATE)
 
+    private val archive by lazy {
+        EddyMemoryArchive.get(appContext).also {
+            it.importLegacy(
+                prefs.getString(KEY_TURNS, "[]").orEmpty().ifBlank { "[]" },
+                prefs.getString("explicit_notes_v1", "[]").orEmpty().ifBlank { "[]" },
+                prefs.getString("personal_lessons_v1", "[]").orEmpty().ifBlank { "[]" },
+            )
+        }
+    }
+
     fun rememberUtterance(text: String) = rememberUserTurn(text)
 
     fun rememberUserTurn(text: String) {
@@ -78,7 +88,7 @@ class EddyMemory(context: Context) {
         val factText = facts.entries.take(4).joinToString("; ") { (key, value) -> "${factLabel(key)} $value" }
         val favoriteAction = actionCandidates().map { (key, label) -> prefs.getInt("command_$key", 0) to label }
             .maxByOrNull { it.first }?.takeIf { it.first > 0 }
-        val learnedCount = readLessons().size
+        val learnedCount = archive.lessonCount()
         return buildString {
             append("He registrado $total interacciones con vos.")
             if (factText.isNotBlank()) append(" Recuerdo que $factText.")
@@ -94,28 +104,23 @@ class EddyMemory(context: Context) {
     )
 
     fun contextForAi(includeDialogue: Boolean = true, currentMessage: String = ""): String {
-        val facts = learnedFacts().entries.joinToString("\n") { (key, value) -> "${factLabel(key)} $value" }.take(if (includeDialogue) 550 else 1_200)
-        val notes = readNotes().takeLast(6).asReversed().joinToString("\n").take(if (includeDialogue) 400 else 3_000)
+        val facts = learnedFacts().entries.joinToString("\n") { (key, value) -> "${factLabel(key)} $value" }.take(if (includeDialogue) 220 else 1_200)
+        val notes = readNotes().takeLast(6).asReversed().joinToString("\n").take(if (includeDialogue) 150 else 3_000)
         val tone = EddyEmotionEngine.latest(appContext)
         val toneBlock = tone?.let { "Tono acústico aproximado: ${it.tone.label}. No es una emoción confirmada." }
             ?: "Sin señal acústica reciente."
-        val dialogue = if (includeDialogue) ConversationContext.history(historyForAi(currentMessage), "", 600).joinToString("\n") { "${it.role}: ${it.text}" } else ""
-        return "MEMORIA PERSONAL:\n$facts\nNOTAS PEDIDAS POR EL USUARIO:\n$notes\nTONO LOCAL:\n$toneBlock\nDIÁLOGO:\n$dialogue"
+        val dialogue = if (includeDialogue) ConversationContext.history(historyForAi(currentMessage), "", 250).joinToString("\n") { "${it.role}: ${it.text}" } else ""
+        return "TONO LOCAL:\n$toneBlock\nMEMORIA PERSONAL:\n$facts\nNOTAS PEDIDAS POR EL USUARIO:\n$notes\nDIÁLOGO:\n$dialogue"
     }
 
     /** Teaching is explicit and answers are recalled exactly, never fuzzy-matched into actions. */
     fun learnExplicitly(text: String): String? {
         MemoryLearning.lesson(text)?.let { lesson ->
-            val lessons = readLessons().filterNot { MemoryLearning.key(it.question) == MemoryLearning.key(lesson.question) }.toMutableList()
-            lessons.add(lesson)
-            val array = JSONArray()
-            lessons.takeLast(40).forEach { array.put(JSONObject().put("question", it.question).put("answer", it.answer)) }
-            prefs.edit().putString("personal_lessons_v1", array.toString()).apply()
+            archive.rememberLesson(lesson)
             return "Aprendido. Cuando me preguntés ${lesson.question}, responderé: ${lesson.answer}"
         }
         MemoryLearning.note(text)?.let { note ->
-            val notes = (readNotes().filterNot { MemoryLearning.key(it) == MemoryLearning.key(note) } + note).takeLast(20)
-            prefs.edit().putString("explicit_notes_v1", JSONArray(notes).toString()).apply()
+            archive.rememberNote(note)
             return "Lo recordaré: $note"
         }
         return null
@@ -123,7 +128,7 @@ class EddyMemory(context: Context) {
 
     fun personalReply(text: String): String? {
         val key = MemoryLearning.key(text)
-        readLessons().lastOrNull { MemoryLearning.key(it.question) == key }?.let { return it.answer }
+        archive.answer(text)?.let { return it }
         val fact = when (key) {
             "como me llamo", "cual es mi nombre" -> "name"
             "que me gusta" -> "likes"
@@ -137,15 +142,7 @@ class EddyMemory(context: Context) {
             ?: "Todavía no tengo ese dato. Podés enseñármelo diciendo recordá que, seguido del dato."
     }
 
-    private fun readNotes(): List<String> = runCatching {
-        val array = JSONArray(prefs.getString("explicit_notes_v1", "[]"))
-        List(array.length()) { array.optString(it).take(500) }.filter(String::isNotBlank).takeLast(20)
-    }.getOrDefault(emptyList())
-
-    private fun readLessons(): List<MemoryLearning.Lesson> = runCatching {
-        val array = JSONArray(prefs.getString("personal_lessons_v1", "[]"))
-        List(array.length()) { array.getJSONObject(it).let { item -> MemoryLearning.Lesson(item.getString("question"), item.getString("answer")) } }.takeLast(40)
-    }.getOrDefault(emptyList())
+    private fun readNotes(): List<String> = archive.recentNotes()
 
     fun shouldScheduleProactive(command: AssistantCommand): Boolean {
         val key = commandKey(command) ?: return false
@@ -168,7 +165,7 @@ class EddyMemory(context: Context) {
         else -> null
     }
 
-    fun clearAll() { cancelProactiveSchedules(); prefs.edit().clear().apply() }
+    fun clearAll() { cancelProactiveSchedules(); archive.clearMemory(); prefs.edit().clear().apply() }
 
     private fun readLearnedAnswers(): List<LearnedAnswer> {
         val raw = prefs.getString(KEY_LEARNED_ANSWERS, null) ?: return emptyList()
@@ -211,6 +208,7 @@ class EddyMemory(context: Context) {
     }
 
     private fun appendTurn(role: String, text: String) {
+        archive.appendTurn(role, text, System.currentTimeMillis())
         val current = readTurns().toMutableList(); current.add(MemoryTurn(role, text, System.currentTimeMillis()))
         while (current.size > MAX_TURNS) current.removeAt(0)
         val array = JSONArray(); current.forEach { array.put(JSONObject().put("role", it.role).put("text", it.text).put("timestamp", it.timestamp)) }

@@ -1,7 +1,7 @@
 package com.eddy.assistant.localai
 
 import android.content.Context
-import com.eddy.assistant.ai.ConversationContext
+import com.eddy.assistant.ai.EddyAiSettings
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +24,8 @@ class EddyLocalLlm(
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var closed = false
     @Volatile private var inference: LlmInference? = null
+    @Volatile var lastError: String? = null
+        private set
 
     val isAvailable: Boolean
         get() = models.isInstalled(EddyModelCatalog.localLlm)
@@ -33,14 +35,27 @@ class EddyLocalLlm(
         memoryContext: String = "",
         evidence: String = "",
     ): String? = withContext(Dispatchers.Default) {
-        if (closed || !isAvailable) return@withContext null
+        lastError = null
+        if (closed) return@withContext null
+        if (!isAvailable) {
+            lastError = "Prepará el modelo de conversación sin Internet en Ajustes."
+            return@withContext null
+        }
         mutex.withLock {
             if (closed) return@withLock null
             val engine = inference ?: createEngine() ?: return@withLock null
-            val prompt = buildPrompt(message, memoryContext, evidence)
-            runCatching { engine.generateResponse(prompt).trim() }
+            runCatching {
+                val prompt = LocalConversationPrompt.fit(message, memoryContext, evidence, EddyAiSettings.personality(context), engine::sizeInTokens)
+                    ?: run {
+                        lastError = "La consulta supera la capacidad del modelo local. Probá una pregunta más corta."
+                        return@withLock null
+                    }
+                engine.generateResponse(prompt).trim()
+            }
+                .onFailure { lastError = "El modelo local no pudo responder. Probá una pregunta más corta o reiniciá el asistente." }
                 .getOrNull()
                 ?.takeIf { it.isNotBlank() }
+                .also { if (it == null && lastError == null) lastError = "El modelo local no devolvió una respuesta." }
         }
     }
 
@@ -60,27 +75,12 @@ class EddyLocalLlm(
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(path)
                 // This is the combined prompt + reply budget, not just the output length.
-                .setMaxTokens(3_072)
+                .setMaxTokens(LocalConversationPrompt.MODEL_TOKENS)
                 .build()
             LlmInference.createFromOptions(context.applicationContext, options).also { inference = it }
+        }.onFailure {
+            lastError = "No pude iniciar el modelo local. Comprobá que haya memoria disponible y reiniciá el asistente."
         }.getOrNull()
     }
 
-    private fun buildPrompt(message: String, memoryContext: String, evidence: String): String = buildString {
-        appendLine(ConversationContext.instructions)
-        appendLine("Respondé en español natural y breve, con tono nicaragüense ligero cuando sea apropiado.")
-        appendLine("No inventés datos. Si hay evidencia web, basate solamente en ella y señalá incertidumbre.")
-        appendLine("Tu identidad es EDDY y tu razonamiento conversacional ocurre en este teléfono.")
-        appendLine("Priorizá la respuesta útil antes que explicaciones largas.")
-        if (memoryContext.isNotBlank()) {
-            appendLine("\nCONTEXTO LOCAL:")
-            appendLine(memoryContext.take(1_800))
-        }
-        if (evidence.isNotBlank()) {
-            appendLine("\nEVIDENCIA WEB RECUPERADA:")
-            appendLine(evidence.take(800))
-        }
-        appendLine("\nUSUARIO: ${message.take(1_000)}")
-        append("EDDY:")
-    }
 }

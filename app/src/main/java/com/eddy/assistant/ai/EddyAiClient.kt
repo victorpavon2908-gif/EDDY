@@ -2,15 +2,6 @@ package com.eddy.assistant.ai
 
 import android.content.Context
 
-data class EddyWebSource(val title: String, val url: String)
-
-data class EddyAiReply(
-    val text: String,
-    val webUsed: Boolean,
-    val sources: List<EddyWebSource>,
-    val evidence: String = "",
-)
-
 /**
  * Compatibility facade used by the assistant service.
  * Conversation now goes EDDY -> Gemini directly. There is no EDDY/Render backend hop.
@@ -34,5 +25,9 @@ class EddyAiClient(
         memoryContext: String,
         forceWeb: Boolean = false,
         history: List<ConversationTurn> = emptyList(),
-    ): EddyAiReply? = gemini.reply(message, memoryContext, useWeb = forceWeb, history = history)
+    ): EddyAiReply? {
+        if (AutonomousResearch.offlineOnly(message)) return null
+        val allowWeb = forceWeb || (EddyAiSettings.autoResearch(appContext) && AutonomousResearch.allowedFor(message))
+        return gemini.reply(message, memoryContext, useWeb = allowWeb, history = history)
+    }
 }

@@ -25,6 +25,18 @@ object EddyAiSettings {
 
     const val DEFAULT_MODEL = "gemini-3.7-flash"
 
+    fun personality(context: Context): EddyPersonality = EddyPersonality.fromStored(
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("personality", null),
+    )
+    fun localFirst(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("local_first", true)
+    fun autoResearch(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("auto_research", true)
+    fun adaptiveLearning(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("adaptive_learning", true)
+    fun saveBehavior(context: Context, personality: EddyPersonality, localFirst: Boolean, autoResearch: Boolean, learning: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("personality", personality.name).putBoolean("local_first", localFirst)
+            .putBoolean("auto_research", autoResearch).putBoolean("adaptive_learning", learning).apply()
+    }
+
     fun apiKey(context: Context): String {
         val embedded = EMBEDDED_GEMINI_API_KEY.trim()
         if (embedded.isNotBlank() && embedded != "PEGAR_API_KEY_GEMINI_AQUI") {

@@ -6,7 +6,7 @@
 - Mientras se instalan los modelos acústicos, puede funcionar el reconocimiento compatible del teléfono. El cambio al núcleo local espera a que termine la interacción actual. No se reinicia periódicamente un micrófono local sano.
 - El estado identifica el motor de escucha; la transcripción y la respuesta quedan visibles, incluso si falla la síntesis de voz. Un fallo de transcripción local activa la alternativa compatible.
 - «Búscame en internet…», «consultá…», «podés buscar…» y preguntas de actualidad solicitan Google Search en Gemini. Solo se muestran fuentes verificadas por la respuesta de la API; una solicitud sin fuentes se reconoce como no verificada.
-- Sin clave de Gemini, una búsqueda abre el navegador y explica que hace falta configurar Gemini para leer una respuesta con fuentes. Los errores de clave, cuota, conexión y tiempo de espera son visibles.
+- Sin clave de Gemini, una búsqueda explícita abre el navegador y explica que hace falta configurar Gemini para leer una respuesta con fuentes. La investigación automática no abre el navegador. Los errores de clave, cuota, conexión y tiempo de espera son visibles.
 - Gemini recibe el diálogo como turnos `user`/`model`, separados de las notas y del tono acústico. La pregunta actual no se duplica. Se conservan las preferencias aunque el historial crezca.
 - Gemini 3.7/3.6 Flash usan esfuerzo de razonamiento `low` para conversación por voz, según su API documentada. Otros modelos descubiertos conservan su configuración compatible. Las respuestas personales aprendidas no reemplazan órdenes reales como borrar memoria.
 - El análisis acústico existente sigue siendo una estimación del tono, no un diagnóstico emocional. Las palabras explícitas del usuario tienen prioridad.
@@ -20,11 +20,11 @@ Llamá a EDDY antes de cada frase o tocá Hablar:
 3. «Cuando te pregunte mi bebida, respondé café sin azúcar», seguido de «mi bebida». Aprende una respuesta personal exacta. La respuesta aprendida se pronuncia; no se interpreta como una acción del teléfono.
 4. «Qué te enseñé» permite revisar lo aprendido; «borrá tu memoria» elimina también notas y respuestas personales.
 
-Esto es memoria y personalización del comportamiento. No entrena ni modifica los pesos de Gemini o de los modelos acústicos. Tampoco reutiliza automáticamente respuestas web antiguas como si fueran actuales.
+Las respuestas personales se recuperan desde memoria; no modifican los pesos de Gemini ni de los modelos acústicos. Además, una red pequeña aprende localmente a clasificar órdenes reconocidas. Véase [aprendizaje local y autonomía](AUTONOMY_AND_LOCAL_LEARNING.md). Tampoco se reutilizan automáticamente respuestas web antiguas como si fueran actuales.
 
 ## Alcance sin Internet
 
-Las órdenes del teléfono, cálculos y memoria personal funcionan localmente. El reconocimiento continuo propio necesita los modelos acústicos instalados; el modo compatible depende del proveedor y los idiomas disponibles en Android. La conversación generativa local requiere instalar el modelo opcional de conversación. El presupuesto del LLM incluye entrada y salida: se amplió y se limitó el contexto para evitar que el historial lo agotara.
+Las órdenes del teléfono, cálculos y memoria personal funcionan localmente. El reconocimiento continuo propio necesita los modelos acústicos instalados; el modo compatible depende del proveedor y los idiomas disponibles en Android. La conversación generativa local requiere preparar el modelo opcional en Ajustes. Su presupuesto real es de 1.280 tokens entre entrada y salida; la entrada se mide con el tokenizador y se reduce a 960 como máximo para dejar espacio a la respuesta.
 
 ## Verificación en un teléfono
 

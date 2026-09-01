@@ -33,6 +33,9 @@ import com.eddy.assistant.EddyWakeActivity
 import com.eddy.assistant.MainActivity
 import com.eddy.assistant.R
 import com.eddy.assistant.actions.ActionExecutor
+import com.eddy.assistant.ai.EddyAiSettings
+import com.eddy.assistant.ai.AutonomousResearch
+import com.eddy.assistant.ai.ConversationCoordinator
 import com.eddy.assistant.ai.EddyAiClient
 import com.eddy.assistant.ai.EddyAiReply
 import com.eddy.assistant.ai.EddyWebSource
@@ -41,6 +44,9 @@ import com.eddy.assistant.brain.AssistantCommand
 import com.eddy.assistant.brain.EddyMathEngine
 import com.eddy.assistant.brain.LocalBrain
 import com.eddy.assistant.brain.WebQueryRouter
+import com.eddy.assistant.learning.AdaptiveIntentStore
+import com.eddy.assistant.learning.OnlineIntentNetwork
+import com.eddy.assistant.learning.LearnedIntent
 import com.eddy.assistant.localai.EddyDeviceProfile
 import com.eddy.assistant.localai.EddyLocalLlm
 import com.eddy.assistant.localai.EddyModelManager
@@ -54,8 +60,10 @@ import com.eddy.assistant.voice.EddyLocalVoiceEngine
 import com.eddy.assistant.voice.EddyNeuralTextToSpeech
 import com.eddy.assistant.voice.EddySpeechRecognizer
 import com.eddy.assistant.voice.EddyTextToSpeech
+import com.eddy.assistant.voice.SpeechProsody
 import com.eddy.assistant.voice.WakeResult
 import com.eddy.assistant.voice.WakeWordGate
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,6 +93,10 @@ class EddyAssistantService : Service() {
     private lateinit var ownerVoice: EddyVoiceProfile
     private lateinit var localLlm: EddyLocalLlm
     private lateinit var codeAgent: EddyCodeAgent
+    private val adaptiveStore by lazy { AdaptiveIntentStore(File(filesDir, "adaptive_learning")) }
+    private var adaptiveNetwork: OnlineIntentNetwork? = null
+    private var adaptiveUnavailable = false
+    private var replyProsody = SpeechProsody()
     private var localVoice: EddyLocalVoiceEngine? = null
     private var localVoiceActive = false
     private lateinit var compatibilityRecognizer: EddySpeechRecognizer
@@ -179,7 +191,7 @@ class EddyAssistantService : Service() {
             models = modelManager,
             profile = deviceProfile,
             onSpeakingChanged = ::onSpeakingChanged,
-            onFailure = { text -> serviceScope.launch { if (!destroyed && !platformTts.speak(text)) onSpeakingChanged(false) } },
+            onFailure = { text -> serviceScope.launch { if (!destroyed && !platformTts.speak(text, replyProsody)) onSpeakingChanged(false) } },
         )
 
         if (!hasMicrophonePermission()) {
@@ -455,9 +467,13 @@ class EddyAssistantService : Service() {
     }
 
     private suspend fun handleCommand(text: String) {
-        memory.rememberUserTurn(text)
-        memory.learnExplicitly(text)?.let { speakResponse(it); return }
-        EddyMathEngine.solve(text)?.let { speakResponse("El resultado es $it."); return }
+        replyProsody = SpeechProsody.forInput(text)
+        withContext(Dispatchers.IO) { memory.rememberUserTurn(text) }
+        withContext(Dispatchers.IO) { memory.learnExplicitly(text) }?.let {
+            learnIntent(text, LearnedIntent.MEMORY)
+            speakResponse(it); return
+        }
+        EddyMathEngine.solve(text)?.let { learnIntent(text, LearnedIntent.ACTION); speakResponse("El resultado es $it."); return }
         val commands = brain.understandMany(text)
         if (commands.size > 1) {
             val responses = mutableListOf<String>()
@@ -465,7 +481,8 @@ class EddyAssistantService : Service() {
             for (command in commands) {
                 memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
                 if (command is AssistantCommand.SearchWeb) {
-                    val answer = researchReply(command.query)
+                    learnIntent(command.query, LearnedIntent.SEARCH)
+                    val answer = researchReply(command.query, openBrowser = true)
                     responses.add(answer.text)
                     sources.addAll(answer.sources)
                     continue
@@ -478,41 +495,84 @@ class EddyAssistantService : Service() {
             return
         }
         val command = commands.firstOrNull() ?: AssistantCommand.Unknown(text)
-        if (command == AssistantCommand.ClearMemory) { memory.clearAll(); speakResponse("De una. Borré mi memoria local. Empezamos de nuevo."); return }
+        if (command == AssistantCommand.ClearMemory) { clearLocalMemory(); speakResponse("De una. Borré mi memoria local. Empezamos de nuevo."); return }
         memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
-        if (command is AssistantCommand.SearchWeb) { researchAndSpeak(command.query, true); return }
-        if (command is AssistantCommand.Unknown) {
-            // Learned answers must never shadow real commands such as clearing memory.
-            memory.personalReply(text)?.let { speakResponse(it); return }
-            if (WebQueryRouter.needsCurrentInformation(command.originalText)) { researchAndSpeak(text, true); return }
-            val remote = if (webClient.isConfigured) webClient.reply(command.originalText, memory.contextForAi(false), false, memory.historyForAi(text)) else null
-            if (remote != null) {
-                if (looksLikeCapabilityRequest(command.originalText)) {
-                    val plan = codeAgent.analyze(command.originalText)
-                    codeAgent.registerNativeProposal(
-                        capability = plan.capability,
-                        summary = "${plan.strategy}: ${plan.explanation}",
-                        candidateCode = remote.text,
-                        currentVersion = "0.6.0",
-                    )
-                }
-                if (remote.webUsed) speakResearchResponse(command.originalText, remote) else speakResponse(remote.text)
-                return
-            }
-            val localReply = localLlm.reply(command.originalText, memory.contextForAi(currentMessage = text))
-            val finalReply = localReply ?: fallbackConversation.reply(command.originalText, memory, webClient.lastError)
-            if (looksLikeCapabilityRequest(command.originalText)) {
-                val plan = codeAgent.analyze(command.originalText)
-                codeAgent.registerNativeProposal(
-                    capability = plan.capability,
-                    summary = "${plan.strategy}: ${plan.explanation}",
-                    candidateCode = finalReply,
-                    currentVersion = "0.6.0",
-                )
-            }
-            speakResponse(finalReply); return
+        if (command is AssistantCommand.SearchWeb) {
+            learnIntent(command.query, LearnedIntent.SEARCH)
+            speakResearchResponse(command.query, researchReply(command.query, openBrowser = true)); return
         }
+        if (command is AssistantCommand.Unknown) {
+            withContext(Dispatchers.IO) { memory.personalReply(text) }?.let {
+                learnIntent(text, LearnedIntent.MEMORY); speakResponse(it); return
+            }
+            val prediction = predictIntent(text)
+            val remoteContext = withContext(Dispatchers.IO) { memory.contextForAi(false) }
+            val history = memory.historyForAi(text)
+            val answer = ConversationCoordinator.reply(
+                message = text,
+                localFirst = EddyAiSettings.localFirst(applicationContext),
+                autoResearch = EddyAiSettings.autoResearch(applicationContext),
+                learnedSearch = prediction?.let { it.reliable && it.intent == LearnedIntent.SEARCH } == true,
+                local = {
+                    val context = withContext(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
+                    localLlm.reply(text, context)
+                },
+                cloud = { requireSources ->
+                    if (requireSources) researchReply(text)
+                    else if (webClient.isConfigured) webClient.reply(text, remoteContext, false, history)
+                    else null
+                },
+                fallback = { withContext(Dispatchers.IO) {
+                    val error = if (AutonomousResearch.offlineOnly(text)) localLlm.lastError else webClient.lastError ?: localLlm.lastError
+                    fallbackConversation.reply(text, memory, error)
+                } },
+            )
+            // Only deterministic rules label training examples; never train on a prediction.
+            if (WebQueryRouter.needsCurrentInformation(text) && AutonomousResearch.allowedFor(text)) learnIntent(text, LearnedIntent.SEARCH)
+            if (looksLikeCapabilityRequest(text)) {
+                val plan = codeAgent.analyze(text)
+                codeAgent.registerNativeProposal(plan.capability, "${plan.strategy}: ${plan.explanation}", answer.text, "0.6.0")
+            }
+            speakResearchResponse(text, answer)
+            return
+        }
+        learnIntent(text, when (command) {
+            AssistantCommand.Greeting -> LearnedIntent.CONVERSATION
+            AssistantCommand.MemorySummary -> LearnedIntent.MEMORY
+            else -> LearnedIntent.ACTION
+        })
         speakResponse(executeDirectCommand(command) ?: "Listo.")
+    }
+
+    private suspend fun predictIntent(text: String): OnlineIntentNetwork.Prediction? = withContext(Dispatchers.IO) {
+        if (!EddyAiSettings.adaptiveLearning(applicationContext) || adaptiveUnavailable) return@withContext null
+        try {
+            val network = adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it }
+            network.predict(text)
+        } catch (_: Exception) {
+            adaptiveUnavailable = true
+            EddyRuntimeState.setInputStatus(applicationContext, "Aprendizaje no disponible; conservé los datos para recuperación.")
+            null
+        }
+    }
+
+    private suspend fun learnIntent(text: String, intent: LearnedIntent) = withContext(Dispatchers.IO) {
+        if (!EddyAiSettings.adaptiveLearning(applicationContext) || adaptiveUnavailable) return@withContext
+        try {
+            val network = adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it }
+            network.learn(text, intent)
+            adaptiveStore.save(network)
+        } catch (_: Exception) {
+            adaptiveUnavailable = true
+            EddyRuntimeState.setInputStatus(applicationContext, "No pude guardar el aprendizaje. Las órdenes siguen disponibles.")
+        }
+    }
+
+    private suspend fun clearLocalMemory() = withContext(Dispatchers.IO) {
+        memory.clearAll()
+        adaptiveStore.clear()
+        adaptiveNetwork = null
+        adaptiveUnavailable = false
     }
 
     private fun looksLikeCapabilityRequest(text: String): Boolean {
@@ -524,12 +584,12 @@ class EddyAssistantService : Service() {
         ).any(value::contains)
     }
 
-    private fun executeDirectCommand(command: AssistantCommand): String? = when (command) {
+    private suspend fun executeDirectCommand(command: AssistantCommand): String? = when (command) {
         AssistantCommand.Greeting -> "Aquí estoy. Decime."
         AssistantCommand.TellTime -> "Son las ${SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())}."
         AssistantCommand.OpenCamera -> executor.openCamera().spokenMessage
-        AssistantCommand.MemorySummary -> memory.describeLearnedPatterns()
-        AssistantCommand.ClearMemory -> { memory.clearAll(); "Borré mi memoria local." }
+        AssistantCommand.MemorySummary -> withContext(Dispatchers.IO) { memory.describeLearnedPatterns() }
+        AssistantCommand.ClearMemory -> { clearLocalMemory(); "Borré mi memoria local." }
         is AssistantCommand.OpenApp -> executor.openApp(command.app).spokenMessage
         is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).spokenMessage
         is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
@@ -554,36 +614,37 @@ class EddyAssistantService : Service() {
         is AssistantCommand.Unknown -> null
     }
 
-    private suspend fun researchAndSpeak(query: String, forceWeb: Boolean) {
-        speakResearchResponse(query, researchReply(query, forceWeb))
-    }
-
-    private suspend fun researchReply(query: String, forceWeb: Boolean = true): EddyAiReply {
+    private suspend fun researchReply(query: String, forceWeb: Boolean = true, openBrowser: Boolean = false): EddyAiReply {
         fun unavailable(message: String) = EddyAiReply(message, false, emptyList())
+        if (AutonomousResearch.offlineOnly(query)) return unavailable("Una búsqueda web necesita conexión. Puedo seguir con las funciones locales.")
         if (!webClient.isConfigured) {
-            return unavailable("Para leerte una respuesta con fuentes, configurá tu clave de Gemini en Ajustes. ${executor.searchWeb(query).spokenMessage}")
+            val browser = if (openBrowser) " ${executor.searchWeb(query).spokenMessage}" else ""
+            return unavailable("Para verificar información web, configurá Gemini en Ajustes.$browser")
         }
         EddyRuntimeState.setSearching(applicationContext, true)
         EddyRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         return try {
             val current = EddyRuntimeState.read(applicationContext).heardText
-            val reply = webClient.reply(query, memory.contextForAi(false), forceWeb, memory.historyForAi(current))
+            val context = withContext(Dispatchers.IO) { memory.contextForAi(false) }
+            val reply = webClient.reply(query, context, forceWeb, memory.historyForAi(current))
             when {
                 reply == null -> unavailable(webClient.lastError ?: "No pude consultar Internet. Volvé a intentarlo.")
                 // Search-enabled does not mean Google actually supplied evidence.
                 forceWeb && !reply.webUsed -> unavailable("No obtuve fuentes web para verificarlo. Podés pedirme otra búsqueda más específica.")
-                else -> reply
+                else -> reply.copy(evidence = AutonomousResearch.evidenceNote(reply.sources.map { it.url }))
             }
         } finally { EddyRuntimeState.setSearching(applicationContext, false) }
     }
 
     private suspend fun speakResearchResponse(question: String, reply: EddyAiReply) {
         val finalText = reply.text
-        EddyRuntimeState.setAiResponse(applicationContext, finalText, reply.webUsed, reply.sources)
-        memory.rememberAssistantTurn(finalText); speakOnly(finalText)
+        val evidenceNote = if (reply.webUsed) AutonomousResearch.evidenceNote(reply.sources.map { it.url }) else ""
+        val displayed = if (evidenceNote.isBlank()) finalText else "$finalText\n\n$evidenceNote"
+        EddyRuntimeState.setAiResponse(applicationContext, displayed, reply.webUsed, reply.sources)
+        withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }; speakOnly(finalText)
     }
 
-    private fun speakResponse(text: String) { EddyRuntimeState.setResponse(applicationContext, text); memory.rememberAssistantTurn(text); speakOnly(text) }
+    private suspend fun speakResponse(text: String) { EddyRuntimeState.setResponse(applicationContext, text); withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }; speakOnly(text) }
     private fun speakOnly(text: String, continueCommand: Boolean = false) {
         if (text.isBlank() || destroyed) return
         continueAfterSpeech = continueCommand
@@ -599,7 +660,7 @@ class EddyAssistantService : Service() {
                 onSpeakingChanged(false)
             }
         }
-        val queued = if (neuralTts.isAvailable) neuralTts.speak(text) else platformTts.speak(text)
+        val queued = if (neuralTts.isAvailable) neuralTts.speak(text, replyProsody.speed) else platformTts.speak(text, replyProsody)
         if (queued) EddyRuntimeState.setVoiceReady(applicationContext, true)
         else { EddyRuntimeState.setVoiceReady(applicationContext, false); onSpeakingChanged(false) }
     }
