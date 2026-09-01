@@ -6,7 +6,7 @@ import android.content.Context
  * Compatibility wrapper kept for callers that still reference EddyActionPlanner.
  *
  * EDDY no longer sends planning requests to a Render/backend `/plan` endpoint.
- * Natural-language reasoning is handled by the direct Gemini client while the
+ * Natural-language reasoning is handled by the direct GroqCloud client while the
  * actual phone actions remain constrained by LocalBrain/ActionExecutor.
  */
 class EddyActionPlanner(@Suppress("UNUSED_PARAMETER") context: Context) {

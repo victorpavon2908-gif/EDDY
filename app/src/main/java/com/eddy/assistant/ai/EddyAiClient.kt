@@ -4,7 +4,7 @@ import android.content.Context
 
 /**
  * Compatibility facade used by the assistant service.
- * Conversation now goes EDDY -> Gemini directly. There is no EDDY/Render backend hop.
+ * Conversation goes EDDY -> GroqCloud directly. There is no EDDY/Render backend hop.
  * Local commands are still handled by LocalBrain/ActionExecutor before this client is called.
  */
 class EddyAiClient(
@@ -12,13 +12,13 @@ class EddyAiClient(
     @Suppress("UNUSED_PARAMETER") baseUrlOverride: String? = null,
 ) {
     private val appContext = context.applicationContext
-    private val gemini = EddyGeminiClient(appContext)
+    private val groq = EddyGroqClient(appContext)
 
-    val isConfigured: Boolean get() = gemini.isConfigured
+    val isConfigured: Boolean get() = groq.isConfigured
 
-    val lastError: String? get() = gemini.lastError
+    val lastError: String? get() = groq.lastError
 
-    suspend fun healthCheck(): Boolean = gemini.testConnection()
+    suspend fun healthCheck(): Boolean = groq.testConnection()
 
     suspend fun reply(
         message: String,
@@ -28,6 +28,6 @@ class EddyAiClient(
     ): EddyAiReply? {
         if (AutonomousResearch.offlineOnly(message)) return null
         val allowWeb = forceWeb || (EddyAiSettings.autoResearch(appContext) && AutonomousResearch.allowedFor(message))
-        return gemini.reply(message, memoryContext, useWeb = allowWeb, history = history)
+        return groq.reply(message, memoryContext, useWeb = allowWeb, history = history)
     }
 }

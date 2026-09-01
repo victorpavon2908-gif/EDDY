@@ -14,7 +14,7 @@ Las etiquetas proceden de órdenes reconocidas por reglas y enseñanzas explíci
 
 Una predicción solo puede recomendar la ruta de búsqueda y debe superar mínimos de ejemplos, confianza, margen y similitud. Nunca ejecuta acciones del teléfono. Las órdenes reales y las respuestas personales explícitas conservan prioridad.
 
-Los pesos y ejemplos se guardan en almacenamiento privado con versión, comprobación CRC y una copia anterior recuperable. Un archivo dañado no reinicia silenciosamente lo aprendido. Desactivar aprendizaje detiene entrenamiento y uso de predicciones; «borrá tu memoria» elimina también los pesos y su copia. No hay entrenamiento de un modelo de lenguaje desde cero ni ajuste de los pesos de Qwen, Gemini o los modelos de voz.
+Los pesos y ejemplos se guardan en almacenamiento privado con versión, comprobación CRC y una copia anterior recuperable. Un archivo dañado no reinicia silenciosamente lo aprendido. Desactivar aprendizaje detiene entrenamiento y uso de predicciones; «borrá tu memoria» elimina también los pesos y su copia. No hay entrenamiento de un modelo de lenguaje desde cero ni ajuste de los pesos de Qwen, GroqCloud o los modelos de voz.
 
 ## Memoria duradera y límites de contexto
 
@@ -28,11 +28,11 @@ La base crece con el uso y necesita espacio libre; borrar datos de Android o des
 
 El modelo de lenguaje sigue siendo Qwen preentrenado. El [modelo exportado utilizado](https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct) tiene capacidad de 1.280 tokens, incluyendo entrada y salida. El código anterior pedía 3.072. Ahora se mide cada entrada con el tokenizador del motor, se reduce el contexto y se reservan al menos 320 tokens para responder. Los errores de preparación, inicio e inferencia se explican cuando tampoco hay una respuesta alternativa.
 
-Con verificación automática activada, las preguntas de actualidad y las búsquedas aprendidas fiables solicitan fuentes directamente. Una respuesta local que expresa incertidumbre puede derivarse a Gemini si la pregunta permite investigación. Las preguntas personales y las negativas explícitas a buscar se excluyen por reglas. Decir «sin Internet» fuerza la ruta local y evita la llamada a Gemini. Estas reglas no detectan todas las alucinaciones de un modelo.
+Con verificación automática activada, las preguntas de actualidad y las búsquedas aprendidas fiables solicitan fuentes directamente. Una respuesta local que expresa incertidumbre puede derivarse a GroqCloud si la pregunta permite investigación. Las preguntas personales y las negativas explícitas a buscar se excluyen por reglas. Decir «sin Internet» fuerza la ruta local y evita la llamada a GroqCloud. Estas reglas no detectan todas las alucinaciones de un modelo.
 
-La investigación usa [Google Search de Gemini](https://ai.google.dev/gemini-api/docs/generate-content/google-search), necesita conexión y clave configurada. Las instrucciones piden contrastar fuentes y reconocer discrepancias. La interfaz muestra las fuentes devueltas; varios enlaces no prueban por sí solos independencia. Si no se puede confirmar diversidad de dominios, se indica. Una búsqueda exigida sin fuentes no se presenta como verificada. Las páginas se tratan como datos, no como instrucciones.
+La investigación usa [búsqueda de Groq Compound](https://console.groq.com/docs/tool-use/built-in-tools/web-search), necesita conexión y clave configurada. Las instrucciones piden contrastar fuentes y reconocer discrepancias. La interfaz muestra las fuentes devueltas; varios enlaces no prueban por sí solos independencia. Si no se puede confirmar diversidad de dominios, se indica. Una búsqueda exigida sin fuentes no se presenta como verificada. Las páginas se tratan como datos, no como instrucciones.
 
-No se inicia un rastreador permanente ni se sortean permisos. Cada turno activado hace como máximo una operación del coordinador hacia la nube, sujeta al límite y los reintentos del cliente Gemini. Esa operación puede usar la herramienta de búsqueda. Si falla, se muestra el motivo o una respuesta local disponible; la búsqueda automática nunca abre otra aplicación para simular éxito.
+No se inicia un rastreador permanente ni se sortean permisos. Cada turno activado hace como máximo una operación del coordinador hacia la nube, sujeta al límite y los reintentos del cliente GroqCloud. Esa operación puede usar la herramienta de búsqueda. Si falla, se muestra el motivo o una respuesta local disponible; la búsqueda automática nunca abre otra aplicación para simular éxito.
 
 ## Voz y emoción
 

@@ -619,7 +619,7 @@ class EddyAssistantService : Service() {
         if (AutonomousResearch.offlineOnly(query)) return unavailable("Una búsqueda web necesita conexión. Puedo seguir con las funciones locales.")
         if (!webClient.isConfigured) {
             val browser = if (openBrowser) " ${executor.searchWeb(query).spokenMessage}" else ""
-            return unavailable("Para verificar información web, configurá Gemini en Ajustes.$browser")
+            return unavailable("Para verificar información web, configurá GroqCloud en Ajustes.$browser")
         }
         EddyRuntimeState.setSearching(applicationContext, true)
         EddyRuntimeState.setResponse(applicationContext, "Investigando en Internet…")

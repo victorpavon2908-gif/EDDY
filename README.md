@@ -7,7 +7,7 @@ comprueba pruebas y Lint, sin generar ni publicar APK automáticamente.
 La compilación manual indicada abajo se usa únicamente cuando se solicita.
 
 Asistente Android por voz, con activación local «EDDY», comandos del teléfono,
-memoria local y conversación directa con Gemini. ARM64, incluido Honor X6c.
+memoria local y conversación directa con GroqCloud. ARM64, incluido Honor X6c.
 No requiere un servidor propio para conversar.
 
 ## Instalar y usar
@@ -17,7 +17,7 @@ No requiere un servidor propio para conversar.
    de voz incluido en el APK, sin necesitar Internet.
 3. Esperá «Núcleo privado activo». Decí «EDDY, qué hora es» o «EDDY, encendé la linterna».
    También podés decir «EDDY», esperar «Ajá» y dar la orden.
-4. Para conversar, abrí **Gemini directo**, guardá tu clave y usá **Guardar y probar**.
+4. Para conversar, abrí **GroqCloud**, guardá tu clave y usá **Guardar y probar**.
 5. Para escuchar con la pantalla apagada, permití funcionar en segundo plano en
    los ajustes de batería de Android/Honor.
 
@@ -32,22 +32,27 @@ notificación. No hay autenticación segura del hablante: cualquiera puede decir
 | Activación y transcripción española | Sí, núcleo incluido | Igual |
 | Hora, cálculos, linterna, volumen, alarmas, abrir apps | Sí; según permisos | Igual |
 | Voz | Voz española de Android o neuronal ya instalada | Igual |
-| Conversación amplia | Limitada; modelo generativo opcional si ya está instalado | Gemini con clave y cuota |
-| Información actual | No | Búsqueda de Gemini, con fuentes cuando la utiliza |
+| Conversación amplia | Limitada; modelo generativo opcional si ya está instalado | GroqCloud con clave y cuota |
+| Información actual | No | Groq Compound, con fuentes cuando la utiliza |
 
 Abrir una app no garantiza que sus funciones funcionen sin red. Un teléfono sin voz
 española necesita instalarla desde su motor TTS. No se descargan automáticamente
 modelos generativos grandes, biometría ni voces adicionales. Se conservan los
 modelos locales que el usuario ya tenga instalados.
 
+La conversación remota usa `llama-3.3-70b-versatile` por defecto; la búsqueda usa
+`groq/compound`. Las claves antiguas de Gemini no se reutilizan. Si antes la clave
+de Groq estaba en Render, debe configurarse en el teléfono para la conexión directa.
+Véase [configuración y validación de GroqCloud](docs/GROQ_CLOUD.md).
+
 ## Estabilidad
 
 - AudioRecord permanece abierto; se descarta el audio durante respuestas y no se
-  envía audio ambiental a Gemini. Una reserva breve conserva el inicio de la orden.
+  envía audio ambiental a GroqCloud. Una reserva breve conserva el inicio de la orden.
 - Una orden a la vez, regreso a modo pasivo y liberación de recursos en su hilo.
 - El reconocedor compatible espera el resultado final, sin cancelaciones cada
   14 segundos ni al cambiar la pantalla. Recupera sesiones realmente atascadas.
-- Gemini tiene 18 segundos de presupuesto total y hasta tres intentos. Claves
+- GroqCloud tiene 18 segundos de presupuesto total y hasta tres intentos. Claves
   inválidas, cuota agotada y respuestas bloqueadas no generan reintentos en cadena.
 - La voz neuronal espera a que suenen las últimas palabras antes de cerrar audio.
 - No se reutilizan respuestas antiguas como si fueran información actual.
@@ -73,7 +78,7 @@ valida tamaños y adjunta SHA-256 para comprobar la copia en el teléfono. Los m
 no se guardan en Git. El APK pesa más porque incluye la voz offline.
 Las compilaciones manuales deben conservar la misma clave de firma. Una firma
 distinta puede impedir actualizar un APK anterior. No desinstalés
-sin respaldar los datos que necesités. `backend/` es legado y no interviene en Gemini.
+sin respaldar los datos que necesités. `backend/` es legado y no interviene en GroqCloud.
 
 ## Prueba en Honor X6c
 
@@ -86,5 +91,5 @@ sin respaldar los datos que necesités. `backend/` es legado y no interviene en 
 - Respuesta larga: últimas palabras completas y regreso a modo pasivo.
 
 Referencias: [SpeechRecognizer](https://developer.android.com/reference/android/speech/SpeechRecognizer),
-[Gemini generateContent](https://ai.google.dev/api/generate-content),
-[búsqueda con Gemini](https://ai.google.dev/gemini-api/docs/google-search).
+[Groq Chat Completions](https://console.groq.com/docs/api-reference),
+[búsqueda con Groq Compound](https://console.groq.com/docs/tool-use/built-in-tools/web-search).

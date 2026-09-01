@@ -18,7 +18,7 @@ class EddyFallbackConversation {
                 "Soy EDDY, tu asistente personal. Estoy hecho para ayudarte de una con el teléfono, tu casa inteligente y lo que vayás necesitando."
 
             text.contains("que puedes hacer") || text.contains("que sabes hacer") ->
-                "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería y ajustes del teléfono, controlar dispositivos de tu casa, resolver operaciones matemáticas y conversar y consultar información con Gemini cuando hay Internet."
+                "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería y ajustes del teléfono, controlar dispositivos de tu casa, resolver operaciones matemáticas y conversar y consultar información con GroqCloud cuando hay Internet."
 
             text.contains("estoy triste") || text.contains("me siento triste") ->
                 "Siento que estés pasando por eso. ¿Querés contarme qué pasó?"
@@ -36,7 +36,7 @@ class EddyFallbackConversation {
                 memory.describeLearnedPatterns()
 
             else ->
-                "${connectionError ?: "Configurá Gemini en Ajustes o instalá el modelo de conversación local para ampliar mis respuestas."} Puedo seguir ayudándote con órdenes del teléfono y tu memoria personal."
+                "${connectionError ?: "Configurá GroqCloud en Ajustes o instalá el modelo de conversación local para ampliar mis respuestas."} Puedo seguir ayudándote con órdenes del teléfono y tu memoria personal."
         }
     }
 

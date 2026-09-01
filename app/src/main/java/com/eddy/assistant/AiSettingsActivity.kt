@@ -38,24 +38,24 @@ import com.eddy.assistant.localai.EddyModelSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.eddy.assistant.ai.EddyAiSettings
-import com.eddy.assistant.ai.EddyGeminiClient
+import com.eddy.assistant.ai.EddyGroqClient
 import com.eddy.assistant.ui.theme.EddyTheme
 import kotlinx.coroutines.launch
 
 class AiSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { EddyTheme { GeminiSettingsScreen(onClose = { finish() }) } }
+        setContent { EddyTheme { GroqSettingsScreen(onClose = { finish() }) } }
     }
 }
 
 @Composable
-private fun GeminiSettingsScreen(onClose: () -> Unit) {
+private fun GroqSettingsScreen(onClose: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var apiKey by remember { mutableStateOf(EddyAiSettings.apiKey(context)) }
     var model by remember { mutableStateOf(EddyAiSettings.model(context)) }
-    var status by remember { mutableStateOf("Pegá aquí tu API key de Gemini. Se guarda solo en este teléfono.") }
+    var status by remember { mutableStateOf("Pegá aquí tu API key de GroqCloud. Se guarda solo en este teléfono.") }
     var testing by remember { mutableStateOf(false) }
     var personality by remember { mutableStateOf(EddyAiSettings.personality(context)) }
     var localFirst by remember { mutableStateOf(EddyAiSettings.localFirst(context)) }
@@ -109,16 +109,16 @@ private fun GeminiSettingsScreen(onClose: () -> Unit) {
             OutlinedButton(onClick = { prepareModel(EddyModelCatalog.localLlm) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN SIN INTERNET") }
             OutlinedButton(onClick = { prepareModel(EddyModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }
             Text(modelStatus, style = MaterialTheme.typography.bodySmall)
-            Text("GEMINI DIRECTO", style = MaterialTheme.typography.headlineMedium)
+            Text("GROQCLOUD", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "EDDY se conecta directamente con Gemini. Ya no necesitás una URL de Render para la conversación de IA. La memoria, voz y funciones locales siguen dentro de EDDY.",
+                "EDDY usa GroqCloud para conversar y Groq Compound para consultar la web. Guardá la clave de tu cuenta de Groq; la memoria y la voz local siguen en el teléfono.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
                 value = apiKey,
                 onValueChange = { apiKey = it },
-                label = { Text("API key de Gemini") },
+                label = { Text("API key de GroqCloud") },
                 placeholder = { Text("Pegá tu clave aquí") },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
@@ -128,23 +128,24 @@ private fun GeminiSettingsScreen(onClose: () -> Unit) {
             OutlinedTextField(
                 value = model,
                 onValueChange = { model = it },
-                label = { Text("Modelo") },
+                label = { Text("Modelo de conversación") },
                 placeholder = { Text(EddyAiSettings.DEFAULT_MODEL) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Text("Las búsquedas usan Groq Compound automáticamente. Su disponibilidad y límites dependen de tu cuenta.", style = MaterialTheme.typography.bodySmall)
             Text(status, style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = {
-                        EddyAiSettings.saveGemini(context, apiKey, model)
-                        status = "Guardado en el teléfono. Probando Gemini…"
+                        EddyAiSettings.saveGroq(context, apiKey, model)
+                        status = "Guardado en el teléfono. Probando GroqCloud…"
                         testing = true
                         scope.launch {
-                            val client = EddyGeminiClient(context)
+                            val client = EddyGroqClient(context)
                             try {
                                 val ok = client.testConnection()
-                                status = if (ok) "Conectado con ${client.lastModelUsed}. EDDY ya puede conversar." else client.lastError ?: "No pude conectar con Gemini."
+                                status = if (ok) "Conectado con ${client.lastModelUsed}. EDDY ya puede conversar." else client.lastError ?: "No pude conectar con GroqCloud."
                             } finally { testing = false }
                         }
                     },
