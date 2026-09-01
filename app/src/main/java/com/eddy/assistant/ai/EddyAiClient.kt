@@ -35,7 +35,6 @@ class EddyAiClient(
         val prompt = if (forceWeb) {
             "El usuario necesita información actual o externa. Respondé con claridad; si no podés verificar actualidad, decilo explícitamente. Pregunta: $message"
         } else message
-        val text = gemini.reply(prompt, memoryContext) ?: return null
-        return EddyAiReply(text = text, webUsed = false, sources = emptyList())
+        return gemini.reply(prompt, memoryContext, useWeb = forceWeb)
     }
 }

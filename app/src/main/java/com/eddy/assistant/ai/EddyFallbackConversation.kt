@@ -18,7 +18,7 @@ class EddyFallbackConversation {
                 "Soy EDDY, tu asistente personal. Estoy hecho para ayudarte de una con el teléfono, tu casa inteligente y lo que vayás necesitando."
 
             text.contains("que puedes hacer") || text.contains("que sabes hacer") ->
-                "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería y ajustes del teléfono, controlar dispositivos de tu casa, resolver operaciones matemáticas y buscar información en Internet con mi backend web."
+                "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería y ajustes del teléfono, controlar dispositivos de tu casa, resolver operaciones matemáticas y conversar y consultar información con Gemini cuando hay Internet."
 
             text.contains("gracias") ->
                 "De una. Aquí estoy para lo que ocupés."
@@ -30,7 +30,7 @@ class EddyFallbackConversation {
                 memory.describeLearnedPatterns()
 
             else ->
-                "Te entendí, pero todavía no tengo una acción local específica para eso. Si es una pregunta de información, EDDY intenta investigarla automáticamente cuando el backend está disponible."
+                "Ahorita no pude consultar Gemini. Sin conexión puedo ayudarte con la hora, cálculos, alarmas, linterna y otras funciones del teléfono. Para conversar sobre eso necesito recuperar la conexión."
         }
     }
 

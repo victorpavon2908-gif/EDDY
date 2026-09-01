@@ -19,6 +19,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
@@ -56,6 +57,7 @@ import com.eddy.assistant.voice.WakeWordGate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -87,6 +89,11 @@ class EddyAssistantService : Service() {
     private lateinit var platformTts: EddyTextToSpeech
     private lateinit var neuralTts: EddyNeuralTextToSpeech
 
+    private var destroyed = false
+    private var localVoiceStarting = false
+    private var commandJob: Job? = null
+    private var continueAfterSpeech = false
+    private var recoveryJob: Job? = null
     private var isListening = false
     private var isThinking = false
     private var isSpeaking = false
@@ -130,7 +137,7 @@ class EddyAssistantService : Service() {
             context = applicationContext,
             onListeningChanged = { recognizerOpen ->
                 if (!localVoiceActive) {
-                    isListening = recognizerOpen && wakeGate.isArmed()
+                    isListening = recognizerOpen && wakeGate.isArmed(SystemClock.elapsedRealtime())
                     updateVisualState()
                 }
             },
@@ -140,8 +147,7 @@ class EddyAssistantService : Service() {
             onResult = { raw -> if (!localVoiceActive) handleRecognition(raw) },
             onError = { error ->
                 if (!localVoiceActive) {
-                    isThinking = false
-                    if (wakeGate.isArmed()) {
+                    if (wakeGate.isArmed(SystemClock.elapsedRealtime())) {
                         EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
                     } else if (!error.startsWith("No te pude escuchar")) {
                         EddyRuntimeState.setResponse(applicationContext, error)
@@ -160,21 +166,24 @@ class EddyAssistantService : Service() {
             models = modelManager,
             profile = deviceProfile,
             onSpeakingChanged = ::onSpeakingChanged,
+            onFailure = { text -> serviceScope.launch { if (!destroyed && !platformTts.speak(text)) onSpeakingChanged(false) } },
         )
 
+        if (!hasMicrophonePermission()) {
+            EddyRuntimeState.setResponse(applicationContext, "Abrí EDDY y concedé el permiso de micrófono.")
+            stopSelf()
+            return
+        }
+        createNotificationChannels()
+        try { startAsForeground() } catch (_: RuntimeException) {
+            EddyRuntimeState.setResponse(applicationContext, "Abrí EDDY para activar el micrófono.")
+            stopSelf()
+            return
+        }
         acquireCpuWakeLock()
         registerScreenStateReceiver()
         EddyRuntimeState.setRunning(applicationContext, true)
-        EddyRuntimeState.setResponse(applicationContext, "EDDY iniciando escucha privada…")
-        createNotificationChannels()
-        startAsForeground()
-
-        if (!hasMicrophonePermission()) {
-            EddyRuntimeState.setResponse(applicationContext, "Abrí EDDY y concedé el permiso de micrófono para mantenerme activo.")
-            return
-        }
-
-        if (!startLocalVoiceIfReady()) startCompatibilityListening("Decí EDDY cuando me necesités.")
+        EddyRuntimeState.setResponse(applicationContext, "Preparando la voz local…")
         startModelBootstrap()
     }
 
@@ -185,14 +194,17 @@ class EddyAssistantService : Service() {
             ACTION_HIDE_BUBBLE -> hideBubble()
             ACTION_REFRESH_BUBBLE -> { hideBubble(); showBubble() }
         }
-        if (!localVoiceActive && hasMicrophonePermission() && !isSpeaking && !isThinking) compatibilityRecognizer.resume()
+        if (!localVoiceActive && !localVoiceStarting && hasMicrophonePermission() && !isSpeaking && !isThinking) compatibilityRecognizer.resume()
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        destroyed = true
         pendingWakeAck?.cancel()
+        commandJob?.cancel()
+        recoveryJob?.cancel()
         pendingWakeAck = null
         bubbleParams?.let(::saveBubblePosition)
         hideBubble()
@@ -209,30 +221,33 @@ class EddyAssistantService : Service() {
     }
 
     private fun startModelBootstrap() {
-        serviceScope.launch(Dispatchers.IO) {
-            modelManager.ensureRecommended(deviceProfile) { progress ->
-                if (progress.state == EddyModelProgress.State.DOWNLOADING) {
-                    val percent = if (progress.totalBytes > 0) (progress.downloadedBytes * 100 / progress.totalBytes).coerceIn(0, 100) else null
-                    serviceScope.launch {
-                        EddyRuntimeState.setResponse(applicationContext, "Preparando núcleo local: ${progress.modelId}${percent?.let { " $it%" }.orEmpty()}")
+        localVoiceStarting = true
+        serviceScope.launch {
+            try {
+                val ready = withContext(Dispatchers.IO) {
+                    modelManager.ensureRecommended(deviceProfile) { progress ->
+                        if (progress.state == EddyModelProgress.State.INSTALLING || progress.state == EddyModelProgress.State.DOWNLOADING) {
+                            serviceScope.launch {
+                                if (!isThinking && !isSpeaking) EddyRuntimeState.setResponse(applicationContext, "Preparando voz local: ${progress.modelId}")
+                            }
+                        }
                     }
+                    modelManager.coreReady()
                 }
-            }
-            withContext(Dispatchers.Main) {
-                if (!localVoiceActive && modelManager.coreReady()) {
-                    val started = startLocalVoiceIfReady()
-                    if (!started) startCompatibilityListening("Modo de escucha compatible activo. Decí EDDY cuando me necesités.")
+                if (!ready || !startLocalVoiceIfReady()) {
+                    startCompatibilityListening("Modo compatible activo. La voz local aún no está preparada.")
                 }
-                if (localVoiceActive) {
-                    val tier = deviceProfile.tier.name.lowercase()
-                    val llm = if (localLlm.isAvailable) " · cerebro generativo local listo" else ""
-                    EddyRuntimeState.setResponse(applicationContext, "Núcleo privado activo · perfil $tier$llm · decí EDDY")
-                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                startCompatibilityListening("No pude preparar la voz local. Escucha compatible activa.")
+            } finally {
+                localVoiceStarting = false
             }
         }
     }
 
-    private fun startLocalVoiceIfReady(): Boolean {
+    private suspend fun startLocalVoiceIfReady(): Boolean {
         if (localVoiceActive || !modelManager.coreReady() || !hasMicrophonePermission()) return localVoiceActive
         val engine = EddyLocalVoiceEngine(
             context = applicationContext,
@@ -242,72 +257,79 @@ class EddyAssistantService : Service() {
             onState = { voiceState -> serviceScope.launch {
                 when (voiceState) {
                     EddyLocalVoiceEngine.State.PASSIVE -> { isListening = false; if (!isSpeaking && !isThinking) EddyRuntimeState.setState(applicationContext, EddyRuntimeState.State.IDLE) }
-                    EddyLocalVoiceEngine.State.VERIFYING, EddyLocalVoiceEngine.State.PROCESSING -> { isThinking = true; updateVisualState() }
+                    EddyLocalVoiceEngine.State.VERIFYING, EddyLocalVoiceEngine.State.PROCESSING -> { updateVisualState() }
                     EddyLocalVoiceEngine.State.ACTIVE -> { isThinking = false; isListening = true; updateVisualState() }
                     EddyLocalVoiceEngine.State.SPEAKING -> { isListening = false; isSpeaking = true; updateVisualState() }
                     EddyLocalVoiceEngine.State.STOPPED -> Unit
                 }
             }},
-            onWake = { _, enrolled -> serviceScope.launch {
+            onWake = { _, _ -> serviceScope.launch {
                 EddyRuntimeState.setHeard(applicationContext, "EDDY")
-                val profileText = if (enrolled) "voz verificada" else "aprendiendo tu voz"
-                EddyRuntimeState.setResponse(applicationContext, "Te escucho · $profileText")
+                EddyRuntimeState.setResponse(applicationContext, "Te escucho.")
                 revealEddyOnLockScreen()
                 scheduleWakeAcknowledgement()
             }},
-            onCommandSpeechStarted = {
+            onCommandSpeechStarted = { serviceScope.launch {
                 pendingWakeAck?.cancel()
                 pendingWakeAck = null
-            },
-            onCommand = { text -> serviceScope.launch {
-                pendingWakeAck?.cancel()
-                pendingWakeAck = null
-                EddyRuntimeState.setHeard(applicationContext, text)
-                revealEddyOnLockScreen()
-                isListening = false; isThinking = true; updateVisualState()
-                try { handleCommand(text) } finally { isThinking = false; updateVisualState() }
-            }},
+            } },
+            onCommand = { text -> serviceScope.launch { submitCommand(text) } },
             onUnauthorizedVoice = {},
-            onError = { error -> serviceScope.launch { fallbackToCompatibilityRecognizer(error) } },
+            onError = { error -> serviceScope.launch {
+                if (localVoiceActive && !destroyed) fallbackToCompatibilityRecognizer(error)
+            } },
         )
 
-        return if (engine.start()) {
-            localVoice = engine
+        // Release the Android recognizer before asking AudioRecord to own the microphone.
+        compatibilityRecognizer.stopContinuous()
+        localVoice = engine
+        val started = withContext(Dispatchers.IO) { engine.start() }
+        if (destroyed) { engine.stop(); return false }
+        return if (started) {
             localVoiceActive = true
-            compatibilityRecognizer.stopContinuous()
             isListening = false
             EddyRuntimeState.setResponse(applicationContext, "Núcleo privado activo. Decí EDDY cuando me necesités.")
             true
-        } else false
+        } else { engine.stop(); localVoice = null; false }
     }
 
     private fun scheduleWakeAcknowledgement() {
         pendingWakeAck?.cancel()
         pendingWakeAck = serviceScope.launch {
             delay(WAKE_ACK_DELAY_MS)
-            if (localVoiceActive && isListening && !isThinking && !isSpeaking) speakResponse("Ajá.")
+            if (localVoiceActive && isListening && !isThinking && !isSpeaking) speakOnly("Ajá.", continueCommand = true)
             pendingWakeAck = null
         }
     }
 
     private fun fallbackToCompatibilityRecognizer(error: String) {
+        if (destroyed) return
         pendingWakeAck?.cancel()
         pendingWakeAck = null
         localVoice?.stop()
         localVoice = null
         localVoiceActive = false
         isListening = false
-        isThinking = false
-        if (hasMicrophonePermission() && !isSpeaking) {
+        if (hasMicrophonePermission() && !isSpeaking && !isThinking) {
             compatibilityRecognizer.startContinuous()
             compatibilityRecognizer.resume()
         }
-        EddyRuntimeState.setResponse(applicationContext, "Escucha recuperada en modo compatible. Decí EDDY.")
+        EddyRuntimeState.setResponse(applicationContext, "Escucha compatible activa. $error")
         updateVisualState()
+        recoveryJob?.cancel()
+        recoveryJob = serviceScope.launch {
+            delay(5_000L)
+            if (!destroyed && !isSpeaking && !isThinking && modelManager.coreReady()) {
+                localVoiceStarting = true
+                try {
+                    if (!startLocalVoiceIfReady()) startCompatibilityListening("Escucha compatible activa. Decí EDDY.")
+                } finally { localVoiceStarting = false }
+            }
+        }
     }
 
     private fun startCompatibilityListening(message: String) {
-        if (!hasMicrophonePermission() || isSpeaking) return
+        if (destroyed || !hasMicrophonePermission() || isSpeaking || isThinking) return
         localVoiceActive = false
         isListening = false
         compatibilityRecognizer.startContinuous()
@@ -318,11 +340,11 @@ class EddyAssistantService : Service() {
     }
 
     private fun handlePartialWakeWord(partial: String) {
-        if (!wakeGate.hasWakeWord(partial)) return
-        val now = System.currentTimeMillis()
+        if (destroyed || isThinking || isSpeaking || !wakeGate.hasWakeWord(partial)) return
+        val now = SystemClock.elapsedRealtime()
         if (now - lastPartialWakeAt < PARTIAL_WAKE_DEBOUNCE_MS) return
         lastPartialWakeAt = now
-        wakeGate.arm(now)
+        // Partial transcripts only update the UI; final results authorize a command.
         isListening = true
         EddyRuntimeState.setHeard(applicationContext, "EDDY")
         EddyRuntimeState.setResponse(applicationContext, "Te escucho. Decime qué querés que haga.")
@@ -331,7 +353,8 @@ class EddyAssistantService : Service() {
     }
 
     private fun handleRecognition(raw: String) {
-        when (val wakeResult = wakeGate.consume(raw)) {
+        if (destroyed || isThinking || isSpeaking) return
+        when (val wakeResult = wakeGate.consume(raw, SystemClock.elapsedRealtime())) {
             WakeResult.Ignored -> {
                 isListening = false
                 EddyRuntimeState.setHeard(applicationContext, "")
@@ -344,17 +367,43 @@ class EddyAssistantService : Service() {
                 EddyRuntimeState.setResponse(applicationContext, "Ajá.")
                 revealEddyOnLockScreen()
                 updateVisualState()
-                speakOnly("Ajá.")
+                speakOnly("Ajá.", continueCommand = true)
             }
-            is WakeResult.Command -> {
-                pendingWakeAck?.cancel()
-                pendingWakeAck = null
-                isListening = false
-                EddyRuntimeState.setHeard(applicationContext, wakeResult.text)
-                revealEddyOnLockScreen(); compatibilityRecognizer.pause(); isThinking = true; updateVisualState()
-                serviceScope.launch { try { delay(80); handleCommand(wakeResult.text) } finally { isThinking = false; updateVisualState() } }
+            is WakeResult.Command -> submitCommand(wakeResult.text)
+        }
+    }
+
+    private fun submitCommand(text: String) {
+        if (destroyed || isSpeaking || isThinking || commandJob?.isActive == true) return
+        pendingWakeAck?.cancel()
+        pendingWakeAck = null
+        wakeGate.disarm()
+        isListening = false
+        isThinking = true
+        localVoice?.setAssistantBusy(true)
+        compatibilityRecognizer.pause()
+        EddyRuntimeState.setHeard(applicationContext, text)
+        revealEddyOnLockScreen()
+        updateVisualState()
+        commandJob = serviceScope.launch {
+            try {
+                handleCommand(text)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                speakResponse("No pude completar eso. Volvé a llamarme y lo intentamos.")
+            } finally {
+                isThinking = false
+                if (!isSpeaking) finishTurn()
+                updateVisualState()
             }
         }
+    }
+
+    private fun finishTurn() {
+        wakeGate.disarm()
+        localVoice?.finishTurn()
+        if (!destroyed && !localVoiceActive && !localVoiceStarting && hasMicrophonePermission()) compatibilityRecognizer.resume()
     }
 
     private suspend fun handleCommand(text: String) {
@@ -374,17 +423,15 @@ class EddyAssistantService : Service() {
         memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
         if (command is AssistantCommand.SearchWeb) { researchAndSpeak(command.query, true); return }
         if (command is AssistantCommand.Unknown) {
-            memory.recallLearnedAnswer(command.originalText)?.let { speakResponse(it); return }
             val remote = if (webClient.isConfigured) webClient.reply(command.originalText, memory.contextForAi(), false) else null
             if (remote != null) {
-                memory.rememberLearnedAnswer(command.originalText, remote.text, remote.webUsed)
                 if (looksLikeCapabilityRequest(command.originalText)) {
                     val plan = codeAgent.analyze(command.originalText)
                     codeAgent.registerNativeProposal(
                         capability = plan.capability,
                         summary = "${plan.strategy}: ${plan.explanation}",
                         candidateCode = remote.text,
-                        currentVersion = "0.5.1",
+                        currentVersion = "0.6.0",
                     )
                 }
                 if (remote.webUsed) speakResearchResponse(command.originalText, remote) else speakResponse(remote.text)
@@ -398,7 +445,7 @@ class EddyAssistantService : Service() {
                     capability = plan.capability,
                     summary = "${plan.strategy}: ${plan.explanation}",
                     candidateCode = finalReply,
-                    currentVersion = "0.5.1",
+                    currentVersion = "0.6.0",
                 )
             }
             speakResponse(finalReply); return
@@ -446,37 +493,48 @@ class EddyAssistantService : Service() {
     }
 
     private suspend fun researchAndSpeak(query: String, forceWeb: Boolean) {
-        if (!webClient.isConfigured) { speakResponse("No tengo disponible el backend web de EDDY ahorita."); return }
+        if (!webClient.isConfigured) { speakResponse("Configurá tu clave de Gemini para responder preguntas por Internet."); return }
         EddyRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         val reply = webClient.reply(query, memory.contextForAi(), forceWeb) ?: run { speakResponse("No pude consultar Internet ahorita."); return }
         speakResearchResponse(query, reply)
     }
 
     private suspend fun speakResearchResponse(question: String, reply: EddyAiReply) {
-        val finalText = localLlm.reply(question, memory.contextForAi(), reply.evidence.ifBlank { reply.text }) ?: reply.text
+        val finalText = reply.text
         EddyRuntimeState.setAiResponse(applicationContext, finalText, reply.webUsed, reply.sources)
         memory.rememberAssistantTurn(finalText); speakOnly(finalText)
     }
 
     private fun speakResponse(text: String) { EddyRuntimeState.setResponse(applicationContext, text); memory.rememberAssistantTurn(text); speakOnly(text) }
-    private fun speakOnly(text: String) {
-        if (text.isBlank()) return
-        if (localVoiceActive) localVoice?.setAssistantSpeaking(true) else compatibilityRecognizer.pause()
-        isSpeaking = true; updateVisualState()
+    private fun speakOnly(text: String, continueCommand: Boolean = false) {
+        if (text.isBlank() || destroyed) return
+        continueAfterSpeech = continueCommand
+        if (localVoiceActive) localVoice?.setAssistantSpeaking(true, continueCommand) else compatibilityRecognizer.pause()
+        isSpeaking = true
+        updateVisualState()
         val queued = if (neuralTts.isAvailable) neuralTts.speak(text) else platformTts.speak(text)
         if (!queued) onSpeakingChanged(false)
     }
     private fun onSpeakingChanged(speaking: Boolean) {
-        isSpeaking = speaking
-        if (localVoiceActive) localVoice?.setAssistantSpeaking(speaking) else if (!speaking && hasMicrophonePermission()) compatibilityRecognizer.resume()
-        updateVisualState()
+        serviceScope.launch {
+            if (destroyed) return@launch
+            isSpeaking = speaking
+            if (localVoiceActive) localVoice?.setAssistantSpeaking(speaking, continueAfterSpeech)
+            if (!speaking) {
+                if (continueAfterSpeech) {
+                    wakeGate.arm(SystemClock.elapsedRealtime())
+                    if (!localVoiceActive) compatibilityRecognizer.resume()
+                } else if (!isThinking) finishTurn()
+            }
+            updateVisualState()
+        }
     }
     private fun updateVisualState() {
         EddyRuntimeState.setState(applicationContext, when { isSpeaking -> EddyRuntimeState.State.SPEAKING; isThinking -> EddyRuntimeState.State.THINKING; isListening -> EddyRuntimeState.State.LISTENING; else -> EddyRuntimeState.State.IDLE })
     }
     private fun rearmCompatibilityRecognizer(delayMs: Long) {
-        if (localVoiceActive || !hasMicrophonePermission() || isSpeaking || isThinking) return
-        serviceScope.launch { delay(delayMs); if (!localVoiceActive && hasMicrophonePermission() && !isSpeaking && !isThinking) compatibilityRecognizer.restart(0L) }
+        if (localVoiceActive || localVoiceStarting || !hasMicrophonePermission() || isSpeaking || isThinking) return
+        serviceScope.launch { delay(delayMs); if (!localVoiceActive && !localVoiceStarting && hasMicrophonePermission() && !isSpeaking && !isThinking) compatibilityRecognizer.resume() }
     }
     private fun registerScreenStateReceiver() {
         if (screenReceiverRegistered) return
@@ -494,7 +552,7 @@ class EddyAssistantService : Service() {
     private fun startAsForeground() {
         val open = PendingIntent.getActivity(this, 10, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 11, Intent(this, EddyAssistantService::class.java).apply { action = ACTION_STOP }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_eddy_notification).setContentTitle("EDDY está atento").setContentText("Escucha privada. Solo interactúa cuando decís EDDY.").setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).setCategory(NotificationCompat.CATEGORY_SERVICE).addAction(0, "Detener", stop).build()
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_eddy_notification).setContentTitle("EDDY está atento").setContentText("Decí EDDY para pedir algo. Podés detener la escucha aquí.").setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).setCategory(NotificationCompat.CATEGORY_SERVICE).addAction(0, "Detener", stop).build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE) else startForeground(NOTIFICATION_ID, notification)
     }
     private fun revealEddyOnLockScreen() {

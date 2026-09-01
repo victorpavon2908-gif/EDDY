@@ -26,6 +26,7 @@ class EddyTextToSpeech(
     private val mainHandler = Handler(Looper.getMainLooper())
     private val tts = TextToSpeech(context.applicationContext, this)
     private var ready = false
+    private var currentUtterance: String? = null
 
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
@@ -35,11 +36,11 @@ class EddyTextToSpeech(
             tts.setSpeechRate(1.03f)
             tts.setPitch(0.92f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String) = notifySpeaking(true)
-                override fun onDone(utteranceId: String) = notifySpeaking(false)
+                override fun onStart(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(true) }
+                override fun onDone(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(false) }
                 @Deprecated("Deprecated in Android API")
-                override fun onError(utteranceId: String) = notifySpeaking(false)
-                override fun onStop(utteranceId: String, interrupted: Boolean) = notifySpeaking(false)
+                override fun onError(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(false) }
+                override fun onStop(utteranceId: String, interrupted: Boolean) { if (utteranceId == currentUtterance) notifySpeaking(false) }
             })
         }
         onReady(ready)
@@ -60,9 +61,9 @@ class EddyTextToSpeech(
             .filter { it.locale.language.equals("es", ignoreCase = true) }
 
         val preferred = spanishVoices.sortedWith(
-            compareBy<Voice> { voiceCountryRank(it.locale.country) }
+            compareBy<Voice> { if (it.isNetworkConnectionRequired) 1 else 0 }
+                .thenBy { voiceCountryRank(it.locale.country) }
                 .thenBy { naturalVoiceRank(it) }
-                .thenBy { if (it.isNetworkConnectionRequired) 1 else 0 }
                 .thenByDescending { it.quality }
                 .thenBy { it.latency },
         ).firstOrNull()
@@ -136,9 +137,16 @@ class EddyTextToSpeech(
         if (!ready) return false
         val spoken = prepareForNicaraguanSpeech(text)
         if (spoken.isBlank()) return false
-        return tts.speak(spoken, TextToSpeech.QUEUE_FLUSH, null, "eddy_reply_${System.nanoTime()}") == TextToSpeech.SUCCESS
+        val chunks = spoken.chunked(TextToSpeech.getMaxSpeechInputLength() - 1)
+        val id = "eddy_reply_${System.nanoTime()}"
+        currentUtterance = "${id}_${chunks.lastIndex}"
+        for ((index, chunk) in chunks.withIndex()) {
+            val result = tts.speak(chunk, if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "${id}_$index")
+            if (result != TextToSpeech.SUCCESS) { stop(); return false }
+        }
+        return true
     }
 
-    fun stop() { tts.stop(); notifySpeaking(false) }
-    fun shutdown() { tts.stop(); tts.shutdown(); notifySpeaking(false) }
+    fun stop() { currentUtterance = null; tts.stop(); notifySpeaking(false) }
+    fun shutdown() { ready = false; currentUtterance = null; tts.stop(); tts.shutdown(); notifySpeaking(false) }
 }

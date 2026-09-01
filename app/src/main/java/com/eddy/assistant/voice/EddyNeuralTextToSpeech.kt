@@ -17,13 +17,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import android.os.SystemClock
 
 /** Voz neural latina local de EDDY. No usa red durante la síntesis. */
 class EddyNeuralTextToSpeech(
     private val models: EddyModelManager,
     private val profile: EddyDeviceProfile,
     private val onSpeakingChanged: (Boolean) -> Unit = {},
+    private val onFailure: (String) -> Unit = {},
 ) {
+    private val mutex = Mutex()
+    @Volatile private var generation = 0
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var tts: OfflineTts? = null
     @Volatile private var track: AudioTrack? = null
@@ -33,36 +41,48 @@ class EddyNeuralTextToSpeech(
 
     fun speak(text: String): Boolean {
         if (closed || text.isBlank() || !isAvailable) return false
+        val token = ++generation
         scope.launch {
-            onSpeakingChanged(true)
-            try {
-                val engine = tts ?: createEngine() ?: return@launch
-                // Un poco más rápida que el modelo base para que se sienta conversacional,
-                // sin llegar a sonar acelerada o artificial.
-                val audio = engine.generate(text.take(2_000), sid = 0, speed = 1.06f)
-                play(audio.samples, audio.sampleRate)
-            } finally {
-                onSpeakingChanged(false)
+            mutex.withLock {
+                if (closed || token != generation) return@withLock
+                onSpeakingChanged(true)
+                var failed = false
+                try {
+                    val engine = tts ?: createEngine() ?: error("Voz local no disponible")
+                    for (chunk in text.chunked(1_000)) {
+                        if (closed || token != generation) break
+                        val audio = engine.generate(chunk, sid = 0, speed = 1.0f)
+                        if (!closed && token == generation) play(audio.samples, audio.sampleRate, token)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    failed = true
+                } finally {
+                    if (closed) { runCatching { tts?.release() }; tts = null }
+                    if (token == generation && !closed) {
+                        if (failed) onFailure(text) else onSpeakingChanged(false)
+                    }
+                }
             }
         }
         return true
     }
 
     fun stop() {
+        ++generation
         runCatching { track?.pause() }
-        runCatching { track?.flush() }
-        runCatching { track?.stop() }
-        runCatching { track?.release() }
-        track = null
+        // AudioTrack and JNI objects are released by their worker, never during write/generate.
         onSpeakingChanged(false)
     }
 
     fun shutdown() {
         closed = true
         stop()
-        runCatching { tts?.release() }
-        tts = null
-        scope.cancel()
+        scope.launch {
+            mutex.withLock { runCatching { tts?.release() }; tts = null }
+            scope.cancel()
+        }
     }
 
     private fun createEngine(): OfflineTts? = runCatching {
@@ -85,7 +105,7 @@ class EddyNeuralTextToSpeech(
         ).also { tts = it }
     }.getOrNull()
 
-    private fun play(samples: FloatArray, sampleRate: Int) {
+    private suspend fun play(samples: FloatArray, sampleRate: Int, token: Int) {
         if (samples.isEmpty()) return
         val pcm = ShortArray(samples.size) { index ->
             (samples[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
@@ -113,16 +133,24 @@ class EddyNeuralTextToSpeech(
             .setBufferSizeInBytes(maxOf(minimum, 16_384))
             .build()
         track = audioTrack
-        audioTrack.play()
-        var offset = 0
-        while (offset < pcm.size && track === audioTrack) {
-            val written = audioTrack.write(pcm, offset, pcm.size - offset, AudioTrack.WRITE_BLOCKING)
-            if (written <= 0) break
-            offset += written
+        try {
+            audioTrack.play()
+            var offset = 0
+            while (offset < pcm.size && !closed && token == generation) {
+                val written = audioTrack.write(pcm, offset, minOf(4_096, pcm.size - offset), AudioTrack.WRITE_BLOCKING)
+                check(written > 0) { "No pude reproducir la voz" }
+                offset += written
+            }
+            // write() only queues audio. Wait for playback so the final words are not cut off.
+            val deadline = SystemClock.elapsedRealtime() + (offset.toLong() * 1_000L / sampleRate) + 3_000L
+            while (!closed && token == generation && audioTrack.playbackHeadPosition.toLong() < offset && SystemClock.elapsedRealtime() < deadline) {
+                delay(20L)
+            }
+        } finally {
+            runCatching { audioTrack.stop() }
+            runCatching { audioTrack.release() }
+            if (track === audioTrack) track = null
         }
-        runCatching { audioTrack.stop() }
-        runCatching { audioTrack.release() }
-        if (track === audioTrack) track = null
     }
 
     companion object {

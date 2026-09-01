@@ -46,6 +46,7 @@ object EddyAiSettings {
         .ifBlank { DEFAULT_MODEL }
 
     fun saveGemini(context: Context, apiKey: String, model: String = DEFAULT_MODEL) {
+        context.getSharedPreferences("eddy_gemini_runtime", Context.MODE_PRIVATE).edit().clear().apply()
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_GEMINI_API_KEY, apiKey.trim())
@@ -54,6 +55,7 @@ object EddyAiSettings {
     }
 
     fun clearGemini(context: Context) {
+        context.getSharedPreferences("eddy_gemini_runtime", Context.MODE_PRIVATE).edit().clear().apply()
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .remove(KEY_GEMINI_API_KEY)

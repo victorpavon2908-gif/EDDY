@@ -1,188 +1,84 @@
-# EDDY v0.4.2
+# EDDY 0.6.0
 
-**Everyday Digital Dynamic Intelligence** — asistente personal Android por voz, centrado en funciones locales del teléfono, memoria local, búsqueda web mediante un backend propio, burbuja flotante y acceso desde pantalla bloqueada.
+Asistente Android por voz, con activación local «EDDY», comandos del teléfono,
+memoria local y conversación directa con Gemini. ARM64, incluido Honor X6c.
+No requiere un servidor propio para conversar.
 
-## Arquitectura actual
+## Instalar y usar
 
-EDDY está dividido en dos partes:
+1. Instalá el APK `EDDY-v0.6.0-offline-debug` generado por GitHub Actions.
+2. Abrí EDDY y concedé el permiso de micrófono. La primera apertura copia el núcleo
+   de voz incluido en el APK, sin necesitar Internet.
+3. Esperá «Núcleo privado activo». Decí «EDDY, qué hora es» o «EDDY, encendé la linterna».
+   También podés decir «EDDY», esperar «Ajá» y dar la orden.
+4. Para conversar, abrí **Gemini directo**, guardá tu clave y usá **Guardar y probar**.
+5. Para escuchar con la pantalla apagada, permití funcionar en segundo plano en
+   los ajustes de batería de Android/Honor.
 
-1. **Android**: reconocimiento de voz, palabra de activación `EDDY`, comandos locales, memoria, TTS, acciones del teléfono, casa inteligente y UI.
-2. **Backend EDDY Web**: servidor Flask independiente que realiza búsquedas en Internet, ordena resultados, elimina duplicados y devuelve fuentes a la aplicación.
+Después de cada respuesta vuelve a esperar su nombre. El indicador de micrófono
+permanece visible durante la escucha local: es normal. Podés detenerla desde la
+notificación. No hay autenticación segura del hablante: cualquiera puede decir EDDY.
 
-El backend de búsqueda usa actualmente DuckDuckGo como fuente principal y Wikipedia en español como respaldo. No necesita claves de modelos conversacionales para funcionar.
+## Con y sin Internet
 
-## Activación por voz
+| Función | Sin Internet | Con Internet |
+| --- | --- | --- |
+| Activación y transcripción española | Sí, núcleo incluido | Igual |
+| Hora, cálculos, linterna, volumen, alarmas, abrir apps | Sí; según permisos | Igual |
+| Voz | Voz española de Android o neuronal ya instalada | Igual |
+| Conversación amplia | Limitada; modelo generativo opcional si ya está instalado | Gemini con clave y cuota |
+| Información actual | No | Búsqueda de Gemini, con fuentes cuando la utiliza |
 
-Podés decir la orden completa:
+Abrir una app no garantiza que sus funciones funcionen sin red. Un teléfono sin voz
+española necesita instalarla desde su motor TTS. No se descargan automáticamente
+modelos generativos grandes, biometría ni voces adicionales. Se conservan los
+modelos locales que el usuario ya tenga instalados.
 
-```text
-EDDY, abrí Spotify
-EDDY, abrí Binance
-EDDY, buscá noticias de Nicaragua de hoy
-EDDY, investigá qué pasó con Bitcoin
-```
+## Estabilidad
 
-O usar dos pasos:
+- AudioRecord permanece abierto; se descarta el audio durante respuestas y no se
+  envía audio ambiental a Gemini. Una reserva breve conserva el inicio de la orden.
+- Una orden a la vez, regreso a modo pasivo y liberación de recursos en su hilo.
+- El reconocedor compatible espera el resultado final, sin cancelaciones cada
+  14 segundos ni al cambiar la pantalla. Recupera sesiones realmente atascadas.
+- Gemini tiene 18 segundos de presupuesto total y hasta tres intentos. Claves
+  inválidas, cuota agotada y respuestas bloqueadas no generan reintentos en cadena.
+- La voz neuronal espera a que suenen las últimas palabras antes de cerrar audio.
+- No se reutilizan respuestas antiguas como si fueran información actual.
 
-```text
-EDDY
-abrí Calculadora
-```
+La escucha continua corresponde al núcleo local. El reconocedor compatible de
+Android puede cerrar sesiones por su cuenta. Llamadas, otras apps, ahorro de batería
+ y el interruptor de privacidad pueden interrumpir el micrófono. Falta validar
+el comportamiento de audio en un teléfono real; no se garantiza reconocimiento perfecto.
 
-Después de detectar `EDDY`, el asistente mantiene una ventana temporal para recibir la siguiente orden.
+## Compilar
 
-## Abrir aplicaciones
+JDK 17, SDK 36, Gradle 8.13:
 
-EDDY ya no está limitado a una lista fija. Busca entre las aplicaciones lanzables instaladas y compara el nombre que decís con sus etiquetas y paquetes.
-
-Ejemplos:
-
-```text
-EDDY, abrí Facebook
-EDDY, abrí Binance
-EDDY, abrí TikTok
-EDDY, abrí Calculadora
-```
-
-## Búsqueda web
-
-Cuando decís `buscá`, `investigá`, `averiguá` u otra variante soportada, Android envía solamente la consulta al backend de EDDY.
-
-El backend:
-
-- busca resultados web;
-- ordena por relevancia;
-- favorece fuentes oficiales/educativas cuando corresponde;
-- limita duplicados por dominio;
-- usa Wikipedia como respaldo si hay pocos resultados;
-- devuelve una respuesta breve y hasta varias fuentes para abrirlas desde la aplicación.
-
-Endpoints:
-
-```text
-GET  /health
-POST /search
-POST /chat   # compatibilidad temporal con APK anteriores
-```
-
-Ejemplo de `/health`:
-
-```json
-{
-  "status": "ok",
-  "engine": "eddy-web",
-  "provider": "duckduckgo+wikipedia",
-  "mode": "search-only",
-  "remote_model": false
-}
-```
-
-## Desplegar backend en Render
-
-El repositorio incluye `render.yaml`.
-
-Configuración equivalente:
-
-```text
-Name: eddy-backend
-Runtime: Python
-Root Directory: backend
-Build Command: pip install -r requirements.txt
-Start Command: gunicorn app:app
-Health Check Path: /health
-```
-
-No hace falta configurar claves de modelos conversacionales. Opcionalmente podés ajustar:
-
-```text
-EDDY_SEARCH_TIMEOUT=12
-EDDY_SEARCH_LIMIT=8
-```
-
-Después de desplegar, copiá la URL pública, por ejemplo:
-
-```text
-https://eddy-backend-xxxx.onrender.com
-```
-
-y en EDDY abrí la pantalla **BACKEND + WEB** para guardarla y probar `/health`.
-
-## Comandos locales
-
-EDDY puede, según permisos y restricciones de Android:
-
-- abrir aplicaciones instaladas;
-- abrir cámara;
-- preparar llamadas y SMS;
-- preparar mensajes de WhatsApp;
-- buscar/reproducir en Spotify;
-- crear alarmas y temporizadores;
-- abrir rutas y lugares en mapas;
-- controlar linterna, volumen y brillo;
-- mostrar Wi‑Fi, Bluetooth, Internet, ubicación, NFC y otros paneles del sistema;
-- consultar batería;
-- vibrar el teléfono;
-- compartir texto;
-- controlar dispositivos locales mediante Home Assistant;
-- recordar contexto local y patrones básicos de uso.
-
-Android no permite a aplicaciones normales cambiar silenciosamente algunos ajustes del sistema; en esos casos EDDY abre el panel correspondiente para que el usuario confirme.
-
-## Casa inteligente local
-
-EDDY incluye integración local con Home Assistant mediante REST. La URL y token se guardan en el teléfono.
-
-Ejemplo:
-
-```text
-EDDY, apagá la luz de la sala
-```
-
-## Voz
-
-EDDY usa el motor TTS instalado en Android. Prioriza voces españolas masculinas cuando el motor expone información suficiente y da preferencia a Nicaragua/Centroamérica/Latinoamérica.
-
-La voz exacta depende de las voces instaladas en el teléfono.
-
-## Segundo plano y pantalla bloqueada
-
-EDDY utiliza un servicio foreground de micrófono, `WAKE_LOCK`, burbuja flotante y una actividad segura para mostrarse sobre la pantalla bloqueada cuando Android lo permite.
-
-El comportamiento exacto puede variar según fabricante, versión de Android y políticas de ahorro de batería.
-
-## Tecnología Android
-
-- Kotlin
-- Jetpack Compose
-- Material 3
-- Android SDK 36
-- minSdk 29
-- JDK 17
-- Gradle 8.13
-
-## Backend
-
-- Python
-- Flask
-- Gunicorn
-- Requests
-- BeautifulSoup
-- Pytest
-
-## Compilar y probar
-
-```bash
-git pull origin main
-./gradlew :app:testDebugUnitTest
-./gradlew :app:lintDebug
+```sh
+./gradlew :app:testDebugUnitTest :app:lintDebug
+python scripts/bundle_voice_models.py
 ./gradlew :app:assembleDebug
 pytest -q backend
 ```
 
-El APK queda en:
+APK: `app/build/outputs/apk/debug/app-debug.apk`. El script usa el catálogo Kotlin,
+valida tamaños y adjunta SHA-256 para comprobar la copia en el teléfono. Los modelos
+no se guardan en Git. El APK pesa más porque incluye la voz offline.
+GitHub Actions conserva la firma de depuración con su caché existente. Si se pierde
+esa caché, una firma distinta puede impedir actualizar un APK anterior. No desinstalés
+sin respaldar los datos que necesités. `backend/` es legado y no interviene en Gemini.
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
+## Prueba en Honor X6c
 
-GitHub Actions ejecuta pruebas del backend, pruebas Android, Lint y genera el APK de depuración.
+- Primera apertura en modo avión: preparar voz y pedir hora/linterna.
+- Cinco minutos en silencio: sin ciclos continuos del micrófono.
+- Orden seguida de EDDY sin pausa, y activación en dos pasos.
+- Hablar sin llamarlo, también después de una respuesta: no debe ejecutar órdenes.
+- Perder/restaurar Internet y comprobar que las funciones locales siguen disponibles.
+- Pantalla bloqueada, ahorro de batería y otra app usando el micrófono.
+- Respuesta larga: últimas palabras completas y regreso a modo pasivo.
+
+Referencias: [SpeechRecognizer](https://developer.android.com/reference/android/speech/SpeechRecognizer),
+[Gemini generateContent](https://ai.google.dev/api/generate-content),
+[búsqueda con Gemini](https://ai.google.dev/gemini-api/docs/google-search).

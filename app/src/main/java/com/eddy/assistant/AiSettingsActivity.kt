@@ -3,6 +3,10 @@ package com.eddy.assistant
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,7 +52,7 @@ private fun GeminiSettingsScreen(onClose: () -> Unit) {
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 28.dp),
+            modifier = Modifier.systemBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("GEMINI DIRECTO", style = MaterialTheme.typography.headlineMedium)
@@ -84,13 +88,10 @@ private fun GeminiSettingsScreen(onClose: () -> Unit) {
                         testing = true
                         scope.launch {
                             val client = EddyGeminiClient(context)
-                            val ok = client.testConnection()
-                            testing = false
-                            status = if (ok) {
-                                "Gemini conectado. EDDY ya puede conversar sin Render."
-                            } else {
-                                client.lastError ?: "No pude conectar con Gemini."
-                            }
+                            try {
+                                val ok = client.testConnection()
+                                status = if (ok) "Conectado con ${client.lastModelUsed}. EDDY ya puede conversar." else client.lastError ?: "No pude conectar con Gemini."
+                            } finally { testing = false }
                         }
                     },
                     enabled = !testing && apiKey.isNotBlank(),

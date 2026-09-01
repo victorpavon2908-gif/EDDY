@@ -8,6 +8,7 @@ import java.io.FilterInputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -49,13 +50,11 @@ class EddyModelManager(context: Context) {
     }
 
     suspend fun ensureRecommended(
-        profile: EddyDeviceProfile,
+        @Suppress("UNUSED_PARAMETER") profile: EddyDeviceProfile,
         onProgress: (EddyModelProgress) -> Unit = {},
     ): Boolean = withContext(Dispatchers.IO) {
-        val models = buildList {
-            addAll(EddyModelCatalog.acousticCore)
-            if (profile.supportsLocalLlm) add(EddyModelCatalog.localLlm)
-        }
+        // Install only the acoustic core. Never download a 450+ MB LLM at startup.
+        val models = EddyModelCatalog.voiceCore
         var allReady = true
         for (spec in models) {
             var installed = ensure(spec, onProgress)
@@ -169,7 +168,7 @@ class EddyModelManager(context: Context) {
             installDir.mkdirs()
             archive.delete()
 
-            download(spec, part, onProgress)
+            if (!copyBundledModel(spec, part)) download(spec, part, onProgress)
             check(part.renameTo(archive)) { "No se pudo preparar ${spec.id}" }
 
             onProgress(
@@ -247,6 +246,28 @@ class EddyModelManager(context: Context) {
             onProgress(EddyModelProgress(spec.id, part.length(), 0, EddyModelProgress.State.FAILED))
             false
         }
+    }
+
+    private fun copyBundledModel(spec: EddyModelSpec, output: File): Boolean {
+        val asset = "voice-core/${spec.id}.bundle"
+        val input = try { appContext.assets.open(asset) } catch (_: IOException) { return false }
+        val digest = MessageDigest.getInstance("SHA-256")
+        input.use { source ->
+            output.outputStream().buffered().use { target ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val count = source.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                    target.write(buffer, 0, count)
+                }
+            }
+        }
+        val expected = appContext.assets.open("voice-core/${spec.id}.sha256")
+            .bufferedReader().use { it.readText().trim() }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        check(actual == expected && output.length() >= spec.minBytes) { "Núcleo incluido incompleto: ${spec.id}" }
+        return true
     }
 
     private fun validateDirectory(spec: EddyModelSpec, dir: File): String? {

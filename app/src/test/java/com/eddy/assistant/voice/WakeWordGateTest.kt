@@ -27,7 +27,24 @@ class WakeWordGateTest {
             WakeResult.Command("abre YouTube"),
             gate.consume("EDDY, abre YouTube", nowMs = 1_000L),
         )
-        assertTrue(gate.isArmed(nowMs = 5_000L))
+        assertFalse(gate.isArmed(nowMs = 5_000L))
+    }
+
+    @Test
+    fun ordinaryMentionDoesNotActivate() {
+        val gate = WakeWordGate()
+        assertEquals(WakeResult.Ignored, gate.consume("ayer hablé con Eddy sobre esto", 1_000L))
+        assertEquals(WakeResult.Command("abrí cámara"), gate.consume("Hola, EDDY, abrí cámara", 2_000L))
+    }
+
+    @Test
+    fun commandConsumesWakeAndBackgroundSpeechIsIgnored() {
+        val gate = WakeWordGate()
+        assertEquals(WakeResult.Activated, gate.consume("EDDY", 1_000L))
+        assertEquals(WakeResult.Command("qué hora es"), gate.consume("qué hora es", 2_000L))
+        assertEquals(WakeResult.Ignored, gate.consume("abrí cámara", 3_000L))
+        assertEquals(WakeResult.Command("abrí cámara"), gate.consume("EDDY abrí cámara", 4_000L))
+        assertFalse(gate.isArmed(4_001L))
     }
 
     @Test

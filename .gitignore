@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 app/build
+
+app/src/main/assets/voice-core/
+app/libs/
+
+__pycache__/

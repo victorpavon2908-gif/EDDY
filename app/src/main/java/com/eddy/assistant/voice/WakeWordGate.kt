@@ -12,7 +12,7 @@ import java.util.Locale
 class WakeWordGate(
     private val wakeWord: String = "eddy",
     private val followUpWindowMs: Long = 20_000L,
-    private val conversationWindowMs: Long = 12_000L,
+    private val conversationWindowMs: Long = 0L,
 ) {
     private var armedUntil: Long = 0L
 
@@ -45,13 +45,13 @@ class WakeWordGate(
                 arm(nowMs, followUpWindowMs)
                 WakeResult.Activated
             } else {
-                arm(nowMs, conversationWindowMs)
+                finishCommand(nowMs)
                 WakeResult.Command(command)
             }
         }
 
         if (isArmed(nowMs)) {
-            arm(nowMs, conversationWindowMs)
+            finishCommand(nowMs)
             return WakeResult.Command(raw)
         }
 
@@ -60,18 +60,22 @@ class WakeWordGate(
 
     fun hasWakeWord(input: String): Boolean = findWakeForm(input) != null
 
+    private fun finishCommand(nowMs: Long) {
+        if (conversationWindowMs > 0L) arm(nowMs, conversationWindowMs) else disarm()
+    }
+
     private fun findWakeForm(input: String): String? {
         val normalized = normalize(input.trim())
         if (normalized.isBlank()) return null
         return wakeForms.firstOrNull { form ->
-            Regex("(?:^|\\s|[,:;.!?¿¡-])${Regex.escape(form)}(?:$|\\s|[,:;.!?¿¡-])")
+            Regex("^(?:(?:hola|oye|hey|ey|ok|okay|por favor)[,:;.!?¿¡\\s-]+)*[¿¡]?${Regex.escape(form)}(?:$|\\s|[,:;.!?¿¡-])")
                 .containsMatchIn(normalized)
         }
     }
 
     private fun removeWakeWord(input: String, matched: String): String {
         val regex = Regex(
-            "(?i)(?:^|(?<=\\s)|(?<=[,:;.!?¿¡-]))${Regex.escape(matched)}(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
+            "(?i)^(?:(?:hola|oye|hey|ey|ok|okay|por favor)[,:;.!?¿¡\\s-]+)*[¿¡]?${Regex.escape(matched)}(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
         )
         return input.replaceFirst(regex, "").trim()
     }

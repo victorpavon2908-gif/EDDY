@@ -2,161 +2,192 @@ package com.eddy.assistant.voice
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import com.eddy.assistant.ai.EddyBackendPrewarmer
 import kotlin.math.min
 
-/** Reconocedor compatible estable y de baja latencia para la ruta de respaldo. */
+/** Compatibility path only: Android recognition sessions are not an always-on wake engine. */
 class EddySpeechRecognizer(
     context: Context,
     private val onListeningChanged: (Boolean) -> Unit,
     private val onPartialResult: (String) -> Unit = {},
     private val onResult: (String) -> Unit,
     private val onError: (String) -> Unit,
-) : RecognitionListener {
+) {
     private val appContext = context.applicationContext
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private val handler = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
-    private var continuous = false
-    private var paused = false
+    private var enabled = false
     private var destroyed = false
+    private var sessionActive = false
     private var listening = false
-    private var restartGeneration = 0
-    private var speechStartedThisSession = false
-    private var backendWarmRequested = false
-    private var consecutiveErrors = 0
-
-    fun startContinuous() { continuous = true; paused = false; scheduleStart(0L) }
-    fun pause() { paused = true; restartGeneration++; stopListeningInternal(cancel = true) }
-    fun resume() { if (!destroyed) { continuous = true; paused = false; scheduleStart(100L) } }
-    fun restart(delayMs: Long = 350L) {
-        if (destroyed) return
-        continuous = true; paused = false; restartGeneration++
-        stopListeningInternal(cancel = true); scheduleStart(delayMs)
-    }
-    fun stopContinuous() { continuous = false; paused = true; restartGeneration++; stopListeningInternal(cancel = true) }
-    fun destroy() {
-        destroyed = true; continuous = false; paused = true; restartGeneration++
-        mainHandler.post { stopListeningInternal(true); runCatching { recognizer?.destroy() }; recognizer = null; setListening(false) }
-    }
-
-    private fun scheduleStart(delayMs: Long) {
-        val generation = ++restartGeneration
-        mainHandler.postDelayed({ if (generation == restartGeneration && !destroyed && !paused && continuous) startListeningInternal(generation) }, delayMs.coerceAtLeast(0L))
-    }
-
-    private fun startListeningInternal(generation: Int) {
-        if (destroyed || paused || !continuous || listening) return
-        if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
-            setListening(false); onError("No hay reconocimiento de voz disponible en este teléfono."); scheduleRetry(3_000L); return
+    private var scheduled = false
+    private var engineEpoch = 0
+    private var errors = 0
+    private var useSystemEngine = false
+    private var onDevice = false
+    private val startTask = Runnable { scheduled = false; startSession() }
+    private val watchdog = Runnable {
+        if (enabled && sessionActive) {
+            releaseRecognizer()
+            onError("El reconocimiento dejó de responder. Recuperando escucha.")
+            schedule(1_000L)
         }
-        val engine = ensureRecognizer() ?: run { setListening(false); onError("No pude iniciar el reconocimiento de voz del teléfono."); scheduleRetry(2_000L); return }
-        speechStartedThisSession = false; backendWarmRequested = false
+    }
+
+    private fun onMain(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action() else handler.post { action() }
+    }
+
+    fun startContinuous() = resume()
+    fun resume() = onMain {
+        if (!destroyed) { enabled = true; schedule(100L) }
+    }
+    fun pause() = onMain {
+        enabled = false
+        cancelScheduled()
+        releaseRecognizer()
+    }
+    fun stopContinuous() = pause()
+    fun restart(delayMs: Long = 350L) = onMain {
+        if (!destroyed) {
+            enabled = true
+            cancelScheduled()
+            releaseRecognizer()
+            schedule(delayMs)
+        }
+    }
+    fun destroy() = onMain {
+        destroyed = true
+        enabled = false
+        cancelScheduled()
+        releaseRecognizer()
+    }
+
+    private fun cancelScheduled() {
+        handler.removeCallbacks(startTask)
+        handler.removeCallbacks(watchdog)
+        scheduled = false
+    }
+
+    private fun schedule(delayMs: Long) {
+        if (!enabled || destroyed || sessionActive || scheduled) return
+        scheduled = true
+        handler.postDelayed(startTask, delayMs)
+    }
+
+    private fun startSession() {
+        if (!enabled || destroyed || sessionActive) return
+        val engine = ensureRecognizer() ?: run {
+            onError("No hay reconocimiento compatible disponible. Prepará la voz local de EDDY.")
+            schedule(5_000L)
+            return
+        }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-ES")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 180L)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1_300L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1_000L)
         }
-        runCatching {
-            engine.startListening(intent); setListening(true)
-            mainHandler.postDelayed({
-                if (generation == restartGeneration && continuous && !paused && !destroyed && listening && !speechStartedThisSession) {
-                    // Renovamos la sesión sin destruir el motor. Evita el parpadeo/reinicio constante del micrófono.
-                    restart(300L)
-                }
-            }, IDLE_SESSION_MS)
-        }.onFailure {
-            setListening(false); consecutiveErrors++
-            onError("No pude abrir el micrófono para escucharte.")
-            if (consecutiveErrors >= 3) recreateRecognizer()
-            scheduleRetry(backoffDelay(800L))
+        try {
+            sessionActive = true
+            engine.startListening(intent)
+            // Recover only a genuinely stuck provider, never periodically cancel healthy listening.
+            handler.postDelayed(watchdog, 60_000L)
+        } catch (_: RuntimeException) {
+            errors++
+            releaseRecognizer()
+            onError("No pude abrir el micrófono. Recuperando escucha.")
+            schedule(backoff())
         }
     }
 
     private fun ensureRecognizer(): SpeechRecognizer? {
         recognizer?.let { return it }
-        return runCatching { SpeechRecognizer.createSpeechRecognizer(appContext).also { it.setRecognitionListener(this); recognizer = it } }.getOrNull()
+        return runCatching {
+            onDevice = !useSystemEngine && Build.VERSION.SDK_INT >= 31 &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
+            val engine = if (onDevice && Build.VERSION.SDK_INT >= 31) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
+            } else {
+                check(SpeechRecognizer.isRecognitionAvailable(appContext))
+                SpeechRecognizer.createSpeechRecognizer(appContext)
+            }
+            val epoch = ++engineEpoch
+            fun current() = epoch == engineEpoch && enabled && !destroyed && sessionActive
+            engine.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) { if (current()) setListening(true) }
+                override fun onBeginningOfSpeech() { if (current()) { errors = 0; setListening(true) } }
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+                // End-of-speech is NOT terminal. Wait for onResults/onError before another start.
+                override fun onEndOfSpeech() { if (current()) setListening(false) }
+                override fun onResults(results: Bundle?) {
+                    if (!current()) return
+                    endSession()
+                    errors = 0
+                    bestText(results)?.let(onResult)
+                    schedule(250L)
+                }
+                override fun onPartialResults(partialResults: Bundle?) {
+                    if (current()) bestText(partialResults)?.let(onPartialResult)
+                }
+                override fun onError(error: Int) {
+                    if (!current()) return
+                    endSession()
+                    if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                        enabled = false
+                        releaseRecognizer()
+                        onError("Falta el permiso de micrófono. Activá el permiso en Ajustes.")
+                        return
+                    }
+                    val quiet = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    if (!quiet) errors++
+                    if (onDevice && error in setOf(SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)) {
+                        useSystemEngine = true
+                        releaseRecognizer()
+                    } else if (!quiet && errors >= 2) {
+                        releaseRecognizer()
+                    }
+                    if (!quiet) onError("El reconocimiento compatible no respondió. Recuperando escucha.")
+                    schedule(if (quiet) 350L else backoff())
+                }
+                override fun onEvent(eventType: Int, params: Bundle?) = Unit
+            })
+            recognizer = engine
+            engine
+        }.getOrNull()
     }
 
-    private fun recreateRecognizer() {
-        mainHandler.post { runCatching { recognizer?.destroy() }; recognizer = null; listening = false; speechStartedThisSession = false; backendWarmRequested = false }
-    }
-
-    private fun stopListeningInternal(cancel: Boolean) {
-        mainHandler.post { recognizer?.let { current -> runCatching { if (cancel) current.cancel() else current.stopListening() } }; setListening(false) }
-    }
-
-    private fun scheduleRetry(delayMs: Long) { if (continuous && !paused && !destroyed) scheduleStart(delayMs) }
-    private fun backoffDelay(base: Long): Long = min(base * (1L shl consecutiveErrors.coerceIn(0, 3)), 4_000L)
-    private fun setListening(value: Boolean) { if (listening != value) { listening = value; onListeningChanged(value) } }
-
-    private fun normalizeWakeTranscript(value: String): String {
-        val wakeAlias = Regex("(?i)(?<![\\p{L}\\p{N}])(?:eddy|edi|edy|eddie|eddi)(?![\\p{L}\\p{N}])")
-        return value.replace(wakeAlias, "EDDY").trim()
-    }
-
-    private fun bestText(bundle: Bundle?): String? {
-        val results = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.map(String::trim)?.filter(String::isNotBlank).orEmpty()
-        if (results.isEmpty()) return null
-        val wakeAlias = Regex("(?i)(?<![\\p{L}\\p{N}])(?:eddy|edi|edy|eddie|eddi)(?![\\p{L}\\p{N}])")
-        return normalizeWakeTranscript(results.firstOrNull { wakeAlias.containsMatchIn(it) } ?: results.first())
-    }
-
-    private fun containsWakeWord(text: String) = Regex("(?i)(?<![\\p{L}\\p{N}])EDDY(?![\\p{L}\\p{N}])").containsMatchIn(text)
-    override fun onReadyForSpeech(params: Bundle?) { consecutiveErrors = 0; setListening(true) }
-    override fun onBeginningOfSpeech() { speechStartedThisSession = true; consecutiveErrors = 0; setListening(true) }
-    override fun onRmsChanged(rmsdB: Float) = Unit
-    override fun onBufferReceived(buffer: ByteArray?) = Unit
-    override fun onEndOfSpeech() = setListening(false)
-
-    override fun onError(error: Int) {
+    private fun endSession() {
+        sessionActive = false
+        handler.removeCallbacks(watchdog)
         setListening(false)
-        if (destroyed || paused || !continuous) return
-        val quietError = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-        if (!quietError) consecutiveErrors++ else consecutiveErrors = 0
-        val message = when (error) {
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Falta permiso de micrófono para que EDDY pueda escucharte."
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "El micrófono estaba ocupado. Recuperando escucha."
-            SpeechRecognizer.ERROR_AUDIO -> "Hubo un problema con el micrófono. Recuperando escucha."
-            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "El reconocimiento de voz no respondió. EDDY seguirá intentando."
-            SpeechRecognizer.ERROR_CLIENT -> "El reconocimiento de voz se reinició."
-            SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "El reconocimiento del sistema se desconectó. Reiniciando."
-            else -> "No te pude escuchar bien. Intentando de nuevo."
-        }
-        if (!quietError) onError(message)
-        if ((error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED || error == SpeechRecognizer.ERROR_AUDIO) && consecutiveErrors >= 2) recreateRecognizer()
-        val delay = when (error) {
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> 4_000L
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> backoffDelay(500L)
-            SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> 350L
-            else -> backoffDelay(350L)
-        }
-        scheduleRetry(delay)
     }
 
-    override fun onResults(results: Bundle?) {
-        setListening(false); consecutiveErrors = 0
-        bestText(results)?.let(onResult)
-        scheduleRetry(220L)
+    private fun releaseRecognizer() {
+        ++engineEpoch // Ignore callbacks from cancel/destroy and previous engines.
+        val old = recognizer
+        recognizer = null
+        endSession()
+        runCatching { old?.cancel() }
+        runCatching { old?.destroy() }
     }
 
-    override fun onPartialResults(partialResults: Bundle?) {
-        val text = bestText(partialResults) ?: return
-        onPartialResult(text)
-        if (!backendWarmRequested && containsWakeWord(text)) { backendWarmRequested = true; EddyBackendPrewarmer.wake(appContext) }
+    private fun backoff() = min(500L * (1L shl errors.coerceIn(0, 4)), 8_000L)
+    private fun setListening(value: Boolean) {
+        if (listening != value) { listening = value; onListeningChanged(value) }
     }
-    override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
-    companion object { private const val IDLE_SESSION_MS = 14_000L }
+    private fun bestText(bundle: Bundle?): String? = bundle
+        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+        ?.firstOrNull()?.trim()?.takeIf(String::isNotBlank)
 }

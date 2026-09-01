@@ -3,6 +3,7 @@ package com.eddy.assistant.voice
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -70,6 +71,14 @@ class EddyLocalVoiceEngine(
     ) : RuntimeException(cause)
 
     private val running = AtomicBoolean(false)
+    private val lifecycleLock = Any()
+    private var initializing = false
+    private var stopRequested = false
+    @Volatile private var assistantBusy = false
+    @Volatile private var resumeAfterSpeech = false
+    @Volatile private var resetRequested = false
+    @Volatile private var suppressUntil = 0L
+    private val preRoll = PcmPreRoll(SAMPLE_RATE * 4 / 5)
     private val emotionEngine = EddyEmotionEngine(context)
 
     @Volatile private var speaking = false
@@ -98,48 +107,69 @@ class EddyLocalVoiceEngine(
     val ready: Boolean get() = models.coreReady()
 
     fun start(): Boolean {
-        if (running.get()) return true
-        if (!ready) return false
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            onError("Necesito permiso de micrófono para activar el núcleo local.")
-            return false
+        synchronized(lifecycleLock) {
+            if (running.get()) return true
+            if (initializing || stopRequested) return false
+            initializing = true
         }
-        if (!initializeModels()) return false
-        if (!initializeMicrophone()) return false
-
-        running.set(true)
-        setState(State.PASSIVE)
-        recorder?.startRecording()
-        worker = thread(name = "EDDY-ProVoice", isDaemon = true) { audioLoop() }
-        return true
+        try {
+            if (!ready) return false
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return false
+            if (!initializeModels() || !initializeMicrophone()) return false
+            synchronized(lifecycleLock) {
+                if (stopRequested) return false
+                recorder?.startRecording()
+                check(recorder?.recordingState == AudioRecord.RECORDSTATE_RECORDING)
+                running.set(true)
+                setState(State.PASSIVE)
+                worker = thread(name = "EDDY-ProVoice", isDaemon = true) { audioLoop() }
+            }
+            return true
+        } catch (_: RuntimeException) {
+            onError("No pude iniciar la captura de audio local.")
+            return false
+        } finally {
+            synchronized(lifecycleLock) {
+                initializing = false
+                if (worker == null) releaseResources()
+            }
+        }
     }
 
     fun stop() {
-        running.set(false)
-        runCatching { recorder?.stop() }
-        worker?.interrupt()
-        worker = null
+        synchronized(lifecycleLock) {
+            stopRequested = true
+            running.set(false)
+            runCatching { recorder?.stop() }
+            worker?.interrupt()
+            if (!initializing && worker == null) releaseResources()
+        }
+    }
+
+    fun setAssistantBusy(value: Boolean) { assistantBusy = value }
+
+    fun setAssistantSpeaking(value: Boolean, continueCommand: Boolean = false) {
+        // Do not call VAD/KWS JNI here: this callback normally runs on the UI thread.
+        resumeAfterSpeech = continueCommand
+        speaking = value
+        if (!value) {
+            suppressUntil = SystemClock.elapsedRealtime() + 350L
+            resetRequested = true
+        }
+    }
+
+    fun finishTurn() {
+        resumeAfterSpeech = false
+        assistantBusy = false
+        resetRequested = true
+    }
+
+    private fun releaseResources() {
         releaseAudioEffects()
-        recorder?.release()
+        runCatching { recorder?.release() }
         recorder = null
         releaseModels()
         setState(State.STOPPED)
-    }
-
-    fun setAssistantSpeaking(value: Boolean) {
-        speaking = value
-        if (value) {
-            activeUntil = 0L
-            vad?.reset()
-            resetKeywordStream()
-            setState(State.SPEAKING)
-        } else if (running.get()) {
-            activeUntil = System.currentTimeMillis() + CONTINUATION_MS
-            vad?.reset()
-            commandSpeechNotified = true
-            commandSpeechFrames = 0
-            setState(State.ACTIVE)
-        }
     }
 
     private inline fun <T> initStage(name: String, spec: EddyModelSpec?, block: () -> T): T = try {
@@ -164,7 +194,6 @@ class EddyLocalVoiceEngine(
                 failure.spec,
                 cause?.message ?: cause?.javaClass?.simpleName ?: "error desconocido",
             )
-            failure.spec?.let(models::invalidate)
             onError("El módulo local ${failure.stageName} no pudo iniciar. EDDY usará escucha compatible mientras se repara.")
             false
         } catch (error: Throwable) {
@@ -208,10 +237,10 @@ class EddyLocalVoiceEngine(
                 sileroVadModelConfig = SileroVadModelConfig(
                     model = models.file(EddyModelCatalog.vad).absolutePath,
                     threshold = 0.40f,
-                    minSilenceDuration = 0.55f,
-                    minSpeechDuration = 0.08f,
+                    minSilenceDuration = 1.0f,
+                    minSpeechDuration = 0.18f,
                     windowSize = 512,
-                    maxSpeechDuration = 18f,
+                    maxSpeechDuration = 25f,
                 ),
                 sampleRate = SAMPLE_RATE,
                 numThreads = 1,
@@ -273,6 +302,8 @@ class EddyLocalVoiceEngine(
         true
     }.getOrElse {
         releaseAudioEffects()
+        runCatching { recorder?.release() }
+        recorder = null
         onError("No pude abrir el micrófono local de EDDY.")
         false
     }
@@ -294,18 +325,50 @@ class EddyLocalVoiceEngine(
     }
 
     private fun audioLoop() {
-        val buffer = ShortArray(800)
-        while (running.get() && !Thread.currentThread().isInterrupted) {
-            val count = runCatching { recorder?.read(buffer, 0, buffer.size) ?: -1 }.getOrDefault(-1)
-            if (count <= 0) continue
-            if (speaking) continue
-            val samples = FloatArray(count) { buffer[it] / 32768.0f }
-            if (isActive()) processActive(samples) else processPassiveWake(samples)
+        val buffer = ShortArray(512)
+        var failedReads = 0
+        try {
+            while (running.get() && !Thread.currentThread().isInterrupted) {
+                val count = recorder?.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING) ?: -1
+                if (!running.get()) break
+                if (count <= 0) {
+                    check(++failedReads < 5) { "El micrófono dejó de entregar audio ($count)." }
+                    Thread.sleep(40L)
+                    continue
+                }
+                failedReads = 0
+                if (resetRequested) {
+                    resetRequested = false
+                    vad?.reset()
+                    resetKeywordStream()
+                    preRoll.clear()
+                    activeUntil = if (resumeAfterSpeech) SystemClock.elapsedRealtime() + FIRST_COMMAND_MS else 0L
+                    commandSpeechNotified = false
+                    commandSpeechFrames = 0
+                }
+                // Keep AudioRecord open and drain it while speaking/thinking to avoid stale audio/echo.
+                if (speaking || assistantBusy || SystemClock.elapsedRealtime() < suppressUntil) continue
+                val samples = FloatArray(count) { buffer[it] / 32768.0f }
+                if (isActive()) processActive(samples) else processPassiveWake(samples)
+            }
+        } catch (error: Exception) {
+            if (running.get()) onError("La captura local se interrumpió: ${error.message.orEmpty()}")
+        } finally {
+            synchronized(lifecycleLock) {
+                running.set(false)
+                releaseResources()
+            }
         }
     }
 
     private fun processPassiveWake(samples: FloatArray) {
-        if (state != State.PASSIVE) setState(State.PASSIVE)
+        if (state != State.PASSIVE) {
+            vad?.reset()
+            resetKeywordStream()
+            preRoll.clear()
+            setState(State.PASSIVE)
+        }
+        preRoll.append(samples)
         val spotter = keywordSpotter ?: return
         val stream = keywordStream ?: return
         stream.acceptWaveform(samples, SAMPLE_RATE)
@@ -313,7 +376,7 @@ class EddyLocalVoiceEngine(
         val result = spotter.getResult(stream)
         if (result.keyword.isBlank()) return
 
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         if (now - lastWakeAt < WAKE_DEBOUNCE_MS) {
             spotter.reset(stream)
             return
@@ -324,6 +387,9 @@ class EddyLocalVoiceEngine(
         spotter.reset(stream)
         vad?.reset()
         activeUntil = now + FIRST_COMMAND_MS
+        // Preserve the syllables immediately following EDDY while the spotter finalizes.
+        vad?.acceptWaveform(preRoll.snapshot())
+        preRoll.clear()
         setState(State.ACTIVE)
         onWake(1f, ownerVoice.hasProfile())
     }
@@ -348,11 +414,19 @@ class EddyLocalVoiceEngine(
             if (speech.size < MIN_COMMAND_SAMPLES) continue
             emotionEngine.observeSpeech(speech, SAMPLE_RATE)
             setState(State.PROCESSING)
-            val text = transcribe(speech)
+            val transcript = transcribe(speech)
+            val text = when (val result = WakeWordGate().consume(transcript)) {
+                WakeResult.Activated -> ""
+                is WakeResult.Command -> result.text
+                WakeResult.Ignored -> transcript
+            }
             if (text.isNotBlank()) {
                 learnOwnerSoftly(speech)
-                activeUntil = System.currentTimeMillis() + CONVERSATION_MS
+                activeUntil = 0L
+                assistantBusy = true // Before dispatch: never submit two overlapping commands.
+                localVad.reset()
                 onCommand(text)
+                return
             }
             if (!speaking) setState(State.ACTIVE)
         }
@@ -360,7 +434,7 @@ class EddyLocalVoiceEngine(
 
     private fun detectCommandContinuation(samples: FloatArray) {
         if (commandSpeechNotified) return
-        if (System.currentTimeMillis() - lastWakeAt < POST_WAKE_GUARD_MS) return
+        if (SystemClock.elapsedRealtime() - lastWakeAt < POST_WAKE_GUARD_MS) return
         if (samples.isEmpty()) return
 
         var energy = 0.0
@@ -417,7 +491,7 @@ class EddyLocalVoiceEngine(
         .replace(Regex("\\s+([,.;:!?])"), "$1")
         .trim()
 
-    private fun isActive(): Boolean = activeUntil > System.currentTimeMillis()
+    private fun isActive(): Boolean = activeUntil > SystemClock.elapsedRealtime()
 
     private fun setState(value: State) {
         if (state == value) return
@@ -435,9 +509,7 @@ class EddyLocalVoiceEngine(
 
     companion object {
         private const val SAMPLE_RATE = 16_000
-        private const val FIRST_COMMAND_MS = 15_000L
-        private const val CONVERSATION_MS = 18_000L
-        private const val CONTINUATION_MS = 12_000L
+        private const val FIRST_COMMAND_MS = 30_000L
         private const val WAKE_DEBOUNCE_MS = 900L
         private const val POST_WAKE_GUARD_MS = 180L
         private const val COMMAND_CONTINUATION_RMS = 0.011f
@@ -454,7 +526,6 @@ class EddyLocalVoiceEngine(
             "EH1 D IY1 :3.2 #0.07 @EDDY\n" +
             "EH0 D IY0 :3.0 #0.08 @EDDY\n" +
             "EH0 D IY1 :3.0 #0.08 @EDDY\n" +
-            "EH1 D IH0 :2.8 #0.10 @EDDY\n" +
-            "EH1 D :2.0 #0.18 @EDDY_SHORT"
+            "EH1 D IH0 :2.8 #0.10 @EDDY"
     }
 }
