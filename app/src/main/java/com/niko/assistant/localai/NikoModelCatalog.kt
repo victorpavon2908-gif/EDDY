@@ -63,21 +63,25 @@ object NikoModelCatalog {
         requireInstallMarker = true,
     )
 
+    // Canary 180M Flash: modelo NeMo multilingüe de mayor precisión que Moonshine base.
+    // El paquete INT8 está preparado por sherpa-onnx para inferencia completamente local.
     val spanishAsr = NikoModelSpec(
-        id = "asr-moonshine-es-v3",
-        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-moonshine-base-es-quantized-2026-02-27.tar.bz2",
+        id = "asr-canary-180m-es-v1",
+        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8.tar.bz2",
         archiveType = NikoArchiveType.TAR_BZ2,
         directoryName = "asr",
         expectedFiles = listOf(
-            "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/encoder_model.ort",
-            "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/decoder_model_merged.ort",
-            "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/tokens.txt",
+            "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/encoder.int8.onnx",
+            "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/decoder.int8.onnx",
+            "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/tokens.txt",
         ),
-        minBytes = 10_000_000L,
+        // This threshold applies to the compressed download. Per-file bounds below
+        // validate the actual installed model after extraction.
+        minBytes = 100_000_000L,
         expectedMinBytes = mapOf(
-            "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/encoder_model.ort" to 15_000_000L,
-            "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/decoder_model_merged.ort" to 35_000_000L,
-            "sherpa-onnx-moonshine-base-es-quantized-2026-02-27/tokens.txt" to 300_000L,
+            "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/encoder.int8.onnx" to 120_000_000L,
+            "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/decoder.int8.onnx" to 65_000_000L,
+            "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/tokens.txt" to 20_000L,
         ),
         requireInstallMarker = true,
     )
