@@ -64,7 +64,7 @@ class AiSettingsActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate()
+        super.onCreate(savedInstanceState)
         setContent { NikoTheme { GroqSettingsScreen(onClose = { finish() }, onVoiceEnabled = ::setVoiceEnabled) } }
     }
 
