@@ -27,17 +27,17 @@ object NikoKeywordConfig {
             ),
             maxActivePaths = 6,
             keywordsFile = keywords.absolutePath,
-            keywordsScore = 1.45f,
-            keywordsThreshold = 0.10f,
+            keywordsScore = 1.50f,
+            keywordsThreshold = 0.11f,
             numTrailingBlanks = 3,
         )
     }
 
     private fun prepareKeywords(directory: File): File {
         check(directory.isDirectory || directory.mkdirs()) { "No pude crear la configuración de activación." }
-        val destination = File(directory, "niko-keywords.txt")
+        val destination = File(directory, "leo-keywords.txt")
         if (destination.isFile && destination.readText() == KEYWORDS) return destination
-        val temporary = File.createTempFile("niko-keywords-", ".tmp", directory)
+        val temporary = File.createTempFile("leo-keywords-", ".tmp", directory)
         try {
             temporary.writeText(KEYWORDS, Charsets.UTF_8)
             check(temporary.renameTo(destination)) { "No pude guardar las palabras de activación." }
@@ -45,15 +45,14 @@ object NikoKeywordConfig {
         return destination
     }
 
-    // Variantes fonéticas cercanas a "Niko" para tolerar velocidad, acento y vocales.
-    // Se conservan tres trailing blanks para evitar activaciones por prefijos de otras palabras.
+    // Variantes fonéticas cercanas a "Leo" para tolerar acento y pequeñas diferencias de vocal.
+    // El umbral es ligeramente más conservador porque "leo" también existe como palabra común
+    // en español. Tres trailing blanks reducen activaciones por prefijos de palabras más largas.
     private const val KEYWORDS =
-        "N IY0 K OW0 :1.45 #0.10 @NIKO\n" +
-        "N IY0 K OW1 :1.45 #0.10 @NIKO\n" +
-        "N IY1 K OW0 :1.45 #0.10 @NIKO\n" +
-        "N IY1 K OW1 :1.45 #0.10 @NIKO\n" +
-        "N IH0 K OW0 :1.45 #0.10 @NIKO\n" +
-        "N IH1 K OW0 :1.45 #0.10 @NIKO\n" +
-        "N IY0 K AH0 :1.50 #0.11 @NIKO\n" +
-        "N IH0 K AH0 :1.50 #0.11 @NIKO\n"
+        "L IY0 OW0 :1.50 #0.11 @LEO\n" +
+        "L IY1 OW0 :1.50 #0.11 @LEO\n" +
+        "L IY0 OW1 :1.50 #0.11 @LEO\n" +
+        "L EH0 OW0 :1.54 #0.12 @LEO\n" +
+        "L EH1 OW0 :1.54 #0.12 @LEO\n" +
+        "L EH0 OW1 :1.54 #0.12 @LEO\n"
 }
