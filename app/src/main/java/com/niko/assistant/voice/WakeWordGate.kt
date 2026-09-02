@@ -16,8 +16,19 @@ class WakeWordGate(
 ) {
     private var armedUntil: Long = 0L
 
+    /**
+     * Variantes que suelen producir los motores de voz al escuchar "Niko".
+     * Evitamos alias demasiado cortos como "ni" porque provocarían activaciones falsas
+     * en conversación normal en español.
+     */
     private val wakeForms: Set<String> by lazy {
-        setOf(normalize(wakeWord), "nico")
+        setOf(
+            normalize(wakeWord),
+            "nico",
+            "nikko",
+            "niko",
+            "nin",
+        )
     }
 
     fun arm(
