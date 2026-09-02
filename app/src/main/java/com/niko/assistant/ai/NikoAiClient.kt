@@ -6,11 +6,10 @@ import com.niko.assistant.learning.NikoKnowledgeStore
 
 /**
  * Compatibility facade used by the assistant service.
- * Conversation goes NIKO -> GroqCloud directly. There is no NIKO/Render backend hop.
- * Local commands are still handled by LocalBrain/ActionExecutor before this client is called.
  *
- * When Groq returns sourced web research, NIKO stores a bounded local copy so future
- * evergreen questions can be answered without repeating the network request.
+ * Web research no longer requires GroqCloud: forced/current searches go through
+ * [LeoNativeWebSearch], which performs keyless HTTP discovery + local extraction and
+ * summarization on the phone. Groq remains optional for normal generative conversation.
  */
 class NikoAiClient(
     context: Context,
@@ -20,10 +19,18 @@ class NikoAiClient(
     private val groq = NikoGroqClient(appContext)
     private val knowledge = NikoKnowledgeStore(appContext)
 
-    val isConfigured: Boolean get() = groq.isConfigured
+    @Volatile private var nativeLastError: String? = null
 
-    val lastError: String? get() = groq.lastError
+    /**
+     * The service historically used this flag to decide whether Internet research was
+     * available. Native search needs no API key, so research is always configured.
+     * Individual HTTP attempts can still fail when the phone has no Internet.
+     */
+    val isConfigured: Boolean get() = true
 
+    val lastError: String? get() = nativeLastError ?: groq.lastError
+
+    /** Keeps the settings-screen Groq test meaningful; native search itself needs no setup. */
     suspend fun healthCheck(): Boolean = groq.testConnection()
 
     suspend fun reply(
@@ -33,11 +40,26 @@ class NikoAiClient(
         history: List<ConversationTurn> = emptyList(),
     ): NikoAiReply? {
         if (AutonomousResearch.offlineOnly(message)) return null
-        val allowWeb = forceWeb || (NikoAiSettings.autoResearch(appContext) && AutonomousResearch.allowedFor(message))
-        val reply = groq.reply(message, memoryContext, useWeb = allowWeb, history = history)
+
+        if (forceWeb) {
+            val subject = WebQueryRouter.explicitQuery(message) ?: message
+            val native = LeoNativeWebSearch.search(subject)
+            nativeLastError = if (native.webUsed) null else native.text
+            if (native.webUsed && native.sources.isNotEmpty()) {
+                runCatching { knowledge.learn(subject, native) }
+            }
+            return native
+        }
+
+        // Conversation remains optional cloud assistance. If there is no Groq key,
+        // return null so the coordinator can stay local/fallback without blocking search.
+        if (!groq.isConfigured) return null
+        nativeLastError = null
+        val allowGroqWeb = NikoAiSettings.autoResearch(appContext) &&
+            AutonomousResearch.allowedFor(message) &&
+            !WebQueryRouter.needsCurrentInformation(message)
+        val reply = groq.reply(message, memoryContext, useWeb = allowGroqWeb, history = history)
         if (reply != null && reply.webUsed && reply.sources.isNotEmpty()) {
-            // "Buscá en Internet cómo funciona X" should teach the subject "cómo funciona X",
-            // not the transient instruction to perform a search.
             val subject = WebQueryRouter.explicitQuery(message) ?: message
             runCatching { knowledge.learn(subject, reply) }
         }
