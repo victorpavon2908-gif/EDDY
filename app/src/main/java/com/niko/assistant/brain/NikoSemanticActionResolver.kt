@@ -29,6 +29,10 @@ class NikoSemanticActionResolver(
             return deterministic
         }
 
+        // Una pregunta sobre una acción o una orden negada debe seguir siendo conversación.
+        // El LLM semántico no puede convertir "no abras YouTube" o "cómo apago esto" en ejecución.
+        if (isProtectedNonAction(original)) return deterministic
+
         // Segunda pasada barata: quita cortesía/conectores iniciales, sin destruir
         // nombres de apps ni el contenido de mensajes.
         val simplified = simplifyPoliteLead(original)
@@ -208,6 +212,13 @@ class NikoSemanticActionResolver(
         return value
     }
 
+    private fun isProtectedNonAction(text: String): Boolean {
+        val value = key(text)
+        return Regex(
+            "^(?:no|nunca|jamas|tampoco|por que|explica|explicame|decime como|dime como|como (?:puedo|hago|funciona|se|abrir|borrar|apagar|prender|encender|enviar|llamar|poner))\\b",
+        ).containsMatchIn(value)
+    }
+
     private fun remember(commands: List<AssistantCommand>) {
         val known = commands.filterNot { it is AssistantCommand.Unknown }
         if (known.isEmpty()) return
@@ -244,7 +255,7 @@ class NikoSemanticActionResolver(
     private fun safePhone(value: String?): String? {
         if (value.isNullOrBlank()) return null
         val cleaned = value.filter { it.isDigit() || it == '+' }
-        return cleaned.takeIf { it.count(Char::isDigit) in 7..15 }
+        return cleaned.takeIf { candidate -> candidate.count { it.isDigit() } in 7..15 }
     }
 
     private fun key(value: String): String {
