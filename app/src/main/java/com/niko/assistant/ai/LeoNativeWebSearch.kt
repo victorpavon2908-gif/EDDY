@@ -45,7 +45,6 @@ object LeoNativeWebSearch {
         val terms = subjectTokens(subject)
         val hits = linkedMapOf<String, Hit>()
 
-        // Para noticias/mercados, Google News va primero y se acota a las últimas 24 h.
         if (current) {
             searchGoogleNews("$subject when:1d").forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
             searchBing("$subject noticias hoy").forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
@@ -55,8 +54,6 @@ object LeoNativeWebSearch {
         }
         if (hits.size < MIN_RESULTS) searchDuckDuckGo(if (current) "$subject hoy" else subject).forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
 
-        // Ésta es la barrera que evita el fallo visto con Bitcoin: un artículo de gramática
-        // o cualquier resultado que no mencione el tema solicitado ya no puede llegar al resumen.
         val relevant = hits.values
             .map { it to relevanceScore(it, terms) }
             .filter { (_, score) -> score >= minimumRelevance(terms) }
@@ -110,7 +107,6 @@ object LeoNativeWebSearch {
         }
     }
 
-    /** Quita el lenguaje conversacional y conserva el tema que debe aparecer en las fuentes. */
     internal fun subjectQuery(query: String): String {
         val normalized = normalize(query)
         val tokens = normalized.split(' ').filter { token ->
@@ -429,7 +425,7 @@ object LeoNativeWebSearch {
         "javascript", "newsletter", "a traves de un recorrido", "exploraremos las diferencias", "cuando se usa",
     )
     private val QUERY_FILLERS = setOf(
-        "que", "ha", "han", "pasado", "pasa", "paso", "esta", "hoy", "ahora", "mismo", "actualmente", "reciente",
+        "leo", "que", "ha", "han", "pasado", "pasa", "paso", "esta", "hoy", "ahora", "mismo", "actualmente", "reciente",
         "ultimas", "ultima", "noticias", "dime", "decime", "cuentame", "contame", "hablame", "sobre", "del", "de", "el",
         "la", "los", "las", "con", "por", "favor", "quiero", "saber", "busca", "buscame", "internet",
     )
