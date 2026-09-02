@@ -163,8 +163,9 @@ open class NikoAccessibilityService : AccessibilityService() {
 
         val attrs = mutableListOf<String>()
         val className = node.className?.toString()?.substringAfterLast('.') ?: "View"
-        val nodeText = node.text?.toString()?.replace(Regex("\\s+"), " ")?.take(100).orEmpty()
-        val desc = node.contentDescription?.toString()?.replace(Regex("\\s+"), " ")?.take(100).orEmpty()
+        val protected = node.isPassword
+        val nodeText = if (protected) "" else node.text?.toString()?.replace(Regex("\\s+"), " ")?.take(100).orEmpty()
+        val desc = if (protected) "" else node.contentDescription?.toString()?.replace(Regex("\\s+"), " ")?.take(100).orEmpty()
         val res = node.viewIdResourceName?.substringAfterLast('/')?.take(80).orEmpty()
         if (nodeText.isNotBlank()) attrs += "text=\"${escape(nodeText)}\""
         if (desc.isNotBlank() && desc != nodeText) attrs += "desc=\"${escape(desc)}\""
@@ -175,7 +176,7 @@ open class NikoAccessibilityService : AccessibilityService() {
         if (node.isChecked) attrs += "checked"
         if (node.isSelected) attrs += "selected"
         if (!node.isEnabled) attrs += "disabled"
-        if (node.isPassword) attrs += "password"
+        if (protected) attrs += "password-protected"
         out.append("  ".repeat(depth)).append('[').append(id).append("] ").append(className)
         if (attrs.isNotEmpty()) out.append(" [").append(attrs.joinToString(", ")).append(']')
         out.append('\n')
