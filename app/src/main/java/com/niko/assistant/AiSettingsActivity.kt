@@ -43,6 +43,7 @@ import com.niko.assistant.ai.NikoPersonality
 import com.niko.assistant.background.NikoAssistantService
 import com.niko.assistant.background.NikoRuntimeState
 import com.niko.assistant.background.NikoVoiceSettings
+import com.niko.assistant.localai.NikoDeviceProfile
 import com.niko.assistant.localai.NikoModelManager
 import com.niko.assistant.localai.NikoModelCatalog
 import com.niko.assistant.localai.NikoModelSpec
@@ -63,7 +64,7 @@ class AiSettingsActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        super.onCreate()
         setContent { NikoTheme { GroqSettingsScreen(onClose = { finish() }, onVoiceEnabled = ::setVoiceEnabled) } }
     }
 
@@ -110,6 +111,14 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
     var preparing by remember { mutableStateOf(false) }
     var modelStatus by remember { mutableStateOf("La conversación y la voz local se preparan una vez con conexión.") }
     val modelManager = remember { NikoModelManager(context) }
+    val deviceProfile = remember { NikoDeviceProfile.detect(context) }
+    val conversationModel = remember(deviceProfile) { NikoModelCatalog.recommendedConversationModel(deviceProfile) }
+    val conversationLabel = if (conversationModel == NikoModelCatalog.localLlmQuality) {
+        "Qwen2.5 1.5B INT8 · calidad local · aprox. 1.6 GB"
+    } else {
+        "Qwen2.5 0.5B INT8 · modo local ligero"
+    }
+
     fun saveBehavior() = NikoAiSettings.saveBehavior(context, personality, localFirst, autoResearch, learning)
     fun prepareModel(spec: NikoModelSpec) {
         preparing = true
@@ -118,11 +127,20 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             try {
                 val ready = withContext(Dispatchers.IO) {
                     modelManager.ensure(spec) { progress ->
-                        scope.launch { if (preparing) modelStatus = "${progress.modelId}: ${progress.downloadedBytes / 1_000_000} MB" }
+                        scope.launch {
+                            if (preparing) {
+                                val total = if (progress.totalBytes > 0L) " / ${progress.totalBytes / 1_000_000} MB" else ""
+                                modelStatus = "${progress.modelId}: ${progress.downloadedBytes / 1_000_000} MB$total"
+                            }
+                        }
                     }
                 }
                 modelStatus = if (ready) {
-                    if (spec == NikoModelCatalog.spanishVoice) "Voz preparada. Se usará al volver a iniciar la escucha desde Ajustes." else "Preparado para usar sin Internet."
+                    when {
+                        spec == NikoModelCatalog.spanishVoice -> "Voz preparada. Se usará al volver a iniciar la escucha desde Ajustes."
+                        spec in NikoModelCatalog.conversationModels -> "Cerebro local preparado. NIKO ya puede conversar sin Internet."
+                        else -> "Preparado para usar sin Internet."
+                    }
                 } else "No se pudo preparar. Comprobá conexión y espacio disponible."
             } finally { preparing = false }
         }
@@ -138,7 +156,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 Text("Escuchar la palabra NIKO", modifier = Modifier.weight(1f))
                 Switch(checked = voiceEnabled, onCheckedChange = { voiceEnabled = it; onVoiceEnabled(it) })
             }
-            Text("Decí NIKO para empezar cada petición. La detección es local y funciona sin Internet una vez preparados los modelos. El micrófono permanece abierto mientras esta opción está activa.", style = MaterialTheme.typography.bodySmall)
+            Text("Decí NIKO para empezar. Después de responder, NIKO mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
             Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
             Text("NIKO · PERSONALIDAD Y APRENDIZAJE", style = MaterialTheme.typography.headlineSmall)
             Text("Elegí cómo te responde. Los cambios se guardan al instante.")
@@ -161,7 +179,8 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 Switch(checked = learning, onCheckedChange = { learning = it; saveBehavior() })
             }
             Text("El aprendizaje adapta cómo clasifica tus pedidos; no reemplaza el modelo que sabe hablar. Decí borrar tu memoria para eliminar también ese aprendizaje.", style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { prepareModel(NikoModelCatalog.localLlm) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN SIN INTERNET") }
+            Text(conversationLabel, style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { prepareModel(conversationModel) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN LOCAL") }
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }
             Text(modelStatus, style = MaterialTheme.typography.bodySmall)
             Text(outputVoiceStatus, style = MaterialTheme.typography.bodySmall)
