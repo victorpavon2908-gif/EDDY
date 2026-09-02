@@ -26,10 +26,11 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "com.eddy.assistant"
-        minSdk = 29
+        // LEO 0.10.1 establece Android 12 (API 31) como base soportada oficial.
+        minSdk = 31
         targetSdk = 36
-        versionCode = 30
-        versionName = "0.10.0"
+        versionCode = 31
+        versionName = "0.10.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
@@ -74,7 +75,8 @@ dependencies {
     implementation(composeBom)
     androidTestImplementation(composeBom)
     implementation("k2-fsa:sherpa-onnx:$sherpaVersion@aar")
-    implementation("com.google.mediapipe:tasks-genai:0.10.24")
+    // MediaPipe Tasks GenAI se retira del proceso principal: un SIGSEGV JNI no es recuperable
+    // y LEO debe mantener voz/acciones/búsqueda estables en cualquier Android 12+.
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.13.0")
