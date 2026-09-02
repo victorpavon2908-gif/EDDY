@@ -5,12 +5,10 @@ import com.niko.assistant.compat.UpgradeIdentity
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import com.niko.assistant.ai.ConversationContext
 import com.niko.assistant.ai.ConversationTurn
 import com.niko.assistant.brain.AssistantCommand
 import com.niko.assistant.brain.SupportedApp
-import com.niko.assistant.proactive.NikoProactiveReceiver
 import com.niko.assistant.voice.NikoEmotionEngine
 import java.text.Normalizer
 import java.util.Calendar
@@ -31,6 +29,7 @@ class NikoMemory(context: Context) {
             )
         }
     }
+    private val longTerm by lazy { NikoLongTermMemory(archive) }
 
     fun rememberUtterance(text: String) = rememberUserTurn(text)
 
@@ -39,6 +38,7 @@ class NikoMemory(context: Context) {
         if (cleaned.isBlank()) return
         appendTurn("user", cleaned)
         learnFacts(cleaned)
+        longTerm.observeUserTurn(cleaned)
         prefs.edit().putInt(KEY_TOTAL_INTERACTIONS, prefs.getInt(KEY_TOTAL_INTERACTIONS, 0) + 1).apply()
     }
 
@@ -83,6 +83,18 @@ class NikoMemory(context: Context) {
         increment("command_${key}_hour_$hour")
     }
 
+    /** Procedural memory is written only after the action returned a successful spoken result. */
+    fun rememberCompletedCommand(command: AssistantCommand, spokenResult: String) {
+        val key = commandKey(command) ?: return
+        if (command is AssistantCommand.Unknown || command == AssistantCommand.ClearMemory) return
+        val description = commandDescription(command)
+        if (description.isBlank()) return
+        longTerm.rememberProcedure(
+            key,
+            "Acción aprendida: $description. Resultado reciente: ${spokenResult.trim().take(220)}",
+        )
+    }
+
     fun describeLearnedPatterns(): String {
         val total = prefs.getInt(KEY_TOTAL_INTERACTIONS, 0)
         if (total == 0) return "Todavía estoy empezando a conocerte. Hablá conmigo y voy recordando localmente lo importante para ayudarte mejor."
@@ -91,11 +103,13 @@ class NikoMemory(context: Context) {
         val favoriteAction = actionCandidates().map { (key, label) -> prefs.getInt("command_$key", 0) to label }
             .maxByOrNull { it.first }?.takeIf { it.first > 0 }
         val learnedCount = archive.lessonCount()
+        val semanticCount = longTerm.count()
         return buildString {
             append("He registrado $total interacciones con vos.")
             if (factText.isNotBlank()) append(" Recuerdo que $factText.")
             if (favoriteAction != null) append(" Lo que más me has pedido hasta ahora es ${favoriteAction.second}.")
             if (learnedCount > 0) append(" Me enseñaste $learnedCount respuestas personales.")
+            if (semanticCount > 0) append(" Mantengo $semanticCount recuerdos relevantes organizados localmente.")
             readNotes().takeLast(3).takeIf { it.isNotEmpty() }?.let { append(" Me pediste recordar: ${it.joinToString("; ")}.") }
             append(" Esta memoria se guarda en tu teléfono.")
         }
@@ -106,23 +120,43 @@ class NikoMemory(context: Context) {
     )
 
     fun contextForAi(includeDialogue: Boolean = true, currentMessage: String = ""): String {
-        val facts = learnedFacts().entries.joinToString("\n") { (key, value) -> "${factLabel(key)} $value" }.take(if (includeDialogue) 220 else 1_200)
-        val notes = readNotes().takeLast(6).asReversed().joinToString("\n").take(if (includeDialogue) 150 else 3_000)
+        val facts = learnedFacts().entries.joinToString("\n") { (key, value) -> "${factLabel(key)} $value" }
+            .take(if (includeDialogue) 260 else 1_200)
+        val notes = readNotes().takeLast(6).asReversed().joinToString("\n")
+            .take(if (includeDialogue) 180 else 3_000)
+        val relevant = longTerm.context(currentMessage, if (includeDialogue) 6 else 9)
+            .take(if (includeDialogue) 1_500 else 3_500)
         val tone = NikoEmotionEngine.latest(appContext)
         val toneBlock = tone?.let { "Tono acústico aproximado: ${it.tone.label}. No es una emoción confirmada." }
             ?: "Sin señal acústica reciente."
-        val dialogue = if (includeDialogue) ConversationContext.history(historyForAi(currentMessage), "", 250).joinToString("\n") { "${it.role}: ${it.text}" } else ""
-        return "TONO LOCAL:\n$toneBlock\nMEMORIA PERSONAL:\n$facts\nNOTAS PEDIDAS POR EL USUARIO:\n$notes\nDIÁLOGO:\n$dialogue"
+        val dialogue = if (includeDialogue) {
+            ConversationContext.history(historyForAi(currentMessage), "", 250)
+                .joinToString("\n") { "${it.role}: ${it.text}" }
+        } else ""
+        return buildString {
+            appendLine("TONO LOCAL:")
+            appendLine(toneBlock)
+            appendLine("MEMORIA CORE:")
+            appendLine(facts)
+            appendLine("MEMORIA RELEVANTE:")
+            appendLine(relevant)
+            appendLine("NOTAS PEDIDAS POR EL USUARIO:")
+            appendLine(notes)
+            appendLine("DIÁLOGO RECIENTE:")
+            append(dialogue)
+        }.trim()
     }
 
     /** Teaching is explicit and answers are recalled exactly, never fuzzy-matched into actions. */
     fun learnExplicitly(text: String): String? {
         MemoryLearning.lesson(text)?.let { lesson ->
             archive.rememberLesson(lesson)
+            longTerm.rememberExplicitNote("${lesson.question}: ${lesson.answer}")
             return "Aprendido. Cuando me preguntés ${lesson.question}, responderé: ${lesson.answer}"
         }
         MemoryLearning.note(text)?.let { note ->
             archive.rememberNote(note)
+            longTerm.rememberExplicitNote(note)
             return "Lo recordaré: $note"
         }
         return null
@@ -167,7 +201,11 @@ class NikoMemory(context: Context) {
         else -> null
     }
 
-    fun clearAll() { cancelProactiveSchedules(); archive.clearMemory(); prefs.edit().clear().apply() }
+    fun clearAll() {
+        cancelProactiveSchedules()
+        archive.clearMemory()
+        prefs.edit().clear().apply()
+    }
 
     private fun readLearnedAnswers(): List<LearnedAnswer> {
         val raw = prefs.getString(KEY_LEARNED_ANSWERS, null) ?: return emptyList()
@@ -175,14 +213,27 @@ class NikoMemory(context: Context) {
             val array = JSONArray(raw)
             List(array.length()) { index ->
                 val item = array.getJSONObject(index)
-                LearnedAnswer(item.optString("key"), item.optString("answer"), item.optBoolean("web", false), item.optLong("timestamp", 0L))
+                LearnedAnswer(
+                    item.optString("key"),
+                    item.optString("answer"),
+                    item.optBoolean("web", false),
+                    item.optLong("timestamp", 0L),
+                )
             }.filter { it.key.isNotBlank() && it.answer.isNotBlank() }
         }.getOrDefault(emptyList())
     }
 
     private fun saveLearnedAnswers(entries: List<LearnedAnswer>) {
         val array = JSONArray()
-        entries.forEach { item -> array.put(JSONObject().put("key", item.key).put("answer", item.answer).put("web", item.webDerived).put("timestamp", item.timestamp)) }
+        entries.forEach { item ->
+            array.put(
+                JSONObject()
+                    .put("key", item.key)
+                    .put("answer", item.answer)
+                    .put("web", item.webDerived)
+                    .put("timestamp", item.timestamp),
+            )
+        }
         prefs.edit().putString(KEY_LEARNED_ANSWERS, array.toString()).apply()
     }
 
@@ -190,30 +241,49 @@ class NikoMemory(context: Context) {
         val decomposed = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
         return decomposed.replace("\\p{Mn}+".toRegex(), "")
             .replace(Regex("(?i)\\b(?:niko|nico|por favor|porfa|haceme el favor|hazme el favor)\\b"), " ")
-            .replace(Regex("[^a-z0-9ñ ]+"), " ").replace(Regex("\\s+"), " ").trim()
+            .replace(Regex("[^a-z0-9ñ ]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     private fun tokenSimilarity(left: String, right: String): Double {
         if (left == right) return 1.0
-        val a = left.split(' ').filter { it.length > 1 }.toSet(); val b = right.split(' ').filter { it.length > 1 }.toSet()
+        val a = left.split(' ').filter { it.length > 1 }.toSet()
+        val b = right.split(' ').filter { it.length > 1 }.toSet()
         if (a.isEmpty() || b.isEmpty()) return 0.0
         return a.intersect(b).size.toDouble() / a.union(b).size.toDouble().coerceAtLeast(1.0)
     }
 
     private fun cancelProactiveSchedules() {
         val alarmManager = appContext.getSystemService(AlarmManager::class.java) ?: return
-        val requestCodes = buildList { SupportedApp.entries.forEach { add(1_000 + it.ordinal) }; add(2_001); add(2_002) }
+        val requestCodes = buildList {
+            SupportedApp.entries.forEach { add(1_000 + it.ordinal) }
+            add(2_001)
+            add(2_002)
+        }
         requestCodes.forEach { requestCode ->
-            val pendingIntent = PendingIntent.getBroadcast(appContext, requestCode, UpgradeIdentity.proactiveReceiver(appContext), PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
-            if (pendingIntent != null) { alarmManager.cancel(pendingIntent); pendingIntent.cancel() }
+            val pendingIntent = PendingIntent.getBroadcast(
+                appContext,
+                requestCode,
+                UpgradeIdentity.proactiveReceiver(appContext),
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            )
+            if (pendingIntent != null) {
+                alarmManager.cancel(pendingIntent)
+                pendingIntent.cancel()
+            }
         }
     }
 
     private fun appendTurn(role: String, text: String) {
         archive.appendTurn(role, text, System.currentTimeMillis())
-        val current = readTurns().toMutableList(); current.add(MemoryTurn(role, text, System.currentTimeMillis()))
+        val current = readTurns().toMutableList()
+        current.add(MemoryTurn(role, text, System.currentTimeMillis()))
         while (current.size > MAX_TURNS) current.removeAt(0)
-        val array = JSONArray(); current.forEach { array.put(JSONObject().put("role", it.role).put("text", it.text).put("timestamp", it.timestamp)) }
+        val array = JSONArray()
+        current.forEach {
+            array.put(JSONObject().put("role", it.role).put("text", it.text).put("timestamp", it.timestamp))
+        }
         prefs.edit().putString(KEY_TURNS, array.toString()).apply()
     }
 
@@ -221,7 +291,14 @@ class NikoMemory(context: Context) {
         val raw = prefs.getString(KEY_TURNS, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(raw)
-            List(array.length()) { index -> val item = array.getJSONObject(index); MemoryTurn(item.optString("role", "user"), item.optString("text", "").take(8_000), item.optLong("timestamp", 0L)) }.filter { it.text.isNotBlank() }
+            List(array.length()) { index ->
+                val item = array.getJSONObject(index)
+                MemoryTurn(
+                    item.optString("role", "user"),
+                    item.optString("text", "").take(8_000),
+                    item.optLong("timestamp", 0L),
+                )
+            }.filter { it.text.isNotBlank() }
         }.getOrDefault(emptyList())
     }
 
@@ -232,34 +309,116 @@ class NikoMemory(context: Context) {
         updates.forEach { (key, value) -> editor.putString("fact_$key", value) }
         // A correction such as "no me gusta el café" must not retain the opposite memory.
         updates["dislikes"]?.let { dislike ->
-            if (MemoryLearning.key(prefs.getString("fact_likes", "").orEmpty()) == MemoryLearning.key(dislike)) editor.remove("fact_likes")
+            if (MemoryLearning.key(prefs.getString("fact_likes", "").orEmpty()) == MemoryLearning.key(dislike)) {
+                editor.remove("fact_likes")
+            }
         }
         updates["likes"]?.let { like ->
-            if (MemoryLearning.key(prefs.getString("fact_dislikes", "").orEmpty()) == MemoryLearning.key(like)) editor.remove("fact_dislikes")
+            if (MemoryLearning.key(prefs.getString("fact_dislikes", "").orEmpty()) == MemoryLearning.key(like)) {
+                editor.remove("fact_dislikes")
+            }
         }
         editor.apply()
     }
 
     private fun learnedFacts(): Map<String, String> {
         val keys = listOf("name", "likes", "dislikes", "prefers", "lives", "work", "studies")
-        return buildMap { keys.forEach { key -> prefs.getString("fact_$key", null)?.takeIf { it.isNotBlank() }?.let { put(key, it) } } }
+        return buildMap {
+            keys.forEach { key ->
+                prefs.getString("fact_$key", null)?.takeIf { it.isNotBlank() }?.let { put(key, it) }
+            }
+        }
     }
 
     private fun factLabel(key: String): String = when (key) {
-        "name" -> "tu nombre es"; "likes" -> "te gusta"; "dislikes" -> "no te gusta"; "prefers" -> "preferís"; "lives" -> "vivís en"; "work" -> "trabajás en/como"; "studies" -> "estudiás"; else -> key
+        "name" -> "tu nombre es"
+        "likes" -> "te gusta"
+        "dislikes" -> "no te gusta"
+        "prefers" -> "preferís"
+        "lives" -> "vivís en"
+        "work" -> "trabajás en/como"
+        "studies" -> "estudiás"
+        else -> key
     }
 
     private fun actionCandidates(): List<Pair<String, String>> = buildList {
         SupportedApp.entries.forEach { add("app_${it.name}" to "abrir ${it.displayName}") }
-        add("app_dynamic" to "abrir aplicaciones"); add("camera" to "usar la cámara"); add("maps" to "usar mapas"); add("alarm" to "crear alarmas"); add("timer" to "crear temporizadores"); add("whatsapp" to "usar WhatsApp"); add("spotify" to "poner música en Spotify"); add("torch" to "usar la linterna"); add("smart_home" to "controlar la casa inteligente")
+        add("app_dynamic" to "abrir aplicaciones")
+        add("camera" to "usar la cámara")
+        add("maps" to "usar mapas")
+        add("alarm" to "crear alarmas")
+        add("timer" to "crear temporizadores")
+        add("whatsapp" to "usar WhatsApp")
+        add("spotify" to "poner música en Spotify")
+        add("torch" to "usar la linterna")
+        add("smart_home" to "controlar la casa inteligente")
+    }
+
+    private fun commandDescription(command: AssistantCommand): String = when (command) {
+        is AssistantCommand.OpenApp -> "abrir ${command.app.displayName}"
+        is AssistantCommand.OpenAppByName -> "abrir la aplicación ${command.name}"
+        AssistantCommand.OpenCamera -> "abrir la cámara"
+        is AssistantCommand.Dial -> "abrir una llamada al número solicitado"
+        is AssistantCommand.ComposeMessage -> "preparar un mensaje"
+        is AssistantCommand.WhatsAppMessage -> "preparar un mensaje de WhatsApp"
+        is AssistantCommand.PlaySpotify -> "buscar y reproducir ${command.query} en Spotify"
+        is AssistantCommand.SetAlarm -> "crear una alarma"
+        is AssistantCommand.SetTimer -> "crear un temporizador"
+        is AssistantCommand.OpenMaps -> "abrir mapas para ${command.query}"
+        is AssistantCommand.ShareText -> "compartir texto"
+        is AssistantCommand.SetTorch -> if (command.enabled) "encender la linterna" else "apagar la linterna"
+        is AssistantCommand.SetVolume, is AssistantCommand.AdjustVolume -> "ajustar el volumen"
+        is AssistantCommand.SetBrightness -> "ajustar el brillo"
+        is AssistantCommand.OpenSystemPanel -> "abrir un panel del sistema"
+        AssistantCommand.BatteryStatus -> "consultar batería"
+        is AssistantCommand.Vibrate -> "hacer vibrar el teléfono"
+        is AssistantCommand.SmartHomeControl -> "controlar ${command.target}"
+        AssistantCommand.OpenSmartHomeSettings -> "abrir ajustes de casa inteligente"
+        AssistantCommand.OpenAiSettings -> "abrir ajustes de IA"
+        AssistantCommand.TellTime -> "decir la hora"
+        AssistantCommand.Greeting -> "saludar"
+        AssistantCommand.MemorySummary -> "resumir la memoria local"
+        AssistantCommand.ClearMemory -> ""
+        is AssistantCommand.SearchWeb -> "buscar ${command.query} en Internet"
+        is AssistantCommand.Unknown -> ""
     }
 
     private fun commandKey(command: AssistantCommand): String? = when (command) {
-        is AssistantCommand.OpenApp -> "app_${command.app.name}"; is AssistantCommand.OpenAppByName -> "app_dynamic"; AssistantCommand.OpenCamera -> "camera"; AssistantCommand.TellTime -> "time"; AssistantCommand.Greeting -> "greeting"; AssistantCommand.MemorySummary -> "memory_summary"; AssistantCommand.ClearMemory -> "clear_memory"; is AssistantCommand.Dial -> "dial"; is AssistantCommand.ComposeMessage -> "message"; is AssistantCommand.WhatsAppMessage -> "whatsapp"; is AssistantCommand.PlaySpotify -> "spotify"; is AssistantCommand.SetAlarm -> "alarm"; is AssistantCommand.SetTimer -> "timer"; is AssistantCommand.OpenMaps -> "maps"; is AssistantCommand.SearchWeb -> "web_search"; is AssistantCommand.ShareText -> "share"; is AssistantCommand.SetTorch -> "torch"; is AssistantCommand.SetVolume, is AssistantCommand.AdjustVolume -> "volume"; is AssistantCommand.SetBrightness -> "brightness"; is AssistantCommand.OpenSystemPanel -> "system_panel"; AssistantCommand.BatteryStatus -> "battery"; is AssistantCommand.Vibrate -> "vibrate"; is AssistantCommand.SmartHomeControl -> "smart_home"; AssistantCommand.OpenSmartHomeSettings -> "smart_home_settings"; AssistantCommand.OpenAiSettings -> "ai_settings"; is AssistantCommand.Unknown -> "conversation"
+        is AssistantCommand.OpenApp -> "app_${command.app.name}"
+        is AssistantCommand.OpenAppByName -> "app_dynamic"
+        AssistantCommand.OpenCamera -> "camera"
+        AssistantCommand.TellTime -> "time"
+        AssistantCommand.Greeting -> "greeting"
+        AssistantCommand.MemorySummary -> "memory_summary"
+        AssistantCommand.ClearMemory -> "clear_memory"
+        is AssistantCommand.Dial -> "dial"
+        is AssistantCommand.ComposeMessage -> "message"
+        is AssistantCommand.WhatsAppMessage -> "whatsapp"
+        is AssistantCommand.PlaySpotify -> "spotify"
+        is AssistantCommand.SetAlarm -> "alarm"
+        is AssistantCommand.SetTimer -> "timer"
+        is AssistantCommand.OpenMaps -> "maps"
+        is AssistantCommand.SearchWeb -> "web_search"
+        is AssistantCommand.ShareText -> "share"
+        is AssistantCommand.SetTorch -> "torch"
+        is AssistantCommand.SetVolume, is AssistantCommand.AdjustVolume -> "volume"
+        is AssistantCommand.SetBrightness -> "brightness"
+        is AssistantCommand.OpenSystemPanel -> "system_panel"
+        AssistantCommand.BatteryStatus -> "battery"
+        is AssistantCommand.Vibrate -> "vibrate"
+        is AssistantCommand.SmartHomeControl -> "smart_home"
+        AssistantCommand.OpenSmartHomeSettings -> "smart_home_settings"
+        AssistantCommand.OpenAiSettings -> "ai_settings"
+        is AssistantCommand.Unknown -> "conversation"
     }
 
-    private fun isProactiveEligible(command: AssistantCommand): Boolean = command is AssistantCommand.OpenApp || command == AssistantCommand.OpenCamera || command is AssistantCommand.OpenMaps
-    private fun increment(key: String) { prefs.edit().putInt(key, prefs.getInt(key, 0) + 1).apply() }
+    private fun isProactiveEligible(command: AssistantCommand): Boolean =
+        command is AssistantCommand.OpenApp || command == AssistantCommand.OpenCamera || command is AssistantCommand.OpenMaps
+
+    private fun increment(key: String) {
+        prefs.edit().putInt(key, prefs.getInt(key, 0) + 1).apply()
+    }
+
     private data class MemoryTurn(val role: String, val text: String, val timestamp: Long)
     private data class LearnedAnswer(val key: String, val answer: String, val webDerived: Boolean, val timestamp: Long)
 
