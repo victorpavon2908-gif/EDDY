@@ -31,6 +31,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import com.niko.assistant.localai.NikoVoiceProfile
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,6 +90,12 @@ class AiSettingsActivity : ComponentActivity() {
 private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
+    val ownerVoice = remember { NikoVoiceProfile(context) }
+    var enrolled by remember { mutableStateOf(ownerVoice.isEnrolled) }
+    var ownerOnly by remember { mutableStateOf(ownerVoice.ownerOnly) }
+    var registering by remember { mutableStateOf(ownerVoice.enrollmentActive) }
+    var voiceSamples by remember { mutableStateOf(ownerVoice.enrollmentCount) }
+    DisposableEffect(Unit) { onDispose { ownerVoice.cancelEnrollment() } }
     var voiceEnabled by remember { mutableStateOf(NikoVoiceSettings.enabled(context)) }
     var voiceStatus by remember { mutableStateOf(NikoRuntimeState.read(context).inputStatus) }
     var outputVoiceStatus by remember { mutableStateOf(NikoRuntimeState.read(context).voiceStatus) }
@@ -96,6 +104,10 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             voiceEnabled = NikoVoiceSettings.enabled(context)
             voiceStatus = NikoRuntimeState.read(context).inputStatus
             outputVoiceStatus = NikoRuntimeState.read(context).voiceStatus
+            enrolled = ownerVoice.isEnrolled
+            ownerOnly = ownerVoice.ownerOnly
+            registering = ownerVoice.enrollmentActive
+            voiceSamples = ownerVoice.enrollmentCount
             delay(500L)
         }
     }
@@ -158,6 +170,33 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             }
             Text("Decí LEO para empezar. Después de responder, Leo mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
             Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
+            Text("MI VOZ", style = MaterialTheme.typography.headlineSmall)
+            Text("Se reduce la amplificación de voces lejanas. Registrá tu voz para rechazar órdenes que no coincidan; las voces superpuestas todavía pueden confundirse.", style = MaterialTheme.typography.bodySmall)
+            if (registering) {
+                Text("Registro $voiceSamples de 4. Hablá solo vos, cerca del teléfono: cuatro frases distintas de 2 a 6 segundos. Esperá la respuesta entre frases. Estas frases no ejecutan acciones.")
+                Text("Por ejemplo: «Leo, quiero que reconozcás mi voz cuando te hablo».")
+                OutlinedButton(onClick = { ownerVoice.cancelEnrollment(); registering = false }) { Text("CANCELAR REGISTRO") }
+            } else {
+                Text(if (enrolled) "Tu voz está registrada en este teléfono." else "Tu voz todavía no está registrada.", style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = {
+                    ownerVoice.beginEnrollment()
+                    registering = true
+                    if (!voiceEnabled) { voiceEnabled = true; onVoiceEnabled(true) }
+                }, enabled = !preparing && modelManager.isInstalled(NikoModelCatalog.speaker)) {
+                    Text(if (enrolled) "VOLVER A REGISTRAR MI VOZ" else "REGISTRAR MI VOZ")
+                }
+            }
+            if (!modelManager.isInstalled(NikoModelCatalog.speaker)) {
+                OutlinedButton(onClick = { prepareModel(NikoModelCatalog.speaker) }, enabled = !preparing) { Text("PREPARAR RECONOCIMIENTO DE MI VOZ") }
+            }
+            if (enrolled) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Priorizar mi voz", modifier = Modifier.weight(1f))
+                    Switch(checked = ownerOnly, onCheckedChange = { ownerVoice.setOwnerOnly(it); ownerOnly = it })
+                }
+                OutlinedButton(onClick = { ownerVoice.reset(); enrolled = false; ownerOnly = false; registering = false }) { Text("BORRAR MI PERFIL DE VOZ") }
+            }
+            Text("Solo se guarda un perfil numérico local. No se guardan ni envían las grabaciones del registro.", style = MaterialTheme.typography.bodySmall)
             Text("RECONOCIMIENTO AVANZADO", style = MaterialTheme.typography.headlineSmall)
             Text("Canary transcribe primero para responder rápido. Whisper multilingual INT8 puede hacer una segunda pasada local cuando la primera transcripción sale dudosa.", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.whisperAsr) }, enabled = !preparing) { Text("PREPARAR WHISPER LOCAL") }
@@ -211,7 +250,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text("Las búsquedas usan Groq Compound automáticamente. Su disponibilidad y límites dependen de tu cuenta.", style = MaterialTheme.typography.bodySmall)
+            Text("Las búsquedas se hacen directamente en la web y no necesitan una clave de Groq. Groq es opcional para conversar.", style = MaterialTheme.typography.bodySmall)
             Text(status, style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(

@@ -29,8 +29,8 @@ android {
         // LEO 0.10.1 establece Android 12 (API 31) como base soportada oficial.
         minSdk = 31
         targetSdk = 36
-        versionCode = 31
-        versionName = "0.10.1"
+        versionCode = 32
+        versionName = "0.10.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 

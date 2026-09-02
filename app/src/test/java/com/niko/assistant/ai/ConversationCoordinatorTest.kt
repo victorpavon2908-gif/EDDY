@@ -46,4 +46,14 @@ class ConversationCoordinatorTest {
         assertEquals(1, AutonomousResearch.publisherCount(listOf("https://example.com/a", "https://www.example.com/b")))
         assertEquals(0, AutonomousResearch.publisherCount(listOf("https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc")))
     }
+
+    @Test fun explicitSearchWorksWhenAutomaticResearchIsDisabled() = runBlocking {
+        var calls = 0
+        val result = ConversationCoordinator.reply("Leo, buscame información de Nicaragua", true, false, false,
+            local = { error("Explicit search must not use stale local memory") },
+            cloud = { requireSources -> calls++; assertTrue(requireSources); NikoAiReply("Fuentes encontradas.", true, emptyList()) },
+            fallback = { error("Must search") })
+        assertEquals(1, calls)
+        assertTrue(result.webUsed)
+    }
 }

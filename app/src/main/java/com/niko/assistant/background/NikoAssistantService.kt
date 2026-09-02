@@ -330,7 +330,13 @@ open class NikoAssistantService : Service() {
             onCommand = { text -> serviceScope.launch {
                 if (!destroyed && epoch == localVoiceEpoch) { isTranscribing = false; submitCommand(text) }
             } },
-            onUnauthorizedVoice = {},
+            onUnauthorizedVoice = { serviceScope.launch {
+                if (!destroyed && epoch == localVoiceEpoch) {
+                    isTranscribing = false
+                    NikoRuntimeState.setResponse(applicationContext, "No distinguí tu voz con claridad. Repetí la frase cerca del teléfono.")
+                    updateVisualState()
+                }
+            } },
             onMicrophoneSilenced = { silenced -> serviceScope.launch {
                 if (!destroyed && epoch == localVoiceEpoch) {
                     if (silenced) inputUnavailable("Android silenció el micrófono. Revisá su interruptor de privacidad o cerrá la otra app que lo usa.")
@@ -417,6 +423,11 @@ open class NikoAssistantService : Service() {
     private suspend fun handleCommand(text: String) {
         replyProsody = SpeechProsody.forInput(text)
         withContext(Dispatchers.IO) { memory.rememberUserTurn(text) }
+        WebQueryRouter.explicitQuery(text)?.takeIf { AutonomousResearch.allowedFor(text) }?.let { query ->
+            learnIntent(query, LearnedIntent.SEARCH)
+            speakResearchResponse(query, researchReply(query))
+            return
+        }
         com.niko.assistant.ai.NikoIdentity.replyTo(text)?.let { speakResponse(it); return }
         withContext(Dispatchers.IO) { memory.learnExplicitly(text) }?.let {
             learnIntent(text, LearnedIntent.MEMORY)
@@ -584,8 +595,8 @@ open class NikoAssistantService : Service() {
             val reply = webClient.reply(query, context, forceWeb, memory.historyForAi(current))
             when {
                 reply == null -> unavailable(webClient.lastError ?: "No pude consultar Internet. Volvé a intentarlo.")
-                forceWeb && !reply.webUsed -> unavailable("No obtuve fuentes web para verificarlo. Podés pedirme otra búsqueda más específica.")
-                else -> reply.copy(evidence = AutonomousResearch.evidenceNote(reply.sources.map { it.url }))
+                forceWeb && !reply.webUsed -> reply
+                else -> reply
             }
         } finally { NikoRuntimeState.setSearching(applicationContext, false) }
     }

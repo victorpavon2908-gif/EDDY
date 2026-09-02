@@ -7,6 +7,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.MicrophoneDirection
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
@@ -100,9 +101,11 @@ class NikoLocalVoiceEngine(
     @Volatile private var commandSpeechFrames = 0
     @Volatile private var lastLivePreviewAt = 0L
 
+    private var enrolling = false
     private var wakeAcknowledged = false
     private var emptyRecognitionRetries = 0
-    private val preRoll = PcmPreRoll(SAMPLE_RATE * 4 / 5)
+    private val preRoll = PcmPreRoll(SAMPLE_RATE * 2)
+    private val nearFieldFocus = NearFieldAudioFocus()
     private val emotionEngine = NikoEmotionEngine(context)
     private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS, FOLLOW_UP_MS)
 
@@ -381,6 +384,9 @@ class NikoLocalVoiceEngine(
         )
         val localRecorder = recorder
         check(localRecorder?.state == AudioRecord.STATE_INITIALIZED)
+        // Hints are optional: unsupported devices retain their normal microphone route.
+        runCatching { localRecorder.setPreferredMicrophoneDirection(MicrophoneDirection.MIC_DIRECTION_TOWARDS_USER) }
+        runCatching { localRecorder.setPreferredMicrophoneFieldDimension(0.7f) }
         initializeAudioEffects(localRecorder.audioSessionId)
         true
     }.getOrElse {
@@ -395,7 +401,7 @@ class NikoLocalVoiceEngine(
     private fun initializeAudioEffects(audioSessionId: Int) {
         releaseAudioEffects()
         if (NoiseSuppressor.isAvailable()) noiseSuppressor = runCatching { NoiseSuppressor.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
-        if (AutomaticGainControl.isAvailable()) automaticGainControl = runCatching { AutomaticGainControl.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
+        if (AutomaticGainControl.isAvailable()) automaticGainControl = runCatching { AutomaticGainControl.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = false } }
         if (AcousticEchoCanceler.isAvailable()) acousticEchoCanceler = runCatching { AcousticEchoCanceler.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
     }
 
@@ -441,9 +447,24 @@ class NikoLocalVoiceEngine(
                     }
                 }
                 if (isMicrophoneSilenced) continue
+                val enrollmentNow = ownerVoice.enrollmentActive
+                if (enrollmentNow != enrolling) {
+                    enrolling = enrollmentNow
+                    conversationAuthorized = false
+                    reopenFollowUp = false
+                    resumeAfterSpeech = false
+                    vad?.reset()
+                    passiveWakeVad?.reset()
+                    resetKeywordStream()
+                    preRoll.clear()
+                    clearLivePreview()
+                    if (enrolling) commandWindow.onWake(now) else commandWindow.close()
+                }
+                if (enrolling && !speaking && !isActive()) commandWindow.onWake(now)
 
                 if (resetRequested) {
                     resetRequested = false
+                    nearFieldFocus.reset()
                     vad?.reset()
                     passiveWakeVad?.reset()
                     resetKeywordStream()
@@ -463,6 +484,7 @@ class NikoLocalVoiceEngine(
                 }
 
                 val raw = FloatArray(count) { buffer[it] / 32768.0f }
+                val focused = nearFieldFocus.process(raw)
 
                 // Full-duplex ligero: mientras el TTS suena sólo mantenemos KWS, no Canary.
                 // AEC reduce la voz del propio altavoz y una coincidencia "Leo" corta el TTS.
@@ -472,13 +494,13 @@ class NikoLocalVoiceEngine(
                         resetKeywordStream()
                         preRoll.clear()
                     }
-                    processBargeInWake(FarFieldAudioEnhancer.enhance(raw, activeCommand = false))
+                    processBargeInWake(focused)
                     continue
                 }
                 if (assistantBusy || now < suppressUntil) continue
 
                 val active = isActive()
-                val samples = FarFieldAudioEnhancer.enhance(raw, activeCommand = active)
+                val samples = focused
                 if (active) processActive(samples) else processPassiveWake(samples)
             }
         } catch (error: Exception) {
@@ -502,6 +524,12 @@ class NikoLocalVoiceEngine(
         val now = SystemClock.elapsedRealtime()
         if (now - lastWakeAt < BARGE_IN_DEBOUNCE_MS) {
             resetKeywordStream()
+            return
+        }
+
+        if (ownerVoice.enrollmentActive || !acceptSpeaker(preRoll.snapshot())) {
+            resetKeywordStream()
+            preRoll.clear()
             return
         }
 
@@ -550,6 +578,11 @@ class NikoLocalVoiceEngine(
             val now = SystemClock.elapsedRealtime()
             if (!LeoPassiveWakeVerifier.shouldProbe(speech.size, now, lastPassiveWakeProbeAt)) continue
             lastPassiveWakeProbeAt = now
+            if (enrolling) {
+                handleEnrollment(speech)
+                return
+            }
+            if (!acceptSpeaker(speech)) continue
             val transcript = runCatching { transcribeWith(localRecognizer, speech) }.getOrDefault("")
             when (val wake = LeoPassiveWakeVerifier.consumeTranscript(transcript, now)) {
                 WakeResult.Ignored -> Unit
@@ -617,6 +650,17 @@ class NikoLocalVoiceEngine(
             val speech = segment.samples
             if (speech.size < MIN_COMMAND_SAMPLES) continue
 
+            if (enrolling) {
+                handleEnrollment(speech)
+                return
+            }
+            if (!acceptSpeaker(speech)) {
+                clearLivePreview()
+                localVad.reset()
+                setState(State.ACTIVE)
+                onUnauthorizedVoice()
+                return
+            }
             emotionEngine.observeSpeech(speech, SAMPLE_RATE)
             val recognitionSpeech = denoiseForRecognition(speech)
             setState(State.PROCESSING)
@@ -630,7 +674,6 @@ class NikoLocalVoiceEngine(
 
             if (text.isNotBlank()) {
                 LeoRealtimeTurnBus.updateTranscript(text)
-                learnOwnerSoftly(speech)
                 if (endsConversation(text)) conversationAuthorized = false
                 commandWindow.close()
                 assistantBusy = true
@@ -682,7 +725,7 @@ class NikoLocalVoiceEngine(
      * y el recognizer se serializa para no ejecutar JNI concurrentemente con la transcripción final.
      */
     private fun updateLivePreview(samples: FloatArray) {
-        if (!commandSpeechNotified || samples.isEmpty()) return
+        if (ownerVoice.ownerOnly || ownerVoice.enrollmentActive || !commandSpeechNotified || samples.isEmpty()) return
         appendLiveSamples(samples)
         val now = SystemClock.elapsedRealtime()
         if (livePreviewSamples.size < LIVE_PREVIEW_MIN_SAMPLES || now - lastLivePreviewAt < LIVE_PREVIEW_INTERVAL_MS) return
@@ -749,17 +792,64 @@ class NikoLocalVoiceEngine(
         }
     }
 
-    private fun learnOwnerSoftly(samples: FloatArray) {
-        if (samples.size < SAMPLE_RATE / 2) return
-        val extractor = speakerExtractor ?: return
-        runCatching {
+    private fun embedding(samples: FloatArray): FloatArray? {
+        val extractor = speakerExtractor ?: return null
+        return runCatching {
             val stream = extractor.createStream()
             try {
                 stream.acceptWaveform(samples, SAMPLE_RATE)
                 stream.inputFinished()
-                if (extractor.isReady(stream)) ownerVoice.acceptAndLearn(extractor.compute(stream))
+                if (extractor.isReady(stream)) extractor.compute(stream).takeIf(OwnerVoicePolicy::valid) else null
             } finally { stream.release() }
+        }.getOrNull()
+    }
+
+    /** Verify the whole turn and successive windows so a later different speaker is rejected. */
+    private fun acceptSpeaker(samples: FloatArray): Boolean {
+        if (!ownerVoice.ownerOnly) return true
+        if (samples.size < SAMPLE_RATE / 2) return false
+        val vectors = mutableListOf(embedding(samples) ?: return false)
+        val window = SAMPLE_RATE * 3 / 2
+        if (samples.size > window * 2) {
+            var offset = 0
+            while (offset < samples.size) {
+                val start = minOf(offset, samples.size - window)
+                val segment = samples.copyOfRange(start, minOf(start + window, samples.size))
+                // Silence isn't a second speaker and provides no usable voice embedding.
+                val rms = sqrt(segment.sumOf { it.toDouble() * it } / segment.size)
+                if (rms >= 0.003) vectors += embedding(segment) ?: return false
+                offset += window
+            }
         }
+        return ownerVoice.accepts(vectors)
+    }
+
+    private fun handleEnrollment(samples: FloatArray) {
+        if (!ownerVoice.enrollmentActive) {
+            commandWindow.close()
+            vad?.reset()
+            clearLivePreview()
+            setState(State.PASSIVE)
+            return
+        }
+        if (speakerExtractor == null) initSpeakerIdSoft()
+        val enough = samples.size >= SAMPLE_RATE * OwnerVoicePolicy.MIN_SAMPLE_SECONDS
+        val vector = if (enough) embedding(samples) else null
+        val accepted = vector?.let(ownerVoice::enroll) == true
+        val prompt = when {
+            speakerExtractor == null -> "Falta preparar el reconocimiento de mi voz desde Ajustes."
+            !enough -> "Decí una frase de al menos dos segundos, hablando solo vos."
+            !accepted -> "No distinguí una voz consistente. Repetí la frase sin otra persona hablando."
+            ownerVoice.enrollmentActive -> "Frase ${ownerVoice.enrollmentCount} guardada. Decí otra frase distinta."
+            else -> "Tu voz quedó registrada. Ya puedo priorizarla. Decí Leo para empezar."
+        }
+        conversationAuthorized = false
+        commandWindow.close()
+        vad?.reset()
+        passiveWakeVad?.reset()
+        clearLivePreview()
+        speaking = true
+        onAwaitingCommand(prompt, ownerVoice.enrollmentActive)
     }
 
     private fun resetKeywordStream() {

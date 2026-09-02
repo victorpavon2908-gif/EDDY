@@ -1,106 +1,70 @@
-# NIKO 0.7.0
+# LEO 0.10.2
 
-## Flujo de trabajo
+Búsqueda web nativa y preferencia de voz. Requiere Android 12 o posterior.
+La búsqueda explícita no requiere Groq. La conversación generativa puede usar
+GroqCloud opcionalmente. El identificador Android heredado se conserva para actualizar
+las instalaciones anteriores sin perder datos ni permisos.
 
-Las entregas se realizan mediante commits en GitHub. La integración continua
-comprueba pruebas y Lint, sin generar ni publicar APK automáticamente.
-La compilación manual indicada abajo se usa únicamente cuando se solicita.
+## Corrección de búsqueda y voces
 
-Asistente Android por voz, con activación local «NIKO», comandos del teléfono,
-memoria local y conversación directa con GroqCloud. ARM64, incluido Honor X6c.
-No requiere un servidor propio para conversar.
+- «Leo, buscame información sobre Rubén Darío en 1916» consulta la web directamente.
+  Conserva el tema y las fechas, aunque esté desactivada la investigación automática.
+- Bing y DuckDuckGo aportan resultados generales; las consultas de actualidad usan
+  también Google News. Se filtran por el tema real, antes y después de leer páginas.
+  Inicios de sesión (incluidos Outlook/Microsoft), formularios y páginas ajenas al tema
+  no forman parte de la respuesta. Los errores no se sustituyen por respuestas inventadas.
+- Hay un presupuesto de red de 20 segundos y lecturas concurrentes. Los extractos y
+  enlaces no implican corroboración independiente ni lectura completa de todas las páginas.
+- Se atenúa audio débil, se desactiva la ganancia automática adicional y se solicita
+  orientación del micrófono hacia el usuario cuando Android y el equipo lo admiten.
+- En **Ajustes → Mi voz → Registrar mi voz**, estando solo, decí cuatro frases distintas
+  de 2 a 6 segundos. Esperá la confirmación entre frases y mantené Ajustes abierto.
+  Si falta el modelo, usá «Preparar reconocimiento de mi voz». Al terminar se activa
+  «Priorizar mi voz»; desde ahí también podés desactivarlo, registrarte otra vez o borrarlo.
+- El registro no ejecuta las frases como órdenes. Guarda solo un vector numérico local;
+  el audio no se guarda ni se envía. No se reutiliza el perfil anterior aprendido
+  automáticamente, ni se aprende la voz de otras personas durante el uso normal.
+- Con el perfil activo, se comprueba la voz antes de ejecutar órdenes, seguimientos e
+  interrupciones. Una voz no verificable se rechaza; el registro vence a los tres minutos.
+  Los resultados provisionales de transcripción se ocultan hasta verificar la voz.
 
-## Instalar y usar
+**Límite:** esto prioriza la voz registrada y reduce interferencias, pero no separa
+perfectamente dos voces hablando a la vez. CAMPPlus identifica voces; GTCRN reduce
+ruido, no extrae una persona de una mezcla. Los umbrales necesitan prueba real en el
+Honor X6c: una frase corta o dicha muy bajo puede rechazarse. No es autenticación segura.
 
-1. Cuando solicités una compilación, instalá el APK que se genere para esa versión.
-2. Abrí NIKO y concedé el permiso de micrófono. La primera apertura copia el núcleo
-   de voz incluido en el APK, sin necesitar Internet.
-3. Esperá «Núcleo privado activo». Decí «NIKO, qué hora es» o «NIKO, encendé la linterna».
-   También podés decir «NIKO», esperar «Ajá» y dar la orden.
-4. Para conversar, abrí **GroqCloud**, guardá tu clave y usá **Guardar y probar**.
-5. Para escuchar con la pantalla apagada, permití funcionar en segundo plano en
-   los ajustes de batería de Android/Honor.
+Pruebas y casos de aceptación: [validación de búsqueda y voz](docs/LEO_SEARCH_VOICE_VALIDATION.md).
 
-Después de cada respuesta vuelve a esperar su nombre. El indicador de micrófono
-permanece visible durante la escucha local: es normal. Podés detenerla desde la
-notificación. No hay autenticación segura del hablante: cualquiera puede decir NIKO.
 
-## Con y sin Internet
+## Uso y desarrollo
 
-| Función | Sin Internet | Con Internet |
-| --- | --- | --- |
-| Activación y transcripción española | Sí, núcleo incluido | Igual |
-| Hora, cálculos, linterna, volumen, alarmas, abrir apps | Sí; según permisos | Igual |
-| Voz | Voz española de Android o neuronal ya instalada | Igual |
-| Conversación amplia | Limitada; modelo generativo opcional si ya está instalado | GroqCloud con clave y cuota |
-| Información actual | No | Groq Compound, con fuentes cuando la utiliza |
+Abrí LEO, completá la preparación inicial y concedé permiso de micrófono. Decí
+«Leo» seguido de la petición. Para escuchar con la pantalla apagada, permití su
+funcionamiento en segundo plano en los ajustes de batería. Android puede interrumpir
+el micrófono por llamadas, otra aplicación, privacidad o ahorro de batería.
 
-Abrir una app no garantiza que sus funciones funcionen sin red. Un teléfono sin voz
-española necesita instalarla desde su motor TTS. No se descargan automáticamente
-modelos generativos grandes, biometría ni voces adicionales. Se conservan los
-modelos locales que el usuario ya tenga instalados.
+Sin conexión quedan disponibles la voz instalada y las acciones locales del teléfono;
+la búsqueda necesita Internet. Para conversación remota configurá tu clave en Ajustes.
+El LLM MediaPipe en proceso está desactivado por estabilidad en Android 12+.
 
-La conversación remota usa `llama-3.3-70b-versatile` por defecto; la búsqueda usa
-`groq/compound`. Las claves antiguas de Gemini no se reutilizan. Si antes la clave
-de Groq estaba en Render, debe configurarse en el teléfono para la conexión directa.
-Véase [configuración y validación de GroqCloud](docs/GROQ_CLOUD.md).
-
-## Estabilidad
-
-- AudioRecord permanece abierto; se descarta el audio durante respuestas y no se
-  envía audio ambiental a GroqCloud. Una reserva breve conserva el inicio de la orden.
-- Una orden a la vez, regreso a modo pasivo y liberación de recursos en su hilo.
-- Las palabras de activación se guardan antes de crear el detector nativo. La CI
-  prueba su arranque y decodificación con el modelo real, además de pruebas y Lint.
-- Activación exclusivamente por «NIKO», sin botones Hablar/Pausar en la pantalla principal.
-  El interruptor queda en Ajustes; detener la notificación persiste al reabrir la app.
-- La activación reconoce «Niko» (ní-ko), con «Nico» como transcripción equivalente.
-  La CI comprueba llamadas, órdenes y rechazo del nombre anterior con audio real
-  procesado por el detector nativo. Las limitaciones conocidas están en [validación de voz](docs/VOICE_DIALOGUE_VALIDATION.md).
-- No se usa SpeechRecognizer por sesiones para la escucha permanente. Preparación,
-  disponibilidad y errores del micrófono tienen estados separados. La recuperación
-  espera el cierre del capturador anterior y usa reintentos espaciados.
-- GroqCloud tiene 18 segundos de presupuesto total y hasta tres intentos. Claves
-  inválidas, cuota agotada y respuestas bloqueadas no generan reintentos en cadena.
-- La voz neuronal espera a que suenen las últimas palabras antes de cerrar audio.
-- La voz se mantiene durante la sesión de escucha. La alternativa de Android guarda
-  el motor y la voz española instalada; perder Internet no selecciona otro hablante.
-  Ajustes muestra qué voz se usa. El ritmo puede adaptarse, pero el tono base se conserva.
-- No se reutilizan respuestas antiguas como si fueran información actual.
-
-La escucha continua requiere el núcleo local instalado; hasta que esté listo se
-muestra la preparación o el error correspondiente. Llamadas, otras apps, ahorro de
-batería y el interruptor de privacidad pueden interrumpir el micrófono. Falta validar
-el comportamiento de audio en un teléfono real; no se garantiza reconocimiento perfecto.
-
-## Compilar
-
-JDK 17, SDK 36, Gradle 8.13:
+Las entregas son commits. CI ejecuta pruebas y Lint. No genera APK automáticamente.
+JDK 17, SDK 36 y Gradle 8.13:
 
 ```sh
 ./gradlew :app:testDebugUnitTest :app:lintDebug
-python scripts/bundle_voice_models.py
-./gradlew :app:assembleDebug
 pytest -q backend
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`. El script usa el catálogo Kotlin,
-valida tamaños y adjunta SHA-256 para comprobar la copia en el teléfono. Los modelos
-no se guardan en Git. El APK pesa más porque incluye la voz offline.
-Las compilaciones manuales deben conservar la misma clave de firma. Una firma
-distinta puede impedir actualizar un APK anterior. No desinstalés
-sin respaldar los datos que necesités. `backend/` es legado y no interviene en GroqCloud.
+Solo ante solicitud expresa de APK:
 
-## Prueba en Honor X6c
+```sh
+python scripts/bundle_voice_models.py
+./gradlew :app:assembleDebug
+```
 
-- Primera apertura en modo avión: preparar voz y pedir hora/linterna.
-- Cinco minutos en silencio: sin ciclos continuos del micrófono.
-- Orden seguida de NIKO sin pausa, y activación en dos pasos.
-- Hablar sin llamarlo, también después de una respuesta: no debe ejecutar órdenes.
-- Perder/restaurar Internet y comprobar que las funciones locales siguen disponibles.
-- Pantalla bloqueada, ahorro de batería y otra app usando el micrófono.
-- Respuesta larga: últimas palabras completas y regreso a modo pasivo.
+Los modelos no se guardan en Git. Conservá la misma clave de firma al actualizar;
+no desinstalés sin respaldar los datos que necesités. `backend/` es legado y no
+interviene en la búsqueda nativa ni en la conexión directa a GroqCloud.
 
-Referencias: [SpeechRecognizer](https://developer.android.com/reference/android/speech/SpeechRecognizer),
-[Groq Chat Completions](https://console.groq.com/docs/api-reference),
-[búsqueda con Groq Compound](https://console.groq.com/docs/tool-use/built-in-tools/web-search).
+Referencias adicionales: [GroqCloud](docs/GROQ_CLOUD.md),
+[validación de voz](docs/VOICE_DIALOGUE_VALIDATION.md).

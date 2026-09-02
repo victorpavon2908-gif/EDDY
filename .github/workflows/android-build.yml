@@ -1,4 +1,4 @@
-name: LEO tests, lint and APK
+name: LEO tests and lint
 
 on:
   push:
@@ -62,15 +62,3 @@ jobs:
 
       - name: Android lint
         run: ./gradlew :app:lintDebug --stacktrace
-
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Publish LEO APK
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: LEO-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14

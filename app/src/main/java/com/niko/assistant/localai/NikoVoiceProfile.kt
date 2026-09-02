@@ -1,119 +1,80 @@
 package com.niko.assistant.localai
 
-import com.niko.assistant.compat.UpgradeIdentity
-
 import android.content.Context
+import android.os.SystemClock
 import android.util.Base64
+import com.niko.assistant.compat.UpgradeIdentity
+import com.niko.assistant.voice.OwnerVoicePolicy
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.sqrt
 
-/**
- * Huella vocal local adaptativa. Nunca guarda audio: solo un vector numérico.
- * No debe usarse como autenticación bancaria/biométrica de seguridad.
- */
+/** Explicit local enrollment. Ambient speech never changes the confirmed voice vector. */
 class NikoVoiceProfile(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(UpgradeIdentity.voiceProfilePreferences, Context.MODE_PRIVATE)
-
     val sampleCount: Int get() = prefs.getInt(KEY_COUNT, 0)
-    val isEnrolled: Boolean get() = sampleCount >= MIN_ENROLLMENT_SAMPLES && loadCentroid() != null
+    val isEnrolled: Boolean get() = prefs.getBoolean(KEY_CONFIRMED, false) && centroid() != null
+    val ownerOnly: Boolean get() = isEnrolled && prefs.getBoolean(KEY_ENABLED, true)
+    val enrollmentActive: Boolean get() = synchronized(enrollmentLock) {
+        val now = SystemClock.elapsedRealtime()
+        if (enrollmentDeadline > 0L && now >= enrollmentDeadline) clearPending()
+        enrollmentDeadline > now
+    }
+    val enrollmentCount: Int get() = synchronized(enrollmentLock) { pending.size }
 
     fun hasProfile(): Boolean = isEnrolled
+    fun score(embedding: FloatArray): Float = centroid()?.let { OwnerVoicePolicy.similarity(it, embedding) } ?: 0f
+    fun accepts(segments: List<FloatArray>): Boolean = !ownerOnly ||
+        centroid()?.let { OwnerVoicePolicy.accepts(it, segments) } == true
 
-    fun score(embedding: FloatArray): Float {
-        val centroid = loadCentroid() ?: return if (sampleCount == 0) 1f else 0f
-        return cosine(centroid, embedding)
+    fun setOwnerOnly(enabled: Boolean) { prefs.edit().putBoolean(KEY_ENABLED, enabled).apply() }
+
+    fun beginEnrollment() = synchronized(enrollmentLock) {
+        clearPending()
+        enrollmentDeadline = SystemClock.elapsedRealtime() + 180_000L
     }
 
-    /**
-     * Aprende gradualmente la voz del propietario. En el núcleo PRO esta decisión sirve
-     * para personalización y aprendizaje, no para silenciar una orden que ya fue activada
-     * explícitamente con NIKO.
-     */
-    fun acceptAndLearn(embedding: FloatArray, threshold: Float = 0.58f): VoiceDecision {
-        if (embedding.isEmpty()) return VoiceDecision(false, 0f, isEnrolled)
-        val current = loadCentroid()
-        if (current == null || sampleCount < MIN_ENROLLMENT_SAMPLES) {
-            blend(embedding, force = true)
-            return VoiceDecision(true, 1f, isEnrolled)
+    fun cancelEnrollment() = synchronized(enrollmentLock) { clearPending() }
+
+    /** A restart cancels registration; old automatically learned profiles are never trusted. */
+    fun enroll(embedding: FloatArray): Boolean = synchronized(enrollmentLock) {
+        if (!enrollmentActive || !OwnerVoicePolicy.valid(embedding)) return false
+        if (pending.any { OwnerVoicePolicy.similarity(it, embedding) < 0.68f }) return false
+        pending += OwnerVoicePolicy.normalized(embedding)
+        if (pending.size >= OwnerVoicePolicy.ENROLLMENT_SAMPLES) {
+            val average = FloatArray(embedding.size) { index -> pending.sumOf { it[index].toDouble() }.toFloat() / pending.size }
+            prefs.edit().putString(KEY_VECTOR, encode(OwnerVoicePolicy.normalized(average)))
+                .putInt(KEY_COUNT, pending.size).putBoolean(KEY_CONFIRMED, true).putBoolean(KEY_ENABLED, true).apply()
+            clearPending()
         }
-
-        val similarity = cosine(current, embedding)
-        val accepted = similarity >= threshold
-        if (accepted && similarity >= threshold + 0.04f) blend(embedding, force = false)
-        return VoiceDecision(accepted, similarity, true)
+        true
     }
 
-    fun reset() {
+    fun reset() = synchronized(enrollmentLock) {
+        clearPending()
         prefs.edit().clear().apply()
     }
 
-    private fun blend(sample: FloatArray, force: Boolean) {
-        val current = loadCentroid()
-        val count = sampleCount
-        val alpha = when {
-            current == null -> 1f
-            force && count < MIN_ENROLLMENT_SAMPLES -> 1f / (count + 1).toFloat()
-            else -> 0.06f
-        }
-        val next = if (current == null || current.size != sample.size) {
-            normalize(sample.copyOf())
-        } else {
-            normalize(FloatArray(sample.size) { index ->
-                current[index] * (1f - alpha) + sample[index] * alpha
-            })
-        }
-        prefs.edit()
-            .putString(KEY_VECTOR, encode(next))
-            .putInt(KEY_COUNT, (count + 1).coerceAtMost(10_000))
-            .apply()
-    }
-
-    private fun loadCentroid(): FloatArray? = prefs.getString(KEY_VECTOR, null)?.let(::decode)
-
-    private fun cosine(a: FloatArray, b: FloatArray): Float {
-        if (a.size != b.size || a.isEmpty()) return 0f
-        var dot = 0.0
-        var aa = 0.0
-        var bb = 0.0
-        for (i in a.indices) {
-            dot += a[i] * b[i]
-            aa += a[i] * a[i]
-            bb += b[i] * b[i]
-        }
-        if (aa <= 0.0 || bb <= 0.0) return 0f
-        return (dot / sqrt(aa * bb)).toFloat().coerceIn(-1f, 1f)
-    }
-
-    private fun normalize(values: FloatArray): FloatArray {
-        val norm = sqrt(values.sumOf { (it * it).toDouble() }).toFloat()
-        if (norm <= 1e-7f) return values
-        for (i in values.indices) values[i] /= norm
-        return values
-    }
-
+    private fun centroid(): FloatArray? = prefs.getString(KEY_VECTOR, null)?.let(::decode)
     private fun encode(values: FloatArray): String {
         val buffer = ByteBuffer.allocate(values.size * 4).order(ByteOrder.LITTLE_ENDIAN)
         values.forEach(buffer::putFloat)
         return Base64.encodeToString(buffer.array(), Base64.NO_WRAP)
     }
-
     private fun decode(raw: String): FloatArray? = runCatching {
         val bytes = Base64.decode(raw, Base64.NO_WRAP)
         if (bytes.isEmpty() || bytes.size % 4 != 0) return@runCatching null
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-        FloatArray(bytes.size / 4) { buffer.float }
+        FloatArray(bytes.size / 4) { buffer.float }.takeIf(OwnerVoicePolicy::valid)
     }.getOrNull()
-
-    data class VoiceDecision(
-        val accepted: Boolean,
-        val similarity: Float,
-        val enrolled: Boolean,
-    )
 
     companion object {
         private const val KEY_VECTOR = "owner_centroid"
         private const val KEY_COUNT = "owner_samples"
-        private const val MIN_ENROLLMENT_SAMPLES = 4
+        private const val KEY_CONFIRMED = "explicit_enrollment_v1"
+        private const val KEY_ENABLED = "prefer_owner_voice"
+        private val enrollmentLock = Any()
+        private var enrollmentDeadline = 0L
+        private val pending = mutableListOf<FloatArray>()
+        private fun clearPending() { enrollmentDeadline = 0L; pending.clear() }
     }
 }
