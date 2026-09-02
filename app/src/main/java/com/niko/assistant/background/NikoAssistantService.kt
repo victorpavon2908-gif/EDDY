@@ -45,6 +45,7 @@ import com.niko.assistant.ai.NikoFallbackConversation
 import com.niko.assistant.brain.AssistantCommand
 import com.niko.assistant.brain.NikoMathEngine
 import com.niko.assistant.brain.LocalBrain
+import com.niko.assistant.brain.NikoSemanticActionResolver
 import com.niko.assistant.brain.WebQueryRouter
 import com.niko.assistant.learning.AdaptiveIntentStore
 import com.niko.assistant.learning.OnlineIntentNetwork
@@ -82,6 +83,7 @@ open class NikoAssistantService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private lateinit var brain: LocalBrain
+    private lateinit var semanticActions: NikoSemanticActionResolver
     private lateinit var executor: ActionExecutor
     private lateinit var smartHome: LocalSmartHomeClient
     private lateinit var memory: NikoMemory
@@ -148,6 +150,7 @@ open class NikoAssistantService : Service() {
         deviceProfile = NikoDeviceProfile.detect(applicationContext)
         ownerVoice = NikoVoiceProfile(applicationContext)
         localLlm = NikoLocalLlm(applicationContext, modelManager)
+        semanticActions = NikoSemanticActionResolver(brain) { prompt -> localLlm.completeStructured(prompt) }
         codeAgent = NikoCodeAgent(applicationContext)
 
         platformTts = NikoTextToSpeech(
@@ -168,7 +171,6 @@ open class NikoAssistantService : Service() {
                 if (!destroyed) {
                     speechOutput.neuralFailed()
                     NikoRuntimeState.setVoiceStatus(applicationContext, "La voz local se interrumpió. ${platformTts.voiceDescription}")
-                    // Once audio has started, retain the visible answer instead of repeating it in another voice.
                     if (audioStarted || !platformTts.speak(text, replyProsody)) onSpeakingChanged(false)
                     NikoRuntimeState.setVoiceReady(applicationContext, platformTts.isReady)
                 }
@@ -240,7 +242,6 @@ open class NikoAssistantService : Service() {
                 while (isThinking || isSpeaking || commandJob?.isActive == true) delay(250L)
                 localVoiceStarting = true
                 try {
-                    // Do not open a second recorder while the old worker still owns native resources.
                     val previous = localVoice
                     val released = withContext(Dispatchers.IO) { previous?.stopAndAwait() ?: true }
                     if (!released) {
@@ -421,7 +422,7 @@ open class NikoAssistantService : Service() {
             speakResponse(it); return
         }
         NikoMathEngine.solve(text)?.let { learnIntent(text, LearnedIntent.ACTION); speakResponse("El resultado es $it."); return }
-        val commands = brain.understandMany(text)
+        val commands = semanticActions.resolveMany(text)
         if (commands.size > 1) {
             val responses = mutableListOf<String>()
             val sources = mutableListOf<NikoWebSource>()
@@ -474,7 +475,6 @@ open class NikoAssistantService : Service() {
                     fallbackConversation.reply(text, memory, error)
                 } },
             )
-            // Only deterministic rules label training examples; never train on a prediction.
             if (WebQueryRouter.needsCurrentInformation(text) && AutonomousResearch.allowedFor(text)) learnIntent(text, LearnedIntent.SEARCH)
             if (looksLikeCapabilityRequest(text)) {
                 val plan = codeAgent.analyze(text)
@@ -576,7 +576,6 @@ open class NikoAssistantService : Service() {
             val reply = webClient.reply(query, context, forceWeb, memory.historyForAi(current))
             when {
                 reply == null -> unavailable(webClient.lastError ?: "No pude consultar Internet. Volvé a intentarlo.")
-                // Search-enabled does not mean Google actually supplied evidence.
                 forceWeb && !reply.webUsed -> unavailable("No obtuve fuentes web para verificarlo. Podés pedirme otra búsqueda más específica.")
                 else -> reply.copy(evidence = AutonomousResearch.evidenceNote(reply.sources.map { it.url }))
             }
