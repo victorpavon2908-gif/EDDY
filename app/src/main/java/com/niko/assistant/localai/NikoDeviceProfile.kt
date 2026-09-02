@@ -14,11 +14,15 @@ data class NikoDeviceProfile(
 ) {
     enum class Tier { LITE, BALANCED, POWER }
 
-    // NIKO ahora prioriza APIs + memoria local ligera. El LLM local pesado queda
-    // desactivado por defecto incluso en gama media/alta para evitar descargas de
-    // cientos de MB, presión de RAM y calentamiento. Puede reactivarse más adelante
-    // como opción avanzada, pero ya no forma parte del arranque normal.
-    val supportsLocalLlm: Boolean get() = false
+    // La conversación local es opcional y se descarga desde Ajustes. No forma parte
+    // del arranque de voz, así que habilitarla aquí no obliga a descargar 1+ GB.
+    val supportsLocalLlm: Boolean get() = totalRamMb >= 4_500L && cpuCores >= 6
+
+    // El 1.5B INT8 necesita bastante más memoria que el 0.5B. A partir de ~5.5 GB
+    // y ocho núcleos preferimos calidad; equipos más modestos conservan el modelo rápido.
+    val prefersQualityLocalLlm: Boolean get() = totalRamMb >= 5_500L && cpuCores >= 8
+
+    // CPU/XNNPACK es la ruta más predecible entre fabricantes para estos .task.
     val prefersGpuLlm: Boolean get() = false
 
     companion object {
