@@ -317,6 +317,9 @@ open class NikoAssistantService : Service() {
                 NikoRuntimeState.setHeard(applicationContext, "NIKO")
                 NikoRuntimeState.setResponse(applicationContext, "Te escucho.")
                 revealNikoOnLockScreen()
+                // Precalentar sólo después de un wake acústico real: la inicialización de
+                // Qwen ocurre mientras el usuario termina de hablar, no durante cada segundo pasivo.
+                if (localLlm.isAvailable) serviceScope.launch { localLlm.prewarm() }
             }},
             onAwaitingCommand = { prompt, retry -> serviceScope.launch {
                 if (destroyed || epoch != localVoiceEpoch) return@launch
@@ -435,7 +438,12 @@ open class NikoAssistantService : Service() {
                     sources.addAll(answer.sources)
                     continue
                 }
-                executeDirectCommand(command)?.takeIf { it.isNotBlank() }?.let(responses::add); delay(120L)
+                val direct = executeDirectCommand(command)
+                if (!direct.isNullOrBlank()) {
+                    responses.add(direct)
+                    withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
+                }
+                delay(120L)
             }
             val answer = responses.joinToString(" ").ifBlank { "No entendí qué acciones querés que haga." }
             if (sources.isEmpty()) speakResponse(answer)
@@ -454,7 +462,7 @@ open class NikoAssistantService : Service() {
                 learnIntent(text, LearnedIntent.MEMORY); speakResponse(it); return
             }
             val prediction = predictIntent(text)
-            val remoteContext = withContext(Dispatchers.IO) { memory.contextForAi(false) }
+            val remoteContext = withContext(Dispatchers.IO) { memory.contextForAi(false, text) }
             val history = memory.historyForAi(text)
             val answer = ConversationCoordinator.reply(
                 message = text,
@@ -488,7 +496,9 @@ open class NikoAssistantService : Service() {
             AssistantCommand.MemorySummary -> LearnedIntent.MEMORY
             else -> LearnedIntent.ACTION
         })
-        speakResponse(executeDirectCommand(command) ?: "Listo.")
+        val direct = executeDirectCommand(command) ?: "Listo."
+        withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
+        speakResponse(direct)
     }
 
     private suspend fun predictIntent(text: String): OnlineIntentNetwork.Prediction? = withContext(Dispatchers.IO) {
@@ -572,7 +582,7 @@ open class NikoAssistantService : Service() {
         NikoRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         return try {
             val current = NikoRuntimeState.read(applicationContext).heardText
-            val context = withContext(Dispatchers.IO) { memory.contextForAi(false) }
+            val context = withContext(Dispatchers.IO) { memory.contextForAi(false, query) }
             val reply = webClient.reply(query, context, forceWeb, memory.historyForAi(current))
             when {
                 reply == null -> unavailable(webClient.lastError ?: "No pude consultar Internet. Volvé a intentarlo.")

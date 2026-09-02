@@ -20,6 +20,11 @@ import kotlinx.coroutines.withContext
  * NIKO prefiere Qwen2.5 1.5B INT8 en teléfonos con memoria suficiente y conserva
  * Qwen2.5 0.5B como ruta ligera. Ninguno se descarga durante el arranque del micrófono:
  * el usuario prepara el modelo desde Ajustes y después la inferencia no usa Internet.
+ *
+ * El runtime conserva el modelo cargado entre turnos y puede precalentarlo en cuanto
+ * detecta la palabra de activación. Es la misma disciplina de inferencia móvil que
+ * hace útiles runtimes tipo llama.cpp: cuantización, contexto acotado y modelo caliente,
+ * sin duplicar un segundo motor C++ dentro del APK.
  */
 class NikoLocalLlm(
     private val context: Context,
@@ -42,6 +47,18 @@ class NikoLocalLlm(
 
     val preferredModel: NikoModelSpec
         get() = NikoModelCatalog.recommendedConversationModel(profile)
+
+    /**
+     * Carga el mejor modelo instalado sin generar tokens. Se llama tras un wake real para
+     * solapar el coste de inicialización con el tiempo en que el usuario está hablando.
+     */
+    suspend fun prewarm(): Boolean = withContext(Dispatchers.Default) {
+        if (closed) return@withContext false
+        val candidate = installedCandidates().firstOrNull() ?: return@withContext false
+        mutex.withLock {
+            if (closed) false else engineFor(candidate) != null
+        }
+    }
 
     suspend fun reply(
         message: String,

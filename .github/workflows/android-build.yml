@@ -30,9 +30,9 @@ jobs:
         run: |
           mkdir -p app/libs
           curl -L --fail --retry 3 --retry-delay 2 \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.6/sherpa-onnx-1.13.6.aar \
-            -o app/libs/sherpa-onnx-1.13.6.aar
-          test "$(stat -c%s app/libs/sherpa-onnx-1.13.6.aar)" -gt 40000000
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.7/sherpa-onnx-1.13.7.aar \
+            -o app/libs/sherpa-onnx-1.13.7.aar
+          test "$(stat -c%s app/libs/sherpa-onnx-1.13.7.aar)" -gt 40000000
 
       - name: Set up Python
         uses: actions/setup-python@v5
