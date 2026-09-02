@@ -63,8 +63,7 @@ object NikoModelCatalog {
         requireInstallMarker = true,
     )
 
-    // Canary 180M Flash: modelo NeMo multilingüe de mayor precisión que Moonshine base.
-    // El paquete INT8 está preparado por sherpa-onnx para inferencia completamente local.
+    // Canary 180M Flash: transcriptor principal rápido y multilingüe.
     val spanishAsr = NikoModelSpec(
         id = "asr-canary-180m-es-v1",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8.tar.bz2",
@@ -80,6 +79,27 @@ object NikoModelCatalog {
             "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/encoder.int8.onnx" to 120_000_000L,
             "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/decoder.int8.onnx" to 65_000_000L,
             "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8/tokens.txt" to 20_000L,
+        ),
+        requireInstallMarker = true,
+    )
+
+    // Segundo oído opcional: Whisper multilingual INT8. No se ejecuta en cada frase;
+    // refina únicamente transcripciones Canary sospechosas para no duplicar la latencia.
+    val whisperAsr = NikoModelSpec(
+        id = "asr-whisper-tiny-multilingual-int8-v1",
+        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2",
+        archiveType = NikoArchiveType.TAR_BZ2,
+        directoryName = "asr-whisper",
+        expectedFiles = listOf(
+            "sherpa-onnx-whisper-tiny/tiny-encoder.int8.onnx",
+            "sherpa-onnx-whisper-tiny/tiny-decoder.int8.onnx",
+            "sherpa-onnx-whisper-tiny/tiny-tokens.txt",
+        ),
+        minBytes = 60_000_000L,
+        expectedMinBytes = mapOf(
+            "sherpa-onnx-whisper-tiny/tiny-encoder.int8.onnx" to 10_000_000L,
+            "sherpa-onnx-whisper-tiny/tiny-decoder.int8.onnx" to 80_000_000L,
+            "sherpa-onnx-whisper-tiny/tiny-tokens.txt" to 500_000L,
         ),
         requireInstallMarker = true,
     )
@@ -139,10 +159,11 @@ object NikoModelCatalog {
     fun recommendedConversationModel(profile: NikoDeviceProfile): NikoModelSpec =
         if (profile.prefersQualityLocalLlm) localLlmQuality else localLlmFast
 
-    // KWS/VAD/ASR bloquean el modo PRO. Voz, Voice ID y LLM son mejoras opcionales.
+    // KWS/VAD/Canary bloquean el modo PRO. Whisper, voz, Voice ID y LLM son mejoras opcionales.
     val voiceCore = listOf(keyword, vad, spanishAsr)
     val acousticCore: List<NikoModelSpec> = voiceCore + speaker + spanishVoice
+    val advancedVoice: List<NikoModelSpec> = listOf(whisperAsr)
 
     fun byId(id: String): NikoModelSpec? =
-        (voiceCore + speaker + spanishVoice + conversationModels).firstOrNull { it.id == id }
+        (voiceCore + speaker + spanishVoice + advancedVoice + conversationModels).firstOrNull { it.id == id }
 }
