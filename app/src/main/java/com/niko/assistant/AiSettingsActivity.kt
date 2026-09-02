@@ -58,7 +58,7 @@ class AiSettingsActivity : ComponentActivity() {
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startVoiceListener() else {
             NikoVoiceSettings.setEnabled(this, false)
-            NikoRuntimeState.setInput(this, NikoRuntimeState.InputState.ERROR, "Falta el permiso de micrófono para escuchar NIKO.")
+            NikoRuntimeState.setInput(this, NikoRuntimeState.InputState.ERROR, "Falta el permiso de micrófono para escuchar LEO.")
         }
     }
 
@@ -79,7 +79,7 @@ class AiSettingsActivity : ComponentActivity() {
         runCatching { ContextCompat.startForegroundService(this, UpgradeIdentity.assistantService(this)) }
             .onFailure {
                 NikoVoiceSettings.setEnabled(this, false)
-                NikoRuntimeState.setInput(this, NikoRuntimeState.InputState.ERROR, "No pude iniciar el micrófono. Volvé a abrir NIKO.")
+                NikoRuntimeState.setInput(this, NikoRuntimeState.InputState.ERROR, "No pude iniciar el micrófono. Volvé a abrir LEO.")
             }
     }
 }
@@ -137,8 +137,8 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 modelStatus = if (ready) {
                     when {
                         spec == NikoModelCatalog.spanishVoice -> "Voz preparada. Se usará al volver a iniciar la escucha desde Ajustes."
-                        spec == NikoModelCatalog.whisperAsr -> "Whisper preparado. Reiniciá la escucha: NIKO lo usará como segunda pasada solo cuando Canary detecte una transcripción dudosa."
-                        spec in NikoModelCatalog.conversationModels -> "Cerebro local preparado. NIKO ya puede conversar e interpretar órdenes libres sin Internet."
+                        spec == NikoModelCatalog.whisperAsr -> "Whisper preparado. Reiniciá la escucha: LEO lo usará como segunda pasada solo cuando Canary detecte una transcripción dudosa."
+                        spec in NikoModelCatalog.conversationModels -> "Cerebro local preparado. LEO ya puede conversar e interpretar órdenes libres sin Internet."
                         else -> "Preparado para usar sin Internet."
                     }
                 } else "No se pudo preparar. Comprobá conexión y espacio disponible."
@@ -153,15 +153,15 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
         ) {
             Text("ACTIVACIÓN POR VOZ", style = MaterialTheme.typography.headlineSmall)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Escuchar la palabra NIKO", modifier = Modifier.weight(1f))
+                Text("Escuchar la palabra LEO", modifier = Modifier.weight(1f))
                 Switch(checked = voiceEnabled, onCheckedChange = { voiceEnabled = it; onVoiceEnabled(it) })
             }
-            Text("Decí NIKO para empezar. Después de responder, NIKO mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
+            Text("Decí LEO para empezar. Después de responder, Leo mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
             Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
             Text("RECONOCIMIENTO AVANZADO", style = MaterialTheme.typography.headlineSmall)
             Text("Canary transcribe primero para responder rápido. Whisper multilingual INT8 puede hacer una segunda pasada local cuando la primera transcripción sale dudosa.", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.whisperAsr) }, enabled = !preparing) { Text("PREPARAR WHISPER LOCAL") }
-            Text("NIKO · PERSONALIDAD Y APRENDIZAJE", style = MaterialTheme.typography.headlineSmall)
+            Text("LEO · PERSONALIDAD Y APRENDIZAJE", style = MaterialTheme.typography.headlineSmall)
             Text("Elegí cómo te responde. Los cambios se guardan al instante.")
             NikoPersonality.entries.forEach { option ->
                 Row {
@@ -189,7 +189,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             Text(outputVoiceStatus, style = MaterialTheme.typography.bodySmall)
             Text("GROQCLOUD", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "NIKO usa GroqCloud para conversar y Groq Compound para consultar la web. Guardá la clave de tu cuenta de Groq; la memoria y la voz local siguen en el teléfono.",
+                "LEO usa GroqCloud para conversar y Groq Compound para consultar la web. La memoria y la voz local siguen en el teléfono.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -223,7 +223,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                             val client = NikoGroqClient(context)
                             try {
                                 val ok = client.testConnection()
-                                status = if (ok) "Conectado con ${client.lastModelUsed}. NIKO ya puede conversar." else client.lastError ?: "No pude conectar con GroqCloud."
+                                status = if (ok) "Conectado con ${client.lastModelUsed}. LEO ya puede conversar." else client.lastError ?: "No pude conectar con GroqCloud."
                             } finally { testing = false }
                         }
                     },
