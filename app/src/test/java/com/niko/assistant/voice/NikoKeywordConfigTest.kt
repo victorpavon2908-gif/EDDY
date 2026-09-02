@@ -14,7 +14,7 @@ class NikoKeywordConfigTest {
         val file = File(config.keywordsFile)
         assertTrue(file.isAbsolute)
         assertTrue(file.isFile)
-        assertTrue(file.readLines().all { it.endsWith("@NIKO") })
+        assertTrue(file.readLines().all { it.endsWith("@LEO") })
         assertTrue(file.readText().isNotBlank())
     }
 
@@ -22,13 +22,22 @@ class NikoKeywordConfigTest {
         val models = temporary.newFolder("models")
         val marker = File(models, "installed-model").apply { writeText("existing weights") }
         val directory = temporary.newFolder("config")
-        File(directory, "niko-keywords.txt").writeText("")
+        File(directory, "leo-keywords.txt").writeText("")
         val file = File(NikoKeywordConfig.create(models, directory).keywordsFile)
-        assertTrue(file.readText().contains("N IY1 K OW0"))
+        assertTrue(file.readText().contains("L IY1 OW0"))
         file.writeText("STALE")
         NikoKeywordConfig.create(models, directory)
         assertFalse(file.readText().contains("STALE"))
         assertEquals("existing weights", marker.readText())
+    }
+
+    @Test fun retiredNikoKeywordFileCannotOverrideLeo() {
+        val models = temporary.newFolder("models")
+        val directory = temporary.newFolder("config")
+        File(directory, "niko-keywords.txt").writeText("N IY1 K OW0 :1.45 #0.10 @NIKO\n")
+        val file = File(NikoKeywordConfig.create(models, directory).keywordsFile)
+        assertEquals("leo-keywords.txt", file.name)
+        assertFalse(file.readText().contains("@NIKO"))
     }
 
     @Test fun unwritableConfigurationFailsBeforeConstructingTheDetector() {
