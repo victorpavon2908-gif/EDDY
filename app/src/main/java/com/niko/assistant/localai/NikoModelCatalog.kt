@@ -96,8 +96,8 @@ object NikoModelCatalog {
         requireInstallMarker = true,
     )
 
-    // Segundo oído opcional: Whisper multilingual INT8. No se ejecuta en cada frase;
-    // refina únicamente transcripciones Canary sospechosas para no duplicar la latencia.
+    // Segundo oído local: Whisper multilingual INT8. No se ejecuta en cada frase;
+    // refina únicamente transcripciones Canary sospechosas para no duplicar latencia.
     val whisperAsr = NikoModelSpec(
         id = "asr-whisper-tiny-multilingual-int8-v1",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2",
@@ -168,11 +168,28 @@ object NikoModelCatalog {
     fun recommendedConversationModel(profile: NikoDeviceProfile): NikoModelSpec =
         if (profile.prefersQualityLocalLlm) localLlmQuality else localLlmFast
 
-    // KWS/VAD/GTCRN/Canary forman la escucha esencial. Whisper, TTS, Voice ID y LLM
-    // son mejoras adicionales que no deben impedir arrancar si el usuario no las preparó.
+    // KWS/VAD/GTCRN/Canary forman la escucha mínima que usa el motor de voz en runtime.
     val voiceCore = listOf(keyword, vad, denoiser, spanishAsr)
     val acousticCore: List<NikoModelSpec> = voiceCore + speaker + spanishVoice
     val advancedVoice: List<NikoModelSpec> = listOf(whisperAsr)
+
+    /**
+     * Paquete que debe quedar listo ANTES del primer arranque normal de LEO.
+     *
+     * En equipos capaces de usar LLM local se descarga también el cerebro. Si el teléfono
+     * puede con el 1.5B, se instala además el 0.5B como recuperación por presión de memoria.
+     * Los modelos grandes van primero para reducir el pico de almacenamiento temporal.
+     */
+    fun firstRunModels(profile: NikoDeviceProfile): List<NikoModelSpec> = buildList {
+        if (profile.supportsLocalLlm) {
+            if (profile.prefersQualityLocalLlm) add(localLlmQuality)
+            add(localLlmFast)
+        }
+        addAll(voiceCore)
+        add(speaker)
+        add(spanishVoice)
+        addAll(advancedVoice)
+    }.distinctBy { it.id }
 
     fun byId(id: String): NikoModelSpec? =
         (voiceCore + speaker + spanishVoice + advancedVoice + conversationModels).firstOrNull { it.id == id }
