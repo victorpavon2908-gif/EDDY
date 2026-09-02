@@ -1,39 +1,46 @@
 package com.niko.assistant.localai
 
 import android.content.Context
+import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.niko.assistant.ai.NikoAiSettings
 import com.niko.assistant.learning.NikoKnowledgeStore
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Cerebro generativo completamente local. El modelo se descarga una vez y nunca
- * recibe datos desde Internet durante la inferencia.
+ * Cerebro generativo completamente local.
  *
- * Antes de gastar inferencia generativa, consulta la memoria documental local. Eso
- * permite que investigaciones web anteriores sigan siendo útiles sin conexión.
+ * NIKO prefiere Qwen2.5 1.5B INT8 en teléfonos con memoria suficiente y conserva
+ * Qwen2.5 0.5B como ruta ligera. Ninguno se descarga durante el arranque del micrófono:
+ * el usuario prepara el modelo desde Ajustes y después la inferencia no usa Internet.
  */
 class NikoLocalLlm(
     private val context: Context,
     private val models: NikoModelManager,
 ) {
+    private val appContext = context.applicationContext
+    private val profile = NikoDeviceProfile.detect(appContext)
     private val mutex = Mutex()
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val knowledge = NikoKnowledgeStore(context.applicationContext)
+    private val knowledge = NikoKnowledgeStore(appContext)
+
     @Volatile private var closed = false
     @Volatile private var inference: LlmInference? = null
+    @Volatile private var loadedSpec: NikoModelSpec? = null
     @Volatile var lastError: String? = null
         private set
 
     val isAvailable: Boolean
-        get() = models.isInstalled(NikoModelCatalog.localLlm)
+        get() = NikoModelCatalog.conversationModels.any(models::isInstalled)
+
+    val preferredModel: NikoModelSpec
+        get() = NikoModelCatalog.recommendedConversationModel(profile)
 
     suspend fun reply(
         message: String,
@@ -43,56 +50,100 @@ class NikoLocalLlm(
         lastError = null
         if (closed) return@withContext null
 
-        // Sourced knowledge can answer by itself even when the local LLM model has not
-        // been downloaded yet. Current/time-sensitive questions are rejected by the store.
+        // Conocimiento guardado puede resolver una consulta sin encender el LLM.
         runCatching { knowledge.recall(message) }.getOrNull()?.let { learned ->
             return@withContext learned.answer
         }
 
-        if (!isAvailable) {
-            lastError = "Prepará el modelo de conversación sin Internet en Ajustes."
+        val candidates = installedCandidates()
+        if (candidates.isEmpty()) {
+            val quality = if (preferredModel == NikoModelCatalog.localLlmQuality) " de alta calidad" else " ligero"
+            lastError = "Prepará el modelo local$quality de conversación en Ajustes."
             return@withContext null
         }
+
         mutex.withLock {
             if (closed) return@withLock null
-            val engine = inference ?: createEngine() ?: return@withLock null
-            runCatching {
-                val prompt = LocalConversationPrompt.fit(message, memoryContext, evidence, NikoAiSettings.personality(context), engine::sizeInTokens)
-                    ?: run {
-                        lastError = "La consulta supera la capacidad del modelo local. Probá una pregunta más corta."
-                        return@withLock null
-                    }
-                engine.generateResponse(prompt).trim()
+            for (spec in candidates) {
+                val engine = engineFor(spec) ?: continue
+                val prompt = LocalConversationPrompt.fit(
+                    message,
+                    memoryContext,
+                    evidence,
+                    NikoAiSettings.personality(appContext),
+                    engine::sizeInTokens,
+                ) ?: run {
+                    lastError = "La consulta supera la capacidad del modelo local. Probá una pregunta más corta."
+                    return@withLock null
+                }
+
+                val answer = runCatching { cleanAnswer(engine.generateResponse(prompt)) }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                if (answer != null) {
+                    lastError = null
+                    return@withLock answer
+                }
+
+                // Si el modelo grande falla por presión de memoria, liberarlo permite
+                // probar el modelo rápido ya instalado sin reiniciar todo el asistente.
+                releaseEngine()
             }
-                .onFailure { lastError = "El modelo local no pudo responder. Probá una pregunta más corta o reiniciá el asistente." }
-                .getOrNull()
-                ?.takeIf { it.isNotBlank() }
-                .also { if (it == null && lastError == null) lastError = "El modelo local no devolvió una respuesta." }
+
+            lastError = "El modelo local no pudo responder. Cerré su memoria para recuperarlo en el siguiente intento."
+            null
         }
     }
 
     fun release() {
         closed = true
         cleanupScope.launch {
-            mutex.withLock { runCatching { inference?.close() }; inference = null }
+            mutex.withLock { releaseEngine() }
             cleanupScope.cancel()
         }
     }
 
-    private fun createEngine(): LlmInference? {
-        val path = models.file(NikoModelCatalog.localLlm).absolutePath
+    private fun installedCandidates(): List<NikoModelSpec> {
+        val recommended = preferredModel
+        return (listOf(recommended) + NikoModelCatalog.conversationModels)
+            .distinctBy { it.id }
+            .filter(models::isInstalled)
+    }
+
+    private fun engineFor(spec: NikoModelSpec): LlmInference? {
+        val current = inference
+        if (current != null && loadedSpec == spec) return current
+        releaseEngine()
+        return createEngine(spec)
+    }
+
+    private fun createEngine(spec: NikoModelSpec): LlmInference? {
+        val path = models.file(spec).absolutePath
         return runCatching {
-            // En MediaPipe 0.10.24 topK/topP/temperature pertenecen a la sesión,
-            // no a LlmInferenceOptions. El motor base usa sus valores seguros por defecto.
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(path)
-                // This is the combined prompt + reply budget, not just the output length.
+                // Ambos paquetes usan KV 1280: reservamos contexto suficiente y respuestas breves.
                 .setMaxTokens(LocalConversationPrompt.MODEL_TOKENS)
                 .build()
-            LlmInference.createFromOptions(context.applicationContext, options).also { inference = it }
+            LlmInference.createFromOptions(appContext, options).also {
+                inference = it
+                loadedSpec = spec
+            }
         }.onFailure {
-            lastError = "No pude iniciar el modelo local. Comprobá que haya memoria disponible y reiniciá el asistente."
+            lastError = "No pude iniciar ${spec.id}. Comprobá memoria disponible o prepará el modelo ligero."
         }.getOrNull()
     }
 
+    private fun releaseEngine() {
+        runCatching { inference?.close() }
+        inference = null
+        loadedSpec = null
+    }
+
+    private fun cleanAnswer(value: String): String = value
+        .replace("<|im_end|>", "")
+        .replace("<|endoftext|>", "")
+        .replace(Regex("^(NIKO|Niko|Asistente)\\s*:\\s*"), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
 }
