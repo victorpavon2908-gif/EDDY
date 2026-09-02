@@ -3,7 +3,6 @@ package com.niko.assistant.voice
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.SystemClock
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
@@ -11,16 +10,12 @@ import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
-import com.niko.assistant.localai.NikoDeviceProfile
-import com.niko.assistant.localai.NikoModelCatalog
-import com.niko.assistant.localai.NikoModelManager
-import com.niko.assistant.localai.NikoModelSpec
-import com.niko.assistant.localai.NikoVoiceProfile
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.KeywordSpotter
+import com.k2fsa.sherpa.onnx.OfflineCanaryModelConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
-import com.k2fsa.sherpa.onnx.OfflineMoonshineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
@@ -29,6 +24,11 @@ import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
+import com.niko.assistant.localai.NikoDeviceProfile
+import com.niko.assistant.localai.NikoModelCatalog
+import com.niko.assistant.localai.NikoModelManager
+import com.niko.assistant.localai.NikoModelSpec
+import com.niko.assistant.localai.NikoVoiceProfile
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -37,12 +37,12 @@ import kotlin.concurrent.thread
 import kotlin.math.sqrt
 
 /**
- * Núcleo PRO local de voz.
+ * Núcleo local de voz de NIKO.
  *
- * PASSIVE: un KeywordSpotter streaming pequeño escucha SOLO el patrón fonético de NIKO.
- * No se hace transcripción completa, búsqueda web ni IA antes de la palabra de activación.
- * ACTIVE: después de NIKO, Silero VAD segmenta la orden y Moonshine transcribe en español.
- * Voice ID queda como aprendizaje suave: nunca bloquea silenciosamente una orden válida.
+ * PASSIVE: un KWS pequeño escucha la palabra NIKO sin transcribir conversaciones.
+ * ACTIVE: Silero VAD captura la orden y NVIDIA NeMo Canary 180M Flash la transcribe
+ * en español completamente en el teléfono. La captura usa una ganancia digital suave
+ * para mejorar voz distante sin amplificar silencio casi puro.
  */
 class NikoLocalVoiceEngine(
     private val context: Context,
@@ -77,21 +77,22 @@ class NikoLocalVoiceEngine(
     private val released = CountDownLatch(1)
     private var initializing = false
     private var stopRequested = false
+
     @Volatile private var assistantBusy = false
     @Volatile private var resumeAfterSpeech = false
     @Volatile private var resetRequested = false
     @Volatile private var suppressUntil = 0L
-    private val preRoll = PcmPreRoll(SAMPLE_RATE * 4 / 5)
-    private val emotionEngine = NikoEmotionEngine(context)
-
     @Volatile private var speaking = false
-    private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS)
     @Volatile private var state = State.STOPPED
     @Volatile private var lastWakeAt = 0L
-    private var wakeAcknowledged = false
-    private var emptyRecognitionRetries = 0
     @Volatile private var commandSpeechNotified = false
     @Volatile private var commandSpeechFrames = 0
+
+    private var wakeAcknowledged = false
+    private var emptyRecognitionRetries = 0
+    private val preRoll = PcmPreRoll(SAMPLE_RATE * 4 / 5)
+    private val emotionEngine = NikoEmotionEngine(context)
+    private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS)
 
     @Volatile
     var lastInitializationFailure: InitializationFailure? = null
@@ -157,19 +158,21 @@ class NikoLocalVoiceEngine(
         }
     }
 
-    /** Call off the main thread. A replacement must wait for both AudioRecord and JNI cleanup. */
+    /** A replacement engine must wait until AudioRecord and JNI objects are released. */
     fun stopAndAwait(timeoutMillis: Long = 5_000L): Boolean {
         stop()
         return released.await(timeoutMillis, TimeUnit.MILLISECONDS)
     }
 
-    fun setAssistantBusy(value: Boolean) { assistantBusy = value }
+    fun setAssistantBusy(value: Boolean) {
+        assistantBusy = value
+    }
 
     fun setAssistantSpeaking(value: Boolean, continueCommand: Boolean = false) {
-        // Do not call VAD/KWS JNI here: this callback normally runs on the UI thread.
         resumeAfterSpeech = continueCommand
         speaking = value
         if (!value) {
+            // Do not let the tail of NIKO's own TTS become the next command.
             suppressUntil = SystemClock.elapsedRealtime() + 350L
             resetRequested = true
         }
@@ -180,15 +183,6 @@ class NikoLocalVoiceEngine(
         assistantBusy = false
         speaking = false
         resetRequested = true
-    }
-
-    private fun releaseResources() {
-        releaseAudioEffects()
-        runCatching { recorder?.release() }
-        recorder = null
-        releaseModels()
-        released.countDown()
-        setState(State.STOPPED)
     }
 
     private inline fun <T> initStage(name: String, spec: NikoModelSpec?, block: () -> T): T = try {
@@ -218,15 +212,17 @@ class NikoLocalVoiceEngine(
         } catch (error: Throwable) {
             releaseModels()
             lastInitializationFailure = InitializationFailure("núcleo", null, error.message ?: error.javaClass.simpleName)
-            onError("No pude iniciar el núcleo PRO de voz. Voy a intentar recuperarlo.")
+            onError("No pude iniciar el núcleo local de voz. Voy a intentar recuperarlo.")
             false
         }
     }
 
     private fun initKeywordSpotter() {
-        // Configuration/storage failures must not trigger a download of healthy model weights.
         val config = initStage("configuración de activación", null) {
-            NikoKeywordConfig.create(models.modelDir(NikoModelCatalog.keyword), File(context.filesDir, "voice-config"))
+            NikoKeywordConfig.create(
+                models.modelDir(NikoModelCatalog.keyword),
+                File(context.filesDir, "voice-config"),
+            )
         }
         initStage("activación NIKO", NikoModelCatalog.keyword) {
             keywordSpotter = KeywordSpotter(config = config)
@@ -240,11 +236,12 @@ class NikoLocalVoiceEngine(
             config = VadModelConfig(
                 sileroVadModelConfig = SileroVadModelConfig(
                     model = models.file(NikoModelCatalog.vad).absolutePath,
-                    threshold = 0.40f,
-                    minSilenceDuration = 1.0f,
-                    minSpeechDuration = 0.18f,
+                    // A lower threshold is intentional after wake: distant speech is quieter.
+                    threshold = 0.32f,
+                    minSilenceDuration = 0.85f,
+                    minSpeechDuration = 0.14f,
                     windowSize = 512,
-                    maxSpeechDuration = 25f,
+                    maxSpeechDuration = 30f,
                 ),
                 sampleRate = SAMPLE_RATE,
                 numThreads = 1,
@@ -253,15 +250,18 @@ class NikoLocalVoiceEngine(
         )
     }
 
-    private fun initSpanishAsr() = initStage("reconocimiento español", NikoModelCatalog.spanishAsr) {
+    private fun initSpanishAsr() = initStage("reconocimiento español Canary", NikoModelCatalog.spanishAsr) {
         val root = File(models.modelDir(NikoModelCatalog.spanishAsr), ASR_DIR)
         recognizer = OfflineRecognizer(
             config = OfflineRecognizerConfig(
                 featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
                 modelConfig = OfflineModelConfig(
-                    moonshine = OfflineMoonshineModelConfig(
-                        encoder = File(root, "encoder_model.ort").absolutePath,
-                        mergedDecoder = File(root, "decoder_model_merged.ort").absolutePath,
+                    canary = OfflineCanaryModelConfig(
+                        encoder = File(root, "encoder.int8.onnx").absolutePath,
+                        decoder = File(root, "decoder.int8.onnx").absolutePath,
+                        srcLang = "es",
+                        tgtLang = "es",
+                        usePnc = true,
                     ),
                     tokens = File(root, "tokens.txt").absolutePath,
                     numThreads = profile.inferenceThreads.coerceIn(1, 2),
@@ -294,11 +294,12 @@ class NikoLocalVoiceEngine(
         check(minimum > 0)
         @Suppress("MissingPermission")
         recorder = AudioRecord(
+            // VOICE_RECOGNITION lets compatible phones apply their speech-oriented front end.
             MediaRecorder.AudioSource.VOICE_RECOGNITION,
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            maxOf(minimum * 3, 12_288),
+            maxOf(minimum * 4, 16_384),
         )
         val localRecorder = recorder
         check(localRecorder?.state == AudioRecord.STATE_INITIALIZED)
@@ -315,9 +316,18 @@ class NikoLocalVoiceEngine(
 
     private fun initializeAudioEffects(audioSessionId: Int) {
         releaseAudioEffects()
-        if (NoiseSuppressor.isAvailable()) noiseSuppressor = runCatching { NoiseSuppressor.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
-        if (AutomaticGainControl.isAvailable()) automaticGainControl = runCatching { AutomaticGainControl.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
-        if (AcousticEchoCanceler.isAvailable()) acousticEchoCanceler = runCatching { AcousticEchoCanceler.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
+        if (NoiseSuppressor.isAvailable()) {
+            noiseSuppressor = runCatching { NoiseSuppressor.create(audioSessionId) }.getOrNull()
+                ?.also { runCatching { it.enabled = true } }
+        }
+        if (AutomaticGainControl.isAvailable()) {
+            automaticGainControl = runCatching { AutomaticGainControl.create(audioSessionId) }.getOrNull()
+                ?.also { runCatching { it.enabled = true } }
+        }
+        if (AcousticEchoCanceler.isAvailable()) {
+            acousticEchoCanceler = runCatching { AcousticEchoCanceler.create(audioSessionId) }.getOrNull()
+                ?.also { runCatching { it.enabled = true } }
+        }
     }
 
     private fun releaseAudioEffects() {
@@ -347,9 +357,8 @@ class NikoLocalVoiceEngine(
                 val now = SystemClock.elapsedRealtime()
                 if (now >= nextCaptureCheck) {
                     nextCaptureCheck = now + 1_000L
-                    // Android can keep delivering zeroes when another app/privacy silences us.
-                    // Do not mistake that for a healthy listener or repeatedly reopen the mic.
-                    val silenced = recorder?.activeRecordingConfiguration?.isClientSilenced == true || audioManager?.isMicrophoneMute == true
+                    val silenced = recorder?.activeRecordingConfiguration?.isClientSilenced == true ||
+                        audioManager?.isMicrophoneMute == true
                     if (silenced != isMicrophoneSilenced) {
                         isMicrophoneSilenced = silenced
                         commandWindow.close()
@@ -360,19 +369,28 @@ class NikoLocalVoiceEngine(
                     }
                 }
                 if (isMicrophoneSilenced) continue
+
                 if (resetRequested) {
                     resetRequested = false
                     vad?.reset()
                     resetKeywordStream()
                     preRoll.clear()
-                    if (resumeAfterSpeech) commandWindow.continueAfterPrompt(SystemClock.elapsedRealtime()) else commandWindow.close()
+                    if (resumeAfterSpeech) {
+                        commandWindow.continueAfterPrompt(SystemClock.elapsedRealtime())
+                    } else {
+                        commandWindow.close()
+                    }
                     commandSpeechNotified = false
                     commandSpeechFrames = 0
                 }
-                // Keep AudioRecord open and drain it while speaking/thinking to avoid stale audio/echo.
-                if (speaking || assistantBusy || SystemClock.elapsedRealtime() < suppressUntil) continue
-                val samples = FloatArray(count) { buffer[it] / 32768.0f }
-                if (isActive()) processActive(samples) else processPassiveWake(samples)
+
+                // Keep draining while NIKO is speaking/thinking so stale audio never accumulates.
+                if (speaking || assistantBusy || now < suppressUntil) continue
+
+                val raw = FloatArray(count) { buffer[it] / 32768.0f }
+                val active = isActive()
+                val samples = FarFieldAudioEnhancer.enhance(raw, activeCommand = active)
+                if (active) processActive(samples) else processPassiveWake(samples)
             }
         } catch (error: Exception) {
             if (running.get()) onError("La captura local se interrumpió: ${error.message.orEmpty()}")
@@ -391,6 +409,7 @@ class NikoLocalVoiceEngine(
             preRoll.clear()
             setState(State.PASSIVE)
         }
+
         preRoll.append(samples)
         val spotter = keywordSpotter ?: return
         val stream = keywordStream ?: return
@@ -412,7 +431,8 @@ class NikoLocalVoiceEngine(
         spotter.reset(stream)
         vad?.reset()
         commandWindow.onWake(now)
-        // Preserve the syllables immediately following NIKO while the spotter finalizes.
+
+        // Keep the speech directly after the wake word; otherwise "Niko abrí..." may lose "abrí".
         vad?.acceptWaveform(preRoll.snapshot())
         preRoll.clear()
         setState(State.ACTIVE)
@@ -429,14 +449,15 @@ class NikoLocalVoiceEngine(
         }
 
         detectCommandContinuation(samples)
-
         val localVad = vad ?: return
         localVad.acceptWaveform(samples)
+
         while (!localVad.empty()) {
             val segment = localVad.front()
             localVad.pop()
             val speech = segment.samples
             if (speech.size < MIN_COMMAND_SAMPLES) continue
+
             emotionEngine.observeSpeech(speech, SAMPLE_RATE)
             setState(State.PROCESSING)
             val transcript = transcribe(speech)
@@ -445,24 +466,28 @@ class NikoLocalVoiceEngine(
                 is WakeResult.Command -> result.text
                 WakeResult.Ignored -> transcript
             }
+
             if (text.isNotBlank()) {
                 learnOwnerSoftly(speech)
                 commandWindow.close()
-                assistantBusy = true // Before dispatch: never submit two overlapping commands.
+                assistantBusy = true
                 localVad.reset()
                 onCommand(text)
                 return
             }
+
             if (transcript.isBlank()) {
                 val retry = emptyRecognitionRetries++ == 0
                 speaking = true
                 localVad.reset()
-                onAwaitingCommand(if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Volvé a decir NIKO.", retry)
+                onAwaitingCommand(
+                    if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Volvé a decir NIKO.",
+                    retry,
+                )
                 return
             }
+
             if (!wakeAcknowledged) {
-                // Acknowledge only after the completed utterance contained no command.
-                // A timer here would speak over a command still being transcribed.
                 wakeAcknowledged = true
                 speaking = true
                 localVad.reset()
@@ -493,14 +518,15 @@ class NikoLocalVoiceEngine(
     }
 
     private fun transcribe(samples: FloatArray): String {
-        // A native decoding failure must reach the service recovery, not become silent text.
-        val asr = checkNotNull(recognizer) { "El reconocimiento español no está disponible." }
+        val asr = checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." }
         val stream = asr.createStream()
         return try {
             stream.acceptWaveform(samples, SAMPLE_RATE)
             asr.decode(stream)
             normalizeTranscript(asr.getResult(stream).text)
-        } finally { stream.release() }
+        } finally {
+            stream.release()
+        }
     }
 
     private fun learnOwnerSoftly(samples: FloatArray) {
@@ -538,11 +564,25 @@ class NikoLocalVoiceEngine(
     }
 
     private fun releaseModels() {
-        runCatching { keywordStream?.release() }; keywordStream = null
-        runCatching { keywordSpotter?.release() }; keywordSpotter = null
-        runCatching { vad?.release() }; vad = null
-        runCatching { speakerExtractor?.release() }; speakerExtractor = null
-        runCatching { recognizer?.release() }; recognizer = null
+        runCatching { keywordStream?.release() }
+        keywordStream = null
+        runCatching { keywordSpotter?.release() }
+        keywordSpotter = null
+        runCatching { vad?.release() }
+        vad = null
+        runCatching { speakerExtractor?.release() }
+        speakerExtractor = null
+        runCatching { recognizer?.release() }
+        recognizer = null
+    }
+
+    private fun releaseResources() {
+        releaseAudioEffects()
+        runCatching { recorder?.release() }
+        recorder = null
+        releaseModels()
+        released.countDown()
+        setState(State.STOPPED)
     }
 
     companion object {
@@ -550,9 +590,10 @@ class NikoLocalVoiceEngine(
         private const val FIRST_COMMAND_MS = 30_000L
         private const val WAKE_DEBOUNCE_MS = 900L
         private const val POST_WAKE_GUARD_MS = 180L
-        private const val COMMAND_CONTINUATION_RMS = 0.011f
+        // Lower than before because the active audio has already passed the far-field enhancer.
+        private const val COMMAND_CONTINUATION_RMS = 0.0085f
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
-        private const val ASR_DIR = "sherpa-onnx-moonshine-base-es-quantized-2026-02-27"
+        private const val ASR_DIR = "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8"
     }
 }
