@@ -20,7 +20,7 @@ fun configString(envName: String, propertyName: String, defaultValue: String = "
     return "\"$escaped\""
 }
 
-val sherpaVersion = "1.13.6"
+val sherpaVersion = "1.13.7"
 
 android {
     namespace = "com.niko.assistant"
@@ -29,8 +29,8 @@ android {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 19
-        versionName = "0.8.2"
+        versionCode = 20
+        versionName = "0.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
