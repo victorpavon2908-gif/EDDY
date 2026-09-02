@@ -4,24 +4,24 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
-import com.niko.assistant.localai.NikoDeviceProfile
-import com.niko.assistant.localai.NikoModelCatalog
-import com.niko.assistant.localai.NikoModelManager
+import android.os.SystemClock
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
+import com.niko.assistant.localai.NikoDeviceProfile
+import com.niko.assistant.localai.NikoModelCatalog
+import com.niko.assistant.localai.NikoModelManager
 import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import android.os.SystemClock
 
 /** Voz neural latina local de NIKO. No usa red durante la síntesis. */
 class NikoNeuralTextToSpeech(
@@ -50,17 +50,28 @@ class NikoNeuralTextToSpeech(
                 var audioStarted = false
                 try {
                     val engine = tts ?: createEngine() ?: error("Voz local no disponible")
-                    for (chunk in SpeechProsody.chunks(text, 1_000)) {
+                    // Pedazos más cortos reducen el tiempo hasta la primera palabra hablada.
+                    // SpeechProsody.chunks prioriza límites de oración para evitar cortes robóticos.
+                    for (chunk in SpeechProsody.chunks(text, 360)) {
                         if (closed || token != generation) break
-                        val audio = engine.generate(com.niko.assistant.ai.NikoIdentity.forSpeech(chunk), sid = 0, speed = speed.coerceIn(0.85f, 1.15f))
-                        if (!closed && token == generation) play(audio.samples, audio.sampleRate, token) { audioStarted = true }
+                        val audio = engine.generate(
+                            com.niko.assistant.ai.NikoIdentity.forSpeech(chunk),
+                            sid = 0,
+                            speed = speed.coerceIn(0.85f, 1.15f),
+                        )
+                        if (!closed && token == generation) {
+                            play(audio.samples, audio.sampleRate, token) { audioStarted = true }
+                        }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
                     failed = true
                 } finally {
-                    if (closed) { runCatching { tts?.release() }; tts = null }
+                    if (closed) {
+                        runCatching { tts?.release() }
+                        tts = null
+                    }
                     if (token == generation && !closed) {
                         if (failed) onFailure(text, audioStarted) else onSpeakingChanged(false)
                     }
@@ -81,7 +92,10 @@ class NikoNeuralTextToSpeech(
         closed = true
         stop()
         scope.launch {
-            mutex.withLock { runCatching { tts?.release() }; tts = null }
+            mutex.withLock {
+                runCatching { tts?.release() }
+                tts = null
+            }
             scope.cancel()
         }
     }
