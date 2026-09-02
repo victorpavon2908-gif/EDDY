@@ -11,18 +11,25 @@ class WakeCommandWindowTest {
         assertFalse(window.isOpen(2_001L))
     }
 
-    @Test fun acousticWakeAllowsOneTurnThenRequiresAnotherWake() {
+    @Test fun acousticWakeAllowsFirstTurn() {
         val window = WakeCommandWindow()
         window.onWake(1_000L)
         assertTrue(window.isOpen(1_001L))
         window.close()
         window.continueAfterPrompt(2_000L)
         assertFalse(window.isOpen(2_001L))
-        window.onWake(3_000L)
-        assertTrue(window.isOpen(3_001L))
     }
 
-    @Test fun silenceExpiresAndCannotBeReopenedByALateSpeechCallback() {
+    @Test fun authorizedFollowUpIsShorterThanInitialWake() {
+        val window = WakeCommandWindow(durationMillis = 30_000L, followUpMillis = 12_000L)
+        window.onWake(1_000L)
+        window.close()
+        window.openFollowUp(5_000L)
+        assertTrue(window.isOpen(16_999L))
+        assertFalse(window.isOpen(17_000L))
+    }
+
+    @Test fun silenceExpiresAndCannotBeExtendedByALatePrompt() {
         val window = WakeCommandWindow()
         window.onWake(1_000L)
         assertTrue(window.isOpen(30_999L))
