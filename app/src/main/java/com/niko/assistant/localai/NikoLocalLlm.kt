@@ -95,6 +95,43 @@ class NikoLocalLlm(
         }
     }
 
+    /**
+     * Inferencia local para clasificadores/routers internos. No usa memoria aprendida,
+     * Groq ni Internet y conserva saltos de línea para poder validar un DSL cerrado.
+     */
+    suspend fun completeStructured(instruction: String): String? = withContext(Dispatchers.Default) {
+        lastError = null
+        if (closed) return@withContext null
+        val candidates = installedCandidates()
+        if (candidates.isEmpty()) return@withContext null
+
+        mutex.withLock {
+            if (closed) return@withLock null
+            for (spec in candidates) {
+                val engine = engineFor(spec) ?: continue
+                var body = instruction.trim().take(4_500)
+                var prompt = structuredPrompt(body)
+                repeat(5) {
+                    val size = runCatching { engine.sizeInTokens(prompt) }.getOrDefault(Int.MAX_VALUE)
+                    if (size in 1..STRUCTURED_MAX_INPUT_TOKENS) {
+                        val result = runCatching { cleanStructured(engine.generateResponse(prompt)) }
+                            .getOrNull()
+                            ?.takeIf { it.isNotBlank() }
+                        if (result != null) {
+                            lastError = null
+                            return@withLock result
+                        }
+                        return@repeat
+                    }
+                    body = body.take((body.length * 3 / 4).coerceAtLeast(700))
+                    prompt = structuredPrompt(body)
+                }
+                releaseEngine()
+            }
+            null
+        }
+    }
+
     fun release() {
         closed = true
         cleanupScope.launch {
@@ -140,10 +177,36 @@ class NikoLocalLlm(
         loadedSpec = null
     }
 
+    private fun structuredPrompt(body: String): String = buildString {
+        appendLine("<|im_start|>system")
+        appendLine("Sos un router interno de NIKO. Seguí exactamente el formato solicitado por el usuario del sistema. No agregués explicaciones ni Markdown.")
+        appendLine("<|im_end|>")
+        appendLine("<|im_start|>user")
+        appendLine(body)
+        appendLine("<|im_end|>")
+        append("<|im_start|>assistant\n")
+    }
+
+    private fun cleanStructured(value: String): String = value
+        .replace("<|im_end|>", "")
+        .replace("<|endoftext|>", "")
+        .replace("<|im_start|>assistant", "")
+        .replace("```text", "")
+        .replace("```", "")
+        .lineSequence()
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .joinToString("\n")
+        .trim()
+
     private fun cleanAnswer(value: String): String = value
         .replace("<|im_end|>", "")
         .replace("<|endoftext|>", "")
         .replace(Regex("^(NIKO|Niko|Asistente)\\s*:\\s*"), "")
         .replace(Regex("\\s+"), " ")
         .trim()
+
+    companion object {
+        private const val STRUCTURED_MAX_INPUT_TOKENS = 1_080
+    }
 }
