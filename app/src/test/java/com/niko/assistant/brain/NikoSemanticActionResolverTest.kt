@@ -39,6 +39,18 @@ class NikoSemanticActionResolverTest {
     }
 
     @Test
+    fun negationAndHowToQuestionsNeverReachExecutionModel() = runBlocking {
+        var calls = 0
+        val resolver = NikoSemanticActionResolver(LocalBrain()) {
+            calls++
+            "OPEN_APP|YouTube"
+        }
+        assertTrue(resolver.resolveMany("no abras YouTube") singleIsUnknown true)
+        assertTrue(resolver.resolveMany("cómo puedo apagar la linterna") singleIsUnknown true)
+        assertEquals(0, calls)
+    }
+
+    @Test
     fun malformedOrUnsafeDslIsRejected() {
         val resolver = NikoSemanticActionResolver(LocalBrain()) { null }
         assertTrue(resolver.parseDsl("DELETE_FILE|/data/user/0").isEmpty())
@@ -55,4 +67,7 @@ class NikoSemanticActionResolverTest {
             commands,
         )
     }
+
+    private infix fun List<AssistantCommand>.singleIsUnknown(expected: Boolean): Boolean =
+        ((size == 1 && first() is AssistantCommand.Unknown) == expected)
 }
