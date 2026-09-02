@@ -25,11 +25,13 @@ object NikoKeywordConfig {
                 modelType = "zipformer2",
                 modelingUnit = "phone+ppinyin",
             ),
-            maxActivePaths = 6,
+            // "Leo" es un hotword muy corto. Conservamos chunk-8 (160 ms) y ampliamos
+            // beam/bias para darle más oportunidades al camino del keyword frente a blanks.
+            maxActivePaths = 12,
             keywordsFile = keywords.absolutePath,
-            keywordsScore = 1.50f,
-            keywordsThreshold = 0.11f,
-            numTrailingBlanks = 3,
+            keywordsScore = 3.0f,
+            keywordsThreshold = 0.04f,
+            numTrailingBlanks = 1,
         )
     }
 
@@ -45,14 +47,18 @@ object NikoKeywordConfig {
         return destination
     }
 
-    // Variantes fonéticas cercanas a "Leo" para tolerar acento y pequeñas diferencias de vocal.
-    // El umbral es ligeramente más conservador porque "leo" también existe como palabra común
-    // en español. Tres trailing blanks reducen activaciones por prefijos de palabras más largas.
+    // El modelo es zh/en y el español nicaragüense puede proyectar /le.o/ hacia EH, EY o IY.
+    // Todas las variantes devuelven la MISMA etiqueta @LEO. La ruta Canary de respaldo
+    // (en NikoLocalVoiceEngine) cubre el caso conocido donde un KWS transducer omite
+    // palabras de sólo tres fonemas incluso con score/threshold agresivos.
     private const val KEYWORDS =
-        "L IY0 OW0 :1.50 #0.11 @LEO\n" +
-        "L IY1 OW0 :1.50 #0.11 @LEO\n" +
-        "L IY0 OW1 :1.50 #0.11 @LEO\n" +
-        "L EH0 OW0 :1.54 #0.12 @LEO\n" +
-        "L EH1 OW0 :1.54 #0.12 @LEO\n" +
-        "L EH0 OW1 :1.54 #0.12 @LEO\n"
+        "L EH0 OW0 :3.20 #0.035 @LEO\n" +
+        "L EH1 OW0 :3.20 #0.035 @LEO\n" +
+        "L EH0 OW1 :3.20 #0.035 @LEO\n" +
+        "L EY0 OW0 :3.15 #0.038 @LEO\n" +
+        "L EY1 OW0 :3.15 #0.038 @LEO\n" +
+        "L EY0 OW1 :3.15 #0.038 @LEO\n" +
+        "L IY0 OW0 :3.00 #0.040 @LEO\n" +
+        "L IY1 OW0 :3.00 #0.040 @LEO\n" +
+        "L IY0 OW1 :3.00 #0.040 @LEO\n"
 }
