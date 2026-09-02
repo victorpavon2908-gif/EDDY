@@ -2,6 +2,7 @@ package com.niko.assistant.localai
 
 import android.content.Context
 import com.niko.assistant.ai.NikoAiSettings
+import com.niko.assistant.learning.NikoKnowledgeStore
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,9 @@ import kotlinx.coroutines.withContext
 /**
  * Cerebro generativo completamente local. El modelo se descarga una vez y nunca
  * recibe datos desde Internet durante la inferencia.
+ *
+ * Antes de gastar inferencia generativa, consulta la memoria documental local. Eso
+ * permite que investigaciones web anteriores sigan siendo útiles sin conexión.
  */
 class NikoLocalLlm(
     private val context: Context,
@@ -22,6 +26,7 @@ class NikoLocalLlm(
 ) {
     private val mutex = Mutex()
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val knowledge = NikoKnowledgeStore(context.applicationContext)
     @Volatile private var closed = false
     @Volatile private var inference: LlmInference? = null
     @Volatile var lastError: String? = null
@@ -37,6 +42,13 @@ class NikoLocalLlm(
     ): String? = withContext(Dispatchers.Default) {
         lastError = null
         if (closed) return@withContext null
+
+        // Sourced knowledge can answer by itself even when the local LLM model has not
+        // been downloaded yet. Current/time-sensitive questions are rejected by the store.
+        runCatching { knowledge.recall(message) }.getOrNull()?.let { learned ->
+            return@withContext learned.answer
+        }
+
         if (!isAvailable) {
             lastError = "Prepará el modelo de conversación sin Internet en Ajustes."
             return@withContext null
