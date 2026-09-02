@@ -1,6 +1,7 @@
 package com.niko.assistant.ai
 
 import android.content.Context
+import com.niko.assistant.brain.WebQueryRouter
 import com.niko.assistant.learning.NikoKnowledgeStore
 
 /**
@@ -35,7 +36,10 @@ class NikoAiClient(
         val allowWeb = forceWeb || (NikoAiSettings.autoResearch(appContext) && AutonomousResearch.allowedFor(message))
         val reply = groq.reply(message, memoryContext, useWeb = allowWeb, history = history)
         if (reply != null && reply.webUsed && reply.sources.isNotEmpty()) {
-            runCatching { knowledge.learn(message, reply) }
+            // "Buscá en Internet cómo funciona X" should teach the subject "cómo funciona X",
+            // not the transient instruction to perform a search.
+            val subject = WebQueryRouter.explicitQuery(message) ?: message
+            runCatching { knowledge.learn(subject, reply) }
         }
         return reply
     }
