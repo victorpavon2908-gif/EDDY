@@ -17,6 +17,7 @@ class NikoRuntimeStateTest {
     @Before fun resetPreferences() {
         context.getSharedPreferences("niko_runtime_state", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("eddy_control", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("leo_first_run_setup", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test fun runningServiceAndReadySpeakerDoNotImplyAWorkingMicrophone() {
@@ -50,12 +51,23 @@ class NikoRuntimeStateTest {
         assertFalse(NikoRuntimeState.read(context).running)
     }
 
-    @Test fun disablingVoiceSurvivesRuntimeResetAndAnotherContext() {
-        assertTrue(NikoVoiceSettings.enabled(context))
+    @Test fun disablingVoicePreferenceSurvivesRuntimeResetAndAnotherContext() {
+        assertTrue(NikoVoiceSettings.userEnabled(context))
         NikoVoiceSettings.setEnabled(context, false)
         NikoRuntimeState.reset(context)
-        assertFalse(NikoVoiceSettings.enabled(context.applicationContext))
+        assertFalse(NikoVoiceSettings.userEnabled(context.applicationContext))
         NikoVoiceSettings.setEnabled(context, true)
-        assertTrue(NikoVoiceSettings.enabled(context))
+        assertTrue(NikoVoiceSettings.userEnabled(context))
+    }
+
+    @Test fun runtimeVoiceStaysBlockedUntilFirstRunBundleIsMarkedReady() {
+        NikoVoiceSettings.setEnabled(context, true)
+        assertTrue(NikoVoiceSettings.userEnabled(context))
+        assertFalse(NikoVoiceSettings.enabled(context))
+
+        context.getSharedPreferences("leo_first_run_setup", Context.MODE_PRIVATE)
+            .edit().putBoolean("bundle_ready_v1", true).commit()
+
+        assertTrue(NikoVoiceSettings.enabled(context.applicationContext))
     }
 }
