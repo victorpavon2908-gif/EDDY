@@ -41,8 +41,9 @@ import kotlin.math.sqrt
  *
  * PASSIVE: un KWS pequeño escucha la palabra NIKO sin transcribir conversaciones.
  * ACTIVE: Silero VAD captura la orden y NVIDIA NeMo Canary 180M Flash la transcribe
- * en español completamente en el teléfono. La captura usa una ganancia digital suave
- * para mejorar voz distante sin amplificar silencio casi puro.
+ * en español completamente en el teléfono. Después de un wake real, NIKO mantiene
+ * una ventana breve de conversación para permitir seguimientos naturales sin repetir
+ * su nombre en cada frase.
  */
 class NikoLocalVoiceEngine(
     private val context: Context,
@@ -80,6 +81,8 @@ class NikoLocalVoiceEngine(
 
     @Volatile private var assistantBusy = false
     @Volatile private var resumeAfterSpeech = false
+    @Volatile private var reopenFollowUp = false
+    @Volatile private var conversationAuthorized = false
     @Volatile private var resetRequested = false
     @Volatile private var suppressUntil = 0L
     @Volatile private var speaking = false
@@ -92,7 +95,7 @@ class NikoLocalVoiceEngine(
     private var emptyRecognitionRetries = 0
     private val preRoll = PcmPreRoll(SAMPLE_RATE * 4 / 5)
     private val emotionEngine = NikoEmotionEngine(context)
-    private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS)
+    private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS, FOLLOW_UP_MS)
 
     @Volatile
     var lastInitializationFailure: InitializationFailure? = null
@@ -149,6 +152,8 @@ class NikoLocalVoiceEngine(
     }
 
     fun stop() {
+        conversationAuthorized = false
+        reopenFollowUp = false
         synchronized(lifecycleLock) {
             stopRequested = true
             running.set(false)
@@ -179,9 +184,13 @@ class NikoLocalVoiceEngine(
     }
 
     fun finishTurn() {
-        resumeAfterSpeech = false
         assistantBusy = false
         speaking = false
+        // Una orden reconocida cerró la ventana larga, pero el wake sigue autorizando
+        // una continuación corta. La reapertura ocurre en el worker para no tocar JNI
+        // desde el hilo de UI/TTS.
+        reopenFollowUp = conversationAuthorized
+        resumeAfterSpeech = false
         resetRequested = true
     }
 
@@ -236,7 +245,6 @@ class NikoLocalVoiceEngine(
             config = VadModelConfig(
                 sileroVadModelConfig = SileroVadModelConfig(
                     model = models.file(NikoModelCatalog.vad).absolutePath,
-                    // A lower threshold is intentional after wake: distant speech is quieter.
                     threshold = 0.32f,
                     minSilenceDuration = 0.85f,
                     minSpeechDuration = 0.14f,
@@ -294,7 +302,6 @@ class NikoLocalVoiceEngine(
         check(minimum > 0)
         @Suppress("MissingPermission")
         recorder = AudioRecord(
-            // VOICE_RECOGNITION lets compatible phones apply their speech-oriented front end.
             MediaRecorder.AudioSource.VOICE_RECOGNITION,
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
@@ -361,6 +368,8 @@ class NikoLocalVoiceEngine(
                         audioManager?.isMicrophoneMute == true
                     if (silenced != isMicrophoneSilenced) {
                         isMicrophoneSilenced = silenced
+                        conversationAuthorized = false
+                        reopenFollowUp = false
                         commandWindow.close()
                         vad?.reset()
                         resetKeywordStream()
@@ -375,13 +384,17 @@ class NikoLocalVoiceEngine(
                     vad?.reset()
                     resetKeywordStream()
                     preRoll.clear()
-                    if (resumeAfterSpeech) {
-                        commandWindow.continueAfterPrompt(SystemClock.elapsedRealtime())
-                    } else {
-                        commandWindow.close()
+                    val resetAt = SystemClock.elapsedRealtime()
+                    when {
+                        resumeAfterSpeech -> commandWindow.continueAfterPrompt(resetAt)
+                        reopenFollowUp && conversationAuthorized -> commandWindow.openFollowUp(resetAt)
+                        else -> commandWindow.close()
                     }
+                    resumeAfterSpeech = false
+                    reopenFollowUp = false
                     commandSpeechNotified = false
                     commandSpeechFrames = 0
+                    if (commandWindow.isOpen(resetAt)) setState(State.ACTIVE)
                 }
 
                 // Keep draining while NIKO is speaking/thinking so stale audio never accumulates.
@@ -404,6 +417,8 @@ class NikoLocalVoiceEngine(
 
     private fun processPassiveWake(samples: FloatArray) {
         if (state != State.PASSIVE) {
+            conversationAuthorized = false
+            reopenFollowUp = false
             vad?.reset()
             resetKeywordStream()
             preRoll.clear()
@@ -424,6 +439,8 @@ class NikoLocalVoiceEngine(
             return
         }
         lastWakeAt = now
+        conversationAuthorized = true
+        reopenFollowUp = false
         wakeAcknowledged = false
         emptyRecognitionRetries = 0
         commandSpeechNotified = false
@@ -441,6 +458,8 @@ class NikoLocalVoiceEngine(
 
     private fun processActive(samples: FloatArray) {
         if (!isActive()) {
+            conversationAuthorized = false
+            reopenFollowUp = false
             commandWindow.close()
             vad?.reset()
             resetKeywordStream()
@@ -469,6 +488,7 @@ class NikoLocalVoiceEngine(
 
             if (text.isNotBlank()) {
                 learnOwnerSoftly(speech)
+                if (endsConversation(text)) conversationAuthorized = false
                 commandWindow.close()
                 assistantBusy = true
                 localVad.reset()
@@ -478,6 +498,7 @@ class NikoLocalVoiceEngine(
 
             if (transcript.isBlank()) {
                 val retry = emptyRecognitionRetries++ == 0
+                if (!retry) conversationAuthorized = false
                 speaking = true
                 localVad.reset()
                 onAwaitingCommand(
@@ -555,6 +576,19 @@ class NikoLocalVoiceEngine(
         .replace(Regex("\\s+([,.;:!?])"), "$1")
         .trim()
 
+    private fun endsConversation(text: String): Boolean {
+        val value = text.lowercase()
+            .replace(Regex("[¿?¡!.,;:]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return value.startsWith("gracias") ||
+            value in setOf(
+                "eso es todo", "eso era todo", "hasta luego", "nos vemos",
+                "dormite", "dormi", "dormí", "descansa", "descansa niko", "descansá",
+                "ya esta", "ya está", "terminamos", "eso seria", "eso sería",
+            )
+    }
+
     private fun isActive(): Boolean = commandWindow.isOpen(SystemClock.elapsedRealtime())
 
     private fun setState(value: State) {
@@ -577,6 +611,8 @@ class NikoLocalVoiceEngine(
     }
 
     private fun releaseResources() {
+        conversationAuthorized = false
+        reopenFollowUp = false
         releaseAudioEffects()
         runCatching { recorder?.release() }
         recorder = null
@@ -588,9 +624,9 @@ class NikoLocalVoiceEngine(
     companion object {
         private const val SAMPLE_RATE = 16_000
         private const val FIRST_COMMAND_MS = 30_000L
+        private const val FOLLOW_UP_MS = 12_000L
         private const val WAKE_DEBOUNCE_MS = 900L
         private const val POST_WAKE_GUARD_MS = 180L
-        // Lower than before because the active audio has already passed the far-field enhancer.
         private const val COMMAND_CONTINUATION_RMS = 0.0085f
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
