@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,7 +66,6 @@ import com.niko.assistant.ai.NikoWebSource
 import com.niko.assistant.background.NikoRuntimeState.InputState
 import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -209,7 +207,7 @@ private fun NeuralBackdrop(accent: Color) {
         repeat(22) { index ->
             val x = ((index * 83) % 101) / 100f * size.width
             val baseY = ((index * 47) % 97) / 100f * size.height
-            val y = (baseY + sin(phase * PI * 2 + index).toFloat() * 9f)
+            val y = baseY + sin(phase * PI * 2 + index).toFloat() * 9f
             val alpha = 0.08f + (index % 4) * 0.025f
             drawCircle(
                 color = Color.White.copy(alpha = alpha),
