@@ -30,15 +30,9 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <intent>
-            <action android:name="android.media.action.IMAGE_CAPTURE" />
-        </intent>
-        <intent>
-            <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
-        </intent>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
+        <intent><action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" /></intent>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
         <intent>
             <action android:name="android.intent.action.DIAL" />
             <data android:scheme="tel" />
@@ -58,7 +52,7 @@
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_niko"
-        android:label="NIKO"
+        android:label="LEO"
         android:roundIcon="@drawable/ic_niko"
         android:supportsRtl="true"
         android:theme="@style/Theme.NIKO"
@@ -69,7 +63,7 @@
         <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
 
         <activity android:name=".MainActivity" android:exported="true" />
-        <!-- Keep existing launcher shortcuts while the implementation lives under Niko. -->
+        <!-- Legacy activity/package aliases stay in place so existing installations update cleanly. -->
         <activity-alias android:name="com.eddy.assistant.MainActivity" android:targetActivity=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -97,7 +91,7 @@
         <service
             android:name="com.eddy.assistant.devicecontrol.EddyAccessibilityService"
             android:exported="false"
-            android:label="NIKO Device Control"
+            android:label="LEO Device Control"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
