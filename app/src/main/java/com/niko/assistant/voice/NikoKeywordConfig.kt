@@ -25,10 +25,10 @@ object NikoKeywordConfig {
                 modelType = "zipformer2",
                 modelingUnit = "phone+ppinyin",
             ),
-            maxActivePaths = 4,
+            maxActivePaths = 6,
             keywordsFile = keywords.absolutePath,
-            keywordsScore = 1.5f,
-            keywordsThreshold = 0.12f,
+            keywordsScore = 1.45f,
+            keywordsThreshold = 0.10f,
             numTrailingBlanks = 3,
         )
     }
@@ -45,11 +45,15 @@ object NikoKeywordConfig {
         return destination
     }
 
-    // Spanish ní-ko. Require three trailing blank frames to reduce word-prefix wakes.
-    // No phonetic pattern from the previous assistant name remains active.
+    // Variantes fonéticas cercanas a "Niko" para tolerar velocidad, acento y vocales.
+    // Se conservan tres trailing blanks para evitar activaciones por prefijos de otras palabras.
     private const val KEYWORDS =
-        "N IY0 K OW0 :1.5 #0.12 @NIKO\n" +
-        "N IY0 K OW1 :1.5 #0.12 @NIKO\n" +
-        "N IY1 K OW0 :1.5 #0.12 @NIKO\n" +
-        "N IY1 K OW1 :1.5 #0.12 @NIKO\n"
+        "N IY0 K OW0 :1.45 #0.10 @NIKO\n" +
+        "N IY0 K OW1 :1.45 #0.10 @NIKO\n" +
+        "N IY1 K OW0 :1.45 #0.10 @NIKO\n" +
+        "N IY1 K OW1 :1.45 #0.10 @NIKO\n" +
+        "N IH0 K OW0 :1.45 #0.10 @NIKO\n" +
+        "N IH1 K OW0 :1.45 #0.10 @NIKO\n" +
+        "N IY0 K AH0 :1.50 #0.11 @NIKO\n" +
+        "N IH0 K AH0 :1.50 #0.11 @NIKO\n"
 }
