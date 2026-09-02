@@ -35,7 +35,8 @@ android {
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
         // LEO keeps the legacy namespace/application id so existing installs update in place.
-        ndk { abiFilters += setOf("arm64-v8a") }
+        // No fijamos abiFilters: el APK empaqueta todas las ABI que expongan Sherpa y el
+        // resto de dependencias nativas, en vez de restringirse artificialmente a ARM64.
     }
     signingConfigs { getByName("debug") { enableV1Signing = true; enableV2Signing = true } }
     buildTypes {
