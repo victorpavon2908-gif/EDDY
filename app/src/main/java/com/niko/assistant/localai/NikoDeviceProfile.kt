@@ -3,7 +3,6 @@ package com.niko.assistant.localai
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
-import java.util.Locale
 
 /** Decide cuánto puede cargar LEO sin poner inestable el teléfono. */
 data class NikoDeviceProfile(
@@ -18,25 +17,26 @@ data class NikoDeviceProfile(
     enum class Tier { LITE, BALANCED, POWER }
 
     /**
-     * MediaPipe Tasks GenAI 0.10.24 puede abortar el proceso completo dentro de
-     * libllm_inference_engine_jni.so en algunos HONOR. Ese SIGSEGV ocurre fuera de la JVM,
-     * por lo que runCatching/try-catch no puede recuperarlo. En esos equipos mantenemos
-     * toda la voz y las acciones locales, pero no entramos al runtime nativo de Qwen.
+     * Compatibilidad universal Android 12+.
+     *
+     * Un SIGSEGV dentro de un runtime JNI no se puede capturar con try/catch y no debe
+     * poder matar el proceso principal de LEO. Por eso el núcleo estable no habilita
+     * inferencia LLM nativa dentro del mismo proceso en ningún fabricante. No usamos
+     * listas negras por marca: Samsung, HONOR, Xiaomi, Motorola, OPPO, vivo, Pixel, etc.
+     * siguen exactamente la misma regla.
+     *
+     * La conversación generativa local sólo se volverá a habilitar cuando ese runtime
+     * viva en un proceso aislado que pueda morir/reiniciarse sin tumbar voz, wake word,
+     * acciones, memoria ni búsqueda web.
      */
-    val localLlmRuntimeSafe: Boolean
-        get() = manufacturer.trim().lowercase(Locale.ROOT) != "honor"
+    val localLlmRuntimeSafe: Boolean get() = false
 
-    // La conversación local solo se habilita si el hardware alcanza y el runtime nativo
-    // es seguro para el fabricante. Esto también evita descargar Qwen en la primera
-    // instalación de un equipo donde no lo vamos a ejecutar.
-    val supportsLocalLlm: Boolean
-        get() = localLlmRuntimeSafe && totalRamMb >= 4_500L && cpuCores >= 6
+    /** El núcleo universal nunca depende del LLM JNI para funcionar. */
+    val supportsLocalLlm: Boolean get() = false
 
-    // El 1.5B INT8 necesita bastante más memoria que el 0.5B. A partir de ~5.5 GB
-    // y ocho núcleos preferimos calidad; equipos más modestos conservan el modelo rápido.
-    val prefersQualityLocalLlm: Boolean get() = supportsLocalLlm && totalRamMb >= 5_500L && cpuCores >= 8
+    val prefersQualityLocalLlm: Boolean get() = false
 
-    // CPU/XNNPACK es la ruta más predecible entre fabricantes para estos .task.
+    // Se conserva para compatibilidad de API; el runtime LLM no se crea en el proceso principal.
     val prefersGpuLlm: Boolean get() = false
 
     companion object {

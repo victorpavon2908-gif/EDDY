@@ -7,32 +7,35 @@ import org.junit.Test
 class NikoDeviceProfileCompatibilityTest {
 
     @Test
-    fun honorDisablesMediaPipeLocalLlmEvenWithEnoughRamAndCores() {
-        val profile = capableProfile("HONOR")
-
-        assertFalse(profile.localLlmRuntimeSafe)
-        assertFalse(profile.supportsLocalLlm)
-        assertFalse(profile.prefersQualityLocalLlm)
+    fun allManufacturersUseSameSafeCorePolicy() {
+        listOf("HONOR", "Samsung", "Xiaomi", "Motorola", "OPPO", "vivo", "Google", "OnePlus").forEach { manufacturer ->
+            val profile = capableProfile(manufacturer)
+            assertFalse("$manufacturer must not load an in-process JNI LLM", profile.localLlmRuntimeSafe)
+            assertFalse(profile.supportsLocalLlm)
+            assertFalse(profile.prefersQualityLocalLlm)
+        }
     }
 
     @Test
-    fun honorFirstRunDoesNotDownloadQwenModels() {
-        val models = NikoModelCatalog.firstRunModels(capableProfile("HONOR"))
+    fun firstRunNeverDownloadsQwenForUniversalCore() {
+        listOf("HONOR", "Samsung", "Xiaomi", "Google").forEach { manufacturer ->
+            val models = NikoModelCatalog.firstRunModels(capableProfile(manufacturer))
+            assertTrue(models.none { it in NikoModelCatalog.conversationModels })
+            assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
+            assertTrue(models.contains(NikoModelCatalog.spanishAsr))
+            assertTrue(models.contains(NikoModelCatalog.spanishVoice))
+        }
+    }
 
-        assertTrue(models.none { it in NikoModelCatalog.conversationModels })
+    @Test
+    fun voiceCoreRemainsIndependentFromLocalLlm() {
+        val profile = capableProfile("generic")
+        val models = NikoModelCatalog.firstRunModels(profile)
+
         assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
-        assertTrue(models.contains(NikoModelCatalog.spanishAsr))
-        assertTrue(models.contains(NikoModelCatalog.spanishVoice))
-    }
-
-    @Test
-    fun otherCapableManufacturersKeepLocalLlmAvailable() {
-        val profile = capableProfile("samsung")
-
-        assertTrue(profile.localLlmRuntimeSafe)
-        assertTrue(profile.supportsLocalLlm)
-        assertTrue(profile.prefersQualityLocalLlm)
-        assertTrue(NikoModelCatalog.firstRunModels(profile).contains(NikoModelCatalog.localLlmQuality))
+        assertTrue(models.contains(NikoModelCatalog.speaker))
+        assertTrue(models.contains(NikoModelCatalog.whisperAsr))
+        assertTrue(models.none { it.id.startsWith("llm-") })
     }
 
     private fun capableProfile(manufacturer: String) = NikoDeviceProfile(

@@ -42,7 +42,7 @@ class NikoModelCatalogTest {
     }
 
     @Test
-    fun qualityConversationModelIsQwen15BForAndroid() {
+    fun qualityConversationModelRemainsCataloguedForFutureIsolatedRuntime() {
         val model = NikoModelCatalog.localLlmQuality
         assertTrue(model.url.contains("Qwen2.5-1.5B-Instruct"))
         assertTrue(model.expectedFiles.single().contains("q8_ekv1280.task"))
@@ -51,7 +51,7 @@ class NikoModelCatalogTest {
     }
 
     @Test
-    fun fastConversationModelRemainsAvailableAsFallback() {
+    fun fastConversationModelRemainsCataloguedForFutureIsolatedRuntime() {
         val model = NikoModelCatalog.localLlmFast
         assertTrue(model.url.contains("Qwen2.5-0.5B-Instruct"))
         assertTrue(model.minBytes >= 400_000_000L)
@@ -60,33 +60,38 @@ class NikoModelCatalogTest {
     }
 
     @Test
-    fun firstRunBundleContainsEveryVoiceModuleBeforeLeoStarts() {
+    fun firstRunBundleContainsEveryVoiceModuleButNoInProcessLlm() {
         val models = NikoModelCatalog.firstRunModels(balancedProfile())
         assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
         assertTrue(NikoModelCatalog.speaker in models)
         assertTrue(NikoModelCatalog.spanishVoice in models)
         assertTrue(NikoModelCatalog.whisperAsr in models)
-        assertTrue(NikoModelCatalog.localLlmFast in models)
+        assertFalse(NikoModelCatalog.localLlmFast in models)
+        assertFalse(NikoModelCatalog.localLlmQuality in models)
         assertEquals(models.size, models.distinctBy { it.id }.size)
     }
 
     @Test
-    fun powerDevicesPrepareQualityBrainAndFastRecoveryBrain() {
+    fun powerDevicesAlsoUseUniversalSafeCoreWithoutQwen() {
         val profile = NikoDeviceProfile(
             tier = NikoDeviceProfile.Tier.POWER,
             totalRamMb = 8_192,
             cpuCores = 8,
             inferenceThreads = 4,
             abi = "arm64-v8a",
+            manufacturer = "generic",
         )
         val models = NikoModelCatalog.firstRunModels(profile)
-        assertTrue(NikoModelCatalog.localLlmQuality in models)
-        assertTrue(NikoModelCatalog.localLlmFast in models)
-        assertTrue(models.indexOf(NikoModelCatalog.localLlmQuality) < models.indexOf(NikoModelCatalog.voiceCore.first()))
+        assertFalse(NikoModelCatalog.localLlmQuality in models)
+        assertFalse(NikoModelCatalog.localLlmFast in models)
+        assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
+        assertTrue(NikoModelCatalog.speaker in models)
+        assertTrue(NikoModelCatalog.spanishVoice in models)
+        assertTrue(NikoModelCatalog.whisperAsr in models)
     }
 
     @Test
-    fun liteDevicesDoNotDownloadAnUnsafeLocalLlm() {
+    fun liteDevicesUseTheSameSafeVoiceCore() {
         val profile = NikoDeviceProfile(
             tier = NikoDeviceProfile.Tier.LITE,
             totalRamMb = 3_000,
