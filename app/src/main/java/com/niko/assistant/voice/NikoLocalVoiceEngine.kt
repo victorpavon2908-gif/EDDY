@@ -18,6 +18,7 @@ import com.k2fsa.sherpa.onnx.OfflineCanaryModelConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor
@@ -41,9 +42,10 @@ import kotlin.math.sqrt
  *
  * PASSIVE: un KWS pequeño escucha la palabra NIKO sin transcribir conversaciones.
  * ACTIVE: Silero VAD captura la orden y NVIDIA NeMo Canary 180M Flash la transcribe
- * en español completamente en el teléfono. Después de un wake real, NIKO mantiene
- * una ventana breve de conversación para permitir seguimientos naturales sin repetir
- * su nombre en cada frase.
+ * en español completamente en el teléfono. Si Whisper está preparado, una segunda
+ * pasada local refina solo resultados sospechosos para ganar precisión sin duplicar
+ * la latencia de todas las frases. Después de un wake real, NIKO mantiene una ventana
+ * breve de conversación para permitir seguimientos naturales sin repetir su nombre.
  */
 class NikoLocalVoiceEngine(
     private val context: Context,
@@ -116,6 +118,7 @@ class NikoLocalVoiceEngine(
     private var vad: Vad? = null
     private var speakerExtractor: SpeakerEmbeddingExtractor? = null
     private var recognizer: OfflineRecognizer? = null
+    private var whisperRecognizer: OfflineRecognizer? = null
 
     val ready: Boolean get() = models.coreReady()
     val isRunning: Boolean get() = running.get()
@@ -206,6 +209,7 @@ class NikoLocalVoiceEngine(
             initKeywordSpotter()
             initVad()
             initSpanishAsr()
+            initWhisperAsrSoft()
             initSpeakerIdSoft()
             true
         } catch (failure: StageFailure) {
@@ -278,6 +282,31 @@ class NikoLocalVoiceEngine(
                 decodingMethod = "greedy_search",
             ),
         )
+    }
+
+    /** Whisper is an optional precision layer: a damaged optional model must never block NIKO. */
+    private fun initWhisperAsrSoft() {
+        if (!models.isInstalled(NikoModelCatalog.whisperAsr)) return
+        val root = File(models.modelDir(NikoModelCatalog.whisperAsr), WHISPER_DIR)
+        whisperRecognizer = runCatching {
+            OfflineRecognizer(
+                config = OfflineRecognizerConfig(
+                    featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
+                    modelConfig = OfflineModelConfig(
+                        whisper = OfflineWhisperModelConfig(
+                            encoder = File(root, "tiny-encoder.int8.onnx").absolutePath,
+                            decoder = File(root, "tiny-decoder.int8.onnx").absolutePath,
+                            language = "es",
+                            task = "transcribe",
+                        ),
+                        tokens = File(root, "tiny-tokens.txt").absolutePath,
+                        numThreads = profile.inferenceThreads.coerceIn(1, 2),
+                        provider = "cpu",
+                    ),
+                    decodingMethod = "greedy_search",
+                ),
+            )
+        }.getOrNull()
     }
 
     private fun initSpeakerIdSoft() {
@@ -539,7 +568,17 @@ class NikoLocalVoiceEngine(
     }
 
     private fun transcribe(samples: FloatArray): String {
-        val asr = checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." }
+        val canary = transcribeWith(
+            checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." },
+            samples,
+        )
+        val whisper = whisperRecognizer
+        if (whisper == null || !TranscriptQuality.shouldRefine(canary, samples.size, SAMPLE_RATE)) return canary
+        val refined = runCatching { transcribeWith(whisper, samples) }.getOrDefault("")
+        return TranscriptQuality.choose(canary, refined)
+    }
+
+    private fun transcribeWith(asr: OfflineRecognizer, samples: FloatArray): String {
         val stream = asr.createStream()
         return try {
             stream.acceptWaveform(samples, SAMPLE_RATE)
@@ -608,6 +647,8 @@ class NikoLocalVoiceEngine(
         speakerExtractor = null
         runCatching { recognizer?.release() }
         recognizer = null
+        runCatching { whisperRecognizer?.release() }
+        whisperRecognizer = null
     }
 
     private fun releaseResources() {
@@ -631,5 +672,6 @@ class NikoLocalVoiceEngine(
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
         private const val ASR_DIR = "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8"
+        private const val WHISPER_DIR = "sherpa-onnx-whisper-tiny"
     }
 }
