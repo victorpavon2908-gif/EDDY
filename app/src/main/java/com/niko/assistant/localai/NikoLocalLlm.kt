@@ -3,6 +3,7 @@ package com.niko.assistant.localai
 import android.content.Context
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.niko.assistant.ai.NikoAiSettings
+import com.niko.assistant.devicecontrol.NikoVisualContext
 import com.niko.assistant.learning.NikoKnowledgeStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,13 +51,36 @@ class NikoLocalLlm(
         lastError = null
         if (closed) return@withContext null
 
-        // Conocimiento guardado puede resolver una consulta sin encender el LLM.
-        runCatching { knowledge.recall(message) }.getOrNull()?.let { learned ->
-            return@withContext learned.answer
+        // Parlor-style visual turn: only read the current UI when the user explicitly
+        // refers to what is on screen. Screen content stays local and is never used as
+        // reusable knowledge because it can change from one second to the next.
+        val visualRequest = NikoVisualContext.wantsScreenContext(message)
+        val visual = if (visualRequest) NikoVisualContext.capture() else null
+        visual?.problem?.let { problem ->
+            lastError = problem
+            return@withContext problem
         }
+
+        // Conocimiento guardado puede resolver una consulta sin encender el LLM, salvo
+        // preguntas visuales: una pantalla nunca debe responderse con memoria antigua.
+        if (!visualRequest) {
+            runCatching { knowledge.recall(message) }.getOrNull()?.let { learned ->
+                return@withContext learned.answer
+            }
+        }
+
+        val combinedEvidence = buildList {
+            visual?.evidence?.takeIf { it.isNotBlank() }?.let(::add)
+            evidence.takeIf { it.isNotBlank() }?.let(::add)
+        }.joinToString("\n\n")
 
         val candidates = installedCandidates()
         if (candidates.isEmpty()) {
+            if (visualRequest) {
+                val messageForUser = "Puedo leer la pantalla localmente, pero primero prepará el modelo de conversación local en Ajustes para que pueda interpretarla."
+                lastError = messageForUser
+                return@withContext messageForUser
+            }
             val quality = if (preferredModel == NikoModelCatalog.localLlmQuality) " de alta calidad" else " ligero"
             lastError = "Prepará el modelo local$quality de conversación en Ajustes."
             return@withContext null
@@ -69,12 +93,12 @@ class NikoLocalLlm(
                 val prompt = LocalConversationPrompt.fit(
                     message,
                     memoryContext,
-                    evidence,
+                    combinedEvidence,
                     NikoAiSettings.personality(appContext),
                     engine::sizeInTokens,
                 ) ?: run {
                     lastError = "La consulta supera la capacidad del modelo local. Probá una pregunta más corta."
-                    return@withLock null
+                    return@withLock if (visualRequest) lastError else null
                 }
 
                 val answer = runCatching { cleanAnswer(engine.generateResponse(prompt)) }
@@ -90,8 +114,12 @@ class NikoLocalLlm(
                 releaseEngine()
             }
 
-            lastError = "El modelo local no pudo responder. Cerré su memoria para recuperarlo en el siguiente intento."
-            null
+            lastError = if (visualRequest) {
+                "No pude interpretar la pantalla localmente en este intento. Probá de nuevo con la aplicación visible."
+            } else {
+                "El modelo local no pudo responder. Cerré su memoria para recuperarlo en el siguiente intento."
+            }
+            if (visualRequest) lastError else null
         }
     }
 
