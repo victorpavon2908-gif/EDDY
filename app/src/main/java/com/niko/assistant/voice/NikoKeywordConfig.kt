@@ -25,6 +25,9 @@ object NikoKeywordConfig {
                 modelType = "zipformer2",
                 modelingUnit = "phone+ppinyin",
             ),
+            // El KWS queda deliberadamente conservador. "Leo" es demasiado corto para
+            // forzar sensibilidad sin crear falsos positivos (p.ej. "día"). Los misses
+            // se recuperan con el verificador Silero + Canary, que sí entiende español.
             maxActivePaths = 6,
             keywordsFile = keywords.absolutePath,
             keywordsScore = 1.50f,
@@ -45,9 +48,8 @@ object NikoKeywordConfig {
         return destination
     }
 
-    // Variantes fonéticas cercanas a "Leo" para tolerar acento y pequeñas diferencias de vocal.
-    // El umbral es ligeramente más conservador porque "leo" también existe como palabra común
-    // en español. Tres trailing blanks reducen activaciones por prefijos de palabras más largas.
+    // Variantes prudentes cercanas a /le.o/. No añadimos variantes agresivas EY porque
+    // el detector nativo demostró que aumentaban falsos positivos; Canary cubre el acento.
     private const val KEYWORDS =
         "L IY0 OW0 :1.50 #0.11 @LEO\n" +
         "L IY1 OW0 :1.50 #0.11 @LEO\n" +
