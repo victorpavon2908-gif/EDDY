@@ -14,8 +14,8 @@ import java.util.Locale
  */
 class NikoSemanticActionResolver(
     private val brain: LocalBrain,
-    private val structuredCompletion: suspend (String) -> String?,
     private val nowMillis: () -> Long = System::currentTimeMillis,
+    private val structuredCompletion: suspend (String) -> String?,
 ) {
     private var lastActionContext: String = ""
     private var lastActionAt: Long = 0L
