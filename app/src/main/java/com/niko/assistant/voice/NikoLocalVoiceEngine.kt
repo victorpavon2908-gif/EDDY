@@ -18,6 +18,10 @@ import com.k2fsa.sherpa.onnx.OfflineCanaryModelConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OfflineSpeechDenoiser
+import com.k2fsa.sherpa.onnx.OfflineSpeechDenoiserConfig
+import com.k2fsa.sherpa.onnx.OfflineSpeechDenoiserGtcrnModelConfig
+import com.k2fsa.sherpa.onnx.OfflineSpeechDenoiserModelConfig
 import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
@@ -41,11 +45,11 @@ import kotlin.math.sqrt
  * Núcleo local de voz de NIKO.
  *
  * PASSIVE: un KWS pequeño escucha la palabra NIKO sin transcribir conversaciones.
- * ACTIVE: Silero VAD captura la orden y NVIDIA NeMo Canary 180M Flash la transcribe
- * en español completamente en el teléfono. Si Whisper está preparado, una segunda
- * pasada local refina solo resultados sospechosos para ganar precisión sin duplicar
- * la latencia de todas las frases. Después de un wake real, NIKO mantiene una ventana
- * breve de conversación para permitir seguimientos naturales sin repetir su nombre.
+ * ACTIVE: Silero VAD captura la orden; GTCRN limpia la voz segmentada y NVIDIA NeMo
+ * Canary 180M Flash la transcribe en español completamente en el teléfono. Si Whisper
+ * está preparado, una segunda pasada local refina sólo resultados sospechosos para ganar
+ * precisión sin duplicar la latencia de todas las frases. Después de un wake real, NIKO
+ * mantiene una ventana breve de conversación para seguimientos naturales sin repetir nombre.
  */
 class NikoLocalVoiceEngine(
     private val context: Context,
@@ -116,6 +120,7 @@ class NikoLocalVoiceEngine(
     private var keywordSpotter: KeywordSpotter? = null
     private var keywordStream: OnlineStream? = null
     private var vad: Vad? = null
+    private var speechDenoiser: OfflineSpeechDenoiser? = null
     private var speakerExtractor: SpeakerEmbeddingExtractor? = null
     private var recognizer: OfflineRecognizer? = null
     private var whisperRecognizer: OfflineRecognizer? = null
@@ -208,6 +213,7 @@ class NikoLocalVoiceEngine(
         return try {
             initKeywordSpotter()
             initVad()
+            initDenoiser()
             initSpanishAsr()
             initWhisperAsrSoft()
             initSpeakerIdSoft()
@@ -258,6 +264,20 @@ class NikoLocalVoiceEngine(
                 sampleRate = SAMPLE_RATE,
                 numThreads = 1,
                 provider = "cpu",
+            ),
+        )
+    }
+
+    private fun initDenoiser() = initStage("limpieza de voz GTCRN", NikoModelCatalog.denoiser) {
+        speechDenoiser = OfflineSpeechDenoiser(
+            config = OfflineSpeechDenoiserConfig(
+                model = OfflineSpeechDenoiserModelConfig(
+                    gtcrn = OfflineSpeechDenoiserGtcrnModelConfig(
+                        model = models.file(NikoModelCatalog.denoiser).absolutePath,
+                    ),
+                    numThreads = 1,
+                    provider = "cpu",
+                ),
             ),
         )
     }
@@ -506,9 +526,12 @@ class NikoLocalVoiceEngine(
             val speech = segment.samples
             if (speech.size < MIN_COMMAND_SAMPLES) continue
 
+            // Emotion/Voice-ID deliberately use original speech. GTCRN is only for ASR so
+            // it cannot distort the acoustic profile learned for the owner.
             emotionEngine.observeSpeech(speech, SAMPLE_RATE)
+            val recognitionSpeech = denoiseForRecognition(speech)
             setState(State.PROCESSING)
-            val transcript = transcribe(speech)
+            val transcript = transcribe(recognitionSpeech)
             val text = when (val result = WakeWordGate().consume(transcript)) {
                 WakeResult.Activated -> ""
                 is WakeResult.Command -> result.text
@@ -565,6 +588,15 @@ class NikoLocalVoiceEngine(
         } else {
             commandSpeechFrames = 0
         }
+    }
+
+    private fun denoiseForRecognition(samples: FloatArray): FloatArray {
+        if (samples.size < SAMPLE_RATE / 4) return samples
+        val denoiser = speechDenoiser ?: return samples
+        return runCatching { denoiser.run(samples, SAMPLE_RATE).samples }
+            .getOrNull()
+            ?.takeIf { it.isNotEmpty() }
+            ?: samples
     }
 
     private fun transcribe(samples: FloatArray): String {
@@ -643,6 +675,8 @@ class NikoLocalVoiceEngine(
         keywordSpotter = null
         runCatching { vad?.release() }
         vad = null
+        runCatching { speechDenoiser?.release() }
+        speechDenoiser = null
         runCatching { speakerExtractor?.release() }
         speakerExtractor = null
         runCatching { recognizer?.release() }
