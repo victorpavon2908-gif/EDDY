@@ -51,6 +51,18 @@ class NikoSemanticActionResolverTest {
     }
 
     @Test
+    fun visualQuestionsStayConversationAndNeverExecute() = runBlocking {
+        var calls = 0
+        val resolver = NikoSemanticActionResolver(LocalBrain()) {
+            calls++
+            "CAMERA"
+        }
+        assertTrue(resolver.resolveMany("Niko, mirá esto que aparece en la pantalla") singleIsUnknown true)
+        assertTrue(resolver.resolveMany("¿qué dice aquí?") singleIsUnknown true)
+        assertEquals(0, calls)
+    }
+
+    @Test
     fun malformedOrUnsafeDslIsRejected() {
         val resolver = NikoSemanticActionResolver(LocalBrain()) { null }
         assertTrue(resolver.parseDsl("DELETE_FILE|/data/user/0").isEmpty())
