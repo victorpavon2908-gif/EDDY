@@ -49,8 +49,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
 
         batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refreshLockScreenSetupStatus() }
