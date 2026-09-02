@@ -9,7 +9,9 @@ class LeoPassiveWakeVerifierTest {
     @Test fun onlyShortSpeechBurstsAreProbed() {
         assertFalse(LeoPassiveWakeVerifier.shouldProbe(1_000, 2_000L, 0L))
         assertTrue(LeoPassiveWakeVerifier.shouldProbe(8_000, 2_000L, 0L))
-        assertFalse(LeoPassiveWakeVerifier.shouldProbe(50_000, 2_000L, 0L))
+        // La afinación 0.10.0 permite hasta ~3.2 s para rescatar "Leo" o "Leo + orden corta".
+        assertTrue(LeoPassiveWakeVerifier.shouldProbe(50_000, 2_000L, 0L))
+        assertFalse(LeoPassiveWakeVerifier.shouldProbe(64_000, 2_000L, 0L))
     }
 
     @Test fun probeHasCooldownToProtectBattery() {
