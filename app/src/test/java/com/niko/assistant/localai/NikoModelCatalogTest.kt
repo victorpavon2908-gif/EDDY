@@ -28,9 +28,20 @@ class NikoModelCatalogTest {
     }
 
     @Test
-    fun conversationalModelIsRuntimeDownloadNotAcousticDependency() {
-        assertTrue(NikoModelCatalog.localLlm.url.startsWith("https://"))
-        assertTrue(NikoModelCatalog.localLlm.minBytes >= 400_000_000L)
-        assertTrue(NikoModelCatalog.localLlm !in NikoModelCatalog.acousticCore)
+    fun qualityConversationModelIsQwen15BForAndroid() {
+        val model = NikoModelCatalog.localLlmQuality
+        assertTrue(model.url.contains("Qwen2.5-1.5B-Instruct"))
+        assertTrue(model.expectedFiles.single().contains("q8_ekv1280.task"))
+        assertTrue(model.minBytes >= 1_400_000_000L)
+        assertTrue(model !in NikoModelCatalog.acousticCore)
+    }
+
+    @Test
+    fun fastConversationModelRemainsAvailableAsFallback() {
+        val model = NikoModelCatalog.localLlmFast
+        assertTrue(model.url.contains("Qwen2.5-0.5B-Instruct"))
+        assertTrue(model.minBytes >= 400_000_000L)
+        assertTrue(model !in NikoModelCatalog.acousticCore)
+        assertTrue(NikoModelCatalog.conversationModels.containsAll(listOf(NikoModelCatalog.localLlmQuality, model)))
     }
 }
