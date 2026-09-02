@@ -18,13 +18,7 @@ class WakeWordGateTest {
 
     @Test fun exactWakeWordActivates() {
         assertEquals(WakeResult.Activated, WakeWordGate().consume("LEO", nowMs = 1_000L))
-    }
-
-    @Test fun commonSpeechAliasActivates() {
-        for ((index, alias) in listOf("Leo", "Lío").withIndex()) {
-            val gate = WakeWordGate()
-            assertEquals("No activó con $alias", WakeResult.Activated, gate.consume(alias, nowMs = 1_000L + index))
-        }
+        assertEquals(WakeResult.Activated, WakeWordGate().consume("Leo", nowMs = 2_000L))
     }
 
     @Test fun wakeCanPrefixCommands() {
@@ -54,9 +48,9 @@ class WakeWordGateTest {
         assertFalse(gate.isArmed(4_001L))
     }
 
-    @Test fun longerSimilarWordsDoNotActivateLeo() {
+    @Test fun similarCommonWordsDoNotActivateLeo() {
         val gate = WakeWordGate()
-        for (phrase in listOf("Leonardo abre YouTube", "león abre YouTube", "oleo la puerta")) {
+        for (phrase in listOf("Lío abre la cámara", "Leonardo abre YouTube", "león abre YouTube", "oleo la puerta")) {
             assertEquals(WakeResult.Ignored, gate.consume(phrase, nowMs = 1_000L))
         }
     }
@@ -64,7 +58,7 @@ class WakeWordGateTest {
     @Test fun partialWakeWordIsDetectedWithoutLongerFalsePositive() {
         val gate = WakeWordGate()
         assertTrue(gate.hasWakeWord("hola LEO"))
-        assertTrue(gate.hasWakeWord("Lío abre la cámara"))
+        assertFalse(gate.hasWakeWord("Lío abre la cámara"))
         assertFalse(gate.hasWakeWord("Leonardo abre YouTube"))
         assertFalse(gate.hasWakeWord("león"))
     }
