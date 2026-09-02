@@ -28,6 +28,16 @@ class NikoModelCatalogTest {
     }
 
     @Test
+    fun whisperIsOptionalMultilingualInt8Refinement() {
+        val model = NikoModelCatalog.whisperAsr
+        assertTrue(model.url.contains("sherpa-onnx-whisper-tiny.tar.bz2"))
+        assertTrue(model.expectedFiles.any { it.endsWith("tiny-encoder.int8.onnx") })
+        assertTrue(model.expectedFiles.any { it.endsWith("tiny-decoder.int8.onnx") })
+        assertTrue(model in NikoModelCatalog.advancedVoice)
+        assertTrue(model !in NikoModelCatalog.voiceCore)
+    }
+
+    @Test
     fun qualityConversationModelIsQwen15BForAndroid() {
         val model = NikoModelCatalog.localLlmQuality
         assertTrue(model.url.contains("Qwen2.5-1.5B-Instruct"))
