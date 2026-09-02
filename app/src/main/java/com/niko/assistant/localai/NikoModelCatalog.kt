@@ -14,7 +14,7 @@ data class NikoModelSpec(
 )
 
 object NikoModelCatalog {
-    const val SHERPA_VERSION = "1.13.6"
+    const val SHERPA_VERSION = "1.13.7"
 
     val vad = NikoModelSpec(
         id = "vad-silero-v1",
@@ -24,6 +24,19 @@ object NikoModelCatalog {
         expectedFiles = listOf("silero_vad.onnx"),
         minBytes = 500_000L,
         expectedMinBytes = mapOf("silero_vad.onnx" to 500_000L),
+        requireInstallMarker = true,
+    )
+
+    // GTCRN de sherpa-onnx: limpieza local antes de ASR. Es muy pequeño y se instala
+    // con el núcleo porque mejora especialmente voz distante/ruido sin usar Internet.
+    val denoiser = NikoModelSpec(
+        id = "denoiser-gtcrn-simple-v1",
+        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models/gtcrn_simple.onnx",
+        archiveType = NikoArchiveType.FILE,
+        directoryName = "denoiser",
+        expectedFiles = listOf("gtcrn_simple.onnx"),
+        minBytes = 500_000L,
+        expectedMinBytes = mapOf("gtcrn_simple.onnx" to 500_000L),
         requireInstallMarker = true,
     )
 
@@ -104,8 +117,7 @@ object NikoModelCatalog {
         requireInstallMarker = true,
     )
 
-    // Voz masculina latinoamericana local. Claude high ofrece mejor naturalidad que
-    // las voces Piper medium y mantiene una latencia razonable en Android.
+    // Voz masculina latinoamericana local.
     val spanishVoice = NikoModelSpec(
         id = "tts-claude-es-mx-high-v3",
         url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_MX-claude-high.tar.bz2",
@@ -137,9 +149,7 @@ object NikoModelCatalog {
         ),
     )
 
-    // Cerebro de calidad para Android: Qwen2.5 1.5B Instruct INT8, listo para
-    // MediaPipe/LiteRT. Usa KV 1280 para priorizar velocidad y memoria sobre contexto
-    // excesivo; NIKO conserva contexto largo mediante su memoria local resumida.
+    // Cerebro de calidad para Android: Qwen2.5 1.5B Instruct INT8.
     val localLlmQuality = NikoModelSpec(
         id = "llm-qwen25-15b-q8-v1",
         url = "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
@@ -152,15 +162,15 @@ object NikoModelCatalog {
         ),
     )
 
-    // Alias conservado para ajustes/tests antiguos. La selección real depende del dispositivo.
     val localLlm: NikoModelSpec get() = localLlmFast
     val conversationModels: List<NikoModelSpec> get() = listOf(localLlmQuality, localLlmFast)
 
     fun recommendedConversationModel(profile: NikoDeviceProfile): NikoModelSpec =
         if (profile.prefersQualityLocalLlm) localLlmQuality else localLlmFast
 
-    // KWS/VAD/Canary bloquean el modo PRO. Whisper, voz, Voice ID y LLM son mejoras opcionales.
-    val voiceCore = listOf(keyword, vad, spanishAsr)
+    // KWS/VAD/GTCRN/Canary forman la escucha esencial. Whisper, TTS, Voice ID y LLM
+    // son mejoras adicionales que no deben impedir arrancar si el usuario no las preparó.
+    val voiceCore = listOf(keyword, vad, denoiser, spanishAsr)
     val acousticCore: List<NikoModelSpec> = voiceCore + speaker + spanishVoice
     val advancedVoice: List<NikoModelSpec> = listOf(whisperAsr)
 
