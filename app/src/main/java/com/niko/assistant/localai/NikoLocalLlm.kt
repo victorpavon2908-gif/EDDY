@@ -17,14 +17,10 @@ import kotlinx.coroutines.withContext
 /**
  * Cerebro generativo completamente local.
  *
- * NIKO prefiere Qwen2.5 1.5B INT8 en teléfonos con memoria suficiente y conserva
- * Qwen2.5 0.5B como ruta ligera. Ninguno se descarga durante el arranque del micrófono:
- * el usuario prepara el modelo desde Ajustes y después la inferencia no usa Internet.
- *
- * El runtime conserva el modelo cargado entre turnos y puede precalentarlo en cuanto
- * detecta la palabra de activación. Es la misma disciplina de inferencia móvil que
- * hace útiles runtimes tipo llama.cpp: cuantización, contexto acotado y modelo caliente,
- * sin duplicar un segundo motor C++ dentro del APK.
+ * LEO prefiere Qwen2.5 1.5B INT8 en teléfonos con memoria suficiente y conserva
+ * Qwen2.5 0.5B como ruta ligera. El runtime nativo solo se toca cuando el perfil del
+ * dispositivo lo considera seguro; un SIGSEGV dentro de MediaPipe no puede atraparse
+ * desde Kotlin y mataría también al servicio de voz.
  */
 class NikoLocalLlm(
     private val context: Context,
@@ -42,21 +38,24 @@ class NikoLocalLlm(
     @Volatile var lastError: String? = null
         private set
 
+    val runtimeSupported: Boolean
+        get() = profile.supportsLocalLlm
+
     val isAvailable: Boolean
-        get() = NikoModelCatalog.conversationModels.any(models::isInstalled)
+        get() = runtimeSupported && NikoModelCatalog.conversationModels.any(models::isInstalled)
 
     val preferredModel: NikoModelSpec
         get() = NikoModelCatalog.recommendedConversationModel(profile)
 
     /**
-     * Carga el mejor modelo instalado sin generar tokens. Se llama tras un wake real para
-     * solapar el coste de inicialización con el tiempo en que el usuario está hablando.
+     * Carga el mejor modelo instalado sin generar tokens. En dispositivos bloqueados
+     * por compatibilidad no crea ningún objeto LlmInference ni hilo nativo Drishti.
      */
     suspend fun prewarm(): Boolean = withContext(Dispatchers.Default) {
-        if (closed) return@withContext false
+        if (closed || !runtimeSupported) return@withContext false
         val candidate = installedCandidates().firstOrNull() ?: return@withContext false
         mutex.withLock {
-            if (closed) false else engineFor(candidate) != null
+            if (closed || !runtimeSupported) false else engineFor(candidate) != null
         }
     }
 
@@ -68,22 +67,27 @@ class NikoLocalLlm(
         lastError = null
         if (closed) return@withContext null
 
-        // Parlor-style visual turn: only read the current UI when the user explicitly
-        // refers to what is on screen. Screen content stays local and is never used as
-        // reusable knowledge because it can change from one second to the next.
+        // Primero permitimos responder desde conocimiento local sin encender Qwen.
         val visualRequest = NikoVisualContext.wantsScreenContext(message)
-        val visual = if (visualRequest) NikoVisualContext.capture() else null
-        visual?.problem?.let { problem ->
-            lastError = problem
-            return@withContext problem
-        }
-
-        // Conocimiento guardado puede resolver una consulta sin encender el LLM, salvo
-        // preguntas visuales: una pantalla nunca debe responderse con memoria antigua.
         if (!visualRequest) {
             runCatching { knowledge.recall(message) }.getOrNull()?.let { learned ->
                 return@withContext learned.answer
             }
+        }
+
+        // Importante: el crash observado es SIGSEGV nativo, no Exception. La única
+        // recuperación segura en este proceso es no entrar al runtime incompatible.
+        if (!runtimeSupported) {
+            lastError = runtimeBlockedMessage()
+            return@withContext null
+        }
+
+        // Contexto visual solo se captura una vez que sabemos que el runtime local puede
+        // procesarlo. Así no retenemos una pantalla que después no podremos interpretar.
+        val visual = if (visualRequest) NikoVisualContext.capture() else null
+        visual?.problem?.let { problem ->
+            lastError = problem
+            return@withContext problem
         }
 
         val combinedEvidence = buildList {
@@ -104,7 +108,7 @@ class NikoLocalLlm(
         }
 
         mutex.withLock {
-            if (closed) return@withLock null
+            if (closed || !runtimeSupported) return@withLock null
             for (spec in candidates) {
                 val engine = engineFor(spec) ?: continue
                 val prompt = LocalConversationPrompt.fit(
@@ -126,8 +130,6 @@ class NikoLocalLlm(
                     return@withLock answer
                 }
 
-                // Si el modelo grande falla por presión de memoria, liberarlo permite
-                // probar el modelo rápido ya instalado sin reiniciar todo el asistente.
                 releaseEngine()
             }
 
@@ -141,17 +143,21 @@ class NikoLocalLlm(
     }
 
     /**
-     * Inferencia local para clasificadores/routers internos. No usa memoria aprendida,
-     * Groq ni Internet y conserva saltos de línea para poder validar un DSL cerrado.
+     * Inferencia local para clasificadores/routers internos. En un fabricante marcado
+     * como incompatible devuelve null para que el parser determinista siga solo, sin
+     * arriesgar la vida del proceso principal.
      */
     suspend fun completeStructured(instruction: String): String? = withContext(Dispatchers.Default) {
         lastError = null
-        if (closed) return@withContext null
+        if (closed || !runtimeSupported) {
+            if (!runtimeSupported) lastError = runtimeBlockedMessage()
+            return@withContext null
+        }
         val candidates = installedCandidates()
         if (candidates.isEmpty()) return@withContext null
 
         mutex.withLock {
-            if (closed) return@withLock null
+            if (closed || !runtimeSupported) return@withLock null
             for (spec in candidates) {
                 val engine = engineFor(spec) ?: continue
                 var body = instruction.trim().take(4_500)
@@ -186,6 +192,7 @@ class NikoLocalLlm(
     }
 
     private fun installedCandidates(): List<NikoModelSpec> {
+        if (!runtimeSupported) return emptyList()
         val recommended = preferredModel
         return (listOf(recommended) + NikoModelCatalog.conversationModels)
             .distinctBy { it.id }
@@ -193,6 +200,7 @@ class NikoLocalLlm(
     }
 
     private fun engineFor(spec: NikoModelSpec): LlmInference? {
+        if (!runtimeSupported) return null
         val current = inference
         if (current != null && loadedSpec == spec) return current
         releaseEngine()
@@ -200,11 +208,11 @@ class NikoLocalLlm(
     }
 
     private fun createEngine(spec: NikoModelSpec): LlmInference? {
+        if (!runtimeSupported) return null
         val path = models.file(spec).absolutePath
         return runCatching {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(path)
-                // Ambos paquetes usan KV 1280: reservamos contexto suficiente y respuestas breves.
                 .setMaxTokens(LocalConversationPrompt.MODEL_TOKENS)
                 .build()
             LlmInference.createFromOptions(appContext, options).also {
@@ -222,9 +230,12 @@ class NikoLocalLlm(
         loadedSpec = null
     }
 
+    private fun runtimeBlockedMessage(): String =
+        "El motor generativo local está en modo seguro para ${profile.manufacturer.ifBlank { "este dispositivo" }} ${profile.model}. LEO mantendrá la voz y las acciones locales sin cargar Qwen en este proceso."
+
     private fun structuredPrompt(body: String): String = buildString {
         appendLine("<|im_start|>system")
-        appendLine("Sos un router interno de NIKO. Seguí exactamente el formato solicitado por el usuario del sistema. No agregués explicaciones ni Markdown.")
+        appendLine("Sos un router interno de LEO. Seguí exactamente el formato solicitado por el sistema. No agregués explicaciones ni Markdown.")
         appendLine("<|im_end|>")
         appendLine("<|im_start|>user")
         appendLine(body)
@@ -247,7 +258,7 @@ class NikoLocalLlm(
     private fun cleanAnswer(value: String): String = value
         .replace("<|im_end|>", "")
         .replace("<|endoftext|>", "")
-        .replace(Regex("^(NIKO|Niko|Asistente)\\s*:\\s*"), "")
+        .replace(Regex("^(LEO|Leo|NIKO|Niko|Asistente)\\s*:\\s*"), "")
         .replace(Regex("\\s+"), " ")
         .trim()
 
