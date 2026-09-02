@@ -36,6 +36,7 @@ import com.niko.assistant.localai.NikoModelSpec
 import com.niko.assistant.localai.NikoVoiceProfile
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -44,16 +45,10 @@ import kotlin.math.sqrt
 /**
  * Núcleo local de voz de LEO.
  *
- * PASSIVE usa dos rutas locales: Sherpa KWS como oído permanente de bajo consumo y,
- * únicamente cuando una ráfaga breve de voz termina sin disparo KWS, Silero + Canary ES
- * como verificador de respaldo. Esto compensa la baja recuperación conocida de keywords
- * extremadamente cortos sin mandar audio ni transcripciones a Internet.
- *
- * ACTIVE: Silero VAD captura la orden; GTCRN limpia la voz segmentada y NVIDIA NeMo
- * Canary 180M Flash la transcribe en español completamente en el teléfono. Si Whisper
- * está preparado, una segunda pasada local refina sólo resultados sospechosos para ganar
- * precisión sin duplicar la latencia de todas las frases. Después de un wake real, LEO
- * mantiene una ventana breve de conversación para seguimientos naturales sin repetir nombre.
+ * PASSIVE combina KWS + Silero/Canary. ACTIVE usa VAD + GTCRN + Canary y Whisper opcional.
+ * Mientras LEO habla, el micrófono NO se apaga: AEC + KWS siguen buscando únicamente "Leo"
+ * para permitir barge-in. Durante la orden, Canary publica previews locales periódicos para que
+ * la interfaz muestre lo que está entendiendo antes de que termine la frase.
  */
 class NikoLocalVoiceEngine(
     private val context: Context,
@@ -96,17 +91,29 @@ class NikoLocalVoiceEngine(
     @Volatile private var resetRequested = false
     @Volatile private var suppressUntil = 0L
     @Volatile private var speaking = false
+    @Volatile private var speakingKwsResetRequested = false
+    @Volatile private var bargeInGuardUntil = 0L
     @Volatile private var state = State.STOPPED
     @Volatile private var lastWakeAt = 0L
     @Volatile private var lastPassiveWakeProbeAt = 0L
     @Volatile private var commandSpeechNotified = false
     @Volatile private var commandSpeechFrames = 0
+    @Volatile private var lastLivePreviewAt = 0L
 
     private var wakeAcknowledged = false
     private var emptyRecognitionRetries = 0
     private val preRoll = PcmPreRoll(SAMPLE_RATE * 4 / 5)
     private val emotionEngine = NikoEmotionEngine(context)
     private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS, FOLLOW_UP_MS)
+
+    private val previewRunning = AtomicBoolean(false)
+    private val previewExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "LEO-LiveTranscript").apply {
+            isDaemon = true
+            priority = Thread.MIN_PRIORITY
+        }
+    }
+    private var livePreviewSamples = FloatArray(0)
 
     @Volatile
     var lastInitializationFailure: InitializationFailure? = null
@@ -168,6 +175,7 @@ class NikoLocalVoiceEngine(
     fun stop() {
         conversationAuthorized = false
         reopenFollowUp = false
+        LeoRealtimeTurnBus.clearTranscript()
         synchronized(lifecycleLock) {
             stopRequested = true
             running.set(false)
@@ -177,7 +185,6 @@ class NikoLocalVoiceEngine(
         }
     }
 
-    /** A replacement engine must wait until AudioRecord and JNI objects are released. */
     fun stopAndAwait(timeoutMillis: Long = 5_000L): Boolean {
         stop()
         return released.await(timeoutMillis, TimeUnit.MILLISECONDS)
@@ -190,19 +197,27 @@ class NikoLocalVoiceEngine(
     fun setAssistantSpeaking(value: Boolean, continueCommand: Boolean = false) {
         resumeAfterSpeech = continueCommand
         speaking = value
-        if (!value) {
-            // Do not let the tail of LEO's own TTS become the next command.
-            suppressUntil = SystemClock.elapsedRealtime() + 350L
-            resetRequested = true
+        if (value) {
+            // El KWS que escucha durante el TTS debe empezar limpio para no heredar audio anterior.
+            speakingKwsResetRequested = true
+            LeoRealtimeTurnBus.clearTranscript()
+            return
         }
+        val now = SystemClock.elapsedRealtime()
+        if (now < bargeInGuardUntil) {
+            // El usuario acaba de decir "Leo" encima de nuestra voz. No cerremos la ventana
+            // que el propio barge-in acaba de abrir ni apliquemos el guard de cola del TTS.
+            suppressUntil = 0L
+            resumeAfterSpeech = false
+            return
+        }
+        suppressUntil = now + 350L
+        resetRequested = true
     }
 
     fun finishTurn() {
         assistantBusy = false
         speaking = false
-        // Una orden reconocida cerró la ventana larga, pero el wake sigue autorizando
-        // una continuación corta. La reapertura ocurre en el worker para no tocar JNI
-        // desde el hilo de UI/TTS.
         reopenFollowUp = conversationAuthorized
         resumeAfterSpeech = false
         resetRequested = true
@@ -244,10 +259,7 @@ class NikoLocalVoiceEngine(
 
     private fun initKeywordSpotter() {
         val config = initStage("configuración de activación", null) {
-            NikoKeywordConfig.create(
-                models.modelDir(NikoModelCatalog.keyword),
-                File(context.filesDir, "voice-config"),
-            )
+            NikoKeywordConfig.create(models.modelDir(NikoModelCatalog.keyword), File(context.filesDir, "voice-config"))
         }
         initStage("activación LEO", NikoModelCatalog.keyword) {
             keywordSpotter = KeywordSpotter(config = config)
@@ -258,22 +270,9 @@ class NikoLocalVoiceEngine(
 
     private fun initVad() = initStage("detección de voz", NikoModelCatalog.vad) {
         val model = models.file(NikoModelCatalog.vad).absolutePath
-        vad = createVad(
-            model = model,
-            threshold = 0.32f,
-            minSilenceDuration = 0.85f,
-            minSpeechDuration = 0.14f,
-            maxSpeechDuration = 30f,
-        )
-        // VAD separado para el fallback del wake: corta mucho antes que el VAD de comandos
-        // para poder confirmar un "Leo" aislado sin esperar casi un segundo de silencio.
-        passiveWakeVad = createVad(
-            model = model,
-            threshold = 0.34f,
-            minSilenceDuration = 0.32f,
-            minSpeechDuration = 0.12f,
-            maxSpeechDuration = 2.8f,
-        )
+        vad = createVad(model, 0.30f, 0.72f, 0.10f, 30f)
+        // Más receptivo para un nombre corto, pero Canary sigue verificando el texto antes de activar.
+        passiveWakeVad = createVad(model, 0.29f, 0.24f, 0.08f, 3.2f)
     }
 
     private fun createVad(
@@ -302,9 +301,7 @@ class NikoLocalVoiceEngine(
         speechDenoiser = OfflineSpeechDenoiser(
             config = OfflineSpeechDenoiserConfig(
                 model = OfflineSpeechDenoiserModelConfig(
-                    gtcrn = OfflineSpeechDenoiserGtcrnModelConfig(
-                        model = models.file(NikoModelCatalog.denoiser).absolutePath,
-                    ),
+                    gtcrn = OfflineSpeechDenoiserGtcrnModelConfig(model = models.file(NikoModelCatalog.denoiser).absolutePath),
                     numThreads = 1,
                     provider = "cpu",
                 ),
@@ -334,7 +331,6 @@ class NikoLocalVoiceEngine(
         )
     }
 
-    /** Whisper is an optional precision layer: a damaged optional model must never block LEO. */
     private fun initWhisperAsrSoft() {
         if (!models.isInstalled(NikoModelCatalog.whisperAsr)) return
         val root = File(models.modelDir(NikoModelCatalog.whisperAsr), WHISPER_DIR)
@@ -373,11 +369,7 @@ class NikoLocalVoiceEngine(
     }
 
     private fun initializeMicrophone(): Boolean = runCatching {
-        val minimum = AudioRecord.getMinBufferSize(
-            SAMPLE_RATE,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-        )
+        val minimum = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         check(minimum > 0)
         @Suppress("MissingPermission")
         recorder = AudioRecord(
@@ -385,8 +377,6 @@ class NikoLocalVoiceEngine(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            // Canary puede ocupar brevemente el worker al verificar un wake. Un buffer mayor
-            // evita perder la primera palabra que venga inmediatamente después de "Leo".
             maxOf(minimum * 6, 32_768),
         )
         val localRecorder = recorder
@@ -404,18 +394,9 @@ class NikoLocalVoiceEngine(
 
     private fun initializeAudioEffects(audioSessionId: Int) {
         releaseAudioEffects()
-        if (NoiseSuppressor.isAvailable()) {
-            noiseSuppressor = runCatching { NoiseSuppressor.create(audioSessionId) }.getOrNull()
-                ?.also { runCatching { it.enabled = true } }
-        }
-        if (AutomaticGainControl.isAvailable()) {
-            automaticGainControl = runCatching { AutomaticGainControl.create(audioSessionId) }.getOrNull()
-                ?.also { runCatching { it.enabled = true } }
-        }
-        if (AcousticEchoCanceler.isAvailable()) {
-            acousticEchoCanceler = runCatching { AcousticEchoCanceler.create(audioSessionId) }.getOrNull()
-                ?.also { runCatching { it.enabled = true } }
-        }
+        if (NoiseSuppressor.isAvailable()) noiseSuppressor = runCatching { NoiseSuppressor.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
+        if (AutomaticGainControl.isAvailable()) automaticGainControl = runCatching { AutomaticGainControl.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
+        if (AcousticEchoCanceler.isAvailable()) acousticEchoCanceler = runCatching { AcousticEchoCanceler.create(audioSessionId) }.getOrNull()?.also { runCatching { it.enabled = true } }
     }
 
     private fun releaseAudioEffects() {
@@ -445,8 +426,7 @@ class NikoLocalVoiceEngine(
                 val now = SystemClock.elapsedRealtime()
                 if (now >= nextCaptureCheck) {
                     nextCaptureCheck = now + 1_000L
-                    val silenced = recorder?.activeRecordingConfiguration?.isClientSilenced == true ||
-                        audioManager?.isMicrophoneMute == true
+                    val silenced = recorder?.activeRecordingConfiguration?.isClientSilenced == true || audioManager?.isMicrophoneMute == true
                     if (silenced != isMicrophoneSilenced) {
                         isMicrophoneSilenced = silenced
                         conversationAuthorized = false
@@ -456,6 +436,7 @@ class NikoLocalVoiceEngine(
                         passiveWakeVad?.reset()
                         resetKeywordStream()
                         preRoll.clear()
+                        clearLivePreview()
                         onMicrophoneSilenced(silenced)
                     }
                 }
@@ -467,6 +448,7 @@ class NikoLocalVoiceEngine(
                     passiveWakeVad?.reset()
                     resetKeywordStream()
                     preRoll.clear()
+                    clearLivePreview()
                     val resetAt = SystemClock.elapsedRealtime()
                     when {
                         resumeAfterSpeech -> commandWindow.continueAfterPrompt(resetAt)
@@ -480,10 +462,21 @@ class NikoLocalVoiceEngine(
                     if (commandWindow.isOpen(resetAt)) setState(State.ACTIVE)
                 }
 
-                // Keep draining while LEO is speaking/thinking so stale audio never accumulates.
-                if (speaking || assistantBusy || now < suppressUntil) continue
-
                 val raw = FloatArray(count) { buffer[it] / 32768.0f }
+
+                // Full-duplex ligero: mientras el TTS suena sólo mantenemos KWS, no Canary.
+                // AEC reduce la voz del propio altavoz y una coincidencia "Leo" corta el TTS.
+                if (speaking) {
+                    if (speakingKwsResetRequested) {
+                        speakingKwsResetRequested = false
+                        resetKeywordStream()
+                        preRoll.clear()
+                    }
+                    processBargeInWake(FarFieldAudioEnhancer.enhance(raw, activeCommand = false))
+                    continue
+                }
+                if (assistantBusy || now < suppressUntil) continue
+
                 val active = isActive()
                 val samples = FarFieldAudioEnhancer.enhance(raw, activeCommand = active)
                 if (active) processActive(samples) else processPassiveWake(samples)
@@ -498,6 +491,29 @@ class NikoLocalVoiceEngine(
         }
     }
 
+    private fun processBargeInWake(samples: FloatArray) {
+        preRoll.append(samples)
+        val spotter = keywordSpotter ?: return
+        val stream = keywordStream ?: return
+        stream.acceptWaveform(samples, SAMPLE_RATE)
+        while (spotter.isReady(stream)) spotter.decode(stream)
+        if (spotter.getResult(stream).keyword.isBlank()) return
+
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastWakeAt < BARGE_IN_DEBOUNCE_MS) {
+            resetKeywordStream()
+            return
+        }
+
+        // Guard para que el callback onStop del TTS no cierre inmediatamente esta nueva ventana.
+        bargeInGuardUntil = now + BARGE_IN_GUARD_MS
+        speaking = false
+        assistantBusy = false
+        suppressUntil = 0L
+        LeoRealtimeTurnBus.interruptSpeech()
+        activateWakeFromPassive(now, includePreRoll = true, debounceMs = BARGE_IN_DEBOUNCE_MS)
+    }
+
     private fun processPassiveWake(samples: FloatArray) {
         if (state != State.PASSIVE) {
             conversationAuthorized = false
@@ -506,26 +522,20 @@ class NikoLocalVoiceEngine(
             passiveWakeVad?.reset()
             resetKeywordStream()
             preRoll.clear()
+            clearLivePreview()
             setState(State.PASSIVE)
         }
-
         preRoll.append(samples)
-
-        // Ruta 1: KWS streaming, siempre encendido y barato.
         val spotter = keywordSpotter
         val stream = keywordStream
         if (spotter != null && stream != null) {
             stream.acceptWaveform(samples, SAMPLE_RATE)
             while (spotter.isReady(stream)) spotter.decode(stream)
-            val result = spotter.getResult(stream)
-            if (result.keyword.isNotBlank()) {
+            if (spotter.getResult(stream).keyword.isNotBlank()) {
                 activateWakeFromPassive(SystemClock.elapsedRealtime(), includePreRoll = true)
                 return
             }
         }
-
-        // Ruta 2: un verificador Canary sólo para ráfagas cortas. Soluciona el caso de
-        // "Leo" aislado cuando el transducer no llega a hipotetizar un keyword de 3 phones.
         processPassiveCanaryWake(samples)
     }
 
@@ -533,7 +543,6 @@ class NikoLocalVoiceEngine(
         val localVad = passiveWakeVad ?: return
         val localRecognizer = recognizer ?: return
         localVad.acceptWaveform(samples)
-
         while (!localVad.empty()) {
             val segment = localVad.front()
             localVad.pop()
@@ -541,17 +550,13 @@ class NikoLocalVoiceEngine(
             val now = SystemClock.elapsedRealtime()
             if (!LeoPassiveWakeVerifier.shouldProbe(speech.size, now, lastPassiveWakeProbeAt)) continue
             lastPassiveWakeProbeAt = now
-
-            // No usamos GTCRN ni Whisper aquí: Canary ES sobre la ráfaga original es más
-            // rápido y evita erosionar las pistas acústicas de un nombre tan corto.
             val transcript = runCatching { transcribeWith(localRecognizer, speech) }.getOrDefault("")
             when (val wake = LeoPassiveWakeVerifier.consumeTranscript(transcript, now)) {
                 WakeResult.Ignored -> Unit
-                WakeResult.Activated -> {
-                    if (activateWakeFromPassive(now, includePreRoll = false)) return
-                }
+                WakeResult.Activated -> if (activateWakeFromPassive(now, includePreRoll = false)) return
                 is WakeResult.Command -> {
                     if (!activateWakeFromPassive(now, includePreRoll = false)) return
+                    LeoRealtimeTurnBus.updateTranscript(wake.text)
                     commandWindow.close()
                     assistantBusy = true
                     vad?.reset()
@@ -563,8 +568,8 @@ class NikoLocalVoiceEngine(
         }
     }
 
-    private fun activateWakeFromPassive(now: Long, includePreRoll: Boolean): Boolean {
-        if (now - lastWakeAt < WAKE_DEBOUNCE_MS) {
+    private fun activateWakeFromPassive(now: Long, includePreRoll: Boolean, debounceMs: Long = WAKE_DEBOUNCE_MS): Boolean {
+        if (now - lastWakeAt < debounceMs) {
             resetKeywordStream()
             passiveWakeVad?.reset()
             return false
@@ -576,14 +581,11 @@ class NikoLocalVoiceEngine(
         emptyRecognitionRetries = 0
         commandSpeechNotified = false
         commandSpeechFrames = 0
+        clearLivePreview()
         resetKeywordStream()
         vad?.reset()
         passiveWakeVad?.reset()
         commandWindow.onWake(now)
-
-        // En la ruta KWS preservamos el audio inmediatamente posterior al wake para que
-        // "Leo abrí..." no pierda "abrí". Canary ya consumió su segmento, así que en el
-        // fallback NO lo reinyectamos y evitamos ejecutar la misma orden dos veces.
         if (includePreRoll) vad?.acceptWaveform(preRoll.snapshot())
         preRoll.clear()
         setState(State.ACTIVE)
@@ -599,11 +601,13 @@ class NikoLocalVoiceEngine(
             vad?.reset()
             passiveWakeVad?.reset()
             resetKeywordStream()
+            clearLivePreview()
             setState(State.PASSIVE)
             return
         }
 
         detectCommandContinuation(samples)
+        updateLivePreview(samples)
         val localVad = vad ?: return
         localVad.acceptWaveform(samples)
 
@@ -613,12 +617,11 @@ class NikoLocalVoiceEngine(
             val speech = segment.samples
             if (speech.size < MIN_COMMAND_SAMPLES) continue
 
-            // Emotion/Voice-ID deliberately use original speech. GTCRN is only for ASR so
-            // it cannot distort the acoustic profile learned for the owner.
             emotionEngine.observeSpeech(speech, SAMPLE_RATE)
             val recognitionSpeech = denoiseForRecognition(speech)
             setState(State.PROCESSING)
             val transcript = transcribe(recognitionSpeech)
+            if (transcript.isNotBlank()) LeoRealtimeTurnBus.updateTranscript(transcript)
             val text = when (val result = WakeWordGate().consume(transcript)) {
                 WakeResult.Activated -> ""
                 is WakeResult.Command -> result.text
@@ -626,6 +629,7 @@ class NikoLocalVoiceEngine(
             }
 
             if (text.isNotBlank()) {
+                LeoRealtimeTurnBus.updateTranscript(text)
                 learnOwnerSoftly(speech)
                 if (endsConversation(text)) conversationAuthorized = false
                 commandWindow.close()
@@ -636,14 +640,12 @@ class NikoLocalVoiceEngine(
             }
 
             if (transcript.isBlank()) {
+                clearLivePreview()
                 val retry = emptyRecognitionRetries++ == 0
                 if (!retry) conversationAuthorized = false
                 speaking = true
                 localVad.reset()
-                onAwaitingCommand(
-                    if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Volvé a decir LEO.",
-                    retry,
-                )
+                onAwaitingCommand(if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Volvé a decir LEO.", retry)
                 return
             }
 
@@ -662,7 +664,6 @@ class NikoLocalVoiceEngine(
         if (commandSpeechNotified) return
         if (SystemClock.elapsedRealtime() - lastWakeAt < POST_WAKE_GUARD_MS) return
         if (samples.isEmpty()) return
-
         var energy = 0.0
         for (sample in samples) energy += sample * sample
         val rms = sqrt(energy / samples.size).toFloat()
@@ -670,36 +671,76 @@ class NikoLocalVoiceEngine(
             commandSpeechFrames++
             if (commandSpeechFrames >= COMMAND_CONTINUATION_FRAMES) {
                 commandSpeechNotified = true
+                LeoRealtimeTurnBus.updateTranscript("Escuchando…")
                 onCommandSpeechStarted()
             }
-        } else {
-            commandSpeechFrames = 0
+        } else commandSpeechFrames = 0
+    }
+
+    /**
+     * Preview de ASR en un hilo separado. AudioRecord sigue drenándose mientras Canary trabaja,
+     * y el recognizer se serializa para no ejecutar JNI concurrentemente con la transcripción final.
+     */
+    private fun updateLivePreview(samples: FloatArray) {
+        if (!commandSpeechNotified || samples.isEmpty()) return
+        appendLiveSamples(samples)
+        val now = SystemClock.elapsedRealtime()
+        if (livePreviewSamples.size < LIVE_PREVIEW_MIN_SAMPLES || now - lastLivePreviewAt < LIVE_PREVIEW_INTERVAL_MS) return
+        if (!previewRunning.compareAndSet(false, true)) return
+        lastLivePreviewAt = now
+        val snapshot = livePreviewSamples.copyOf()
+        val localRecognizer = recognizer ?: run { previewRunning.set(false); return }
+        previewExecutor.execute {
+            try {
+                val text = runCatching { transcribeWith(localRecognizer, snapshot) }.getOrDefault("")
+                if (text.isNotBlank() && running.get()) LeoRealtimeTurnBus.updateTranscript(text)
+            } finally {
+                previewRunning.set(false)
+            }
         }
+    }
+
+    private fun appendLiveSamples(samples: FloatArray) {
+        val max = LIVE_PREVIEW_MAX_SAMPLES
+        val existing = livePreviewSamples
+        val total = existing.size + samples.size
+        if (total <= max) {
+            livePreviewSamples = FloatArray(total).also {
+                existing.copyInto(it, 0)
+                samples.copyInto(it, existing.size)
+            }
+            return
+        }
+        val keepOld = (max - samples.size).coerceAtLeast(0)
+        livePreviewSamples = FloatArray(max).also { target ->
+            if (keepOld > 0) existing.copyInto(target, 0, (existing.size - keepOld).coerceAtLeast(0), existing.size)
+            samples.copyInto(target, keepOld, (samples.size - (max - keepOld)).coerceAtLeast(0), samples.size)
+        }
+    }
+
+    private fun clearLivePreview() {
+        livePreviewSamples = FloatArray(0)
+        lastLivePreviewAt = 0L
+        LeoRealtimeTurnBus.clearTranscript()
     }
 
     private fun denoiseForRecognition(samples: FloatArray): FloatArray {
         if (samples.size < SAMPLE_RATE / 4) return samples
         val denoiser = speechDenoiser ?: return samples
-        return runCatching { denoiser.run(samples, SAMPLE_RATE).samples }
-            .getOrNull()
-            ?.takeIf { it.isNotEmpty() }
-            ?: samples
+        return runCatching { denoiser.run(samples, SAMPLE_RATE).samples }.getOrNull()?.takeIf { it.isNotEmpty() } ?: samples
     }
 
     private fun transcribe(samples: FloatArray): String {
-        val canary = transcribeWith(
-            checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." },
-            samples,
-        )
+        val canary = transcribeWith(checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." }, samples)
         val whisper = whisperRecognizer
         if (whisper == null || !TranscriptQuality.shouldRefine(canary, samples.size, SAMPLE_RATE)) return canary
         val refined = runCatching { transcribeWith(whisper, samples) }.getOrDefault("")
         return TranscriptQuality.choose(canary, refined)
     }
 
-    private fun transcribeWith(asr: OfflineRecognizer, samples: FloatArray): String {
+    private fun transcribeWith(asr: OfflineRecognizer, samples: FloatArray): String = synchronized(asr) {
         val stream = asr.createStream()
-        return try {
+        try {
             stream.acceptWaveform(samples, SAMPLE_RATE)
             asr.decode(stream)
             normalizeTranscript(asr.getResult(stream).text)
@@ -717,9 +758,7 @@ class NikoLocalVoiceEngine(
                 stream.acceptWaveform(samples, SAMPLE_RATE)
                 stream.inputFinished()
                 if (extractor.isReady(stream)) ownerVoice.acceptAndLearn(extractor.compute(stream))
-            } finally {
-                stream.release()
-            }
+            } finally { stream.release() }
         }
     }
 
@@ -735,16 +774,11 @@ class NikoLocalVoiceEngine(
         .trim()
 
     private fun endsConversation(text: String): Boolean {
-        val value = text.lowercase()
-            .replace(Regex("[¿?¡!.,;:]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-        return value.startsWith("gracias") ||
-            value in setOf(
-                "eso es todo", "eso era todo", "hasta luego", "nos vemos",
-                "dormite", "dormi", "dormí", "descansa", "descansa leo", "descansá",
-                "ya esta", "ya está", "terminamos", "eso seria", "eso sería",
-            )
+        val value = text.lowercase().replace(Regex("[¿?¡!.,;:]"), " ").replace(Regex("\\s+"), " ").trim()
+        return value.startsWith("gracias") || value in setOf(
+            "eso es todo", "eso era todo", "hasta luego", "nos vemos", "dormite", "dormi", "dormí",
+            "descansa", "descansa leo", "descansá", "ya esta", "ya está", "terminamos", "eso seria", "eso sería",
+        )
     }
 
     private fun isActive(): Boolean = commandWindow.isOpen(SystemClock.elapsedRealtime())
@@ -756,27 +790,21 @@ class NikoLocalVoiceEngine(
     }
 
     private fun releaseModels() {
-        runCatching { keywordStream?.release() }
-        keywordStream = null
-        runCatching { keywordSpotter?.release() }
-        keywordSpotter = null
-        runCatching { vad?.release() }
-        vad = null
-        runCatching { passiveWakeVad?.release() }
-        passiveWakeVad = null
-        runCatching { speechDenoiser?.release() }
-        speechDenoiser = null
-        runCatching { speakerExtractor?.release() }
-        speakerExtractor = null
-        runCatching { recognizer?.release() }
-        recognizer = null
-        runCatching { whisperRecognizer?.release() }
-        whisperRecognizer = null
+        runCatching { keywordStream?.release() }; keywordStream = null
+        runCatching { keywordSpotter?.release() }; keywordSpotter = null
+        runCatching { vad?.release() }; vad = null
+        runCatching { passiveWakeVad?.release() }; passiveWakeVad = null
+        runCatching { speechDenoiser?.release() }; speechDenoiser = null
+        runCatching { speakerExtractor?.release() }; speakerExtractor = null
+        runCatching { recognizer?.release() }; recognizer = null
+        runCatching { whisperRecognizer?.release() }; whisperRecognizer = null
     }
 
     private fun releaseResources() {
         conversationAuthorized = false
         reopenFollowUp = false
+        clearLivePreview()
+        previewExecutor.shutdownNow()
         releaseAudioEffects()
         runCatching { recorder?.release() }
         recorder = null
@@ -790,10 +818,15 @@ class NikoLocalVoiceEngine(
         private const val FIRST_COMMAND_MS = 30_000L
         private const val FOLLOW_UP_MS = 12_000L
         private const val WAKE_DEBOUNCE_MS = 900L
-        private const val POST_WAKE_GUARD_MS = 180L
-        private const val COMMAND_CONTINUATION_RMS = 0.0085f
+        private const val BARGE_IN_DEBOUNCE_MS = 450L
+        private const val BARGE_IN_GUARD_MS = 1_400L
+        private const val POST_WAKE_GUARD_MS = 150L
+        private const val COMMAND_CONTINUATION_RMS = 0.0075f
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
+        private const val LIVE_PREVIEW_INTERVAL_MS = 950L
+        private const val LIVE_PREVIEW_MIN_SAMPLES = SAMPLE_RATE * 3 / 4
+        private const val LIVE_PREVIEW_MAX_SAMPLES = SAMPLE_RATE * 6
         private const val ASR_DIR = "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8"
         private const val WHISPER_DIR = "sherpa-onnx-whisper-tiny"
     }
