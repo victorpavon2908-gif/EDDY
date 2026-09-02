@@ -21,7 +21,7 @@ class NikoSemanticActionResolverTest {
     }
 
     @Test
-    fun recentActionResolvesShortFollowUpWithoutCallingModelAgain() = runBlocking {
+    fun recentActionResolvesShortFollowUpWithoutExtraModelCall() = runBlocking {
         var calls = 0
         var now = 1_000L
         val resolver = NikoSemanticActionResolver(
@@ -32,10 +32,12 @@ class NikoSemanticActionResolverTest {
             },
             nowMillis = { now },
         )
+        // Esta frase ya la resuelve el parser rápido. El resolver igualmente recuerda
+        // la acción, así que el pronombre de seguimiento se resuelve sin encender Qwen.
         assertEquals(listOf(AssistantCommand.SetTorch(true)), resolver.resolveMany("prendeme esa luz del teléfono"))
         now += 2_000L
         assertEquals(listOf(AssistantCommand.SetTorch(false)), resolver.resolveMany("apagála"))
-        assertEquals(1, calls)
+        assertEquals(0, calls)
     }
 
     @Test
