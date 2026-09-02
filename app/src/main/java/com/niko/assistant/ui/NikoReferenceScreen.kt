@@ -69,7 +69,7 @@ import kotlin.math.abs
 import kotlin.math.sin
 
 /**
- * NIKO immersive voice surface.
+ * LEO immersive voice surface.
  *
  * The screen deliberately avoids the old stack of white cards and mascot-demo controls. The
  * neural core is the product identity; supporting controls stay visually subordinate and work
@@ -234,7 +234,7 @@ private fun NikoTopBar(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "NIKO",
+                    text = "LEO",
                     color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
@@ -333,14 +333,14 @@ private fun ConversationGlass(
     val label = when (state) {
         NikoVisualState.LISTENING -> "TE ESCUCHO"
         NikoVisualState.THINKING -> if (webSearching) "BUSCANDO" else "PROCESANDO"
-        NikoVisualState.SPEAKING -> "NIKO"
-        NikoVisualState.IDLE -> "NIKO"
+        NikoVisualState.SPEAKING -> "LEO"
+        NikoVisualState.IDLE -> "LEO"
     }
     val message = when (state) {
         NikoVisualState.LISTENING -> heardText.ifBlank { "Decime qué necesitás." }
         NikoVisualState.THINKING -> heardText.ifBlank { "Estoy trabajando en eso." }
         NikoVisualState.SPEAKING -> responseText.ifBlank { "Aquí estoy." }
-        NikoVisualState.IDLE -> responseText.ifBlank { "Decí “Niko” y hablame normal." }
+        NikoVisualState.IDLE -> responseText.ifBlank { "Decí “Leo” y hablame normal." }
     }
 
     Surface(
@@ -571,15 +571,15 @@ private fun WakeDock(
     val ready = enabled && inputState == InputState.READY
     val accent = if (ready) stateAccent(state) else Color(0xFF69757E)
     val title = when {
-        !enabled -> "NIKO EN PAUSA"
+        !enabled -> "LEO EN PAUSA"
         inputState == InputState.PREPARING -> "PREPARANDO ESCUCHA LOCAL"
         inputState != InputState.READY -> "ESCUCHA NO DISPONIBLE"
         else -> "ESCUCHA AMBIENTAL ACTIVA"
     }
     val detail = when {
         inputStatus.isNotBlank() && !ready -> inputStatus.take(74)
-        ready && voiceReady -> "Decí “Niko” · no necesitás tocar la pantalla"
-        ready -> "Decí “Niko” · respuesta disponible en pantalla"
+        ready && voiceReady -> "Decí “Leo” · no necesitás tocar la pantalla"
+        ready -> "Decí “Leo” · respuesta disponible en pantalla"
         else -> "Revisá Ajustes para completar la preparación"
     }
 

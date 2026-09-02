@@ -29,14 +29,12 @@ android {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 24
-        versionName = "0.9.4"
+        versionCode = 25
+        versionName = "0.9.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
-        // NIKO is optimized for modern Android phones. Packaging only ARM64 removes
-        // duplicate Sherpa/MediaPipe native binaries for x86/x86_64/32-bit ARM while
-        // keeping the exact same recognition, TTS and local-AI model quality.
+        // LEO keeps the legacy namespace/application id so existing installs update in place.
         ndk {
             abiFilters += setOf("arm64-v8a")
         }
@@ -62,11 +60,7 @@ android {
         }
     }
     packaging {
-        // Compress native .so files inside the APK. Android extracts them when needed;
-        // inference precision and model quality are unchanged.
-        jniLibs {
-            useLegacyPackaging = true
-        }
+        jniLibs { useLegacyPackaging = true }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "/META-INF/DEPENDENCIES"

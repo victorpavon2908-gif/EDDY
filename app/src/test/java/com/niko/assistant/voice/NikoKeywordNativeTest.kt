@@ -30,12 +30,12 @@ class NikoKeywordNativeTest {
 
     @Test fun realDetectorStartsDecodesSilenceResetsAndStartsAgain() {
         val configuration = config()
+        assertTrue(File(configuration.keywordsFile).readText().contains("@LEO"))
         repeat(2) {
             val spotter = KeywordSpotter(config = configuration)
             try {
                 val stream = spotter.createStream()
                 try {
-                    // Exercise the model, native stream and result bindings, not just data classes.
                     stream.acceptWaveform(FloatArray(16_000), 16_000)
                     var decoded = 0
                     while (spotter.isReady(stream)) {
@@ -50,16 +50,16 @@ class NikoKeywordNativeTest {
         }
     }
 
-    @Test fun recognizesNikoAloneWithGreetingsAndWithACommand() {
+    @Test fun previousNikoRecordingsNoLongerWakeLeo() {
         val spotter = KeywordSpotter(config = config())
         try {
             for (name in listOf("niko", "hey_niko", "hola_niko", "niko_command", "niko_fast", "niko_slow")) {
-                assertTrue("Missed Niko call: $name", detects(spotter, name))
+                assertFalse("Retired Niko call woke Leo: $name", detects(spotter, name))
             }
         } finally { spotter.release() }
     }
 
-    @Test fun previousNameNoLongerWakesTheAssistant() {
+    @Test fun previousEddyNameNoLongerWakesTheAssistant() {
         val spotter = KeywordSpotter(config = config())
         try {
             for (name in listOf("retired_01", "retired_02", "retired_03", "retired_04", "retired_05")) {
@@ -74,17 +74,13 @@ class NikoKeywordNativeTest {
             for (name in listOf("pedi", "medio", "nadie", "radio", "dia", "ella", "luz", "edificio", "edita", "le_di", "other_name", "pedir", "ayer_pedi", "edison", "rico", "pico", "micro", "mexico", "tecnico", "unico", "nicolas", "nicole")) {
                 assertFalse("False activation: $name", detects(spotter, name))
             }
-            // Known difficult clips are reported, not asserted as desirable behavior.
-            println("Niko calibration: isolated Nico detected=${detects(spotter, "nico")}; abanico false activation=${detects(spotter, "abanico")}")
         } finally { spotter.release() }
     }
 
     private fun detects(spotter: KeywordSpotter, name: String): Boolean {
-        // Synthetic Spanish speech; raw mono signed PCM16 LE at 16 kHz.
         val bytes = checkNotNull(javaClass.getResourceAsStream("/voice/wake/$name.pcm"))
             .use { it.readBytes() }
         val pcm = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-        // Match the continuous microphone, including silence before/after each utterance.
         val samples = FloatArray(8_000 + pcm.remaining() + 16_000)
         var offset = 8_000
         while (pcm.hasRemaining()) samples[offset++] = pcm.get() / 32768f
@@ -97,7 +93,7 @@ class NikoKeywordNativeTest {
                     spotter.decode(stream)
                     check(++decoded < 1_000) { "Decoder did not make progress" }
                 }
-                if (spotter.getResult(stream).keyword == "NIKO") return true
+                if (spotter.getResult(stream).keyword == "LEO") return true
             }
             return false
         } finally { stream.release() }

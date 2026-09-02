@@ -1,11 +1,13 @@
 package com.niko.assistant.background
 
 import android.content.Context
+import com.niko.assistant.ai.LeoBrand
 import com.niko.assistant.ai.NikoWebSource
 import org.json.JSONArray
 import org.json.JSONObject
 
 object NikoRuntimeState {
+    // Keep the legacy preference name so an update preserves the current session/state.
     private const val PREFS = "niko_runtime_state"
     private const val KEY_STATE = "state"
     private const val KEY_HEARD = "heard"
@@ -31,7 +33,7 @@ object NikoRuntimeState {
     data class Snapshot(
         val state: State = State.IDLE,
         val heardText: String = "",
-        val responseText: String = "Di NIKO para activarme.",
+        val responseText: String = "Decí LEO para activarme.",
         val running: Boolean = false,
         val voiceReady: Boolean = false,
         val voiceStatus: String = "Preparando voz de respuesta",
@@ -50,17 +52,19 @@ object NikoRuntimeState {
 
         return Snapshot(
             state = state,
-            heardText = prefs.getString(KEY_HEARD, "").orEmpty(),
-            responseText = prefs.getString(KEY_RESPONSE, "Di NIKO para activarme.")
-                .orEmpty()
-                .ifBlank { "Di NIKO para activarme." },
+            heardText = LeoBrand.publicText(prefs.getString(KEY_HEARD, "").orEmpty()),
+            responseText = LeoBrand.publicText(
+                prefs.getString(KEY_RESPONSE, "Decí LEO para activarme.")
+                    .orEmpty()
+                    .ifBlank { "Decí LEO para activarme." },
+            ),
             running = prefs.getBoolean(KEY_RUNNING, false),
             voiceReady = prefs.getBoolean(KEY_VOICE_READY, false),
-            voiceStatus = prefs.getString(KEY_VOICE_STATUS, "Preparando voz de respuesta").orEmpty(),
+            voiceStatus = LeoBrand.publicText(prefs.getString(KEY_VOICE_STATUS, "Preparando voz de respuesta").orEmpty()),
             inputState = runCatching {
                 InputState.valueOf(prefs.getString(KEY_INPUT_STATE, InputState.STOPPED.name).orEmpty())
             }.getOrDefault(InputState.STOPPED),
-            inputStatus = prefs.getString(KEY_INPUT_STATUS, "Micrófono sin iniciar").orEmpty(),
+            inputStatus = LeoBrand.publicText(prefs.getString(KEY_INPUT_STATUS, "Micrófono sin iniciar").orEmpty()),
             webSearching = prefs.getBoolean(KEY_SEARCHING, false),
             webUsed = prefs.getBoolean(KEY_WEB_USED, false),
             webSources = decodeSources(prefs.getString(KEY_WEB_SOURCES, "[]").orEmpty()),
@@ -70,7 +74,7 @@ object NikoRuntimeState {
     fun setInput(context: Context, state: InputState, status: String) {
         edit(context) {
             putString(KEY_INPUT_STATE, state.name)
-            putString(KEY_INPUT_STATUS, status)
+            putString(KEY_INPUT_STATUS, LeoBrand.publicText(status))
             if (state != InputState.READY) {
                 putString(KEY_STATE, State.IDLE.name)
                 putString(KEY_HEARD, "")
@@ -79,7 +83,7 @@ object NikoRuntimeState {
     }
 
     fun setInputStatus(context: Context, value: String) {
-        edit(context) { putString(KEY_INPUT_STATUS, value) }
+        edit(context) { putString(KEY_INPUT_STATUS, LeoBrand.publicText(value)) }
     }
 
     fun setSearching(context: Context, value: Boolean) {
@@ -91,7 +95,7 @@ object NikoRuntimeState {
     }
 
     fun setVoiceStatus(context: Context, value: String) {
-        edit(context) { putString(KEY_VOICE_STATUS, value) }
+        edit(context) { putString(KEY_VOICE_STATUS, LeoBrand.publicText(value)) }
     }
 
     fun setVoiceReady(context: Context, value: Boolean) {
@@ -103,12 +107,12 @@ object NikoRuntimeState {
     }
 
     fun setHeard(context: Context, value: String) {
-        edit(context) { putString(KEY_HEARD, value) }
+        edit(context) { putString(KEY_HEARD, LeoBrand.publicText(value)) }
     }
 
     fun setResponse(context: Context, value: String) {
         edit(context) {
-            putString(KEY_RESPONSE, value)
+            putString(KEY_RESPONSE, LeoBrand.publicText(value))
             putBoolean(KEY_WEB_USED, false)
             putString(KEY_WEB_SOURCES, "[]")
         }
@@ -121,7 +125,7 @@ object NikoRuntimeState {
         sources: List<NikoWebSource>,
     ) {
         edit(context) {
-            putString(KEY_RESPONSE, value)
+            putString(KEY_RESPONSE, LeoBrand.publicText(value))
             putBoolean(KEY_WEB_USED, webUsed)
             putString(KEY_WEB_SOURCES, encodeSources(sources))
         }
@@ -131,7 +135,7 @@ object NikoRuntimeState {
         edit(context) {
             putString(KEY_STATE, State.IDLE.name)
             putString(KEY_HEARD, "")
-            putString(KEY_RESPONSE, "Di NIKO para activarme.")
+            putString(KEY_RESPONSE, "Decí LEO para activarme.")
             putString(KEY_INPUT_STATUS, "Micrófono en pausa")
             putString(KEY_INPUT_STATE, InputState.STOPPED.name)
             putBoolean(KEY_SEARCHING, false)

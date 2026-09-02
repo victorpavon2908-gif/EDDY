@@ -178,13 +178,13 @@ open class NikoAssistantService : Service() {
         )
 
         if (!NikoVoiceSettings.enabled(this) || !hasMicrophonePermission()) {
-            NikoRuntimeState.setResponse(applicationContext, "Abrí NIKO y concedé el permiso de micrófono.")
+            NikoRuntimeState.setResponse(applicationContext, "Abrí LEO y concedé el permiso de micrófono.")
             stopSelf()
             return
         }
         createNotificationChannels()
         try { startAsForeground() } catch (_: RuntimeException) {
-            NikoRuntimeState.setResponse(applicationContext, "Abrí NIKO para activar el micrófono.")
+            NikoRuntimeState.setResponse(applicationContext, "Abrí LEO para activar el micrófono.")
             stopSelf()
             return
         }
@@ -193,7 +193,7 @@ open class NikoAssistantService : Service() {
         registerScreenStateReceiver()
         NikoRuntimeState.setRunning(applicationContext, true)
         NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.PREPARING, "Preparando activación por voz…")
-        NikoRuntimeState.setResponse(applicationContext, "Estoy preparando la escucha local. Cuando esté lista, decí NIKO.")
+        NikoRuntimeState.setResponse(applicationContext, "Estoy preparando la escucha local. Cuando esté lista, decí LEO.")
         ensureVoiceListening()
     }
 
@@ -236,7 +236,7 @@ open class NikoAssistantService : Service() {
             if (initialDelay > 0) delay(initialDelay)
             while (!destroyed && NikoVoiceSettings.enabled(this@NikoAssistantService)) {
                 if (!hasMicrophonePermission()) {
-                    inputUnavailable("Concedé permiso de micrófono en los ajustes de Android y volvé a abrir NIKO.")
+                    inputUnavailable("Concedé permiso de micrófono en los ajustes de Android y volvé a abrir LEO.")
                     return@launch
                 }
                 while (isThinking || isSpeaking || commandJob?.isActive == true) delay(250L)
@@ -299,7 +299,7 @@ open class NikoAssistantService : Service() {
                 if (destroyed || epoch != localVoiceEpoch) return@launch
                 when (voiceState) {
                     NikoLocalVoiceEngine.State.PASSIVE -> {
-                        if (isListening && !isSpeaking && !isThinking) NikoRuntimeState.setResponse(applicationContext, "Decí NIKO para hablar conmigo.")
+                        if (isListening && !isSpeaking && !isThinking) NikoRuntimeState.setResponse(applicationContext, "Decí LEO para hablar conmigo.")
                         isTranscribing = false
                         isListening = false
                         updateVisualState()
@@ -314,11 +314,9 @@ open class NikoAssistantService : Service() {
             }},
             onWake = { _, _ -> serviceScope.launch {
                 if (destroyed || epoch != localVoiceEpoch) return@launch
-                NikoRuntimeState.setHeard(applicationContext, "NIKO")
+                NikoRuntimeState.setHeard(applicationContext, "LEO")
                 NikoRuntimeState.setResponse(applicationContext, "Te escucho.")
                 revealNikoOnLockScreen()
-                // Precalentar sólo después de un wake acústico real: la inicialización de
-                // Qwen ocurre mientras el usuario termina de hablar, no durante cada segundo pasivo.
                 if (localLlm.isAvailable) serviceScope.launch { localLlm.prewarm() }
             }},
             onAwaitingCommand = { prompt, retry -> serviceScope.launch {
@@ -337,8 +335,8 @@ open class NikoAssistantService : Service() {
                 if (!destroyed && epoch == localVoiceEpoch) {
                     if (silenced) inputUnavailable("Android silenció el micrófono. Revisá su interruptor de privacidad o cerrá la otra app que lo usa.")
                     else {
-                        NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, "Activación local lista · decí NIKO")
-                        if (!isSpeaking && !isThinking) NikoRuntimeState.setResponse(applicationContext, "Decí NIKO para hablar conmigo.")
+                        NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, "Activación local lista · decí LEO")
+                        if (!isSpeaking && !isThinking) NikoRuntimeState.setResponse(applicationContext, "Decí LEO para hablar conmigo.")
                     }
                 }
             } },
@@ -361,8 +359,8 @@ open class NikoAssistantService : Service() {
             voiceRecovery.started(SystemClock.elapsedRealtime())
             if (engine.isMicrophoneSilenced) inputUnavailable("Android silenció el micrófono. Revisá su interruptor de privacidad o cerrá la otra app que lo usa.")
             else {
-                NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, "Activación local lista · decí NIKO")
-                NikoRuntimeState.setResponse(applicationContext, "Decí NIKO para hablar conmigo.")
+                NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, "Activación local lista · decí LEO")
+                NikoRuntimeState.setResponse(applicationContext, "Decí LEO para hablar conmigo.")
             }
             updateVisualState()
             true
@@ -618,7 +616,7 @@ open class NikoAssistantService : Service() {
         }
         val backend = speechOutput.choose(neuralTts.isAvailable)
         val queued = if (backend == SpeechOutputPolicy.Backend.NEURAL) {
-            NikoRuntimeState.setVoiceStatus(applicationContext, "Voz local de NIKO · español de México · sin conexión")
+            NikoRuntimeState.setVoiceStatus(applicationContext, "Voz local de LEO · español de México · sin conexión")
             if (neuralTts.speak(text, replyProsody.speed)) true else {
                 speechOutput.neuralFailed()
                 NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
@@ -659,20 +657,20 @@ open class NikoAssistantService : Service() {
 
     private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "NIKO local activo", NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) })
-        manager.createNotificationChannel(NotificationChannel(WAKE_CHANNEL_ID, "Despertar NIKO", NotificationManager.IMPORTANCE_HIGH).apply { setShowBadge(false); enableVibration(false); setSound(null, null); lockscreenVisibility = Notification.VISIBILITY_PUBLIC })
+        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "LEO local activo", NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) })
+        manager.createNotificationChannel(NotificationChannel(WAKE_CHANNEL_ID, "Despertar LEO", NotificationManager.IMPORTANCE_HIGH).apply { setShowBadge(false); enableVibration(false); setSound(null, null); lockscreenVisibility = Notification.VISIBILITY_PUBLIC })
     }
     private fun startAsForeground() {
         val open = PendingIntent.getActivity(this, 10, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 11, UpgradeIdentity.assistantService(this).apply { action = ACTION_STOP }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_niko_notification).setContentTitle("Activación por voz de NIKO").setContentText("Escucha local habilitada. Abrí NIKO para ver su estado.").setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).setCategory(NotificationCompat.CATEGORY_SERVICE).addAction(0, "Detener", stop).build()
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_niko_notification).setContentTitle("Activación por voz de LEO").setContentText("Escucha local habilitada. Abrí LEO para ver su estado.").setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).setCategory(NotificationCompat.CATEGORY_SERVICE).addAction(0, "Detener", stop).build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE) else startForeground(NOTIFICATION_ID, notification)
     }
     private fun revealNikoOnLockScreen() {
         val keyguard = getSystemService(KeyguardManager::class.java)
         if (keyguard?.isKeyguardLocked != true) return
         val show = PendingIntent.getActivity(this, WAKE_REQUEST_CODE, UpgradeIdentity.wakeActivity(this).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP) }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = NotificationCompat.Builder(this, WAKE_CHANNEL_ID).setSmallIcon(R.drawable.ic_niko_notification).setContentTitle("NIKO").setContentText("Te escucho.").setContentIntent(show).setFullScreenIntent(show, true).setAutoCancel(true).setCategory(NotificationCompat.CATEGORY_CALL).setPriority(NotificationCompat.PRIORITY_MAX).setVisibility(NotificationCompat.VISIBILITY_PUBLIC).build()
+        val notification = NotificationCompat.Builder(this, WAKE_CHANNEL_ID).setSmallIcon(R.drawable.ic_niko_notification).setContentTitle("LEO").setContentText("Te escucho.").setContentIntent(show).setFullScreenIntent(show, true).setAutoCancel(true).setCategory(NotificationCompat.CATEGORY_CALL).setPriority(NotificationCompat.PRIORITY_MAX).setVisibility(NotificationCompat.VISIBILITY_PUBLIC).build()
         getSystemService(NotificationManager::class.java)?.notify(WAKE_NOTIFICATION_ID, notification)
     }
 

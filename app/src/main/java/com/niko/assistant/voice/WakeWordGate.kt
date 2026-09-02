@@ -4,31 +4,21 @@ import java.text.Normalizer
 import java.util.Locale
 
 /**
- * Puerta de activación de NIKO.
+ * Puerta de activación de LEO.
  *
- * NIKO exige que el usuario lo llame antes de ejecutar o responder. Los alias internos
- * representan únicamente transcripciones habituales del mismo sonido "NIKO".
+ * LEO exige que el usuario lo llame antes de ejecutar o responder. La capa acústica tolera
+ * variantes de pronunciación; una vez transcrito, esta puerta usa solamente el nombre "Leo"
+ * para no activar con palabras comunes como "lío" o "león".
  */
 class WakeWordGate(
-    private val wakeWord: String = "niko",
+    private val wakeWord: String = "leo",
     private val followUpWindowMs: Long = 20_000L,
     private val conversationWindowMs: Long = 0L,
 ) {
     private var armedUntil: Long = 0L
 
-    /**
-     * Variantes que suelen producir los motores de voz al escuchar "Niko".
-     * Evitamos alias demasiado cortos como "ni" porque provocarían activaciones falsas
-     * en conversación normal en español.
-     */
     private val wakeForms: Set<String> by lazy {
-        setOf(
-            normalize(wakeWord),
-            "nico",
-            "nikko",
-            "niko",
-            "nin",
-        )
+        setOf(normalize(wakeWord), "leo")
     }
 
     fun arm(
