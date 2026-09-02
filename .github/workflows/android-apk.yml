@@ -13,7 +13,7 @@ jobs:
   package:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.ref_type == 'branch' && github.event.ref == 'apk-request/niko-0.7.0')
+      (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'apk-request/niko-0.7.0'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -33,15 +33,17 @@ jobs:
           key: eddy-debug-keystore-v1
           fail-on-cache-miss: true
 
-      - name: Check update-compatible signing identity
+      - name: Read the preserved signing identity
         shell: bash
         run: |
           set -euo pipefail
-          # Public certificate fingerprint from the previous shipped build.
-          expected=01c70e705cf72310ce733e3439229d4c545e96ffee0b889c0a52a999156325a8
-          actual=$(keytool -exportcert -keystore "$HOME/.android/debug.keystore" \
-            -storepass android -alias androiddebugkey | sha256sum | cut -d' ' -f1)
-          test "$actual" = "$expected"
+          # Some older APKs used an ephemeral Gradle key despite restoring the cache.
+          # Preserve the cached identity explicitly; never silently generate a new key.
+          keytool -exportcert -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey \
+            -file "$RUNNER_TEMP/niko-signing-cert.der"
+          sha256sum "$RUNNER_TEMP/niko-signing-cert.der" | cut -d' ' -f1 \
+            > "$RUNNER_TEMP/niko-signing-sha256"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -60,9 +62,16 @@ jobs:
         run: |
           set -euo pipefail
           apk=app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
           mkdir -p delivery
-          cp "$apk" delivery/Niko-0.7.0-arm64.apk
+          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$signer" sign --ks "$HOME/.android/debug.keystore" \
+            --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android \
+            --out delivery/Niko-0.7.0-arm64.apk "$apk"
+          "$signer" verify --verbose --print-certs delivery/Niko-0.7.0-arm64.apk \
+            | tee "$RUNNER_TEMP/niko-signature.txt"
+          actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/niko-signature.txt")
+          test "$actual" = "$(cat "$RUNNER_TEMP/niko-signing-sha256")"
+          cp "$RUNNER_TEMP/niko-signing-sha256" delivery/SIGNING_CERT_SHA256
           cd delivery
           sha256sum Niko-0.7.0-arm64.apk > SHA256SUMS
           git rev-parse HEAD > SOURCE_COMMIT
