@@ -2,7 +2,6 @@ package com.niko.assistant.voice
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.SystemClock
 import com.k2fsa.sherpa.onnx.OfflineTts
@@ -23,7 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Voz neural latina local de NIKO. No usa red durante la síntesis. */
+/** Voz neural latina local de LEO, interrumpible al volver a llamarlo. */
 class NikoNeuralTextToSpeech(
     private val models: NikoModelManager,
     private val profile: NikoDeviceProfile,
@@ -36,6 +35,9 @@ class NikoNeuralTextToSpeech(
     @Volatile private var tts: OfflineTts? = null
     @Volatile private var track: AudioTrack? = null
     @Volatile private var closed = false
+    private val realtimeStopper: () -> Unit = { stop() }
+
+    init { LeoRealtimeTurnBus.registerSpeechStopper(realtimeStopper) }
 
     val isAvailable: Boolean get() = models.isInstalled(NikoModelCatalog.spanishVoice)
 
@@ -50,8 +52,6 @@ class NikoNeuralTextToSpeech(
                 var audioStarted = false
                 try {
                     val engine = tts ?: createEngine() ?: error("Voz local no disponible")
-                    // Pedazos más cortos reducen el tiempo hasta la primera palabra hablada.
-                    // SpeechProsody.chunks prioriza límites de oración para evitar cortes robóticos.
                     for (chunk in SpeechProsody.chunks(text, 360)) {
                         if (closed || token != generation) break
                         val audio = engine.generate(
@@ -59,9 +59,7 @@ class NikoNeuralTextToSpeech(
                             sid = 0,
                             speed = speed.coerceIn(0.85f, 1.15f),
                         )
-                        if (!closed && token == generation) {
-                            play(audio.samples, audio.sampleRate, token) { audioStarted = true }
-                        }
+                        if (!closed && token == generation) play(audio.samples, audio.sampleRate, token) { audioStarted = true }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -84,11 +82,11 @@ class NikoNeuralTextToSpeech(
     fun stop() {
         ++generation
         runCatching { track?.pause() }
-        // AudioTrack and JNI objects are released by their worker, never during write/generate.
         onSpeakingChanged(false)
     }
 
     fun shutdown() {
+        LeoRealtimeTurnBus.unregisterSpeechStopper(realtimeStopper)
         closed = true
         stop()
         scope.launch {
@@ -122,28 +120,11 @@ class NikoNeuralTextToSpeech(
 
     private suspend fun play(samples: FloatArray, sampleRate: Int, token: Int, onAudioQueued: () -> Unit) {
         check(samples.isNotEmpty()) { "La síntesis local no produjo audio" }
-        val pcm = ShortArray(samples.size) { index ->
-            (samples[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
-        }
-        val minimum = AudioTrack.getMinBufferSize(
-            sampleRate,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-        ).coerceAtLeast(4096)
+        val pcm = ShortArray(samples.size) { index -> (samples[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort() }
+        val minimum = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
         val audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build(),
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build(),
-            )
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
             .setTransferMode(AudioTrack.MODE_STREAM)
             .setBufferSizeInBytes(maxOf(minimum, 16_384))
             .build()
@@ -157,11 +138,8 @@ class NikoNeuralTextToSpeech(
                 onAudioQueued()
                 offset += written
             }
-            // write() only queues audio. Wait for playback so the final words are not cut off.
             val deadline = SystemClock.elapsedRealtime() + (offset.toLong() * 1_000L / sampleRate) + 3_000L
-            while (!closed && token == generation && audioTrack.playbackHeadPosition.toLong() < offset && SystemClock.elapsedRealtime() < deadline) {
-                delay(20L)
-            }
+            while (!closed && token == generation && audioTrack.playbackHeadPosition.toLong() < offset && SystemClock.elapsedRealtime() < deadline) delay(20L)
         } finally {
             runCatching { audioTrack.stop() }
             runCatching { audioTrack.release() }
@@ -169,7 +147,5 @@ class NikoNeuralTextToSpeech(
         }
     }
 
-    companion object {
-        private const val MODEL_DIR = "vits-piper-es_MX-claude-high"
-    }
+    companion object { private const val MODEL_DIR = "vits-piper-es_MX-claude-high" }
 }

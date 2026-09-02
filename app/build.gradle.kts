@@ -12,7 +12,6 @@ val nikoLocalProperties = Properties().apply {
 }
 
 fun configString(envName: String, propertyName: String, defaultValue: String = ""): String {
-    // Accept configuration from previous installations/deployments during the rename.
     val raw = System.getenv(envName) ?: nikoLocalProperties.getProperty(propertyName)
         ?: System.getenv(envName.replaceFirst("NIKO_", "EDDY_"))
         ?: nikoLocalProperties.getProperty(propertyName.replaceFirst("niko.", "eddy.")) ?: defaultValue
@@ -29,15 +28,13 @@ android {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 29
-        versionName = "0.9.9"
+        versionCode = 30
+        versionName = "0.10.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
         // LEO keeps the legacy namespace/application id so existing installs update in place.
-        ndk {
-            abiFilters += setOf("arm64-v8a")
-        }
+        ndk { abiFilters += setOf("arm64-v8a") }
     }
     signingConfigs { getByName("debug") { enableV1Signing = true; enableV2Signing = true } }
     buildTypes {
