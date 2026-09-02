@@ -26,7 +26,15 @@ class WebQueryRouterTest {
     }
 
     @Test fun currentQuestionsRequestGrounding() {
-        listOf("¿Va a llover hoy en Managua?", "Cuál es el precio del dólar", "Qué noticias hay de Nicaragua", "Quién ganó el partido").forEach {
+        listOf(
+            "¿Va a llover hoy en Managua?",
+            "Cuál es el precio del dólar",
+            "Qué noticias hay de Nicaragua",
+            "Quién ganó el partido",
+            "Háblame sobre el terremoto que acaba de ocurrir hace poco en Venezuela",
+            "Qué se sabe del sismo reciente",
+            "Dame la última actualización del terremoto",
+        ).forEach {
             assertTrue(it, WebQueryRouter.needsCurrentInformation(it))
         }
     }
