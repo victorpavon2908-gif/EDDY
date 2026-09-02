@@ -1,5 +1,6 @@
 package com.niko.assistant.brain
 
+import com.niko.assistant.devicecontrol.NikoVisualContext
 import java.text.Normalizer
 import java.util.Locale
 
@@ -28,6 +29,10 @@ class NikoSemanticActionResolver(
             remember(deterministic)
             return deterministic
         }
+
+        // Preguntas como "mirá esto" o "qué dice esta pantalla" pertenecen a la
+        // conversación visual local. Nunca deben convertirse en CAMERA/CLICK/etc.
+        if (NikoVisualContext.wantsScreenContext(original)) return deterministic
 
         // Una pregunta sobre una acción o una orden negada debe seguir siendo conversación.
         // El LLM semántico no puede convertir "no abras YouTube" o "cómo apago esto" en ejecución.
