@@ -18,6 +18,16 @@ class NikoModelCatalogTest {
     }
 
     @Test
+    fun spanishRecognitionUsesLocalCanaryInt8() {
+        val model = NikoModelCatalog.spanishAsr
+        assertTrue(model.id.contains("canary"))
+        assertTrue(model.url.contains("nemo-canary-180m-flash"))
+        assertTrue(model.expectedFiles.any { it.endsWith("encoder.int8.onnx") })
+        assertTrue(model.expectedFiles.any { it.endsWith("decoder.int8.onnx") })
+        assertTrue(model in NikoModelCatalog.voiceCore)
+    }
+
+    @Test
     fun conversationalModelIsRuntimeDownloadNotAcousticDependency() {
         assertTrue(NikoModelCatalog.localLlm.url.startsWith("https://"))
         assertTrue(NikoModelCatalog.localLlm.minBytes >= 400_000_000L)
