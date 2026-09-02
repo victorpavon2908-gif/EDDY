@@ -21,10 +21,18 @@ object WebQueryRouter {
         if (Regex("^no (?:quiero|necesito).*(?:busc|consult|investig)").containsMatchIn(text)) return false
         if (explicitQuery(input) != null) return true
         if (Regex("\\b(?:me siento|estoy (?:triste|cansado|cansada|feliz|frustrado|frustrada))\\b").containsMatchIn(text)) return false
+
+        val freshnessMarkers = listOf(
+            "\\b(?:hoy|actualmente|ahora mismo|a esta hora|esta semana|ultima hora|mas reciente|reciente|recientemente|en vivo)\\b",
+            "\\b(?:acaba de|acaban de|hace poco|hace unos minutos|hace unas horas|recien)\\b",
+            "\\b(?:ultimo|ultima|ultimos|ultimas)\\s+(?:terremoto|sismo|noticia|reporte|resultado|dato|actualizacion|movimiento)\\b",
+        )
+        if (freshnessMarkers.any { Regex(it).containsMatchIn(text) }) return true
+
         return listOf(
             "\\b(?:noticias|pronostico|clima|cotizacion|tipo de cambio)\\b",
             "\\b(?:precio|cuesta|cuanto vale|resultado|marcador|horario|presidente|gan[oó])\\b",
-            "\\b(?:hoy|actualmente|ahora mismo|esta semana|ultima hora|mas reciente|actuales)\\b",
+            "\\b(?:terremoto|sismo|huracan|tormenta|eleccion|elecciones)\\b.*\\b(?:reciente|hoy|ahora|acaba|hace poco)\\b",
         ).any { Regex(it).containsMatchIn(text) }
     }
 }
