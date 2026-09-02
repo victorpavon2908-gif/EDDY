@@ -17,6 +17,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import com.niko.assistant.background.NikoRuntimeState
 import com.niko.assistant.startup.LeoFirstRunSetup
 import com.niko.assistant.startup.LeoFirstRunState
 import com.niko.assistant.ui.LeoFirstRunScreen
+import com.niko.assistant.ui.LeoLiveTranscriptOverlay
 import com.niko.assistant.ui.NikoEmbeddedApp
 import com.niko.assistant.ui.NikoReferenceScreen
 import com.niko.assistant.ui.NikoUiMode
@@ -150,9 +152,7 @@ class MainActivity : ComponentActivity() {
         if (setupJob?.isActive == true) return
 
         setupJob = lifecycleScope.launch {
-            val result = firstRunSetup.prepare { progress ->
-                runOnUiThread { setupState.value = progress }
-            }
+            val result = firstRunSetup.prepare { progress -> runOnUiThread { setupState.value = progress } }
             if (result.ready && firstRunSetup.isReady()) {
                 setupState.value = LeoFirstRunState.ready(firstRunSetup.requiredModels().size)
                 NikoRuntimeState.setResponse(applicationContext, "Preparación inicial completa. LEO ya puede arrancar normalmente.")
@@ -161,17 +161,13 @@ class MainActivity : ComponentActivity() {
                     maybeRequestOverlayPermission()
                 }
             } else if (setupState.value.phase != LeoFirstRunState.Phase.FAILED) {
-                setupState.value = LeoFirstRunState.failed(
-                    firstRunSetup.requiredModels().size,
-                    result.message,
-                )
+                setupState.value = LeoFirstRunState.failed(firstRunSetup.requiredModels().size, result.message)
             }
         }
     }
 
     private fun retryInitialSetup() {
-        if (!hasMicrophonePermission()) requestAssistantPermissions()
-        else beginInitialSetupOrStart()
+        if (!hasMicrophonePermission()) requestAssistantPermissions() else beginInitialSetupOrStart()
     }
 
     private fun maybeRequestOverlayPermission() {
@@ -235,10 +231,7 @@ class MainActivity : ComponentActivity() {
     private fun NikoAppScreen() {
         val preparation = setupState.value
         if (preparation.phase != LeoFirstRunState.Phase.READY) {
-            LeoFirstRunScreen(
-                state = preparation,
-                onRetry = ::retryInitialSetup,
-            )
+            LeoFirstRunScreen(state = preparation, onRetry = ::retryInitialSetup)
             return
         }
 
@@ -253,7 +246,7 @@ class MainActivity : ComponentActivity() {
                 delay(120L)
             }
         }
-        Crossfade(targetState = uiMode, label = "niko-transform") { mode ->
+        Crossfade(targetState = uiMode, label = "leo-transform") { mode ->
             if (mode == NikoUiMode.ASSISTANT) {
                 val visualState = when (snapshot.state) {
                     NikoRuntimeState.State.IDLE -> NikoVisualState.IDLE
@@ -261,18 +254,21 @@ class MainActivity : ComponentActivity() {
                     NikoRuntimeState.State.THINKING -> NikoVisualState.THINKING
                     NikoRuntimeState.State.SPEAKING -> NikoVisualState.SPEAKING
                 }
-                NikoReferenceScreen(
-                    visualState = visualState,
-                    heardText = snapshot.heardText,
-                    responseText = snapshot.responseText,
-                    voiceReady = snapshot.voiceReady,
-                    autoListeningEnabled = enabled,
-                    inputStatus = snapshot.inputStatus,
-                    inputState = snapshot.inputState,
-                    webSearching = snapshot.webSearching,
-                    webUsed = snapshot.webUsed,
-                    webSources = snapshot.webSources,
-                )
+                Box {
+                    NikoReferenceScreen(
+                        visualState = visualState,
+                        heardText = snapshot.heardText,
+                        responseText = snapshot.responseText,
+                        voiceReady = snapshot.voiceReady,
+                        autoListeningEnabled = enabled,
+                        inputStatus = snapshot.inputStatus,
+                        inputState = snapshot.inputState,
+                        webSearching = snapshot.webSearching,
+                        webUsed = snapshot.webUsed,
+                        webSources = snapshot.webSources,
+                    )
+                    LeoLiveTranscriptOverlay(visualState)
+                }
             } else {
                 NikoEmbeddedApp(mode = mode, onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) })
             }
