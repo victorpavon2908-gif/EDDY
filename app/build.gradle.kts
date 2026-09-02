@@ -29,8 +29,8 @@ android {
         applicationId = "com.eddy.assistant"
         minSdk = 29
         targetSdk = 36
-        versionCode = 20
-        versionName = "0.9.0"
+        versionCode = 21
+        versionName = "0.9.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
