@@ -446,7 +446,7 @@ object LeoNativeWebSearch {
     private val DESCRIPTION_KEYS = setOf("description", "og:description", "twitter:description")
     private val BOILERPLATE = listOf(
         "aceptar cookies", "politica de privacidad", "suscribete", "inicia sesion", "todos los derechos reservados",
-        "javascript", "newsletter", "a traves de un recorrido", "exploraremos las diferencias", "cuando se usa",
+        "enable javascript", "habilita javascript", "activa javascript", "newsletter",
     )
     private val QUERY_FILLERS = setOf(
         "acerca", "tema", "tal", "cosa", "un", "una", "en", "al",

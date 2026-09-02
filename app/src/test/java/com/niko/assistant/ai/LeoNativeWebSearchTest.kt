@@ -185,4 +185,10 @@ class LeoNativeWebSearchTest {
         val garbage = LeoNativeWebSearch.Hit("Otra cosa", "https://example.com/", "Inicio de sesión en Microsoft Outlook para obtener información de correo.")
         assertEquals("", LeoNativeWebSearch.summarize("Rubén Darío", listOf(garbage), false))
     }
+
+    @Test fun technicalExplanationsAreNotMistakenForCookieOrScriptWarnings() {
+        val text = LeoNativeWebSearch.extractReadableText("<p>JavaScript permite crear aplicaciones interactivas cuando se usa en el navegador.</p>")
+        assertTrue(text.contains("JavaScript"))
+        assertTrue(LeoNativeWebSearch.extractReadableText("<p>Enable JavaScript to continue accessing this website and all of its content.</p>").isEmpty())
+    }
 }
