@@ -22,16 +22,25 @@ import kotlin.math.max
  * se pierde Internet, la siguiente apertura continúa en vez de empezar de cero.
  *
  * En aperturas posteriores [isReady] sólo valida archivos locales; no vuelve a descargar
- * nada mientras el paquete inicial siga íntegro.
+ * nada mientras el paquete inicial siga íntegro. Además se guarda una marca muy pequeña
+ * para que receptores/servicios de Android puedan saber, sin recorrer modelos grandes,
+ * si la preparación inicial ya fue liberada.
  */
 class LeoFirstRunSetup(context: Context) {
     private val appContext = context.applicationContext
     private val models = NikoModelManager(appContext)
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     val profile: NikoDeviceProfile = NikoDeviceProfile.detect(appContext)
 
     fun requiredModels(): List<NikoModelSpec> = NikoModelCatalog.firstRunModels(profile)
 
-    fun isReady(): Boolean = requiredModels().all(models::isInstalled)
+    fun isReady(): Boolean {
+        val ready = requiredModels().all(models::isInstalled)
+        if (prefs.getBoolean(READY_KEY, false) != ready) {
+            prefs.edit().putBoolean(READY_KEY, ready).apply()
+        }
+        return ready
+    }
 
     fun missingModels(): List<NikoModelSpec> = requiredModels().filterNot(models::isInstalled)
 
@@ -53,6 +62,7 @@ class LeoFirstRunSetup(context: Context) {
 
     suspend fun prepare(onProgress: (LeoFirstRunState) -> Unit = {}): LeoFirstRunResult =
         withContext(Dispatchers.IO) {
+            markReady(false)
             val required = requiredModels()
             onProgress(
                 LeoFirstRunState(
@@ -65,6 +75,7 @@ class LeoFirstRunSetup(context: Context) {
             )
 
             if (required.all(models::isInstalled)) {
+                markReady(true)
                 onProgress(LeoFirstRunState.ready(required.size))
                 return@withContext LeoFirstRunResult(true, "LEO está preparado.")
             }
@@ -130,6 +141,7 @@ class LeoFirstRunSetup(context: Context) {
             }
 
             val ready = required.all(models::isInstalled)
+            markReady(ready)
             val result = if (ready) {
                 LeoFirstRunResult(true, "Instalación inicial completa. LEO ya puede arrancar normalmente.")
             } else {
@@ -139,6 +151,10 @@ class LeoFirstRunSetup(context: Context) {
             else onProgress(LeoFirstRunState.failed(required.size, result.message))
             result
         }
+
+    private fun markReady(value: Boolean) {
+        prefs.edit().putBoolean(READY_KEY, value).apply()
+    }
 
     private fun NikoModelProgress.toFirstRunState(
         spec: NikoModelSpec,
@@ -171,9 +187,16 @@ class LeoFirstRunSetup(context: Context) {
     }
 
     companion object {
+        private const val PREFS = "leo_first_run_setup"
+        private const val READY_KEY = "bundle_ready_v1"
         private const val MODEL_INSTALL_PASSES = 2
         private const val RETRY_DELAY_MS = 1_250L
         private const val STORAGE_HEADROOM_BYTES = 256L * 1024L * 1024L
+
+        /** Lectura O(1) para impedir que un servicio de Android arranque antes de tiempo. */
+        fun isMarkedReady(context: Context): Boolean =
+            context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getBoolean(READY_KEY, false)
 
         fun labelFor(spec: NikoModelSpec): String = when (spec) {
             NikoModelCatalog.keyword -> "Activación por voz LEO"
