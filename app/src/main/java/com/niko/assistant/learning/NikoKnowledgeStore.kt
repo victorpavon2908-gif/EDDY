@@ -134,7 +134,7 @@ class NikoKnowledgeStore(context: Context) {
         val array = JSONArray()
         entries.takeLast(MAX_ENTRIES).forEach { entry ->
             val sources = JSONArray()
-            entry.sources.take(MAX_SOURCES).forEach(sources::put)
+            entry.sources.take(MAX_SOURCES).forEach { source -> sources.put(source) }
             array.put(
                 JSONObject()
                     .put("key", entry.key)
