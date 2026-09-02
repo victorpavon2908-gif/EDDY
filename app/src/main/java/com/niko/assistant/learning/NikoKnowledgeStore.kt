@@ -4,6 +4,7 @@ import android.content.Context
 import com.niko.assistant.ai.AutonomousResearch
 import com.niko.assistant.ai.NikoAiReply
 import com.niko.assistant.brain.WebQueryRouter
+import com.niko.assistant.compat.UpgradeIdentity
 import com.niko.assistant.memory.MemoryLearning
 import org.json.JSONArray
 import org.json.JSONObject
@@ -34,7 +35,9 @@ class NikoKnowledgeStore(context: Context) {
         val learnedAt: Long,
     )
 
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    // Share NIKO's primary memory preferences so "borrar memoria" clears documentary
+    // knowledge too instead of leaving a hidden second memory behind.
+    private val prefs = context.applicationContext.getSharedPreferences(UpgradeIdentity.memoryPreferences, Context.MODE_PRIVATE)
 
     @Synchronized
     fun learn(query: String, reply: NikoAiReply) {
@@ -146,8 +149,7 @@ class NikoKnowledgeStore(context: Context) {
     }
 
     companion object {
-        private const val PREFS = "niko_documental_knowledge_v1"
-        private const val KEY_ENTRIES = "entries"
+        private const val KEY_ENTRIES = "documental_knowledge_v1"
         private const val MAX_ENTRIES = 160
         private const val MAX_SOURCES = 6
         private const val MAX_ANSWER_CHARS = 4_000
