@@ -6,8 +6,9 @@ import java.util.Locale
 /**
  * Puerta de activación de LEO.
  *
- * LEO exige que el usuario lo llame antes de ejecutar o responder. Los alias internos
- * representan únicamente transcripciones habituales del mismo sonido "Leo".
+ * LEO exige que el usuario lo llame antes de ejecutar o responder. La capa acústica tolera
+ * variantes de pronunciación; una vez transcrito, esta puerta usa solamente el nombre "Leo"
+ * para no activar con palabras comunes como "lío" o "león".
  */
 class WakeWordGate(
     private val wakeWord: String = "leo",
@@ -16,16 +17,8 @@ class WakeWordGate(
 ) {
     private var armedUntil: Long = 0L
 
-    /**
-     * Variantes prudentes que los motores pueden producir al escuchar "Leo".
-     * No usamos "león" ni nombres más largos para evitar activaciones falsas.
-     */
     private val wakeForms: Set<String> by lazy {
-        setOf(
-            normalize(wakeWord),
-            "leo",
-            "lio",
-        )
+        setOf(normalize(wakeWord), "leo")
     }
 
     fun arm(
