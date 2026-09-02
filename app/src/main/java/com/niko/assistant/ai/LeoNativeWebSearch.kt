@@ -25,7 +25,7 @@ import org.xml.sax.InputSource
  * No manda el contenido a Groq, Gemini, OpenAI ni a otro modelo remoto.
  */
 object LeoNativeWebSearch {
-    private data class Hit(
+    internal data class Hit(
         val title: String,
         val url: String,
         val snippet: String,
@@ -45,16 +45,12 @@ object LeoNativeWebSearch {
         val current = WebQueryRouter.needsCurrentInformation(cleanQuery)
         val hits = linkedMapOf<String, Hit>()
 
-        // Bing RSS entrega URLs directas y texto sin necesitar token ni SDK.
         searchBing(cleanQuery).forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
 
-        // Para actualidad agregamos una segunda fuente de descubrimiento. No es una API
-        // autenticada: es el RSS público de Google News que también abre cualquier lector.
         if (current || hits.size < MIN_RESULTS) {
             searchGoogleNews(cleanQuery).forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
         }
 
-        // Tercer camino de respaldo para no quedar atados a un único buscador.
         if (hits.size < MIN_RESULTS) {
             searchDuckDuckGo(cleanQuery).forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
         }
@@ -143,7 +139,6 @@ object LeoNativeWebSearch {
         return runCatching {
             val factory = DocumentBuilderFactory.newInstance().apply {
                 isNamespaceAware = false
-                isXIncludeAware = false
                 isExpandEntityReferences = false
                 runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
                 runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
@@ -260,7 +255,7 @@ object LeoNativeWebSearch {
                 val tokens = meaningfulTokens(sentence)
                 if (tokens.isEmpty()) return@forEach
                 val overlap = tokens.count(queryTerms::contains)
-                val numbers = if (sentence.any(Char::isDigit)) 0.7 else 0.0
+                val numbers = if (sentence.any { it.isDigit() }) 0.7 else 0.0
                 val rankBoost = (MAX_RESULTS - hit.rank).coerceAtLeast(0) * 0.18
                 val publisherBoost = if (hit.publisher.isNotBlank()) 0.25 else 0.0
                 val score = overlap * 3.2 + numbers + rankBoost + publisherBoost + minOf(tokens.size, 35) * 0.025
@@ -280,10 +275,10 @@ object LeoNativeWebSearch {
             }
         }
 
-        // Para noticias intentamos que al menos dos medios aparezcan si existen.
         if (current && hits.size >= 2 && selected.map { it.sourceIndex }.distinct().size < 2) {
+            val firstSource = selected.firstOrNull()?.sourceIndex
             val second = candidates
-                .filter { it.sourceIndex != selected.firstOrNull()?.sourceIndex }
+                .filter { firstSource == null || it.sourceIndex != firstSource }
                 .maxByOrNull { it.score }
             if (second != null && selected.none { similar(it.text, second.text) }) selected += second
         }
@@ -397,7 +392,7 @@ object LeoNativeWebSearch {
         .trim()
 
     private fun hitKey(hit: Hit): String = "${hostOf(hit.url)}|${normalize(hit.title).take(100)}"
-    private fun publisherKey(hit: Hit): String = normalize(hit.publisher).takeIf(String::isNotBlank) ?: hostOf(hit.url)
+    private fun publisherKey(hit: Hit): String = normalize(hit.publisher).takeIf { it.isNotBlank() } ?: hostOf(hit.url)
     private fun hostOf(url: String): String = runCatching { URI(url).host?.removePrefix("www.").orEmpty() }.getOrDefault("")
 
     private val DDG_RESULT = Regex(
