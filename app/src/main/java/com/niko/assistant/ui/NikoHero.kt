@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -22,83 +21,87 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * NIKO is drawn natively so the mascot is truly reactive instead of being a static image.
- * The four runtime states drive its face, floating motion, listening rings, thinking orbit
- * and speaking mouth/wave. No GIF/video is kept alive in the background.
+ * Premium native companion for NIKO.
+ *
+ * Motion language is intentionally state-driven: breathing at rest, expanding acoustic
+ * rings while listening, orbiting cognition dots while thinking and a live equalizer while
+ * speaking. The approach was adapted to NIKO after studying open-source Compose assistant
+ * motion patterns; the character geometry and state rendering are NIKO-specific.
  */
 @Composable
 internal fun NikoHero(
     state: NikoVisualState,
     modifier: Modifier = Modifier,
 ) {
-    val transition = rememberInfiniteTransition(label = "nikoMascot")
-    val bob by transition.animateFloat(
-        initialValue = -5f,
-        targetValue = 7f,
-        animationSpec = infiniteRepeatable(
-            tween(
-                durationMillis = when (state) {
-                    NikoVisualState.LISTENING -> 720
-                    NikoVisualState.THINKING -> 1_050
-                    NikoVisualState.SPEAKING -> 560
-                    NikoVisualState.IDLE -> 1_900
-                },
-            ),
-            RepeatMode.Reverse,
-        ),
-        label = "bob",
-    )
-    val breathe by transition.animateFloat(
-        initialValue = 0.985f,
-        targetValue = 1.025f,
-        animationSpec = infiniteRepeatable(
-            tween(
-                durationMillis = when (state) {
-                    NikoVisualState.LISTENING -> 520
-                    NikoVisualState.THINKING -> 760
-                    NikoVisualState.SPEAKING -> 360
-                    NikoVisualState.IDLE -> 1_600
-                },
-            ),
-            RepeatMode.Reverse,
-        ),
-        label = "breathe",
-    )
+    val transition = rememberInfiniteTransition(label = "nikoPremiumCompanion")
     val phase by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            tween(
+            animation = tween(
                 durationMillis = when (state) {
-                    NikoVisualState.LISTENING -> 900
-                    NikoVisualState.THINKING -> 1_200
-                    NikoVisualState.SPEAKING -> 520
                     NikoVisualState.IDLE -> 2_600
+                    NikoVisualState.LISTENING -> 1_100
+                    NikoVisualState.THINKING -> 1_350
+                    NikoVisualState.SPEAKING -> 620
                 },
             ),
-            RepeatMode.Restart,
+            repeatMode = RepeatMode.Restart,
         ),
         label = "phase",
     )
+    val breathe by transition.animateFloat(
+        initialValue = 0.985f,
+        targetValue = 1.018f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = when (state) {
+                    NikoVisualState.IDLE -> 1_850
+                    NikoVisualState.LISTENING -> 780
+                    NikoVisualState.THINKING -> 1_050
+                    NikoVisualState.SPEAKING -> 520
+                },
+            ),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "breathe",
+    )
+    val floatY by transition.animateFloat(
+        initialValue = -4f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(if (state == NikoVisualState.IDLE) 1_900 else 1_250),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "floatY",
+    )
+
+    val accent = when (state) {
+        NikoVisualState.IDLE -> Color(0xFF62CFEA)
+        NikoVisualState.LISTENING -> Color(0xFF37D6F5)
+        NikoVisualState.THINKING -> Color(0xFF8B73FF)
+        NikoVisualState.SPEAKING -> Color(0xFF4CD8F2)
+    }
+    val violet = Color(0xFF8C6CF4)
 
     Box(
         modifier = modifier.graphicsLayer {
-            translationY = bob
-            rotationZ = when (state) {
-                NikoVisualState.SPEAKING -> sin(phase * PI * 2).toFloat() * 1.3f
-                NikoVisualState.LISTENING -> sin(phase * PI * 2).toFloat() * 0.7f
-                else -> sin(phase * PI * 2).toFloat() * 0.35f
-            }
+            translationY = floatY
             scaleX = breathe
             scaleY = breathe
+            rotationZ = when (state) {
+                NikoVisualState.SPEAKING -> sin(phase * PI * 2).toFloat() * 0.8f
+                NikoVisualState.LISTENING -> sin(phase * PI * 2).toFloat() * 0.35f
+                else -> 0f
+            }
         },
         contentAlignment = Alignment.Center,
     ) {
@@ -106,230 +109,258 @@ internal fun NikoHero(
             val unit = min(size.width, size.height)
             val cx = size.width / 2f
             val cy = size.height / 2f
-            val cyan = Color(0xFF6DEBFF)
-            val cyanDeep = Color(0xFF2EC9F2)
-            val violet = Color(0xFF8C72FF)
-            val shell = Color(0xFF101517)
-            val shellSoft = Color(0xFF1B2225)
-            val face = Color(0xFF050708)
+            val shellDark = Color(0xFF090D10)
+            val shell = Color(0xFF121A1E)
+            val shellLight = Color(0xFF263238)
+            val face = Color(0xFF020507)
+            val cyanSoft = Color(0xFF91F2FF)
 
-            // State aura.
+            // Ambient field: inspired by modern hands-free assistant orbs, but tailored to NIKO.
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(accent.copy(alpha = 0.16f), accent.copy(alpha = 0.045f), Color.Transparent),
+                    center = Offset(cx, cy * 0.88f),
+                    radius = unit * 0.52f,
+                ),
+                radius = unit * 0.52f,
+                center = Offset(cx, cy * 0.88f),
+            )
+
             when (state) {
                 NikoVisualState.LISTENING -> {
                     repeat(3) { index ->
-                        val progress = (phase + index / 3f) % 1f
+                        val p = (phase + index / 3f) % 1f
                         drawCircle(
-                            color = cyan.copy(alpha = (1f - progress) * 0.20f),
-                            radius = unit * (0.30f + progress * 0.18f),
-                            center = Offset(cx, cy * 0.72f),
-                            style = Stroke(width = unit * 0.008f),
+                            color = accent.copy(alpha = (1f - p) * 0.23f),
+                            radius = unit * (0.31f + p * 0.16f),
+                            center = Offset(cx, cy * 0.84f),
+                            style = Stroke(width = unit * 0.0065f),
                         )
                     }
                 }
                 NikoVisualState.THINKING -> {
+                    drawCircle(
+                        color = violet.copy(alpha = 0.10f + 0.06f * abs(sin(phase * PI * 2).toFloat())),
+                        radius = unit * 0.43f,
+                        center = Offset(cx, cy * 0.83f),
+                        style = Stroke(width = unit * 0.008f),
+                    )
                     repeat(4) { index ->
-                        val angle = phase * 360f + index * 90f
-                        val radians = Math.toRadians(angle.toDouble())
-                        val radius = unit * 0.42f
+                        val angle = phase * PI * 2 + index * PI / 2
+                        val orbitX = cx + cos(angle).toFloat() * unit * 0.40f
+                        val orbitY = cy * 0.83f + sin(angle).toFloat() * unit * 0.25f
                         drawCircle(
-                            color = if (index % 2 == 0) violet else cyan,
-                            radius = unit * (0.012f + index * 0.002f),
-                            center = Offset(
-                                cx + cos(radians).toFloat() * radius,
-                                cy * 0.82f + sin(radians).toFloat() * radius * 0.56f,
-                            ),
+                            color = if (index % 2 == 0) violet else accent,
+                            radius = unit * (0.010f + index * 0.0015f),
+                            center = Offset(orbitX, orbitY),
                         )
                     }
                 }
                 NikoVisualState.SPEAKING -> {
-                    val baseX = cx + unit * 0.38f
-                    repeat(5) { index ->
-                        val wave = 0.035f + 0.055f * kotlin.math.abs(sin((phase * PI * 2 + index).toDouble())).toFloat()
-                        drawRoundRect(
-                            color = cyan.copy(alpha = 0.82f),
-                            topLeft = Offset(baseX + index * unit * 0.035f, cy - unit * wave / 2f),
-                            size = Size(unit * 0.014f, unit * wave),
-                            cornerRadius = CornerRadius(unit * 0.007f),
-                        )
+                    repeat(6) { index ->
+                        val amp = 0.025f + abs(sin((phase * PI * 4 + index * 0.8).toDouble())).toFloat() * 0.065f
+                        val barHeight = unit * amp
+                        val leftX = cx - unit * (0.43f + index * 0.025f)
+                        val rightX = cx + unit * (0.43f + index * 0.025f)
+                        listOf(leftX, rightX).forEach { x ->
+                            drawRoundRect(
+                                color = accent.copy(alpha = 0.75f - index * 0.07f),
+                                topLeft = Offset(x - unit * 0.006f, cy * 0.84f - barHeight / 2f),
+                                size = Size(unit * 0.012f, barHeight),
+                                cornerRadius = CornerRadius(unit * 0.006f),
+                            )
+                        }
                     }
                 }
-                NikoVisualState.IDLE -> {
-                    drawCircle(
-                        brush = Brush.radialGradient(listOf(cyan.copy(alpha = 0.09f), Color.Transparent)),
-                        radius = unit * 0.43f,
-                        center = Offset(cx, cy * 0.86f),
-                    )
-                }
+                NikoVisualState.IDLE -> Unit
             }
 
-            // Hover shadow.
+            // Floating shadow.
             drawOval(
-                brush = Brush.radialGradient(listOf(cyan.copy(alpha = 0.32f), Color.Transparent)),
-                topLeft = Offset(cx - unit * 0.24f, cy + unit * 0.41f),
-                size = Size(unit * 0.48f, unit * 0.075f),
+                brush = Brush.radialGradient(listOf(accent.copy(alpha = 0.25f), Color.Transparent)),
+                topLeft = Offset(cx - unit * 0.20f, cy + unit * 0.36f),
+                size = Size(unit * 0.40f, unit * 0.07f),
             )
 
-            // Antenna.
+            // Compact torso first so it remains behind the head.
+            drawRoundRect(
+                brush = Brush.verticalGradient(listOf(shellLight, shell, shellDark)),
+                topLeft = Offset(cx - unit * 0.115f, cy + unit * 0.17f),
+                size = Size(unit * 0.23f, unit * 0.25f),
+                cornerRadius = CornerRadius(unit * 0.105f),
+            )
+            drawOval(
+                color = shellDark,
+                topLeft = Offset(cx - unit * 0.075f, cy + unit * 0.34f),
+                size = Size(unit * 0.15f, unit * 0.11f),
+            )
+
+            // Small expressive arms. They never overpower the face.
+            val armWave = sin(phase * PI * 2).toFloat()
+            val leftAngle = when (state) {
+                NikoVisualState.SPEAKING -> -28f + armWave * 11f
+                NikoVisualState.LISTENING -> -20f
+                NikoVisualState.THINKING -> -4f
+                NikoVisualState.IDLE -> -10f
+            }
+            val rightAngle = when (state) {
+                NikoVisualState.SPEAKING -> 16f
+                NikoVisualState.LISTENING -> 20f
+                NikoVisualState.THINKING -> -15f
+                NikoVisualState.IDLE -> 10f
+            }
+            rotate(leftAngle, pivot = Offset(cx - unit * 0.09f, cy + unit * 0.22f)) {
+                drawLine(
+                    color = shellLight,
+                    start = Offset(cx - unit * 0.09f, cy + unit * 0.22f),
+                    end = Offset(cx - unit * 0.24f, cy + unit * 0.25f),
+                    strokeWidth = unit * 0.052f,
+                    cap = StrokeCap.Round,
+                )
+                drawCircle(shellDark, unit * 0.032f, Offset(cx - unit * 0.25f, cy + unit * 0.25f))
+            }
+            rotate(rightAngle, pivot = Offset(cx + unit * 0.09f, cy + unit * 0.22f)) {
+                drawLine(
+                    color = shellLight,
+                    start = Offset(cx + unit * 0.09f, cy + unit * 0.22f),
+                    end = Offset(cx + unit * 0.24f, cy + unit * 0.25f),
+                    strokeWidth = unit * 0.052f,
+                    cap = StrokeCap.Round,
+                )
+                drawCircle(shellDark, unit * 0.032f, Offset(cx + unit * 0.25f, cy + unit * 0.25f))
+            }
+
+            // Antenna and state light.
             drawLine(
-                color = shell,
-                start = Offset(cx + unit * 0.05f, cy - unit * 0.37f),
-                end = Offset(cx + unit * 0.075f, cy - unit * 0.49f),
-                strokeWidth = unit * 0.022f,
+                color = shellLight,
+                start = Offset(cx + unit * 0.045f, cy - unit * 0.28f),
+                end = Offset(cx + unit * 0.065f, cy - unit * 0.385f),
+                strokeWidth = unit * 0.014f,
                 cap = StrokeCap.Round,
             )
             drawCircle(
-                brush = Brush.radialGradient(listOf(Color.White, cyan, cyanDeep)),
-                radius = unit * 0.045f,
-                center = Offset(cx + unit * 0.08f, cy - unit * 0.51f),
+                brush = Brush.radialGradient(listOf(Color.White, accent, accent.copy(alpha = 0.35f))),
+                radius = unit * 0.035f,
+                center = Offset(cx + unit * 0.068f, cy - unit * 0.405f),
             )
 
-            // Body first, so arms tuck behind the head.
+            // Head shell with a subtle rim; narrower and less toy-like than the previous version.
             drawRoundRect(
-                brush = Brush.linearGradient(listOf(shellSoft, shell, Color(0xFF070A0B))),
-                topLeft = Offset(cx - unit * 0.16f, cy + unit * 0.18f),
-                size = Size(unit * 0.32f, unit * 0.30f),
-                cornerRadius = CornerRadius(unit * 0.15f),
+                color = accent.copy(alpha = 0.09f),
+                topLeft = Offset(cx - unit * 0.315f, cy - unit * 0.265f),
+                size = Size(unit * 0.63f, unit * 0.42f),
+                cornerRadius = CornerRadius(unit * 0.17f),
             )
-            drawOval(
-                brush = Brush.linearGradient(listOf(shell, Color(0xFF090C0D))),
-                topLeft = Offset(cx - unit * 0.11f, cy + unit * 0.37f),
-                size = Size(unit * 0.22f, unit * 0.18f),
-            )
-
-            // Arms. Speaking waves one hand, listening opens both arms slightly.
-            val leftAngle = when (state) {
-                NikoVisualState.SPEAKING -> -34f + sin(phase * PI * 2).toFloat() * 12f
-                NikoVisualState.LISTENING -> -26f
-                NikoVisualState.THINKING -> -5f
-                NikoVisualState.IDLE -> -12f
-            }
-            val rightAngle = when (state) {
-                NikoVisualState.LISTENING -> 24f
-                NikoVisualState.THINKING -> -18f
-                NikoVisualState.SPEAKING -> 14f
-                NikoVisualState.IDLE -> 9f
-            }
-            rotate(leftAngle, pivot = Offset(cx - unit * 0.13f, cy + unit * 0.24f)) {
-                drawLine(
-                    color = shellSoft,
-                    start = Offset(cx - unit * 0.13f, cy + unit * 0.24f),
-                    end = Offset(cx - unit * 0.34f, cy + unit * 0.25f),
-                    strokeWidth = unit * 0.075f,
-                    cap = StrokeCap.Round,
-                )
-                drawCircle(shell, unit * 0.047f, Offset(cx - unit * 0.36f, cy + unit * 0.25f))
-            }
-            rotate(rightAngle, pivot = Offset(cx + unit * 0.13f, cy + unit * 0.24f)) {
-                drawLine(
-                    color = shellSoft,
-                    start = Offset(cx + unit * 0.13f, cy + unit * 0.24f),
-                    end = Offset(cx + unit * 0.34f, cy + unit * 0.25f),
-                    strokeWidth = unit * 0.075f,
-                    cap = StrokeCap.Round,
-                )
-                drawCircle(shell, unit * 0.047f, Offset(cx + unit * 0.36f, cy + unit * 0.25f))
-            }
-
-            // Head shell.
             drawRoundRect(
                 brush = Brush.linearGradient(
-                    listOf(Color(0xFF2A3032), shell, Color(0xFF080B0C)),
-                    start = Offset(cx - unit * 0.34f, cy - unit * 0.34f),
-                    end = Offset(cx + unit * 0.30f, cy + unit * 0.17f),
+                    listOf(Color(0xFF344148), shell, shellDark),
+                    start = Offset(cx - unit * 0.31f, cy - unit * 0.25f),
+                    end = Offset(cx + unit * 0.29f, cy + unit * 0.15f),
                 ),
-                topLeft = Offset(cx - unit * 0.34f, cy - unit * 0.32f),
-                size = Size(unit * 0.68f, unit * 0.50f),
-                cornerRadius = CornerRadius(unit * 0.20f),
+                topLeft = Offset(cx - unit * 0.30f, cy - unit * 0.25f),
+                size = Size(unit * 0.60f, unit * 0.39f),
+                cornerRadius = CornerRadius(unit * 0.16f),
             )
 
-            // Ear pods.
+            // Ear pods glow more intensely only while NIKO is actively listening.
             listOf(-1f, 1f).forEach { side ->
-                val earX = cx + side * unit * 0.335f
-                drawCircle(shellSoft, unit * 0.087f, Offset(earX, cy - unit * 0.06f))
-                drawCircle(cyan.copy(alpha = 0.22f), unit * 0.066f, Offset(earX, cy - unit * 0.06f))
+                val earX = cx + side * unit * 0.302f
+                val earY = cy - unit * 0.055f
+                drawCircle(shellLight, unit * 0.069f, Offset(earX, earY))
+                drawCircle(accent.copy(alpha = 0.17f), unit * 0.052f, Offset(earX, earY))
                 drawCircle(
-                    cyan.copy(alpha = if (state == NikoVisualState.LISTENING) 0.95f else 0.70f),
-                    unit * 0.054f,
-                    Offset(earX, cy - unit * 0.06f),
-                    style = Stroke(width = unit * 0.012f),
+                    color = accent.copy(alpha = if (state == NikoVisualState.LISTENING) 0.95f else 0.68f),
+                    radius = unit * 0.043f,
+                    center = Offset(earX, earY),
+                    style = Stroke(width = unit * 0.009f),
                 )
             }
 
             // Face glass.
             drawRoundRect(
-                brush = Brush.linearGradient(listOf(Color(0xFF020405), face, Color(0xFF0C1112))),
-                topLeft = Offset(cx - unit * 0.275f, cy - unit * 0.255f),
-                size = Size(unit * 0.55f, unit * 0.34f),
-                cornerRadius = CornerRadius(unit * 0.14f),
+                brush = Brush.linearGradient(
+                    listOf(Color(0xFF010304), face, Color(0xFF0C1418)),
+                    start = Offset(cx - unit * 0.24f, cy - unit * 0.20f),
+                    end = Offset(cx + unit * 0.24f, cy + unit * 0.08f),
+                ),
+                topLeft = Offset(cx - unit * 0.245f, cy - unit * 0.195f),
+                size = Size(unit * 0.49f, unit * 0.265f),
+                cornerRadius = CornerRadius(unit * 0.115f),
             )
             drawRoundRect(
                 color = Color.White.copy(alpha = 0.035f),
-                topLeft = Offset(cx - unit * 0.22f, cy - unit * 0.235f),
-                size = Size(unit * 0.35f, unit * 0.028f),
-                cornerRadius = CornerRadius(unit * 0.014f),
+                topLeft = Offset(cx - unit * 0.19f, cy - unit * 0.174f),
+                size = Size(unit * 0.29f, unit * 0.018f),
+                cornerRadius = CornerRadius(unit * 0.009f),
             )
 
-            // Eyes.
-            val eyeY = cy - unit * 0.115f
-            val eyeOffset = unit * 0.11f
-            when (state) {
-                NikoVisualState.THINKING -> {
-                    drawCircle(cyan, unit * 0.022f, Offset(cx - eyeOffset, eyeY))
-                    drawCircle(cyan, unit * 0.022f, Offset(cx + eyeOffset, eyeY + unit * 0.012f))
-                    drawLine(cyan, Offset(cx - eyeOffset - unit * 0.032f, eyeY - unit * 0.035f), Offset(cx - eyeOffset + unit * 0.024f, eyeY - unit * 0.046f), unit * 0.012f, StrokeCap.Round)
-                    drawLine(cyan, Offset(cx + eyeOffset - unit * 0.024f, eyeY - unit * 0.045f), Offset(cx + eyeOffset + unit * 0.032f, eyeY - unit * 0.032f), unit * 0.012f, StrokeCap.Round)
+            val eyeY = cy - unit * 0.082f
+            val eyeDx = unit * 0.088f
+            val eyeColor = cyanSoft
+            val blink = state == NikoVisualState.IDLE && phase > 0.88f
+
+            fun drawHappyEye(centerX: Float) {
+                val eyePath = Path().apply {
+                    moveTo(centerX - unit * 0.036f, eyeY + unit * 0.012f)
+                    quadraticBezierTo(centerX, eyeY - unit * 0.032f, centerX + unit * 0.036f, eyeY + unit * 0.012f)
                 }
-                NikoVisualState.IDLE -> {
-                    drawLine(cyan.copy(alpha = 0.82f), Offset(cx - eyeOffset - unit * 0.042f, eyeY), Offset(cx - eyeOffset + unit * 0.042f, eyeY), unit * 0.018f, StrokeCap.Round)
-                    drawLine(cyan.copy(alpha = 0.82f), Offset(cx + eyeOffset - unit * 0.042f, eyeY), Offset(cx + eyeOffset + unit * 0.042f, eyeY), unit * 0.018f, StrokeCap.Round)
+                drawPath(eyePath, eyeColor, style = Stroke(width = unit * 0.014f, cap = StrokeCap.Round))
+            }
+
+            when {
+                blink -> {
+                    drawLine(eyeColor, Offset(cx - eyeDx - unit * 0.03f, eyeY), Offset(cx - eyeDx + unit * 0.03f, eyeY), unit * 0.012f, StrokeCap.Round)
+                    drawLine(eyeColor, Offset(cx + eyeDx - unit * 0.03f, eyeY), Offset(cx + eyeDx + unit * 0.03f, eyeY), unit * 0.012f, StrokeCap.Round)
+                }
+                state == NikoVisualState.THINKING -> {
+                    drawCircle(eyeColor, unit * 0.016f, Offset(cx - eyeDx, eyeY))
+                    drawCircle(eyeColor, unit * 0.016f, Offset(cx + eyeDx, eyeY + unit * 0.008f))
+                    drawLine(eyeColor, Offset(cx - eyeDx - unit * 0.025f, eyeY - unit * 0.026f), Offset(cx - eyeDx + unit * 0.018f, eyeY - unit * 0.034f), unit * 0.009f, StrokeCap.Round)
+                }
+                state == NikoVisualState.IDLE -> {
+                    drawCircle(eyeColor.copy(alpha = 0.82f), unit * 0.015f, Offset(cx - eyeDx, eyeY))
+                    drawCircle(eyeColor.copy(alpha = 0.82f), unit * 0.015f, Offset(cx + eyeDx, eyeY))
                 }
                 else -> {
-                    fun happyEye(centerX: Float) {
-                        val p = Path().apply {
-                            moveTo(centerX - unit * 0.047f, eyeY + unit * 0.018f)
-                            quadraticBezierTo(centerX, eyeY - unit * 0.045f, centerX + unit * 0.047f, eyeY + unit * 0.018f)
-                        }
-                        drawPath(p, cyan, style = Stroke(width = unit * 0.021f, cap = StrokeCap.Round))
-                    }
-                    happyEye(cx - eyeOffset)
-                    happyEye(cx + eyeOffset)
+                    drawHappyEye(cx - eyeDx)
+                    drawHappyEye(cx + eyeDx)
                 }
             }
 
-            // Mouth reacts to speech amplitude.
-            val mouthCenter = Offset(cx, cy - unit * 0.005f)
+            // Mouth: tiny smile while listening, quiet line at rest, animated equalizer when speaking.
+            val mouthY = cy + unit * 0.005f
             when (state) {
                 NikoVisualState.SPEAKING -> {
-                    val open = unit * (0.035f + 0.032f * kotlin.math.abs(sin(phase * PI * 4).toFloat()))
-                    drawOval(
-                        brush = Brush.verticalGradient(listOf(cyan, cyanDeep)),
-                        topLeft = Offset(mouthCenter.x - unit * 0.045f, mouthCenter.y - open / 2f),
-                        size = Size(unit * 0.09f, open),
-                    )
+                    repeat(3) { index ->
+                        val h = unit * (0.018f + abs(sin((phase * PI * 4 + index).toDouble())).toFloat() * 0.028f)
+                        val x = cx + (index - 1) * unit * 0.026f
+                        drawRoundRect(
+                            color = eyeColor,
+                            topLeft = Offset(x - unit * 0.006f, mouthY - h / 2f),
+                            size = Size(unit * 0.012f, h),
+                            cornerRadius = CornerRadius(unit * 0.006f),
+                        )
+                    }
                 }
-                NikoVisualState.THINKING -> drawCircle(cyan.copy(alpha = 0.85f), unit * 0.013f, mouthCenter)
-                NikoVisualState.IDLE -> drawLine(cyan.copy(alpha = 0.75f), Offset(cx - unit * 0.032f, mouthCenter.y), Offset(cx + unit * 0.032f, mouthCenter.y), unit * 0.012f, StrokeCap.Round)
                 NikoVisualState.LISTENING -> {
                     val smile = Path().apply {
-                        moveTo(cx - unit * 0.044f, mouthCenter.y - unit * 0.006f)
-                        quadraticBezierTo(cx, mouthCenter.y + unit * 0.046f, cx + unit * 0.044f, mouthCenter.y - unit * 0.006f)
+                        moveTo(cx - unit * 0.032f, mouthY - unit * 0.004f)
+                        quadraticBezierTo(cx, mouthY + unit * 0.025f, cx + unit * 0.032f, mouthY - unit * 0.004f)
                     }
-                    drawPath(smile, cyan, style = Stroke(width = unit * 0.016f, cap = StrokeCap.Round))
+                    drawPath(smile, eyeColor, style = Stroke(width = unit * 0.010f, cap = StrokeCap.Round))
                 }
+                NikoVisualState.THINKING -> drawCircle(eyeColor.copy(alpha = 0.9f), unit * 0.008f, Offset(cx, mouthY))
+                NikoVisualState.IDLE -> drawLine(eyeColor.copy(alpha = 0.64f), Offset(cx - unit * 0.022f, mouthY), Offset(cx + unit * 0.022f, mouthY), unit * 0.008f, StrokeCap.Round)
             }
 
-            // Glowing chest N.
-            drawRoundRect(
-                color = cyan.copy(alpha = 0.10f),
-                topLeft = Offset(cx - unit * 0.065f, cy + unit * 0.245f),
-                size = Size(unit * 0.13f, unit * 0.12f),
-                cornerRadius = CornerRadius(unit * 0.04f),
-            )
-            withTransform({ translate(left = cx - unit * 0.04f, top = cy + unit * 0.268f) }) {
-                drawLine(cyan, Offset(0f, 0f), Offset(0f, unit * 0.07f), unit * 0.014f, StrokeCap.Round)
-                drawLine(cyan, Offset(0f, 0f), Offset(unit * 0.08f, unit * 0.07f), unit * 0.014f, StrokeCap.Round)
-                drawLine(cyan, Offset(unit * 0.08f, 0f), Offset(unit * 0.08f, unit * 0.07f), unit * 0.014f, StrokeCap.Round)
-            }
+            // Chest mark: simple N drawn as strokes, keeping the interface independent from image assets.
+            val logoYTop = cy + unit * 0.245f
+            val logoYBottom = cy + unit * 0.315f
+            val logoLeft = cx - unit * 0.035f
+            val logoRight = cx + unit * 0.035f
+            drawLine(accent, Offset(logoLeft, logoYBottom), Offset(logoLeft, logoYTop), unit * 0.010f, StrokeCap.Round)
+            drawLine(accent, Offset(logoLeft, logoYTop), Offset(logoRight, logoYBottom), unit * 0.010f, StrokeCap.Round)
+            drawLine(accent, Offset(logoRight, logoYBottom), Offset(logoRight, logoYTop), unit * 0.010f, StrokeCap.Round)
         }
     }
 }
