@@ -40,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.niko.assistant.ai.NikoPersonality
-import com.niko.assistant.background.NikoAssistantService
 import com.niko.assistant.background.NikoRuntimeState
 import com.niko.assistant.background.NikoVoiceSettings
 import com.niko.assistant.localai.NikoDeviceProfile
@@ -138,7 +137,8 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 modelStatus = if (ready) {
                     when {
                         spec == NikoModelCatalog.spanishVoice -> "Voz preparada. Se usará al volver a iniciar la escucha desde Ajustes."
-                        spec in NikoModelCatalog.conversationModels -> "Cerebro local preparado. NIKO ya puede conversar sin Internet."
+                        spec == NikoModelCatalog.whisperAsr -> "Whisper preparado. Reiniciá la escucha: NIKO lo usará como segunda pasada solo cuando Canary detecte una transcripción dudosa."
+                        spec in NikoModelCatalog.conversationModels -> "Cerebro local preparado. NIKO ya puede conversar e interpretar órdenes libres sin Internet."
                         else -> "Preparado para usar sin Internet."
                     }
                 } else "No se pudo preparar. Comprobá conexión y espacio disponible."
@@ -158,6 +158,9 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             }
             Text("Decí NIKO para empezar. Después de responder, NIKO mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
             Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
+            Text("RECONOCIMIENTO AVANZADO", style = MaterialTheme.typography.headlineSmall)
+            Text("Canary transcribe primero para responder rápido. Whisper multilingual INT8 puede hacer una segunda pasada local cuando la primera transcripción sale dudosa.", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { prepareModel(NikoModelCatalog.whisperAsr) }, enabled = !preparing) { Text("PREPARAR WHISPER LOCAL") }
             Text("NIKO · PERSONALIDAD Y APRENDIZAJE", style = MaterialTheme.typography.headlineSmall)
             Text("Elegí cómo te responde. Los cambios se guardan al instante.")
             NikoPersonality.entries.forEach { option ->
