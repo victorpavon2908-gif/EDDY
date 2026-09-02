@@ -56,7 +56,7 @@ class LeoNativeWebSearchTest {
             LeoNativeWebSearch.Hit(
                 title = "Fuente B",
                 url = "https://b.example/reporte",
-                snippet = "El sismo fue sentido en varias zonas del país y los organismos publicaron una actualización reciente.",
+                snippet = "El terremoto fue sentido en varias zonas de Venezuela y los organismos publicaron una actualización reciente.",
                 publisher = "Fuente B",
                 rank = 1,
             ),
@@ -71,5 +71,29 @@ class LeoNativeWebSearchTest {
         assertTrue(summary.startsWith("Busqué información reciente en Internet."))
         assertTrue(summary.contains("magnitud 6.0"))
         assertTrue(summary.contains("dos fuentes"))
+    }
+
+    @Test fun conversationalBitcoinQuestionBecomesCleanSubject() {
+        assertEquals("bitcoin", LeoNativeWebSearch.subjectQuery("¿Qué ha pasado hoy con el Bitcoin?"))
+        assertEquals("bitcoin", LeoNativeWebSearch.subjectQuery("Leo, hablame de las últimas noticias del Bitcoin"))
+    }
+
+    @Test fun bitcoinSearchRejectsGrammarGarbageAndKeepsMarketNews() {
+        val garbage = LeoNativeWebSearch.Hit(
+            title = "Cuándo se usa ha, a o ah en español y por qué",
+            url = "https://grammar.example/ha-a-ah",
+            snippet = "A través de un recorrido detallado, exploraremos las diferencias entre ha, a y ah.",
+            publisher = "Gramática",
+        )
+        val relevant = LeoNativeWebSearch.Hit(
+            title = "Bitcoin cae tras nuevas ventas del mercado",
+            url = "https://finance.example/bitcoin-hoy",
+            snippet = "Bitcoin y BTC retrocedieron hoy mientras los operadores evaluaban nuevas señales del mercado cripto.",
+            publisher = "Mercados",
+            published = "Wed, 02 Sep 2026 20:00:00 GMT",
+        )
+
+        assertFalse(LeoNativeWebSearch.isRelevantTo("Qué ha pasado hoy con el Bitcoin", garbage))
+        assertTrue(LeoNativeWebSearch.isRelevantTo("Qué ha pasado hoy con el Bitcoin", relevant))
     }
 }
