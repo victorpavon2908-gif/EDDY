@@ -25,9 +25,27 @@ class WakeWordGateTest {
     @Test
     fun commonSpeechAliasesActivate() {
         val gate = WakeWordGate()
-        assertEquals(WakeResult.Activated, gate.consume("Nico", nowMs = 1_000L))
-        gate.disarm()
-        assertEquals(WakeResult.Activated, gate.consume("Niko", nowMs = 2_000L))
+        for ((index, alias) in listOf("Nico", "Niko", "Nikko", "Nin").withIndex()) {
+            gate.disarm()
+            assertEquals(
+                "No activó con $alias",
+                WakeResult.Activated,
+                gate.consume(alias, nowMs = 1_000L + index),
+            )
+        }
+    }
+
+    @Test
+    fun aliasesCanPrefixCommands() {
+        val gate = WakeWordGate()
+        assertEquals(
+            WakeResult.Command("abre YouTube"),
+            gate.consume("Nin, abre YouTube", nowMs = 1_000L),
+        )
+        assertEquals(
+            WakeResult.Command("prende la linterna"),
+            gate.consume("Hey Nico prende la linterna", nowMs = 2_000L),
+        )
     }
 
     @Test
@@ -60,10 +78,9 @@ class WakeWordGateTest {
     @Test
     fun similarNamesDoNotActivateNiko() {
         val gate = WakeWordGate()
-        assertEquals(
-            WakeResult.Ignored,
-            gate.consume("Nicolás abre YouTube", nowMs = 1_000L),
-        )
+        for (phrase in listOf("Nicolás abre YouTube", "Nicole abre YouTube", "único abre YouTube")) {
+            assertEquals(WakeResult.Ignored, gate.consume(phrase, nowMs = 1_000L))
+        }
     }
 
     @Test
@@ -71,8 +88,10 @@ class WakeWordGateTest {
         val gate = WakeWordGate()
         assertTrue(gate.hasWakeWord("hola NIKO"))
         assertTrue(gate.hasWakeWord("Nico abre la cámara"))
+        assertTrue(gate.hasWakeWord("Nin abre la cámara"))
         assertFalse(gate.hasWakeWord("Nicole abre YouTube"))
         assertFalse(gate.hasWakeWord("Nicolás"))
+        assertFalse(gate.hasWakeWord("ni abras la cámara"))
     }
 
     @Test fun previousNameAndItsAliasesNoLongerActivate() {
