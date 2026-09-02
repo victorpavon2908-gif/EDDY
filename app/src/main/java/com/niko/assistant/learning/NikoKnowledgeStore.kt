@@ -77,7 +77,7 @@ class NikoKnowledgeStore(context: Context) {
         val valid = readEntries().filter { entry ->
             val age = nowMs - entry.learnedAt
             val ttl = if (entry.volatile) VOLATILE_TTL_MS else EVERGREEN_TTL_MS
-            val keep = entry.learnedAt > 0L && age in 0..ttl
+            val keep = entry.learnedAt > 0L && age >= 0L && age <= ttl
             if (!keep) changed = true
             keep
         }
