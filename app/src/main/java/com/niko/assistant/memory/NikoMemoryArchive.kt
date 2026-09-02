@@ -194,7 +194,7 @@ class NikoMemoryArchive private constructor(context: Context) :
     fun touchSemanticMemory(key: String, now: Long) {
         writableDatabase.execSQL(
             "UPDATE semantic_memory SET last_access=?, access_count=access_count+1 WHERE key=?",
-            arrayOf(now, key),
+            arrayOf<Any?>(now, key),
         )
     }
 
