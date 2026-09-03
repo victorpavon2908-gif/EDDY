@@ -11,6 +11,8 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
+import com.niko.assistant.ui.robot.RobotMotion
+import com.niko.assistant.ui.robot.RobotMotionBus
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -405,6 +407,7 @@ open class NikoAssistantService : Service() {
     private fun interruptCurrentTurn() {
         if (destroyed) return
         ++turnEpoch
+        RobotMotionBus.clear()
         commandJob?.cancel()
         commandJob = null
         speechTimeout?.cancel()
@@ -472,6 +475,16 @@ open class NikoAssistantService : Service() {
     }
 
     private suspend fun handleCommand(text: String) {
+        RobotMotion.parse(text)?.let { motion ->
+            RobotMotionBus.perform(motion)
+            speakResponse(when (motion) {
+                RobotMotion.DANCE -> "Va, mirá cómo bailo."
+                RobotMotion.JUMP -> "¡Ahí va un salto!"
+                RobotMotion.SPIN -> "¡Doy una vuelta!"
+                RobotMotion.WAVE -> "¡Hola! Aquí estoy con vos."
+            })
+            return
+        }
         replyProsody = SpeechProsody.forInput(text)
         withContext(Dispatchers.IO) { memory.rememberUserTurn(text) }
         WebQueryRouter.explicitQuery(text)?.takeIf { AutonomousResearch.allowedFor(text) }?.let { query ->

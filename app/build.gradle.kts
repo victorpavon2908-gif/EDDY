@@ -29,8 +29,8 @@ android {
         // LEO 0.10.1 establece Android 12 (API 31) como base soportada oficial.
         minSdk = 31
         targetSdk = 36
-        versionCode = 33
-        versionName = "0.10.3"
+        versionCode = 34
+        versionName = "0.11.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
@@ -79,6 +79,8 @@ dependencies {
     // MediaPipe Tasks GenAI se retira del proceso principal: un SIGSEGV JNI no es recuperable
     // y LEO debe mantener voz/acciones/búsqueda estables en cualquier Android 12+.
     implementation("org.apache.commons:commons-compress:1.27.1")
+    implementation("io.github.sceneview:sceneview:2.3.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")

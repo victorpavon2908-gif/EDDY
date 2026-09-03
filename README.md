@@ -1,4 +1,6 @@
-# LEO 0.10.3
+# LEO 0.11.0
+
+Robot 3D articulado: [diseño, movimientos y procedencia](docs/design/LEO_ROBOT.md).
 
 Búsqueda con fuentes, interrupción de respuestas, voz y comandos locales. Requiere Android 12 o posterior.
 La búsqueda explícita no requiere Groq. La conversación generativa puede usar
