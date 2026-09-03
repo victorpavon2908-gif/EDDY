@@ -1,6 +1,7 @@
 package com.niko.assistant.localai
 
 import android.content.Context
+import com.niko.assistant.ai.LeoStructuredGroq
 import com.niko.assistant.devicecontrol.NikoVisualContext
 import com.niko.assistant.learning.NikoKnowledgeStore
 import kotlinx.coroutines.Dispatchers
@@ -9,15 +10,10 @@ import kotlinx.coroutines.withContext
 /**
  * Fachada segura del cerebro local.
  *
- * LEO 0.10.1 prioriza que el núcleo funcione en cualquier Android 12+ sin importar
- * fabricante. El runtime MediaPipe/LlmInference fue retirado del proceso principal
- * porque un fallo JNI puede provocar SIGSEGV y cerrar toda la aplicación, algo que
- * Kotlin no puede recuperar con try/catch.
- *
- * Esta clase conserva la API usada por el resto del asistente: memoria aprendida y
- * rutas deterministas siguen funcionando, pero generación/planificación LLM devuelve
- * null para que el coordinador continúe con búsqueda nativa, reglas locales o nube
- * opcional. Ninguna orden básica depende de un LLM nativo.
+ * LEO conserva deshabilitado el runtime generativo JNI dentro del proceso principal
+ * para evitar cierres nativos en Android 12+. Memoria aprendida y rutas deterministas
+ * siguen funcionando localmente. La compilación semántica de acciones, cuando hace falta,
+ * se delega a un adaptador Groq aislado que devuelve solo texto DSL para validación local.
  */
 class NikoLocalLlm(
     context: Context,
@@ -25,6 +21,7 @@ class NikoLocalLlm(
 ) {
     private val appContext = context.applicationContext
     private val knowledge = NikoKnowledgeStore(appContext)
+    private val structuredCloud = LeoStructuredGroq(appContext)
 
     @Volatile private var closed = false
 
@@ -66,12 +63,15 @@ class NikoLocalLlm(
     }
 
     /**
-     * Los routers de acciones vuelven al parser determinista cuando no hay LLM.
-     * Esto es intencional: una clasificación avanzada nunca debe arriesgar el proceso.
+     * Compatibilidad con los routers existentes: no usa el LLM local desactivado.
+     * Groq solo compila intención -> DSL; el plan resultante todavía debe pasar por
+     * LeoStructuredPlanner antes de que cualquier acción pueda ejecutarse.
      */
-    suspend fun completeStructured(@Suppress("UNUSED_PARAMETER") instruction: String): String? {
-        if (!closed) lastError = universalSafeModeMessage()
-        return null
+    suspend fun completeStructured(instruction: String): String? {
+        if (closed) return null
+        val result = structuredCloud.complete(instruction)
+        lastError = if (result == null) structuredCloud.lastError ?: universalSafeModeMessage() else null
+        return result
     }
 
     fun release() {
