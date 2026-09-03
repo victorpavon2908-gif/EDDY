@@ -9,7 +9,7 @@ import com.niko.assistant.learning.NikoKnowledgeStore
  *
  * Web research no longer requires GroqCloud: forced/current searches go through
  * [LeoNativeWebSearch], which performs keyless HTTP discovery + local extraction and
- * summarization on the phone. Groq remains optional for normal generative conversation.
+ * summarization on the phone. Groq optionally synthesizes that evidence and supports conversation.
  */
 class NikoAiClient(
     context: Context,

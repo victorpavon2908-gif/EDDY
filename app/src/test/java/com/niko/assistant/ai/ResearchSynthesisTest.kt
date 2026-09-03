@@ -20,6 +20,7 @@ class ResearchSynthesisTest {
     }
     @Test fun rejectsInventedSourcesUrlsAndUnstructuredAnswers() {
         assertNull(ResearchSynthesis.apply(answer(2), original))
+        assertNull(ResearchSynthesis.apply(answer(detail = "El dato proviene de otra supuesta fuente [99]."), original))
         assertNull(ResearchSynthesis.apply(answer(detail = "Leé el dato en https://invented.example/datos"), original))
         assertNull(ResearchSynthesis.apply("Iniciá sesión en Microsoft", original))
         assertNull(ResearchSynthesis.apply("{}", original))

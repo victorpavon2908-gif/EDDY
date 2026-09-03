@@ -33,6 +33,8 @@ internal object ResearchSynthesis {
                 val item = array.getJSONObject(index)
                 val text = item.getString("texto").trim()
                 require(text.length in 25..700 && !Regex("(?i)https?://|www\\.").containsMatchIn(text))
+                // Citation numbers come exclusively from the validated array below.
+                require(!Regex("\\[\\d+\\]").containsMatchIn(text))
                 val refs = item.getJSONArray("fuentes")
                 require(refs.length() in 1..original.sources.size)
                 val numbers = (0 until refs.length()).map { refs.getInt(it) }.distinct()

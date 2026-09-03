@@ -188,8 +188,9 @@ class LeoNativeWebSearchTest {
         assertEquals("https://poesia.example/dario", reply.sources.single().url)
         assertFalse(visited.any { "outlook.live.com" in it })
         assertFalse(visited.any { "news.google.com" in it })
-        val query = visited.first { "bing.com" in it }.substringAfter("&q=")
-        assertEquals("ruben dario", URLDecoder.decode(query, "UTF-8"))
+        val queries = visited.filter { "bing.com" in it }
+            .map { URLDecoder.decode(it.substringAfter("&q="), "UTF-8") }.toSet()
+        assertEquals(setOf("ruben dario", "ruben dario datos detalles fuente oficial"), queries)
     }
 
     @Test fun aRelevantTitleCannotSmuggleLoginOrUnrelatedRedirectContent() = runBlocking {
