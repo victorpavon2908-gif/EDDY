@@ -77,6 +77,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import com.niko.assistant.voice.VoiceControl
+import com.niko.assistant.voice.LeoRealtimeTurnBus
 import kotlinx.coroutines.withContext
 
 open class NikoAssistantService : Service() {
@@ -111,6 +115,8 @@ open class NikoAssistantService : Service() {
     private var localVoiceEpoch = 0
     private var isTranscribing = false
     private var commandJob: Job? = null
+    private var turnEpoch = 0L
+    private val turnInterrupter: () -> Unit = { serviceScope.launch { interruptCurrentTurn() }; Unit }
     private var speechTimeout: Job? = null
     private var continueAfterSpeech = false
     private var recoveryJob: Job? = null
@@ -139,6 +145,7 @@ open class NikoAssistantService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        LeoRealtimeTurnBus.registerTurnInterrupter(turnInterrupter)
         brain = LocalBrain()
         executor = ActionExecutor(applicationContext)
         smartHome = LocalSmartHomeClient(applicationContext)
@@ -167,6 +174,7 @@ open class NikoAssistantService : Service() {
             models = modelManager,
             profile = deviceProfile,
             onSpeakingChanged = ::onSpeakingChanged,
+            canUseFallback = { platformTts.isReady },
             onFailure = { text, audioStarted -> serviceScope.launch {
                 if (!destroyed) {
                     speechOutput.neuralFailed()
@@ -213,6 +221,8 @@ open class NikoAssistantService : Service() {
 
     override fun onDestroy() {
         destroyed = true
+        ++turnEpoch
+        LeoRealtimeTurnBus.unregisterTurnInterrupter(turnInterrupter)
         commandJob?.cancel()
         speechTimeout?.cancel()
         recoveryJob?.cancel()
@@ -360,6 +370,7 @@ open class NikoAssistantService : Service() {
         if (destroyed) { engine.stop(); return false }
         return if (started && engine.isRunning) {
             localVoiceActive = true
+            neuralTts.prewarm()
             isListening = false
             initializationFailure = null
             voiceRecovery.started(SystemClock.elapsedRealtime())
@@ -390,8 +401,46 @@ open class NikoAssistantService : Service() {
         ensureVoiceListening(voiceRecovery.nextDelayMillis(SystemClock.elapsedRealtime()))
     }
 
+    /** Main-thread turn ownership; canceled jobs must never reset a newer command window. */
+    private fun interruptCurrentTurn() {
+        if (destroyed) return
+        ++turnEpoch
+        commandJob?.cancel()
+        commandJob = null
+        speechTimeout?.cancel()
+        speechTimeout = null
+        continueAfterSpeech = false
+        isThinking = false
+        isSpeaking = false
+        isTranscribing = false
+        localVoice?.setAssistantBusy(false)
+        NikoRuntimeState.setSearching(applicationContext, false)
+        updateVisualState()
+    }
+
     private fun submitCommand(text: String) {
-        if (destroyed || isSpeaking || isThinking || commandJob?.isActive == true) return
+        if (destroyed) return
+        VoiceControl.parse(text)?.let { control ->
+            interruptCurrentTurn()
+            LeoRealtimeTurnBus.interruptSpeech()
+            localVoice?.cancelConversation()
+            isListening = false
+            NikoRuntimeState.setHeard(applicationContext, text)
+            if (control == VoiceControl.DEACTIVATE) {
+                NikoVoiceSettings.setEnabled(this, false)
+                ++localVoiceEpoch
+                localVoiceActive = false
+                localVoice?.stop()
+                NikoRuntimeState.setResponse(applicationContext, "LEO desactivado. Podés activarme de nuevo desde la app.")
+                stopSelf()
+            } else {
+                NikoRuntimeState.setResponse(applicationContext, "Detenido. Decí LEO cuando me necesités.")
+            }
+            updateVisualState()
+            return
+        }
+        if (isSpeaking || isThinking || commandJob?.isActive == true) return
+        val epoch = ++turnEpoch
         isListening = false
         isThinking = true
         NikoRuntimeState.setResponse(applicationContext, "Procesando tu petición…")
@@ -406,11 +455,13 @@ open class NikoAssistantService : Service() {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                speakResponse("No pude completar eso. Volvé a llamarme y lo intentamos.")
+                if (epoch == turnEpoch) speakResponse("No pude completar eso. Volvé a llamarme y lo intentamos.")
             } finally {
-                isThinking = false
-                if (!isSpeaking) finishTurn()
-                updateVisualState()
+                if (epoch == turnEpoch && !destroyed) {
+                    isThinking = false
+                    if (!isSpeaking) finishTurn()
+                    updateVisualState()
+                }
             }
         }
     }
@@ -587,6 +638,7 @@ open class NikoAssistantService : Service() {
             val browser = if (openBrowser) " ${executor.searchWeb(query).spokenMessage}" else ""
             return unavailable("Para verificar información web, configurá GroqCloud en Ajustes.$browser")
         }
+        val researchEpoch = turnEpoch
         NikoRuntimeState.setSearching(applicationContext, true)
         NikoRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         return try {
@@ -598,18 +650,25 @@ open class NikoAssistantService : Service() {
                 forceWeb && !reply.webUsed -> reply
                 else -> reply
             }
-        } finally { NikoRuntimeState.setSearching(applicationContext, false) }
+        } finally { if (researchEpoch == turnEpoch) NikoRuntimeState.setSearching(applicationContext, false) }
     }
 
     private suspend fun speakResearchResponse(question: String, reply: NikoAiReply) {
+        currentCoroutineContext().ensureActive()
         val finalText = reply.text
         val evidenceNote = if (reply.webUsed) AutonomousResearch.evidenceNote(reply.sources.map { it.url }) else ""
         val displayed = if (evidenceNote.isBlank()) finalText else "$finalText\n\n$evidenceNote"
         NikoRuntimeState.setAiResponse(applicationContext, displayed, reply.webUsed, reply.sources)
-        withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }; speakOnly(finalText)
+        speakOnly(finalText)
+        withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }
     }
 
-    private suspend fun speakResponse(text: String) { NikoRuntimeState.setResponse(applicationContext, text); withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }; speakOnly(text) }
+    private suspend fun speakResponse(text: String) {
+        currentCoroutineContext().ensureActive()
+        NikoRuntimeState.setResponse(applicationContext, text)
+        speakOnly(text)
+        withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }
+    }
     private fun speakOnly(text: String, continueCommand: Boolean = false) {
         if (text.isBlank() || destroyed) return
         continueAfterSpeech = continueCommand
@@ -618,7 +677,7 @@ open class NikoAssistantService : Service() {
         updateVisualState()
         speechTimeout?.cancel()
         speechTimeout = serviceScope.launch {
-            delay((text.length * 110L + 5_000L).coerceIn(12_000L, 120_000L))
+            delay((text.length * 110L + 5_000L).coerceIn(12_000L, 360_000L))
             if (!destroyed && isSpeaking) {
                 platformTts.stop()
                 neuralTts.stop()

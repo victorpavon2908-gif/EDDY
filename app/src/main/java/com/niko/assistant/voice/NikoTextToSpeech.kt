@@ -41,7 +41,7 @@ class NikoTextToSpeech(
             tts.setSpeechRate(1.03f)
             tts.setPitch(0.92f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(true) }
+                override fun onStart(utteranceId: String) { if (utteranceId == "${currentPrefix}_0") notifySpeaking(true) }
                 override fun onDone(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(false) }
                 @Deprecated("Deprecated in Android API")
                 override fun onError(utteranceId: String) { if (currentPrefix?.let { utteranceId.startsWith(it) } == true) notifyFailure() }
@@ -114,7 +114,7 @@ class NikoTextToSpeech(
         ++notificationEpoch
         tts.setSpeechRate(prosody.speed.coerceIn(0.85f, 1.15f))
         tts.setPitch(prosody.pitch.coerceIn(0.85f, 1.05f))
-        val chunks = SpeechProsody.chunks(spoken, TextToSpeech.getMaxSpeechInputLength() - 1)
+        val chunks = SpeechProsody.chunks(spoken, minOf(320, TextToSpeech.getMaxSpeechInputLength() - 1))
         val id = "leo_reply_${System.nanoTime()}"
         currentPrefix = id
         currentUtterance = "${id}_${chunks.lastIndex}"

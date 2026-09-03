@@ -18,6 +18,16 @@ object LeoRealtimeTurnBus {
     val liveTranscript: StateFlow<String> = _liveTranscript.asStateFlow()
 
     private val speechStoppers = CopyOnWriteArraySet<() -> Unit>()
+    private val turnInterrupters = CopyOnWriteArraySet<() -> Unit>()
+
+    fun registerTurnInterrupter(interrupter: () -> Unit) { turnInterrupters += interrupter }
+    fun unregisterTurnInterrupter(interrupter: () -> Unit) { turnInterrupters -= interrupter }
+
+    /** Cancel the producer as well as playback, so an old search cannot speak later. */
+    fun interruptTurn() {
+        turnInterrupters.forEach { runCatching(it) }
+        interruptSpeech()
+    }
 
     fun updateTranscript(text: String) {
         _liveTranscript.value = text.trim().take(320)

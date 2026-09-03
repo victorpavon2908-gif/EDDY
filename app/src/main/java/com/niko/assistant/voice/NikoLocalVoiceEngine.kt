@@ -194,7 +194,19 @@ class NikoLocalVoiceEngine(
     }
 
     fun setAssistantBusy(value: Boolean) {
+        if (value && !assistantBusy) speakingKwsResetRequested = true
         assistantBusy = value
+    }
+
+    fun cancelConversation() {
+        conversationAuthorized = false
+        reopenFollowUp = false
+        resumeAfterSpeech = false
+        assistantBusy = false
+        speaking = false
+        bargeInGuardUntil = 0L
+        resetRequested = true
+        LeoRealtimeTurnBus.clearTranscript()
     }
 
     fun setAssistantSpeaking(value: Boolean, continueCommand: Boolean = false) {
@@ -488,7 +500,7 @@ class NikoLocalVoiceEngine(
 
                 // Full-duplex ligero: mientras el TTS suena sólo mantenemos KWS, no Canary.
                 // AEC reduce la voz del propio altavoz y una coincidencia "Leo" corta el TTS.
-                if (speaking) {
+                if (speaking || assistantBusy) {
                     if (speakingKwsResetRequested) {
                         speakingKwsResetRequested = false
                         resetKeywordStream()
@@ -497,7 +509,7 @@ class NikoLocalVoiceEngine(
                     processBargeInWake(focused)
                     continue
                 }
-                if (assistantBusy || now < suppressUntil) continue
+                if (now < suppressUntil) continue
 
                 val active = isActive()
                 val samples = focused
@@ -538,7 +550,7 @@ class NikoLocalVoiceEngine(
         speaking = false
         assistantBusy = false
         suppressUntil = 0L
-        LeoRealtimeTurnBus.interruptSpeech()
+        LeoRealtimeTurnBus.interruptTurn()
         activateWakeFromPassive(now, includePreRoll = true, debounceMs = BARGE_IN_DEBOUNCE_MS)
     }
 

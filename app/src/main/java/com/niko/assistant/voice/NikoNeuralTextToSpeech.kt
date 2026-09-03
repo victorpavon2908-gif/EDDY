@@ -28,9 +28,11 @@ class NikoNeuralTextToSpeech(
     private val profile: NikoDeviceProfile,
     private val onSpeakingChanged: (Boolean) -> Unit = {},
     private val onFailure: (text: String, audioStarted: Boolean) -> Unit = { _, _ -> },
+    private val canUseFallback: () -> Boolean = { false },
 ) {
     private val mutex = Mutex()
-    @Volatile private var generation = 0
+    private val playback = SpeechStartGate()
+    @Volatile private var prewarming = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var tts: OfflineTts? = null
     @Volatile private var track: AudioTrack? = null
@@ -41,25 +43,35 @@ class NikoNeuralTextToSpeech(
 
     val isAvailable: Boolean get() = models.isInstalled(NikoModelCatalog.spanishVoice)
 
+    fun prewarm() {
+        if (closed || prewarming || !isAvailable) return
+        prewarming = true
+        scope.launch { mutex.withLock { if (!closed && tts == null) createEngine() } }
+    }
+
     fun speak(text: String, speed: Float = 1.0f): Boolean {
         if (closed || text.isBlank() || !isAvailable) return false
-        val token = ++generation
+        val token = playback.begin()
+        // Covers cold initialization AND waiting behind a canceled native generate().
+        val firstAudioDeadline = scope.launch(Dispatchers.Main) {
+            delay(2_300L)
+            if (!closed && canUseFallback() && playback.expire(token)) onFailure(text, false)
+        }
         scope.launch {
             mutex.withLock {
-                if (closed || token != generation) return@withLock
-                onSpeakingChanged(true)
+                if (closed || !playback.current(token)) return@withLock
                 var failed = false
                 var audioStarted = false
                 try {
                     val engine = tts ?: createEngine() ?: error("Voz local no disponible")
-                    for (chunk in SpeechProsody.chunks(text, 360)) {
-                        if (closed || token != generation) break
+                    for (chunk in SpeechProsody.chunks(text, 96)) {
+                        if (closed || !playback.current(token)) break
                         val audio = engine.generate(
                             com.niko.assistant.ai.NikoIdentity.forSpeech(chunk),
                             sid = 0,
                             speed = speed.coerceIn(0.85f, 1.15f),
                         )
-                        if (!closed && token == generation) play(audio.samples, audio.sampleRate, token) { audioStarted = true }
+                        if (!closed && playback.current(token)) play(audio.samples, audio.sampleRate, token) { audioStarted = true }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -70,8 +82,11 @@ class NikoNeuralTextToSpeech(
                         runCatching { tts?.release() }
                         tts = null
                     }
-                    if (token == generation && !closed) {
-                        if (failed) onFailure(text, audioStarted) else onSpeakingChanged(false)
+                    firstAudioDeadline.cancel()
+                    scope.launch(Dispatchers.Main) {
+                        if (playback.current(token) && !closed) {
+                            if (failed) onFailure(text, audioStarted) else onSpeakingChanged(false)
+                        }
                     }
                 }
             }
@@ -80,9 +95,9 @@ class NikoNeuralTextToSpeech(
     }
 
     fun stop() {
-        ++generation
+        val token = playback.cancel()
         runCatching { track?.pause() }
-        onSpeakingChanged(false)
+        scope.launch(Dispatchers.Main) { if (playback.latest(token)) onSpeakingChanged(false) }
     }
 
     fun shutdown() {
@@ -109,16 +124,16 @@ class NikoNeuralTextToSpeech(
                         dataDir = File(root, "espeak-ng-data").absolutePath,
                         lengthScale = 0.96f,
                     ),
-                    numThreads = profile.inferenceThreads.coerceAtMost(4),
+                    numThreads = profile.inferenceThreads.coerceAtMost(2),
                     provider = "cpu",
                 ),
-                maxNumSentences = 2,
+                maxNumSentences = 1,
                 silenceScale = 0.12f,
             ),
         ).also { tts = it }
     }.getOrNull()
 
-    private suspend fun play(samples: FloatArray, sampleRate: Int, token: Int, onAudioQueued: () -> Unit) {
+    private suspend fun play(samples: FloatArray, sampleRate: Int, token: Long, onAudioQueued: () -> Unit) {
         check(samples.isNotEmpty()) { "La síntesis local no produjo audio" }
         val pcm = ShortArray(samples.size) { index -> (samples[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort() }
         val minimum = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
@@ -130,16 +145,17 @@ class NikoNeuralTextToSpeech(
             .build()
         track = audioTrack
         try {
+            if (!playback.markStarted(token) || closed) return
             audioTrack.play()
             var offset = 0
-            while (offset < pcm.size && !closed && token == generation) {
+            while (offset < pcm.size && !closed && playback.current(token)) {
                 val written = audioTrack.write(pcm, offset, minOf(4_096, pcm.size - offset), AudioTrack.WRITE_BLOCKING)
                 check(written > 0) { "No pude reproducir la voz" }
                 onAudioQueued()
                 offset += written
             }
             val deadline = SystemClock.elapsedRealtime() + (offset.toLong() * 1_000L / sampleRate) + 3_000L
-            while (!closed && token == generation && audioTrack.playbackHeadPosition.toLong() < offset && SystemClock.elapsedRealtime() < deadline) delay(20L)
+            while (!closed && playback.current(token) && audioTrack.playbackHeadPosition.toLong() < offset && SystemClock.elapsedRealtime() < deadline) delay(20L)
         } finally {
             runCatching { audioTrack.stop() }
             runCatching { audioTrack.release() }

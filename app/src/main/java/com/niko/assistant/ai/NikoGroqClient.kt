@@ -3,6 +3,8 @@ package com.niko.assistant.ai
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 
 /** Direct GroqCloud conversation. Voice, memory and device actions remain local. */
 class NikoGroqClient(context: Context) {
@@ -14,6 +16,19 @@ class NikoGroqClient(context: Context) {
     val lastModelUsed get() = gateway.lastModelUsed
 
     suspend fun testConnection(): Boolean = reply("Respondé únicamente con OK.", "") != null
+
+    internal suspend fun synthesizeResearch(question: String, evidence: NikoAiReply): NikoAiReply? {
+        if (!isConfigured || !evidence.webUsed || evidence.sources.isEmpty()) return null
+        val configured = NikoAiSettings.model(appContext)
+        val model = configured.takeIf(GroqProtocol::isChatModel) ?: GroqProtocol.DEFAULT_MODEL
+        return withTimeoutOrNull(6_000L) {
+            val payload = GroqConversation.forModel(ResearchSynthesis.payload(question, evidence), model, false)
+            val response = GroqHttpClient().complete(NikoAiSettings.apiKey(appContext), payload)
+            if (response.code !in 200..299) return@withTimeoutOrNull null
+            val answer = runCatching { GroqProtocol.answer(JSONObject(response.body)) }.getOrNull()
+            answer?.let { ResearchSynthesis.apply(it.text, evidence) }
+        }
+    }
 
     suspend fun reply(message: String, memoryContext: String, useWeb: Boolean = false, history: List<ConversationTurn> = emptyList()): NikoAiReply? {
         localError = null

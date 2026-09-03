@@ -5,9 +5,42 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import java.net.URLDecoder
 
 class LeoNativeWebSearchTest {
+    @Test fun readsExplanationsBalancesSourcesAndLabelsUnverifiedRecency() {
+        val hits = listOf(
+            LeoNativeWebSearch.Hit("Panel solar", "https://a.example/panel", "Oferta panel solar comprar ahora.",
+                articleText = "Un panel solar transforma la energía del sol en electricidad. Esto permite alimentar equipos durante el día sin usar la red eléctrica."),
+            LeoNativeWebSearch.Hit("Panel solar: límites", "https://b.example/panel", "",
+                articleText = "Un panel solar produce menos electricidad cuando hay sombra. Debido a ello, el rendimiento depende de su ubicación y orientación."),
+        )
+        val report = LeoNativeWebSearch.summarize("panel solar", hits, true)
+        assertTrue(report.contains("alimentar equipos"))
+        assertTrue(report.contains("ubicación y orientación"))
+        assertTrue(report.contains("[1]"))
+        assertTrue(report.contains("[2]"))
+        assertFalse(report.contains("comprar ahora"))
+        assertTrue(report.contains("no puedo asegurar su actualidad"))
+    }
+
+    @Test fun cancellationDoesNotReturnAReplyFromAnOldSearch() = runBlocking {
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var replied = false
+        val job = launch {
+            LeoNativeWebSearch.search("panel solar") { _, _, _ ->
+                entered.complete(Unit)
+                kotlinx.coroutines.delay(10_000)
+                null
+            }
+            replied = true
+        }
+        entered.await()
+        job.cancel()
+        job.join()
+        assertFalse(replied)
+    }
     @Test fun parsesRssWithoutAnyApiSchemaOrKey() {
         val xml = """
             <rss><channel>

@@ -22,6 +22,7 @@
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
         <package android:name="com.google.android.youtube" />
         <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
         <package android:name="com.spotify.music" />
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.android.chrome" />
@@ -50,6 +51,7 @@
     </queries>
 
     <application
+        android:name=".LeoApplication"
         android:allowBackup="false"
         android:icon="@drawable/ic_niko"
         android:label="LEO"

@@ -1,11 +1,33 @@
-# LEO 0.10.2
+# LEO 0.10.3
 
-Búsqueda web nativa y preferencia de voz. Requiere Android 12 o posterior.
+Búsqueda con fuentes, interrupción de respuestas, voz y comandos locales. Requiere Android 12 o posterior.
 La búsqueda explícita no requiere Groq. La conversación generativa puede usar
 GroqCloud opcionalmente. El identificador Android heredado se conserva para actualizar
 las instalaciones anteriores sin perder datos ni permisos.
 
-## Corrección de búsqueda y voces
+## Respuestas y control por voz
+
+- «Leo, pará» cancela el trabajo y el audio actuales; vuelve a esperar la palabra Leo.
+  «Leo, desactívate» deshabilita la escucha persistente y detiene el servicio. Para volver
+  a escuchar hay que activarlo desde la app. Se puede interrumpir mientras busca o habla.
+- La voz neural se prepara al iniciar la escucha y sintetiza bloques de hasta 96 caracteres.
+  Si no empieza en 2,3 segundos y hay voz española del sistema lista, usa esa voz durante
+  el resto de la sesión. Un resultado neural tardío no reproduce una respuesta cancelada.
+  El texto empieza a hablar antes de esperar la escritura del historial.
+- «Leo, abrime Whats App» admite variantes habituales y WhatsApp Business. «Mandá un
+  mensaje así Voy llegando» abre el compositor; después de abrir WhatsApp, ese seguimiento
+  usa WhatsApp durante 45 segundos. Un pedido explícito de SMS prevalece.
+- Si falta el destinatario se elige dentro de la app. El texto conserva mayúsculas y
+  números; nunca toma un número del cuerpo como destinatario. Se prepara el mensaje para
+  revisión y envío por el usuario. Sin permiso para abrir apps en segundo plano, una
+  notificación permite continuar; no se afirma que se abrió una pantalla bloqueada por Android.
+- La búsqueda lee más contenido, distribuye hallazgos entre sitios y cita cada extracto.
+  Incluye fechas disponibles y límites cuando solo hay extractos o no se conoce la fecha.
+  Con Groq ya configurado añade una síntesis explicativa de esas evidencias (hasta 6 s
+  extra); si falla o devuelve referencias inválidas conserva el informe local sin pedir
+  iniciar sesión. Sin clave sigue funcionando la búsqueda y el informe local.
+
+## Búsqueda y preferencia de voz
 
 - «Leo, buscame información sobre Rubén Darío en 1916» consulta la web directamente.
   Conserva el tema y las fechas, aunque esté desactivada la investigación automática.

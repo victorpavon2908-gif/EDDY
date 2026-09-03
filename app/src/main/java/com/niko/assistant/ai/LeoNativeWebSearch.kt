@@ -17,6 +17,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
 
@@ -41,7 +42,7 @@ object LeoNativeWebSearch {
 
     suspend fun search(query: String): NikoAiReply {
         val deadline = System.nanoTime() + SEARCH_BUDGET_MS * 1_000_000L
-        return search(query) { url, accept, limit -> fetchText(url, accept, limit, deadline) }
+        return search(query) { url, accept, limit -> runInterruptible(Dispatchers.IO) { fetchText(url, accept, limit, deadline) } }
     }
 
     /** Injectable transport exercises discovery, redirects, filtering and summary together. */
@@ -59,6 +60,7 @@ object LeoNativeWebSearch {
             listOf(
                 async { searchBing(subject, fetch) },
                 async { if (current) searchGoogleNews(subject, fetch) else searchDuckDuckGo(subject, fetch) },
+                async { searchBing("$subject ${if (current) "actualizacion fuente oficial" else "datos detalles fuente oficial"}", fetch) },
             ).awaitAll().flatten()
         }
         discovered.forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
@@ -68,7 +70,9 @@ object LeoNativeWebSearch {
         }
         val relevant = hits.values.filter { isRelevantTo(subject, it) }
             .sortedWith(compareByDescending<Hit> { relevanceScore(it, terms) }.thenBy { it.rank })
-            .take(MAX_RESULTS)
+            .groupBy { hostOf(it.url) }.values.let { groups ->
+                (groups.map { it.first() } + groups.flatMap { it.drop(1).take(1) }).take(MAX_RESULTS)
+            }
         if (relevant.isEmpty()) return@withContext noResults(subject)
 
         val enriched = coroutineScope {
@@ -90,9 +94,10 @@ object LeoNativeWebSearch {
             } }.awaitAll().filterNotNull().distinctBy(::hitKey)
         }
         if (enriched.isEmpty()) return@withContext noResults(subject)
-        val summary = summarize(subject, enriched, current)
-        val sources = enriched.distinctBy { it.url }.take(MAX_SOURCES)
-            .map { NikoWebSource(it.title.ifBlank { hostOf(it.url) }, it.url) }
+        val cited = enriched.distinctBy { it.url }.take(MAX_SOURCES)
+        val summary = summarize(subject, cited, current)
+        val sources = cited
+            .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         NikoAiReply(
             text = summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." },
             webUsed = true,
@@ -208,7 +213,7 @@ object LeoNativeWebSearch {
     private fun fetchText(url: String, accept: String, limit: Int, deadline: Long): Fetch? {
         var next = url
         repeat(5) {
-            if (!safePublicUrl(next) || remainingMs(deadline) <= 0) return null
+            if (Thread.currentThread().isInterrupted || !safePublicUrl(next) || remainingMs(deadline) <= 0) return null
             if (isLoginUrl(next)) return Fetch("", next)
             var connection: HttpURLConnection? = null
             try {
@@ -231,7 +236,7 @@ object LeoNativeWebSearch {
                         val output = ByteArrayOutputStream(minOf(limit, 64 * 1024))
                         val buffer = ByteArray(8192)
                         while (output.size() < limit) {
-                            if (remainingMs(deadline) <= 0) return null
+                            if (Thread.currentThread().isInterrupted || remainingMs(deadline) <= 0) return null
                             connection.readTimeout = minOf(READ_TIMEOUT_MS, remainingMs(deadline).coerceAtLeast(1))
                             val count = input.read(buffer, 0, minOf(buffer.size, limit - output.size()))
                             if (count <= 0) break
@@ -279,7 +284,8 @@ object LeoNativeWebSearch {
             val key = (attrs["name"] ?: attrs["property"]).orEmpty().lowercase(Locale.ROOT)
             if (key in DESCRIPTION_KEYS) attrs["content"]?.let(::htmlToText) else null
         }.filter { it.length >= 40 && !looksLikeBoilerplate(it) }.take(2).toList()
-        val paragraphs = P_TAG.findAll(cleaned)
+        val article = Regex("(?is)<(?:article|main)\\b[^>]*>(.*?)</(?:article|main)>").find(cleaned)?.groupValues?.get(1) ?: cleaned
+        val paragraphs = P_TAG.findAll(article)
             .map { htmlToText(it.groupValues[1]) }
             .filter { it.length in 45..900 && !looksLikeBoilerplate(it) }
             .take(MAX_PARAGRAPHS)
@@ -295,50 +301,55 @@ object LeoNativeWebSearch {
         val candidates = mutableListOf<SentenceCandidate>()
         hits.forEachIndexed { sourceIndex, hit ->
             if (!isRelevantTo(query, hit)) return@forEachIndexed
-            val raw = listOf(hit.title, hit.snippet, hit.articleText).filter(String::isNotBlank).joinToString(". ")
-            splitSentences(raw).take(MAX_SENTENCES_PER_SOURCE).forEach { sentence ->
+            // Read the article before the search teaser. Nearby explanatory sentences matter
+            // even when they use pronouns instead of repeating the subject in every sentence.
+            val raw = hit.articleText.ifBlank { hit.snippet }.ifBlank { hit.title }
+            val sentences = splitSentences(raw).take(MAX_SENTENCES_PER_SOURCE)
+            sentences.forEachIndexed sentenceLoop@ { index, sentence ->
                 val tokens = meaningfulTokens(sentence).map(::canonicalTerm).toSet()
-                if (tokens.isEmpty()) return@forEach
                 val overlap = tokens.intersect(queryTerms).size
-                if (queryTerms.isNotEmpty() && overlap == 0) return@forEach
-                val numbers = if (sentence.any(Char::isDigit)) 0.8 else 0.0
-                val rankBoost = (MAX_RESULTS - hit.rank).coerceAtLeast(0) * 0.20
-                val titleBoost = if (normalize(hit.title) == normalize(sentence)) 0.6 else 0.0
-                val score = overlap * 3.5 + numbers + rankBoost + titleBoost + minOf(tokens.size, 35) * 0.02
-                if (score >= 0.8) candidates += SentenceCandidate(sentence, sourceIndex, score)
+                val previousOverlap = if (index > 0) subjectTokens(sentences[index - 1]).intersect(queryTerms).size else 0
+                if (overlap == 0 && (hit.articleText.isBlank() || previousOverlap == 0)) return@sentenceLoop
+                val specifics = if (sentence.any(Char::isDigit)) 0.8 else 0.0
+                val explanation = if (Regex("(?i)\\b(?:porque|permite|debido|significa|sin embargo|riesgo|limitaci[oó]n|ventaja)\\b").containsMatchIn(sentence)) 1.5 else 0.0
+                val score = overlap * 2.0 + specifics + explanation + if (hit.articleText.isNotBlank()) 1.0 else 0.0
+                candidates += SentenceCandidate(sentence, sourceIndex, score)
             }
         }
-
+        if (candidates.isEmpty()) return ""
         val selected = mutableListOf<SentenceCandidate>()
-        candidates.sortedByDescending { it.score }.forEach { candidate ->
-            if (selected.size >= SUMMARY_SENTENCES) return@forEach
-            if (selected.any { similar(it.text, candidate.text) }) return@forEach
+        fun add(candidate: SentenceCandidate) {
+            if (selected.size >= SUMMARY_SENTENCES || selected.any { similar(it.text, candidate.text) }) return
+            val sameSource = selected.filter { it.sourceIndex == candidate.sourceIndex }
+            if (sameSource.size >= 2 || (sameSource.sumOf { it.text.split(' ').size } + candidate.text.split(' ').size) > 95) return
+            if (selected.sumOf { it.text.length } + candidate.text.length > SUMMARY_LIMIT) return
             selected += candidate
         }
-
-        if (current && hits.size >= 2 && selected.map { it.sourceIndex }.distinct().size < 2) {
-            val used = selected.map { it.sourceIndex }.toSet()
-            candidates.filter { it.sourceIndex !in used }.maxByOrNull { it.score }?.let { second ->
-                if (selected.none { similar(it.text, second.text) }) selected += second
+        // A single verbose result cannot monopolize the answer.
+        candidates.groupBy { it.sourceIndex }.values.forEach { group -> group.maxByOrNull { it.score }?.let(::add) }
+        candidates.sortedByDescending { it.score }.forEach(::add)
+        if (selected.isEmpty()) return ""
+        val publishers = selected.map { publisherKey(hits[it.sourceIndex]) }.distinct().size
+        val pagesRead = selected.map { it.sourceIndex }.distinct().count { hits[it].articleText.isNotBlank() }
+        return buildString {
+            appendLine(if (current) "Busqué información reciente en Internet." else "Busqué en Internet.")
+            appendLine()
+            appendLine("Hallazgos sobre $query:")
+            selected.groupBy { it.sourceIndex }.forEach { (index, facts) ->
+                val hit = hits[index]
+                appendLine("• ${facts.joinToString(" ") { it.text }} [${index + 1}]")
+                if (current && hit.published.isNotBlank()) appendLine("  Fecha de la fuente [${index + 1}]: ${hit.published}")
             }
-        }
-
-        val body = selected
-            .sortedBy { it.sourceIndex }
-            .joinToString(" ") { it.text.trim() }
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .take(SUMMARY_LIMIT)
-        if (body.isBlank()) return ""
-
-        val publishers = hits.map(::publisherKey).filter(String::isNotBlank).distinct().size
-        val lead = if (current) "Busqué información reciente en Internet. " else "Busqué en Internet. "
-        val tail = when {
-            publishers >= 3 -> " Encontré $publishers fuentes relacionadas."
-            publishers == 2 -> " Encontré dos fuentes relacionadas."
-            else -> ""
-        }
-        return (lead + body + tail).take(SUMMARY_LIMIT + 160)
+            appendLine()
+            appendLine(when (publishers) {
+                1 -> "Solo obtuve información útil de un sitio; falta contrastarla."
+                2 -> "Encontré dos fuentes relacionadas."
+                else -> "Encontré $publishers fuentes relacionadas."
+            })
+            append(if (pagesRead == 0) "Solo pude leer extractos del buscador, no los artículos completos. " else "Leí texto de $pagesRead páginas. ")
+            append("Cada número indica de dónde sale el dato; varias fuentes no garantizan que coincidan ni confirman sus afirmaciones.")
+            if (current && selected.none { hits[it.sourceIndex].published.isNotBlank() }) append(" Las fuentes no indican fecha de publicación; no puedo asegurar su actualidad.")
+        }.trim()
     }
 
     private fun splitSentences(text: String): List<String> = text
@@ -471,11 +482,11 @@ object LeoNativeWebSearch {
     private const val MAX_RESULTS = 8
     private const val MIN_RESULTS = 4
     private const val MAX_SOURCES = 6
-    private const val MAX_PARAGRAPHS = 16
+    private const val MAX_PARAGRAPHS = 32
     private const val MAX_ARTICLE_TEXT = 12_000
-    private const val MAX_SENTENCES_PER_SOURCE = 18
-    private const val SUMMARY_SENTENCES = 5
-    private const val SUMMARY_LIMIT = 1_150
+    private const val MAX_SENTENCES_PER_SOURCE = 40
+    private const val SUMMARY_SENTENCES = 8
+    private const val SUMMARY_LIMIT = 2_500
     private const val RSS_LIMIT = 700_000
     private const val SEARCH_HTML_LIMIT = 900_000
     private const val PAGE_LIMIT = 650_000

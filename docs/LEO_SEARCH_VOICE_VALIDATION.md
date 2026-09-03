@@ -44,3 +44,34 @@ La CI de commits/PR no construye ni publica APK; la compilación requiere solici
 La selección web es extractiva y se basa en relevancia léxica. Los proveedores públicos
 pueden bloquear peticiones o cambiar HTML. No hay garantía de disponibilidad ni de
 veracidad por contar enlaces; se evita afirmar corroboración sin haberla realizado.
+
+
+## LEO 0.10.3: interrupciones, latencia y acciones
+
+Pruebas añadidas: controles completos frente a palabras citadas/negadas; arbitraje entre
+primer audio, timeout y cancelación; interrupción del productor antes del reproductor;
+variantes de WhatsApp, dictado sin destinatario y números dentro del mensaje; seguimiento
+contextual con vencimiento y prioridad SMS; intents para Business y notificación Android;
+reparto de evidencia, cancelación de búsqueda y rechazo de citas inventadas en la síntesis.
+
+En un teléfono (pendiente, las pruebas JVM no miden audio real):
+
+1. Pedir una explicación web larga y decir «Leo, pará» durante la investigación, durante
+   la espera de síntesis y durante el habla. Debe callarse y no reanudar una respuesta vieja.
+   Inmediatamente pedir «Leo, qué hora es»; la respuesta anterior no debe cerrar ese turno.
+2. Repetir con «Leo, desactívate»: comprobar micrófono apagado, servicio detenido y ajuste
+   deshabilitado incluso al volver a abrir la app. Reactivarlo manualmente para continuar.
+3. Medir desde texto visible hasta primer sonido, con modelo frío y caliente. El plazo
+   de 2,3 s es para cambiar al sistema, no una garantía de tiempo de audio en todo equipo.
+   Probar sin voz del sistema: conserva la voz neural, sin prometer ese límite.
+4. «Leo, abrime WhatsApp», con versión normal y solo Business. «Mandá un mensaje así
+   Voy llegando» debe abrir selector/compositor sin inventar contacto. Probar con pantalla
+   visible, bloqueada y con/sin superposición y notificaciones habilitadas.
+5. Pedir un tema con y sin clave Groq. Abrir citas, comprobar exactitud, explicaciones,
+   fechas y límites. El informe local debe sobrevivir a timeout, error o JSON inválido.
+
+[Android: inicio de actividades desde segundo plano](https://developer.android.com/guide/components/activities/secure-bal)
+documenta que un inicio bloqueado puede no devolver excepción; por eso se usa actividad
+visible/superposición concedida o una notificación tocada por el usuario.
+La síntesis opcional es generativa: las citas y límites se validan estructuralmente, pero
+eso no prueba que cada interpretación del modelo sea correcta.

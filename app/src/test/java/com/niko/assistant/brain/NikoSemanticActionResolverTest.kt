@@ -6,6 +6,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NikoSemanticActionResolverTest {
+    @Test fun messageFollowUpUsesRecentWhatsAppButExplicitSmsWins() = runBlocking {
+        var now = 100L
+        val resolver = NikoSemanticActionResolver(LocalBrain(), nowMillis = { now }) { error("No model needed") }
+        resolver.resolveMany("Leo, abrime WhatsApp")
+        assertEquals(listOf(AssistantCommand.WhatsAppMessage(null, "Voy llegando")),
+            resolver.resolveMany("Leo, mandá un mensaje así Voy llegando"))
+        assertEquals(listOf(AssistantCommand.ComposeMessage("", "Hola")), resolver.resolveMany("manda un SMS diciendo Hola"))
+        resolver.resolveMany("abrí WhatsApp")
+        now += 46_000
+        assertEquals(listOf(AssistantCommand.ComposeMessage("", "Hola")), resolver.resolveMany("manda un mensaje diciendo Hola"))
+    }
+
+    @Test fun leoPrefixCannotMakeNegatedOrderReachTheModel() = runBlocking {
+        val resolver = NikoSemanticActionResolver(LocalBrain()) { error("Protected request reached the model") }
+        assertTrue(resolver.resolveMany("Leo, no abras WhatsApp").single() is AssistantCommand.Unknown)
+    }
     @Test
     fun freeWordingCanOpenAnyNamedApp() = runBlocking {
         val resolver = NikoSemanticActionResolver(LocalBrain()) { "OPEN_APP|YouTube" }
