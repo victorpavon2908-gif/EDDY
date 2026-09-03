@@ -190,8 +190,6 @@ private fun RobotBackdrop(accent: Color) {
             radius = size.width * 0.72f,
             center = Offset(size.width * 0.10f, size.height * 0.78f),
         )
-
-
     }
 }
 

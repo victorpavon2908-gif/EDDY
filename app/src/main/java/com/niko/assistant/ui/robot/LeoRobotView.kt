@@ -32,7 +32,7 @@ internal class LeoRobotView(
     }
     private val epoch = System.nanoTime()
     private var lastRendered = 0L
-    private var activity = RobotActivity.IDLE
+    private var robotActivity = RobotActivity.IDLE
     private var animationsEnabled = true
     private var reducedMotion = false
     private var activeRequest: RobotMotionBus.Request? = null
@@ -52,7 +52,7 @@ internal class LeoRobotView(
         isFocusable = false
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         mainLightNode?.let {
-            it.direction = Direction(0.3f, -0.7f, -1f)
+            it.lightDirection = Direction(0.3f, -0.7f, -1f)
             it.intensity = 95_000f
         }
         environment.indirectLight?.intensity = 30_000f
@@ -92,7 +92,7 @@ internal class LeoRobotView(
     }
 
     fun update(activity: RobotActivity, enabled: Boolean, reduced: Boolean, request: RobotMotionBus.Request?) {
-        this.activity = activity
+        this.robotActivity = activity
         animationsEnabled = enabled
         reducedMotion = reduced
         director.setActivity(activity, enabled, reduced)
@@ -112,7 +112,7 @@ internal class LeoRobotView(
     }
 
     fun greet() {
-        if (activity == RobotActivity.LISTENING || activity == RobotActivity.THINKING) return
+        if (robotActivity == RobotActivity.LISTENING || robotActivity == RobotActivity.THINKING) return
         director.perform(RobotMotion.entries[tapIndex++ % RobotMotion.entries.size], seconds(System.nanoTime()))
     }
 
@@ -138,7 +138,7 @@ internal class LeoRobotView(
 
     override fun onFrame(frameTimeNanos: Long) {
         if (released || windowVisibility != VISIBLE) return
-        val fps = if (!animationsEnabled || reducedMotion) 5 else if (activity == RobotActivity.IDLE && !director.hasMotion) 15 else 30
+        val fps = if (!animationsEnabled || reducedMotion) 5 else if (robotActivity == RobotActivity.IDLE && !director.hasMotion) 15 else 30
         if (frameTimeNanos - lastRendered < 1_000_000_000L / fps) return
         lastRendered = frameTimeNanos
         super.onFrame(frameTimeNanos)

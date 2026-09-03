@@ -74,6 +74,7 @@ internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, ena
                 }
             },
             update = { view -> (view as? LeoRobotView)?.update(activity, enabled, !ValueAnimator.areAnimatorsEnabled(), request) },
+            onReset = null,
             onRelease = { (it as? LeoRobotView)?.destroy() },
         )
         if (!ready || failed) Image(
