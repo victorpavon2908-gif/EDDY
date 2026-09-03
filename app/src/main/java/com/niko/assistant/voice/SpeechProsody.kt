@@ -31,5 +31,29 @@ data class SpeechProsody(val speed: Float = 1.03f, val pitch: Float = 0.92f) {
             if (rest.isNotBlank()) chunks.add(rest)
             return chunks
         }
+
+        /**
+         * Small first synthesis block so LEO starts talking sooner, then normal-sized blocks.
+         * Avoids creating a tiny tail for medium replies because that would sound choppy.
+         */
+        fun fastStartChunks(text: String, firstLimit: Int = 48, nextLimit: Int = 96): List<String> {
+            require(firstLimit > 0 && nextLimit > 0)
+            val clean = text.trim()
+            if (clean.isBlank()) return emptyList()
+            if (clean.length <= firstLimit + 18) return listOf(clean)
+
+            val window = clean.take(firstLimit)
+            val sentence = window.indexOfLast { it in ".!?;\n" } + 1
+            val space = window.lastIndexOf(' ')
+            val cut = when {
+                sentence >= firstLimit / 2 -> sentence
+                space >= firstLimit / 2 -> space
+                else -> firstLimit
+            }
+            val first = clean.take(cut).trim()
+            val rest = clean.drop(cut).trimStart()
+            if (first.isBlank() || rest.isBlank()) return listOf(clean)
+            return listOf(first) + chunks(rest, nextLimit)
+        }
     }
 }

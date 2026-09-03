@@ -18,6 +18,8 @@ object LeoVoiceDiagnostics {
         val lastTranscript: String = "",
         val transcriptionEngine: String = "Sin transcripción",
         val transcriptionLatencyMs: Long = 0L,
+        val speechEngine: String = "Sin salida de voz",
+        val speechStartLatencyMs: Long = 0L,
         val ownerScore: Float = 0f,
         val ownerAccepted: Boolean = false,
         val ownerProfileEnabled: Boolean = false,
@@ -48,6 +50,9 @@ object LeoVoiceDiagnostics {
     @Volatile private var lastTranscript = ""
     @Volatile private var transcriptionEngine = "Sin transcripción"
     @Volatile private var transcriptionLatencyMs = 0L
+    @Volatile private var speechRequestElapsed = 0L
+    @Volatile private var speechStartLatencyMs = 0L
+    @Volatile private var speechEngine = "Sin salida de voz"
     @Volatile private var ownerScore = 0f
     @Volatile private var ownerAccepted = false
     @Volatile private var ownerProfileEnabled = false
@@ -130,6 +135,36 @@ object LeoVoiceDiagnostics {
         lastTranscript = text.take(1_500)
         transcriptionEngine = if (clarification) "$engine · requiere repetir" else engine
         transcriptionLatencyMs = latencyMs.coerceAtLeast(0L)
+    }
+
+    /** Called when the assistant has a final response and hands it to a TTS backend. */
+    fun recordSpeechRequested(engine: String) {
+        synchronized(lock) {
+            speechRequestElapsed = elapsedNow()
+            speechStartLatencyMs = 0L
+            speechEngine = "$engine · preparando"
+        }
+    }
+
+    /** Called only when the first PCM/TTS audio really starts. */
+    fun recordSpeechStarted(engine: String) {
+        synchronized(lock) {
+            val now = elapsedNow()
+            if (speechRequestElapsed > 0L) {
+                speechStartLatencyMs = (now - speechRequestElapsed).coerceAtLeast(0L)
+            }
+            speechRequestElapsed = 0L
+            speechEngine = engine
+        }
+    }
+
+    fun recordSpeechCancelled() {
+        synchronized(lock) {
+            if (speechRequestElapsed > 0L) {
+                speechRequestElapsed = 0L
+                speechEngine = "$speechEngine · cancelada"
+            }
+        }
     }
 
     fun recordOwnerMatch(score: Float, accepted: Boolean, enabled: Boolean) {
@@ -228,6 +263,8 @@ object LeoVoiceDiagnostics {
             lastTranscript = lastTranscript,
             transcriptionEngine = transcriptionEngine,
             transcriptionLatencyMs = transcriptionLatencyMs,
+            speechEngine = speechEngine,
+            speechStartLatencyMs = speechStartLatencyMs,
             ownerScore = ownerScore,
             ownerAccepted = ownerAccepted,
             ownerProfileEnabled = ownerProfileEnabled,

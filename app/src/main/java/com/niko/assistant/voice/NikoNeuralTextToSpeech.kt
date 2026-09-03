@@ -33,6 +33,7 @@ class NikoNeuralTextToSpeech(
     private val mutex = Mutex()
     private val playback = SpeechStartGate()
     @Volatile private var prewarming = false
+    @Volatile private var inferenceWarmed = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var tts: OfflineTts? = null
     @Volatile private var track: AudioTrack? = null
@@ -43,18 +44,34 @@ class NikoNeuralTextToSpeech(
 
     val isAvailable: Boolean get() = models.isInstalled(NikoModelCatalog.spanishVoice)
 
+    /** Create the engine and run one tiny silent warm inference so the first real reply is faster. */
     fun prewarm() {
         if (closed || prewarming || !isAvailable) return
         prewarming = true
-        scope.launch { mutex.withLock { if (!closed && tts == null) createEngine() } }
+        scope.launch {
+            try {
+                mutex.withLock {
+                    if (closed) return@withLock
+                    val engine = tts ?: createEngine()
+                    if (engine != null && !inferenceWarmed && !closed) {
+                        if (runCatching { engine.generate("Sí.", sid = 0, speed = 1.0f) }.isSuccess) {
+                            inferenceWarmed = true
+                        }
+                    }
+                }
+            } finally {
+                prewarming = false
+            }
+        }
     }
 
     fun speak(text: String, speed: Float = 1.0f): Boolean {
         if (closed || text.isBlank() || !isAvailable) return false
         val token = playback.begin()
-        // Covers cold initialization AND waiting behind a canceled native generate().
+        LeoVoiceDiagnostics.recordSpeechRequested("Voz neural local")
+        // With a warmed engine and a short first synthesis block, 1.8 s is already generous.
         val firstAudioDeadline = scope.launch(Dispatchers.Main) {
-            delay(2_300L)
+            delay(1_800L)
             if (!closed && canUseFallback() && playback.expire(token)) onFailure(text, false)
         }
         scope.launch {
@@ -64,14 +81,22 @@ class NikoNeuralTextToSpeech(
                 var audioStarted = false
                 try {
                     val engine = tts ?: createEngine() ?: error("Voz local no disponible")
-                    for (chunk in SpeechProsody.chunks(text, 96)) {
+                    for (chunk in SpeechProsody.fastStartChunks(text, firstLimit = 48, nextLimit = 96)) {
                         if (closed || !playback.current(token)) break
                         val audio = engine.generate(
                             com.niko.assistant.ai.NikoIdentity.forSpeech(chunk),
                             sid = 0,
                             speed = speed.coerceIn(0.85f, 1.15f),
                         )
-                        if (!closed && playback.current(token)) play(audio.samples, audio.sampleRate, token) { audioStarted = true }
+                        inferenceWarmed = true
+                        if (!closed && playback.current(token)) {
+                            play(audio.samples, audio.sampleRate, token) {
+                                if (!audioStarted) {
+                                    audioStarted = true
+                                    LeoVoiceDiagnostics.recordSpeechStarted("Voz neural local")
+                                }
+                            }
+                        }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -81,11 +106,15 @@ class NikoNeuralTextToSpeech(
                     if (closed) {
                         runCatching { tts?.release() }
                         tts = null
+                        inferenceWarmed = false
                     }
                     firstAudioDeadline.cancel()
                     scope.launch(Dispatchers.Main) {
                         if (playback.current(token) && !closed) {
-                            if (failed) onFailure(text, audioStarted) else onSpeakingChanged(false)
+                            if (failed) {
+                                LeoVoiceDiagnostics.recordSpeechCancelled()
+                                onFailure(text, audioStarted)
+                            } else onSpeakingChanged(false)
                         }
                     }
                 }
@@ -96,6 +125,7 @@ class NikoNeuralTextToSpeech(
 
     fun stop() {
         val token = playback.cancel()
+        LeoVoiceDiagnostics.recordSpeechCancelled()
         runCatching { track?.pause() }
         scope.launch(Dispatchers.Main) { if (playback.latest(token)) onSpeakingChanged(false) }
     }
@@ -108,6 +138,7 @@ class NikoNeuralTextToSpeech(
             mutex.withLock {
                 runCatching { tts?.release() }
                 tts = null
+                inferenceWarmed = false
             }
             scope.cancel()
         }
@@ -130,32 +161,66 @@ class NikoNeuralTextToSpeech(
                 maxNumSentences = 1,
                 silenceScale = 0.12f,
             ),
-        ).also { tts = it }
+        ).also {
+            tts = it
+            inferenceWarmed = false
+        }
     }.getOrNull()
 
     private suspend fun play(samples: FloatArray, sampleRate: Int, token: Long, onAudioQueued: () -> Unit) {
         check(samples.isNotEmpty()) { "La síntesis local no produjo audio" }
-        val pcm = ShortArray(samples.size) { index -> (samples[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort() }
-        val minimum = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
+        val pcm = ShortArray(samples.size) { index ->
+            (samples[index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
+        }
+        val minimum = AudioTrack.getMinBufferSize(
+            sampleRate,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+        ).coerceAtLeast(4096)
         val audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-            .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build(),
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build(),
+            )
             .setTransferMode(AudioTrack.MODE_STREAM)
-            .setBufferSizeInBytes(maxOf(minimum, 16_384))
+            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+            .setBufferSizeInBytes(maxOf(minimum, 8_192))
             .build()
         track = audioTrack
         try {
             if (!playback.markStarted(token) || closed) return
             audioTrack.play()
             var offset = 0
+            var reportedFirstAudio = false
             while (offset < pcm.size && !closed && playback.current(token)) {
-                val written = audioTrack.write(pcm, offset, minOf(4_096, pcm.size - offset), AudioTrack.WRITE_BLOCKING)
+                val written = audioTrack.write(
+                    pcm,
+                    offset,
+                    minOf(2_048, pcm.size - offset),
+                    AudioTrack.WRITE_BLOCKING,
+                )
                 check(written > 0) { "No pude reproducir la voz" }
-                onAudioQueued()
+                if (!reportedFirstAudio) {
+                    reportedFirstAudio = true
+                    onAudioQueued()
+                }
                 offset += written
             }
             val deadline = SystemClock.elapsedRealtime() + (offset.toLong() * 1_000L / sampleRate) + 3_000L
-            while (!closed && playback.current(token) && audioTrack.playbackHeadPosition.toLong() < offset && SystemClock.elapsedRealtime() < deadline) delay(20L)
+            while (
+                !closed && playback.current(token) &&
+                audioTrack.playbackHeadPosition.toLong() < offset &&
+                SystemClock.elapsedRealtime() < deadline
+            ) delay(20L)
         } finally {
             runCatching { audioTrack.stop() }
             runCatching { audioTrack.release() }

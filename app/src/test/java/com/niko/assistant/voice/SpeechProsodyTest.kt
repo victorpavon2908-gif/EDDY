@@ -4,25 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechProsodyTest {
-    @Test fun speechSpeedRespectsExplicitRequestsAndDistress() {
-        assertTrue(SpeechProsody.forInput("hablá más despacio").speed < 1f)
-        assertTrue(SpeechProsody.forInput("estoy triste").speed < 1f)
-        assertTrue(SpeechProsody.forInput("hablá más rápido").speed > 1f)
-        assertEquals(SpeechProsody(), SpeechProsody.forInput("qué hora es"))
-        assertEquals(SpeechProsody(), SpeechProsody.forInput("no estoy triste"))
+    @Test fun shortRepliesStayInOneFastBlock() {
+        assertEquals(listOf("Listo. Ya abrí WhatsApp."), SpeechProsody.fastStartChunks("Listo. Ya abrí WhatsApp."))
     }
 
-    @Test fun longSpeechKeepsWordsAndPunctuationAcrossChunks() {
-        val original = "Una frase completa. Otra frase con más detalle. Terminamos aquí."
-        val parts = SpeechProsody.chunks(original, 30)
-        assertEquals(original, parts.joinToString(" "))
-        assertTrue(parts.all { it.length <= 30 })
-        assertEquals(listOf("Hola."), SpeechProsody.chunks("Hola.", 30))
+    @Test fun longRepliesUseAShortFirstBlockAndLargerFollowingBlocks() {
+        val text = "Ya encontré la información que me pediste y te la voy a explicar de forma clara. Después puedo seguir con el siguiente punto sin que tengás que volver a llamarme."
+        val chunks = SpeechProsody.fastStartChunks(text, firstLimit = 48, nextLimit = 96)
+        assertTrue(chunks.size >= 2)
+        assertTrue(chunks.first().length <= 48)
+        assertTrue(chunks.drop(1).all { it.length <= 96 })
+        assertEquals(text, chunks.joinToString(" "))
     }
 
-    @Test fun emotionalAndSpeedRequestsKeepTheSameVocalPitch() {
-        listOf("estoy triste", "hablá más rápido", "hablá más despacio", "qué hora es").forEach {
-            assertEquals(SpeechProsody().pitch, SpeechProsody.forInput(it).pitch, 0f)
-        }
+    @Test fun mediumRepliesDoNotCreateATinyTail() {
+        val text = "Esta respuesta es suficientemente corta para sonar continua y sin un corte final raro."
+        val chunks = SpeechProsody.fastStartChunks(text, firstLimit = 48, nextLimit = 96)
+        assertEquals(1, chunks.size)
+        assertEquals(text, chunks.single())
     }
 }

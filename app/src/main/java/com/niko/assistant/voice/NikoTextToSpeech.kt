@@ -41,11 +41,23 @@ class NikoTextToSpeech(
             tts.setSpeechRate(1.03f)
             tts.setPitch(0.92f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String) { if (utteranceId == "${currentPrefix}_0") notifySpeaking(true) }
+                override fun onStart(utteranceId: String) {
+                    if (utteranceId == "${currentPrefix}_0") {
+                        LeoVoiceDiagnostics.recordSpeechStarted("Android TTS")
+                        notifySpeaking(true)
+                    }
+                }
                 override fun onDone(utteranceId: String) { if (utteranceId == currentUtterance) notifySpeaking(false) }
                 @Deprecated("Deprecated in Android API")
-                override fun onError(utteranceId: String) { if (currentPrefix?.let { utteranceId.startsWith(it) } == true) notifyFailure() }
-                override fun onStop(utteranceId: String, interrupted: Boolean) { if (utteranceId == currentUtterance) notifySpeaking(false) }
+                override fun onError(utteranceId: String) {
+                    if (currentPrefix?.let { utteranceId.startsWith(it) } == true) {
+                        LeoVoiceDiagnostics.recordSpeechCancelled()
+                        notifyFailure()
+                    }
+                }
+                override fun onStop(utteranceId: String, interrupted: Boolean) {
+                    if (utteranceId == currentUtterance) notifySpeaking(false)
+                }
             })
         }
         onReady(ready)
@@ -118,6 +130,7 @@ class NikoTextToSpeech(
         val id = "leo_reply_${System.nanoTime()}"
         currentPrefix = id
         currentUtterance = "${id}_${chunks.lastIndex}"
+        LeoVoiceDiagnostics.recordSpeechRequested("Android TTS")
         for ((index, chunk) in chunks.withIndex()) {
             val result = tts.speak(
                 chunk,
@@ -125,7 +138,12 @@ class NikoTextToSpeech(
                 null,
                 "${id}_$index",
             )
-            if (result != TextToSpeech.SUCCESS) { stop(); onReady(false); return false }
+            if (result != TextToSpeech.SUCCESS) {
+                LeoVoiceDiagnostics.recordSpeechCancelled()
+                stop()
+                onReady(false)
+                return false
+            }
         }
         return true
     }
@@ -134,6 +152,7 @@ class NikoTextToSpeech(
         ++notificationEpoch
         currentPrefix = null
         currentUtterance = null
+        LeoVoiceDiagnostics.recordSpeechCancelled()
         tts.stop()
         notifySpeaking(false)
     }
@@ -144,6 +163,7 @@ class NikoTextToSpeech(
         ready = false
         currentPrefix = null
         currentUtterance = null
+        LeoVoiceDiagnostics.recordSpeechCancelled()
         tts.stop()
         tts.shutdown()
         notifySpeaking(false)

@@ -100,6 +100,7 @@ class NikoLocalVoiceEngine(
     @Volatile private var commandSpeechNotified = false
     @Volatile private var commandSpeechFrames = 0
     @Volatile private var lastLivePreviewAt = 0L
+    @Volatile private var ownerAuthorizedUntil = 0L
 
     private var enrolling = false
     private var wakeAcknowledged = false
@@ -177,6 +178,7 @@ class NikoLocalVoiceEngine(
 
     fun stop() {
         conversationAuthorized = false
+        ownerAuthorizedUntil = 0L
         reopenFollowUp = false
         LeoRealtimeTurnBus.clearTranscript()
         synchronized(lifecycleLock) {
@@ -200,6 +202,7 @@ class NikoLocalVoiceEngine(
 
     fun cancelConversation() {
         conversationAuthorized = false
+        ownerAuthorizedUntil = 0L
         reopenFollowUp = false
         resumeAfterSpeech = false
         assistantBusy = false
@@ -213,15 +216,12 @@ class NikoLocalVoiceEngine(
         resumeAfterSpeech = continueCommand
         speaking = value
         if (value) {
-            // El KWS que escucha durante el TTS debe empezar limpio para no heredar audio anterior.
             speakingKwsResetRequested = true
             LeoRealtimeTurnBus.clearTranscript()
             return
         }
         val now = SystemClock.elapsedRealtime()
         if (now < bargeInGuardUntil) {
-            // El usuario acaba de decir "Leo" encima de nuestra voz. No cerremos la ventana
-            // que el propio barge-in acaba de abrir ni apliquemos el guard de cola del TTS.
             suppressUntil = 0L
             resumeAfterSpeech = false
             return
@@ -286,7 +286,6 @@ class NikoLocalVoiceEngine(
     private fun initVad() = initStage("detección de voz", NikoModelCatalog.vad) {
         val model = models.file(NikoModelCatalog.vad).absolutePath
         vad = createVad(model, 0.24f, 1.05f, 0.06f, 45f)
-        // Más receptivo para un nombre corto, pero Canary sigue verificando el texto antes de activar.
         passiveWakeVad = createVad(model, 0.25f, 0.24f, 0.06f, 3.2f)
     }
 
@@ -392,13 +391,10 @@ class NikoLocalVoiceEngine(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            // Four seconds of capture headroom while a passive acoustic probe is decoding.
-            // Reads remain 512 samples: a larger hardware buffer does not delay each read.
             maxOf(minimum * 6, SAMPLE_RATE * 2 * 4),
         )
         val localRecorder = recorder
         check(localRecorder?.state == AudioRecord.STATE_INITIALIZED)
-        // Hints are optional: unsupported devices retain their normal microphone route.
         runCatching { localRecorder.setPreferredMicrophoneDirection(MicrophoneDirection.MIC_DIRECTION_TOWARDS_USER) }
         runCatching { localRecorder.setPreferredMicrophoneFieldDimension(0.7f) }
         initializeAudioEffects(localRecorder.audioSessionId)
@@ -450,6 +446,7 @@ class NikoLocalVoiceEngine(
                     if (silenced != isMicrophoneSilenced) {
                         isMicrophoneSilenced = silenced
                         conversationAuthorized = false
+                        ownerAuthorizedUntil = 0L
                         reopenFollowUp = false
                         commandWindow.close()
                         resetCommandDetector()
@@ -465,6 +462,7 @@ class NikoLocalVoiceEngine(
                 if (enrollmentNow != enrolling) {
                     enrolling = enrollmentNow
                     conversationAuthorized = false
+                    ownerAuthorizedUntil = 0L
                     reopenFollowUp = false
                     resumeAfterSpeech = false
                     resetCommandDetector()
@@ -500,8 +498,6 @@ class NikoLocalVoiceEngine(
                 val active = isActive()
                 val samples = FarFieldAudioEnhancer.enhance(raw, activeCommand = active)
 
-                // Full-duplex ligero: mientras el TTS suena sólo mantenemos KWS, no Canary.
-                // AEC reduce la voz del propio altavoz y una coincidencia "Leo" corta el TTS.
                 if (speaking || assistantBusy) {
                     if (speakingKwsResetRequested) {
                         speakingKwsResetRequested = false
@@ -539,19 +535,18 @@ class NikoLocalVoiceEngine(
             return
         }
 
-        if (ownerVoice.enrollmentActive || !acceptSpeaker(preRoll.snapshot())) {
+        if (ownerVoice.enrollmentActive || !acceptSpeaker(preRoll.snapshot(), allowRecentOwner = false)) {
             resetKeywordStream()
             preRoll.clear()
             return
         }
 
-        // Guard para que el callback onStop del TTS no cierre inmediatamente esta nueva ventana.
         bargeInGuardUntil = now + BARGE_IN_GUARD_MS
         speaking = false
         assistantBusy = false
         suppressUntil = 0L
         LeoRealtimeTurnBus.interruptTurn()
-        activateWakeFromPassive(now, includePreRoll = true, debounceMs = BARGE_IN_DEBOUNCE_MS)
+        activateWakeFromPassive(now, includePreRoll = true, debounceMs = BARGE_IN_DEBOUNCE_MS, source = "Sherpa KWS · barge-in")
     }
 
     private fun processPassiveWake(samples: FloatArray) {
@@ -572,7 +567,13 @@ class NikoLocalVoiceEngine(
             stream.acceptWaveform(samples, SAMPLE_RATE)
             while (spotter.isReady(stream)) spotter.decode(stream)
             if (spotter.getResult(stream).keyword.isNotBlank()) {
-                activateWakeFromPassive(SystemClock.elapsedRealtime(), includePreRoll = true)
+                val wakeAudio = preRoll.snapshot()
+                if (ownerVoice.enrollmentActive || !acceptSpeaker(wakeAudio, allowRecentOwner = false)) {
+                    resetKeywordStream()
+                    preRoll.clear()
+                    return
+                }
+                activateWakeFromPassive(SystemClock.elapsedRealtime(), includePreRoll = true, source = "Sherpa KWS")
                 return
             }
         }
@@ -594,17 +595,14 @@ class NikoLocalVoiceEngine(
                 handleEnrollment(speech)
                 return
             }
-            if (!acceptSpeaker(speech)) continue
+            if (!acceptSpeaker(speech, allowRecentOwner = false)) continue
             val transcript = runCatching { transcribeWith(localRecognizer, speech) }.getOrDefault("")
             when (val wake = LeoPassiveWakeVerifier.consumeTranscript(transcript, now)) {
                 WakeResult.Ignored -> Unit
-                WakeResult.Activated -> if (activateWakeFromPassive(now, includePreRoll = false)) return
+                WakeResult.Activated -> if (activateWakeFromPassive(now, includePreRoll = false, source = "Canary wake verifier")) return
                 is WakeResult.Command -> {
-                    if (!activateWakeFromPassive(now, includePreRoll = false)) return
+                    if (!activateWakeFromPassive(now, includePreRoll = false, source = "Canary wake verifier")) return
                     LeoRealtimeTurnBus.updateTranscript(wake.text)
-                    // The passive probe ends after just 240 ms of silence. It may be a
-                    // pause before a name/number, not the end of the request. Hand its
-                    // audio to the full command detector; never execute this short probe.
                     feedCommandDetector(speech)
                     return
                 }
@@ -612,7 +610,12 @@ class NikoLocalVoiceEngine(
         }
     }
 
-    private fun activateWakeFromPassive(now: Long, includePreRoll: Boolean, debounceMs: Long = WAKE_DEBOUNCE_MS): Boolean {
+    private fun activateWakeFromPassive(
+        now: Long,
+        includePreRoll: Boolean,
+        debounceMs: Long = WAKE_DEBOUNCE_MS,
+        source: String = "KWS/Canary local",
+    ): Boolean {
         if (now - lastWakeAt < debounceMs) {
             resetKeywordStream()
             passiveWakeVad?.reset()
@@ -633,6 +636,7 @@ class NikoLocalVoiceEngine(
         if (includePreRoll) feedCommandDetector(preRoll.snapshot())
         preRoll.clear()
         setState(State.ACTIVE)
+        LeoVoiceDiagnostics.recordWake(source)
         onWake(1f, ownerVoice.hasProfile())
         return true
     }
@@ -737,10 +741,6 @@ class NikoLocalVoiceEngine(
         } else commandSpeechFrames = 0
     }
 
-    /**
-     * Preview de ASR en un hilo separado. AudioRecord sigue drenándose mientras Canary trabaja,
-     * y el recognizer se serializa para no ejecutar JNI concurrentemente con la transcripción final.
-     */
     private fun updateLivePreview(samples: FloatArray) {
         if (ownerVoice.ownerOnly || ownerVoice.enrollmentActive || !commandSpeechNotified || samples.isEmpty()) return
         appendLiveSamples(samples)
@@ -832,24 +832,43 @@ class NikoLocalVoiceEngine(
         }.getOrNull()
     }
 
-    /** Verify the whole turn and successive windows so a later different speaker is rejected. */
-    private fun acceptSpeaker(samples: FloatArray): Boolean {
+    /**
+     * Verify the whole turn plus useful windows. A recent confirmed owner may authorize a very
+     * short follow-up ("sí", "no", "abrilo") that is too small for a stable speaker embedding.
+     */
+    private fun acceptSpeaker(samples: FloatArray, allowRecentOwner: Boolean = true): Boolean {
         if (!ownerVoice.ownerOnly) return true
-        if (samples.size < SAMPLE_RATE / 2) return false
-        val vectors = mutableListOf(embedding(samples) ?: return false)
+        val now = SystemClock.elapsedRealtime()
+        if (samples.size < MIN_SPEAKER_SAMPLES) {
+            val recent = allowRecentOwner && now <= ownerAuthorizedUntil
+            if (!recent) LeoVoiceDiagnostics.recordOwnerMatch(0f, accepted = false, enabled = true)
+            return recent
+        }
+
+        val whole = embedding(samples)
+        if (whole == null) {
+            val recent = allowRecentOwner && now <= ownerAuthorizedUntil && samples.size < SAMPLE_RATE
+            if (!recent) LeoVoiceDiagnostics.recordOwnerMatch(0f, accepted = false, enabled = true)
+            return recent
+        }
+
+        val vectors = mutableListOf(whole)
         val window = SAMPLE_RATE * 3 / 2
         if (samples.size > window * 2) {
             var offset = 0
+            val usefulRms = maxOf(0.0022, LeoVoiceDiagnostics.currentNoiseRms().toDouble() * 1.10)
             while (offset < samples.size) {
                 val start = minOf(offset, samples.size - window)
                 val segment = samples.copyOfRange(start, minOf(start + window, samples.size))
-                // Silence isn't a second speaker and provides no usable voice embedding.
                 val rms = sqrt(segment.sumOf { it.toDouble() * it } / segment.size)
-                if (rms >= 0.003) vectors += embedding(segment) ?: return false
+                if (rms >= usefulRms) embedding(segment)?.let(vectors::add)
                 offset += window
             }
         }
-        return ownerVoice.accepts(vectors)
+
+        val accepted = ownerVoice.accepts(vectors)
+        if (accepted) ownerAuthorizedUntil = now + OWNER_RECENT_MATCH_MS else ownerAuthorizedUntil = 0L
+        return accepted
     }
 
     private fun handleEnrollment(samples: FloatArray) {
@@ -872,6 +891,7 @@ class NikoLocalVoiceEngine(
             else -> "Tu voz quedó registrada. Ya puedo priorizarla. Decí Leo para empezar."
         }
         conversationAuthorized = false
+        ownerAuthorizedUntil = 0L
         commandWindow.close()
         resetCommandDetector()
         passiveWakeVad?.reset()
@@ -920,6 +940,7 @@ class NikoLocalVoiceEngine(
 
     private fun releaseResources() {
         conversationAuthorized = false
+        ownerAuthorizedUntil = 0L
         reopenFollowUp = false
         clearLivePreview()
         previewExecutor.shutdownNow()
@@ -934,7 +955,7 @@ class NikoLocalVoiceEngine(
     companion object {
         private const val SAMPLE_RATE = 16_000
         private const val FIRST_COMMAND_MS = 30_000L
-        private const val FOLLOW_UP_MS = 12_000L
+        private const val FOLLOW_UP_MS = 20_000L
         private const val WAKE_DEBOUNCE_MS = 900L
         private const val BARGE_IN_DEBOUNCE_MS = 450L
         private const val BARGE_IN_GUARD_MS = 1_400L
@@ -942,6 +963,8 @@ class NikoLocalVoiceEngine(
         private const val COMMAND_CONTINUATION_RMS = 0.0030f
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
+        private const val MIN_SPEAKER_SAMPLES = SAMPLE_RATE * 3 / 10
+        private const val OWNER_RECENT_MATCH_MS = 20_000L
         private const val LIVE_PREVIEW_INTERVAL_MS = 950L
         private const val LIVE_PREVIEW_MIN_SAMPLES = SAMPLE_RATE * 3 / 4
         private const val LIVE_PREVIEW_MAX_SAMPLES = SAMPLE_RATE * 6

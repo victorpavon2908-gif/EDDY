@@ -1,6 +1,5 @@
 package com.niko.assistant.ui
 
-import android.os.SystemClock
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -80,6 +79,8 @@ fun LeoVoiceDiagnosticsScreen(onHome: () -> Unit) {
             MetricLine("Latencia wake", if (snapshot.wakeLatencyMs > 0) "${snapshot.wakeLatencyMs} ms" else "Sin muestra")
             MetricLine("Motor ASR", snapshot.transcriptionEngine)
             MetricLine("Latencia ASR", if (snapshot.transcriptionLatencyMs > 0) "${snapshot.transcriptionLatencyMs} ms" else "Sin muestra")
+            MetricLine("Motor TTS", snapshot.speechEngine)
+            MetricLine("Respuesta → primer sonido", if (snapshot.speechStartLatencyMs > 0) "${snapshot.speechStartLatencyMs} ms" else "Sin muestra")
             MetricLine(
                 "Perfil de voz",
                 if (!snapshot.ownerProfileEnabled) "No exigido" else "${(snapshot.ownerScore * 100).roundToInt()}% · ${if (snapshot.ownerAccepted) "aceptado" else "rechazado"}",
@@ -120,7 +121,8 @@ fun LeoVoiceDiagnosticsScreen(onHome: () -> Unit) {
             }
 
             if (snapshot.expectedWakeUntilElapsed > 0L) {
-                val remaining = (snapshot.expectedWakeUntilElapsed - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                val now = System.nanoTime() / 1_000_000L
+                val remaining = (snapshot.expectedWakeUntilElapsed - now).coerceAtLeast(0L)
                 Text("Decí LEO ahora · ${(remaining + 999L) / 1000L} s", fontWeight = FontWeight.Bold)
                 OutlinedButton(onClick = { LeoVoiceDiagnostics.markExpectedWakeMissed() }) { Text("Marcar como no detectada") }
             }
