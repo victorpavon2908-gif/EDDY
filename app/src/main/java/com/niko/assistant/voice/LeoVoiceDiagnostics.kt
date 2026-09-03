@@ -140,6 +140,7 @@ object LeoVoiceDiagnostics {
 
     fun recordInputState(state: String, status: String) {
         synchronized(lock) {
+            expireExpectedTrialIfNeededLocked(elapsedNow())
             wakeState = "$state · ${status.take(100)}"
             if (state == "ERROR" && previousInputState != "ERROR") {
                 increment("mic_interruptions")
@@ -166,18 +167,24 @@ object LeoVoiceDiagnostics {
         prefs()?.edit()?.putString("scenario", value.name)?.apply()
     }
 
-    fun prepareExpectedWake(): Boolean = synchronized(lock) {
-        val metrics = readMetricsLocked()
-        if (!sessionActive || metrics.completedCalls >= TARGET_CALLS) return false
-        val now = elapsedNow()
-        expectedWakeStartedElapsed = now
-        expectedWakeUntilElapsed = now + EXPECTED_WAKE_MS
-        true
+    fun prepareExpectedWake(): Boolean {
+        return synchronized(lock) {
+            val metrics = readMetricsLocked()
+            if (!sessionActive || metrics.completedCalls >= TARGET_CALLS) {
+                false
+            } else {
+                val now = elapsedNow()
+                expectedWakeStartedElapsed = now
+                expectedWakeUntilElapsed = now + EXPECTED_WAKE_MS
+                true
+            }
+        }
     }
 
-    fun markExpectedWakeMissed() = synchronized(lock) {
-        if (expectedWakeUntilElapsed <= 0L) return
-        completeMissLocked()
+    fun markExpectedWakeMissed() {
+        synchronized(lock) {
+            if (expectedWakeUntilElapsed > 0L) completeMissLocked()
+        }
     }
 
     fun expireExpectedTrialIfNeeded(now: Long = elapsedNow()) = synchronized(lock) {
@@ -188,12 +195,15 @@ object LeoVoiceDiagnostics {
         if (fpWatchStartedElapsed <= 0L) fpWatchStartedElapsed = elapsedNow()
     }
 
-    fun stopFalsePositiveWatch() = synchronized(lock) {
-        if (fpWatchStartedElapsed <= 0L) return
-        val elapsed = elapsedNow() - fpWatchStartedElapsed
-        val current = readMetricsLocked()
-        writeMetricsLocked(current.copy(falsePositiveWatchMs = current.falsePositiveWatchMs + elapsed.coerceAtLeast(0L)))
-        fpWatchStartedElapsed = 0L
+    fun stopFalsePositiveWatch() {
+        synchronized(lock) {
+            if (fpWatchStartedElapsed > 0L) {
+                val elapsed = elapsedNow() - fpWatchStartedElapsed
+                val current = readMetricsLocked()
+                writeMetricsLocked(current.copy(falsePositiveWatchMs = current.falsePositiveWatchMs + elapsed.coerceAtLeast(0L)))
+                fpWatchStartedElapsed = 0L
+            }
+        }
     }
 
     fun applyRecommendation() {
