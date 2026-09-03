@@ -75,7 +75,11 @@ object TranscriptQuality {
     private fun literalSensitive(value: String): Boolean {
         val normalized = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("\\p{Mn}+"), "")
-        return LITERAL_CUES.any(normalized::contains) || Regex("\\b\\d{1,}\\b").containsMatchIn(normalized)
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return LITERAL_CUES.any(normalized::contains) ||
+            CONTACT_OR_MESSAGE_CUE.containsMatchIn(normalized) ||
+            Regex("\\b\\d{1,}\\b").containsMatchIn(normalized)
     }
 
     private fun tokens(value: String): List<String> = Regex("[\\p{L}\\p{N}]+")
@@ -92,10 +96,14 @@ object TranscriptQuality {
         "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa", "cien", "ciento", "mil",
     )
 
+    private val CONTACT_OR_MESSAGE_CUE = Regex(
+        "\\b(?:llama(?:me|le)?|llamar|marca|escribi(?:le)?|escribe(?:le)?|manda(?:le)?|envia(?:le)?|" +
+            "decile|dile|mensaje|whatsapp|contacto)\\b",
+    )
+
     private val LITERAL_CUES = listOf(
-        "llama a ", "llamá a ", "llamar a ", "escribi a ", "escribí a ", "escribe a ", "mensaje a ",
-        "whatsapp", "contacto", "numero", "número", "direccion", "dirección", "calle", "avenida",
-        "a las ", "alarma", "cordoba", "córdoba", "dolar", "dólar", "mensaje que", "decile que", "dile que",
+        "numero", "direccion", "calle", "avenida", "a las ", "alarma", "cordoba", "dolar",
+        "mensaje que", "decile que", "dile que", "casa ", "kilometro", "km ",
     )
 
     private fun normalize(value: String): String {
