@@ -1,18 +1,18 @@
 package com.niko.assistant.devicecontrol
 
-import com.niko.assistant.localai.NikoLocalLlm
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 
 /**
- * Agente visual local de NIKO.
+ * Visual automation agent for LEO.
  *
- * Patrón: observar UI -> pedir una sola acción estructurada -> ejecutarla -> observar de
- * nuevo. El modelo nunca recibe una API arbitraria: solo puede elegir un DSL cerrado.
+ * Direct commands stay model-free. Complex tasks use [LeoUiStepPlanner] to choose one
+ * allow-listed action from the current accessibility snapshot, execute it, wait for the
+ * UI to settle and observe again. No local generative runtime is required.
  */
-class NikoUiAutomationAgent(
-    private val localLlm: NikoLocalLlm,
+class NikoUiAutomationAgent private constructor(
+    private val plannerProvider: (LeoUiSession) -> LeoUiStepPlanner?,
+    private val sessionProvider: () -> LeoUiSession?,
+    private val settleDelay: suspend (Long) -> Unit,
 ) {
     data class Result(
         val success: Boolean,
@@ -20,50 +20,86 @@ class NikoUiAutomationAgent(
         val iterations: Int,
     )
 
+    /** Compatibility constructor. The legacy argument is intentionally ignored. */
+    constructor(@Suppress("UNUSED_PARAMETER") legacyDependency: Any?) : this(
+        plannerProvider = { session -> (session as? AndroidLeoUiSession)?.planner },
+        sessionProvider = { NikoAccessibilityService.instance?.let(::AndroidLeoUiSession) },
+        settleDelay = { delay(it) },
+    )
+
+    internal constructor(
+        planner: LeoUiStepPlanner,
+        sessionProvider: () -> LeoUiSession?,
+        settleDelay: suspend (Long) -> Unit = { delay(it) },
+    ) : this(
+        plannerProvider = { planner },
+        sessionProvider = sessionProvider,
+        settleDelay = settleDelay,
+    )
+
     suspend fun run(task: String): Result {
         val request = task.trim().take(600)
         if (request.isBlank()) return Result(false, "No recibí una tarea para la aplicación.", 0)
         val safety = NikoUiTaskPolicy.evaluate(request)
         if (!safety.allowed) return Result(false, safety.message, 0)
-        val service = NikoAccessibilityService.instance
-            ?: return Result(false, "Activá LEO Device Control en Accesibilidad de Android para que pueda manejar pantallas de otras apps.", 0)
-        runDirect(service, request)?.let { return it }
-        if (!localLlm.isAvailable) {
-            return Result(false, "Prepará la conversación local en Ajustes para usar el control inteligente de aplicaciones.", 0)
-        }
 
-        val history = mutableListOf<String>()
-        repeat(MAX_ITERATIONS) { index ->
-            val snapshot = withContext(Dispatchers.Default) { service.snapshot() }
+        val session = sessionProvider()
+            ?: return Result(false, "Activá LEO Device Control en Accesibilidad de Android para que pueda manejar pantallas de otras apps.", 0)
+
+        runDirect(session, request)?.let { return it }
+        val planner = plannerProvider(session)
+            ?: return Result(false, "No pude iniciar el planificador visual seguro.", 0)
+
+        val history = ArrayDeque<String>()
+        var snapshot = session.snapshot()
+        var consecutiveFailures = 0
+        var lastStepOnSameScreen: String? = null
+
+        for (index in 0 until MAX_ITERATIONS) {
             if (snapshot.nodeCount == 0) {
                 return Result(false, "No pude leer controles de ${snapshot.packageName.ifBlank { "la aplicación" }}.", index + 1)
             }
 
-            val raw = localLlm.completeStructured(
-                prompt(
-                    task = request,
-                    packageName = snapshot.packageName,
-                    tree = snapshot.tree,
-                    history = history.joinToString("\n").takeLast(1_800),
-                ),
-            ) ?: return Result(false, localLlm.lastError ?: "El modelo local no pudo decidir el siguiente paso.", index + 1)
+            val step = planner.next(
+                task = request,
+                snapshot = snapshot,
+                history = history.joinToString("\n"),
+            )
 
-            val action = parse(raw)
-                ?: return Result(false, "No pude interpretar de forma segura el siguiente paso de la automatización.", index + 1)
+            when (step) {
+                is LeoUiStep.Done -> return Result(true, step.message.ifBlank { "Listo." }, index + 1)
+                is LeoUiStep.Abort -> return Result(false, step.reason.ifBlank { "Detuve la automatización de forma segura." }, index + 1)
+                is LeoUiStep.Do -> {
+                    val stepKey = "${snapshot.packageName}|${snapshot.signature}|${step.describe()}"
+                    if (stepKey == lastStepOnSameScreen) {
+                        return Result(
+                            false,
+                            "La pantalla no avanzó con ese paso. Me detuve para no tocar controles al azar.",
+                            index + 1,
+                        )
+                    }
+                    lastStepOnSameScreen = stepKey
 
-            when (action) {
-                is Step.Done -> return Result(true, action.message.ifBlank { "Listo." }, index + 1)
-                is Step.Abort -> return Result(false, action.reason.ifBlank { "Detuve la automatización." }, index + 1)
-                is Step.Do -> {
-                    val result = withContext(Dispatchers.Main) {
-                        service.performNodeAction(action.action, action.nodeId, action.text)
+                    val actionResult = session.perform(step, snapshot)
+                    remember(history, "${snapshot.packageName}:${snapshot.signature.take(12)} ${step.describe()} -> ${actionResult.message}")
+
+                    if (actionResult.blocked) return Result(false, actionResult.message, index + 1)
+                    if (actionResult.stale) {
+                        consecutiveFailures = 0
+                        snapshot = session.snapshot()
+                        continue
                     }
-                    history += "${action.describe()} -> ${result.message}"
-                    if (result.blocked) return Result(false, result.message, index + 1)
-                    if (!result.success && index >= 2) {
-                        return Result(false, "No logré completar la tarea. ${result.message}", index + 1)
+                    if (!actionResult.success) {
+                        consecutiveFailures++
+                        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                            return Result(false, "No logré identificar un paso seguro para continuar. ${actionResult.message}", index + 1)
+                        }
+                        snapshot = session.snapshot()
+                        continue
                     }
-                    delay(ACTION_SETTLE_MS)
+
+                    consecutiveFailures = 0
+                    snapshot = awaitStableSnapshot(session)
                 }
             }
         }
@@ -71,16 +107,9 @@ class NikoUiAutomationAgent(
         return Result(false, "La tarea necesitó demasiados pasos y la detuve para no tocar controles de más.", MAX_ITERATIONS)
     }
 
-    private fun runDirect(service: NikoAccessibilityService, request: String): Result? {
+    private suspend fun runDirect(session: LeoUiSession, request: String): Result? {
         val action = NikoDirectUiAction.parse(request) ?: return null
-        val success = when (action) {
-            is NikoDirectUiAction.ClickLabel -> service.clickText(action.label)
-            is NikoDirectUiAction.TypeFocused -> service.setTextInFocusedField(action.text)
-            NikoDirectUiAction.ScrollForward -> service.scrollForward()
-            NikoDirectUiAction.ScrollBackward -> service.scrollBackward()
-            NikoDirectUiAction.Back -> service.goBack()
-        }
-        if (!success) return null
+        if (!session.performDirect(action)) return null
         val message = when (action) {
             is NikoDirectUiAction.ClickLabel -> "Toqué ${action.label}."
             is NikoDirectUiAction.TypeFocused -> "Escribí el texto en el campo activo."
@@ -91,82 +120,31 @@ class NikoUiAutomationAgent(
         return Result(true, message, 1)
     }
 
-    private fun prompt(task: String, packageName: String, tree: String, history: String): String = """
-        Sos el controlador visual local de NIKO para Android.
-        Objetivo del usuario: $task
-        Aplicación visible: $packageName
-
-        Elegí EXACTAMENTE un siguiente paso. Respondé una sola línea, sin Markdown ni explicación.
-        Acciones permitidas:
-        CLICK|node_id
-        TYPE|node_id|texto
-        CLEAR|node_id
-        SCROLL_FORWARD|node_id
-        SCROLL_BACKWARD|node_id
-        BACK
-        HOME
-        RECENTS
-        NOTIFICATIONS
-        QUICK_SETTINGS
-        DONE|mensaje breve para el usuario
-        ABORT|motivo breve
-
-        Reglas:
-        - Usá solamente node_id presentes en el árbol actual.
-        - No escribás contraseñas, PIN, códigos 2FA ni datos secretos.
-        - No confirmés mensajes, publicaciones, compras, pagos, transferencias, borrados de cuenta,
-          desinstalaciones, permisos ni cambios de seguridad.
-        - Si el objetivo ya está cumplido, devolvé DONE.
-        - Si no hay un control razonable para continuar, devolvé ABORT.
-        - Después de un click NIKO volverá a observar la pantalla, así que hacé un solo paso.
-
-        Historial de pasos:
-        ${history.ifBlank { "ninguno" }}
-
-        Árbol accesible actual:
-        ${tree.take(9_000)}
-    """.trimIndent()
-
-    private fun parse(value: String): Step? {
-        val line = value.lineSequence().map(String::trim).firstOrNull(String::isNotBlank)
-            ?.replace("```", "")?.trim() ?: return null
-        val parts = line.split('|', limit = 3).map(String::trim)
-        return when (parts.firstOrNull()?.uppercase()) {
-            "CLICK" -> node(parts.getOrNull(1))?.let { Step.Do("click", it) }
-            "TYPE" -> {
-                val id = node(parts.getOrNull(1)) ?: return null
-                val text = parts.getOrNull(2)?.replace(Regex("[\\r\\n]+"), " ")?.take(1_500) ?: return null
-                Step.Do("type", id, text)
-            }
-            "CLEAR" -> node(parts.getOrNull(1))?.let { Step.Do("clear", it) }
-            "SCROLL_FORWARD" -> node(parts.getOrNull(1))?.let { Step.Do("scroll_forward", it) }
-            "SCROLL_BACKWARD" -> node(parts.getOrNull(1))?.let { Step.Do("scroll_backward", it) }
-            "BACK" -> Step.Do("back", null)
-            "HOME" -> Step.Do("home", null)
-            "RECENTS" -> Step.Do("recents", null)
-            "NOTIFICATIONS" -> Step.Do("notifications", null)
-            "QUICK_SETTINGS" -> Step.Do("quick_settings", null)
-            "DONE" -> Step.Done(parts.getOrNull(1).orEmpty().take(180))
-            "ABORT" -> Step.Abort(parts.getOrNull(1).orEmpty().take(180))
-            else -> null
+    private suspend fun awaitStableSnapshot(session: LeoUiSession): LeoUiSnapshot {
+        var previous: LeoUiSnapshot? = null
+        repeat(STABLE_SNAPSHOT_ATTEMPTS) {
+            settleDelay(SETTLE_POLL_MS)
+            val current = session.snapshot()
+            val prior = previous
+            if (prior != null &&
+                current.signature == prior.signature &&
+                current.uiRevision == prior.uiRevision
+            ) return current
+            previous = current
         }
+        return previous ?: session.snapshot()
     }
 
-    private fun node(value: String?): String? = value
-        ?.trim()
-        ?.takeIf { NODE_REGEX.matches(it) }
-
-    private sealed interface Step {
-        data class Do(val action: String, val nodeId: String?, val text: String? = null) : Step {
-            fun describe(): String = listOfNotNull(action, nodeId, text?.take(80)).joinToString("|")
-        }
-        data class Done(val message: String) : Step
-        data class Abort(val reason: String) : Step
+    private fun remember(history: ArrayDeque<String>, value: String) {
+        history.addLast(value.take(500))
+        while (history.size > MAX_HISTORY) history.removeFirst()
     }
 
     companion object {
-        private val NODE_REGEX = Regex("node_\\d{1,4}")
-        private const val MAX_ITERATIONS = 7
-        private const val ACTION_SETTLE_MS = 420L
+        private const val MAX_ITERATIONS = 10
+        private const val MAX_CONSECUTIVE_FAILURES = 2
+        private const val SETTLE_POLL_MS = 180L
+        private const val STABLE_SNAPSHOT_ATTEMPTS = 5
+        private const val MAX_HISTORY = 6
     }
 }
