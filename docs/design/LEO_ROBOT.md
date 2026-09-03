@@ -4,6 +4,8 @@ LEO sustituye la N de la pantalla principal por un personaje articulado con supe
 
 ![Vista del modelo](leo-robot-preview.png)
 
+[Ver los movimientos del robot](leo-robot-preview.mp4).
+
 Esta imagen es una revisión del mismo GLB con Three.js; la interfaz de Android se implementa en Compose y su renderizador es Filament. La captura no procede de un teléfono.
 
 ## Interacción
@@ -47,6 +49,6 @@ El script usa exclusivamente la biblioteca estándar de Python y rechaza una fue
 
 ## Validación
 
-GLB validado con Khronos glTF Validator 2.0.0-dev.3.10: cero errores y cero advertencias. Revisadas las poses de reposo, escucha, habla, baile, giro, salto y saludo. Pruebas de comandos, transición, interrupción, repetición y movimiento reducido incluidas en `RobotMotionTest`.
+GLB validado con Khronos glTF Validator 2.0.0-dev.3.10: cero errores y cuatro avisos heredados de la jerarquía de las manos del rig original (nodos 72/73); sin avisos nuevos. La comprobación completa, sin truncar el informe, forma parte de CI. Revisadas las poses de reposo, escucha, habla, baile, giro, salto y saludo. Pruebas de comandos, transición, interrupción, repetición y movimiento reducido incluidas en `RobotMotionTest`.
 
 Pendiente de prueba física: encuadre definitivo de Filament, consumo y fluidez en el teléfono del usuario. La revisión de escritorio no mide rendimiento Android.

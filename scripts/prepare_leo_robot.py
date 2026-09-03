@@ -139,18 +139,21 @@ def build(source, destination):
             faces = new_faces
         def normals(points):
             result = [[0.,0.,0.] for _ in points]
+            fallback = [[0.,1.,0.] for _ in points]
             for a,b,c in faces:
                 u = [points[b][j]-points[a][j] for j in range(3)]
                 v = [points[c][j]-points[a][j] for j in range(3)]
                 cross = [u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
                 for i in (a,b,c):
+                    if sum(x*x for x in cross) > 1e-20: fallback[i] = cross
                     for j in range(3): result[i][j] += cross[j]
-            return [[x / max(1e-12, math.sqrt(sum(t*t for t in n))) for x in n] for n in result]
+            result = [n if sum(x*x for x in n) > 1e-20 else f for n,f in zip(result,fallback)]
+            return [[x / math.sqrt(sum(t*t for t in n)) for x in n] for n in result]
         if joints:
             packed = [sorted(zip(bones,w),key=lambda x: x[1],reverse=True)[:4] for w in skin]
             for row in packed:
                 while len(row)<4: row.append((0,0))
-            attrs['JOINTS_0'] = accessor([[j for j,w in row] for row in packed],'VEC4',5123)
+            attrs['JOINTS_0'] = accessor([[j if w > 0 else 0 for j,w in row] for row in packed],'VEC4',5123)
             attrs['WEIGHTS_0'] = accessor([[w/max(sum(v for _,v in row),1e-12) for j,w in row] for row in packed],'VEC4')
         base_normals = normals(positions)
         attrs['POSITION'] = accessor(positions, 'VEC3')
@@ -164,6 +167,9 @@ def build(source, destination):
     for mesh in gltf['meshes']:
         for primitive in mesh['primitives']:
             smooth_primitive(primitive, 2)
+            for index in list(primitive['attributes'].values()) + [i for t in primitive.get('targets',[]) for i in t.values()]:
+                gltf['bufferViews'][gltf['accessors'][index]['bufferView']]['target'] = 34962
+            gltf['bufferViews'][gltf['accessors'][primitive['indices']]['bufferView']]['target'] = 34963
 
     idle = next(a for a in gltf['animations'] if a['name'] == 'Idle')
     for name in ['Listen', 'Talk', 'Think', 'Spin']:

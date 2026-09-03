@@ -57,6 +57,11 @@ jobs:
       - name: Prepare real wake detector test
         run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/niko-kws-native" --github-env "$GITHUB_ENV"
 
+      - name: Validate bundled 3D robot
+        run: |
+          npm install --prefix "$RUNNER_TEMP/leo-gltf" gltf-validator@2.0.0-dev.3.10 --ignore-scripts --no-audit --no-fund
+          node scripts/validate_leo_robot.cjs "$RUNNER_TEMP/leo-gltf/node_modules/gltf-validator"
+
       - name: Android unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
