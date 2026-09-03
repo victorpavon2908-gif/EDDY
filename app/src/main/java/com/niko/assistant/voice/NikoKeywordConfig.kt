@@ -5,11 +5,13 @@ import com.k2fsa.sherpa.onnx.KeywordSpotterConfig
 import com.k2fsa.sherpa.onnx.OnlineModelConfig
 import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
 import java.io.File
+import java.util.Locale
 
 /** File-based JNI construction validates keywords BEFORE createStream can be called. */
 object NikoKeywordConfig {
     fun create(modelDirectory: File, configDirectory: File): KeywordSpotterConfig {
-        val keywords = prepareKeywords(configDirectory)
+        val tuning = LeoVoiceTuning.current()
+        val keywords = prepareKeywords(configDirectory, tuning)
         val root = File(modelDirectory, "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20")
         return KeywordSpotterConfig(
             featConfig = FeatureConfig(sampleRate = 16_000, featureDim = 80),
@@ -25,36 +27,38 @@ object NikoKeywordConfig {
                 modelType = "zipformer2",
                 modelingUnit = "phone+ppinyin",
             ),
-            // El KWS queda deliberadamente conservador. "Leo" es demasiado corto para
-            // forzar sensibilidad sin crear falsos positivos (p.ej. "día"). Los misses
-            // se recuperan con el verificador Silero + Canary, que sí entiende español.
             maxActivePaths = 6,
             keywordsFile = keywords.absolutePath,
-            keywordsScore = 1.50f,
-            keywordsThreshold = 0.11f,
-            numTrailingBlanks = 3,
+            keywordsScore = tuning.keywordScore,
+            keywordsThreshold = tuning.keywordThreshold,
+            numTrailingBlanks = tuning.trailingBlanks,
         )
     }
 
-    private fun prepareKeywords(directory: File): File {
+    private fun prepareKeywords(directory: File, tuning: LeoVoiceTuningProfile): File {
         check(directory.isDirectory || directory.mkdirs()) { "No pude crear la configuración de activación." }
         val destination = File(directory, "leo-keywords.txt")
-        if (destination.isFile && destination.readText() == KEYWORDS) return destination
+        val expected = keywordText(tuning)
+        if (destination.isFile && destination.readText() == expected) return destination
         val temporary = File.createTempFile("leo-keywords-", ".tmp", directory)
         try {
-            temporary.writeText(KEYWORDS, Charsets.UTF_8)
+            temporary.writeText(expected, Charsets.UTF_8)
             check(temporary.renameTo(destination)) { "No pude guardar las palabras de activación." }
         } finally { temporary.delete() }
         return destination
     }
 
-    // Variantes prudentes cercanas a /le.o/. No añadimos variantes agresivas EY porque
-    // el detector nativo demostró que aumentaban falsos positivos; Canary cubre el acento.
-    private const val KEYWORDS =
-        "L IY0 OW0 :1.50 #0.11 @LEO\n" +
-        "L IY1 OW0 :1.50 #0.11 @LEO\n" +
-        "L IY0 OW1 :1.50 #0.11 @LEO\n" +
-        "L EH0 OW0 :1.54 #0.12 @LEO\n" +
-        "L EH1 OW0 :1.54 #0.12 @LEO\n" +
-        "L EH0 OW1 :1.54 #0.12 @LEO\n"
+    internal fun keywordText(tuning: LeoVoiceTuningProfile = LeoVoiceTuning.current()): String {
+        val primaryScore = tuning.keywordScore
+        val primaryThreshold = tuning.keywordThreshold
+        val secondaryScore = (primaryScore + 0.04f).coerceAtMost(1.84f)
+        val secondaryThreshold = (primaryThreshold + 0.01f).coerceAtMost(0.19f)
+        fun score(value: Float) = String.format(Locale.US, "%.2f", value)
+        return "L IY0 OW0 :${score(primaryScore)} #${score(primaryThreshold)} @LEO\n" +
+            "L IY1 OW0 :${score(primaryScore)} #${score(primaryThreshold)} @LEO\n" +
+            "L IY0 OW1 :${score(primaryScore)} #${score(primaryThreshold)} @LEO\n" +
+            "L EH0 OW0 :${score(secondaryScore)} #${score(secondaryThreshold)} @LEO\n" +
+            "L EH1 OW0 :${score(secondaryScore)} #${score(secondaryThreshold)} @LEO\n" +
+            "L EH0 OW1 :${score(secondaryScore)} #${score(secondaryThreshold)} @LEO\n"
+    }
 }

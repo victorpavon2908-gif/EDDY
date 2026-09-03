@@ -7,7 +7,8 @@ import java.text.Normalizer
 import java.util.Locale
 
 enum class NikoUiMode(val id: String, val title: String) {
-    ASSISTANT("assistant", "NIKO"),
+    ASSISTANT("assistant", "LEO"),
+    VOICE_DIAGNOSTICS("voice_diagnostics", "Diagnóstico de voz"),
     CALCULATOR("calculator", "Calculadora"),
     STOPWATCH("stopwatch", "Cronómetro"),
     TIMER("timer", "Temporizador"),
@@ -34,7 +35,8 @@ object NikoUiModeStore {
     fun resolve(requestedName: String): NikoUiMode? {
         val text = normalize(requestedName)
         return when {
-            text in setOf("niko", "inicio", "principal", "pantalla principal", "asistente") -> NikoUiMode.ASSISTANT
+            text in setOf("leo", "niko", "inicio", "principal", "pantalla principal", "asistente") -> NikoUiMode.ASSISTANT
+            (text.contains("diagnostico") || text.contains("prueba")) && (text.contains("voz") || text.contains("escucha") || text.contains("microfono") || text.contains("wake")) -> NikoUiMode.VOICE_DIAGNOSTICS
             text.contains("calculadora") || text == "calculator" -> NikoUiMode.CALCULATOR
             text.contains("cronometro") -> NikoUiMode.STOPWATCH
             text.contains("temporizador") || text.contains("cuenta regresiva") -> NikoUiMode.TIMER
@@ -47,8 +49,7 @@ object NikoUiModeStore {
 
     fun isReturnHomePhrase(raw: String): Boolean {
         val text = normalize(raw)
-        return (text.contains("vuelve") || text.contains("regresa") || text.contains("volver") || text.contains("regresar")) &&
-            (text.contains("pantalla principal") || text.contains("inicio") || text.contains("niko"))
+        return (text.contains("vuelve") || text.contains("regresa") || text.contains("volver") || text.contains("regresar")) && (text.contains("pantalla principal") || text.contains("inicio") || text.contains("leo") || text.contains("niko"))
     }
 
     private fun normalize(value: String): String = Normalizer

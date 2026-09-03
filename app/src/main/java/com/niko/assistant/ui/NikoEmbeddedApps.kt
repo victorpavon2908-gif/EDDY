@@ -43,6 +43,7 @@ import java.util.Locale
 @Composable
 fun NikoEmbeddedApp(mode: NikoUiMode, onHome: () -> Unit) {
     when (mode) {
+        NikoUiMode.VOICE_DIAGNOSTICS -> LeoVoiceDiagnosticsScreen(onHome)
         NikoUiMode.CALCULATOR -> CalculatorApp(onHome)
         NikoUiMode.STOPWATCH -> StopwatchApp(onHome)
         NikoUiMode.TIMER -> TimerApp(onHome)
@@ -61,7 +62,7 @@ private fun AppShell(title: String, onHome: () -> Unit, content: @Composable () 
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            OutlinedButton(onClick = onHome) { Text("NIKO") }
+            OutlinedButton(onClick = onHome) { Text("LEO") }
         }
         content()
     }
@@ -173,7 +174,7 @@ private fun NotesApp(onHome: () -> Unit) {
     var note by remember { mutableStateOf(prefs.getString("quick_note", "").orEmpty()) }
     AppShell("Notas", onHome) {
         OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Nota rápida") }, modifier = Modifier.fillMaxWidth().height(320.dp))
-        Button(onClick = { prefs.edit().putString("quick_note", note).apply() }, modifier = Modifier.fillMaxWidth()) { Text("Guardar en NIKO") }
+        Button(onClick = { prefs.edit().putString("quick_note", note).apply() }, modifier = Modifier.fillMaxWidth()) { Text("Guardar en LEO") }
     }
 }
 

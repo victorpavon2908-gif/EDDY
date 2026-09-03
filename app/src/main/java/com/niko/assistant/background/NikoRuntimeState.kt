@@ -3,6 +3,7 @@ package com.niko.assistant.background
 import android.content.Context
 import com.niko.assistant.ai.LeoBrand
 import com.niko.assistant.ai.NikoWebSource
+import com.niko.assistant.voice.LeoVoiceDiagnostics
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -72,6 +73,7 @@ object NikoRuntimeState {
     }
 
     fun setInput(context: Context, state: InputState, status: String) {
+        LeoVoiceDiagnostics.recordInputState(state.name, status)
         edit(context) {
             putString(KEY_INPUT_STATE, state.name)
             putString(KEY_INPUT_STATUS, LeoBrand.publicText(status))
@@ -108,6 +110,7 @@ object NikoRuntimeState {
 
     fun setHeard(context: Context, value: String) {
         // User dictation is evidence, not UI branding: Nico/Niko can be real contact names.
+        if (value.trim().equals("LEO", ignoreCase = true)) LeoVoiceDiagnostics.recordWake()
         edit(context) { putString(KEY_HEARD, value) }
     }
 
@@ -133,6 +136,7 @@ object NikoRuntimeState {
     }
 
     fun reset(context: Context) {
+        LeoVoiceDiagnostics.recordInputState(InputState.STOPPED.name, "Micrófono en pausa")
         edit(context) {
             putString(KEY_STATE, State.IDLE.name)
             putString(KEY_HEARD, "")

@@ -45,6 +45,11 @@ object TranscriptQuality {
         val b = tokens(refinement)
         // A disagreeing number or negation must never silently become an executed command.
         if (a.filter(::isCritical) != b.filter(::isCritical)) return true
+        // Names, addresses, times and message bodies are literal data. If two independent
+        // decoders disagree on their tokens, LEO asks again instead of inventing a compromise.
+        if (literalSensitive(primary) || literalSensitive(refinement)) {
+            if (a != b) return true
+        }
         if (shouldRefine(primary, sampleCount)) return false
         val common = a.toSet().intersect(b.toSet()).size
         return common.toDouble() / maxOf(a.toSet().size, b.toSet().size, 1) < 0.4
@@ -67,6 +72,12 @@ object TranscriptQuality {
         return listOf("<unk>", "[unk]", "<|", "|>", "�", "字幕", "music playing").any(lowered::contains)
     }
 
+    private fun literalSensitive(value: String): Boolean {
+        val normalized = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+        return LITERAL_CUES.any(normalized::contains) || Regex("\\b\\d{1,}\\b").containsMatchIn(normalized)
+    }
+
     private fun tokens(value: String): List<String> = Regex("[\\p{L}\\p{N}]+")
         .findAll(Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("\\p{Mn}+"), ""))
@@ -79,6 +90,12 @@ object TranscriptQuality {
         "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce", "trece", "catorce",
         "quince", "dieciseis", "diecisiete", "dieciocho", "diecinueve", "veinte", "treinta",
         "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa", "cien", "ciento", "mil",
+    )
+
+    private val LITERAL_CUES = listOf(
+        "llama a ", "llamá a ", "llamar a ", "escribi a ", "escribí a ", "escribe a ", "mensaje a ",
+        "whatsapp", "contacto", "numero", "número", "direccion", "dirección", "calle", "avenida",
+        "a las ", "alarma", "cordoba", "córdoba", "dolar", "dólar", "mensaje que", "decile que", "dile que",
     )
 
     private fun normalize(value: String): String {

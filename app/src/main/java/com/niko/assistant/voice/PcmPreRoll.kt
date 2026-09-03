@@ -8,6 +8,10 @@ internal class PcmPreRoll(private val capacity: Int) {
     fun append(samples: FloatArray) {
         for (sample in samples) { data[end] = sample; end = (end + 1) % capacity; if (size < capacity) size++ }
     }
-    fun snapshot(): FloatArray = FloatArray(size) { data[(end - size + it + capacity) % capacity] }
+    fun snapshot(): FloatArray {
+        val configured = (LeoVoiceTuning.current().preRollMs * 16).coerceIn(1, capacity)
+        val wanted = minOf(size, configured)
+        return FloatArray(wanted) { data[(end - wanted + it + capacity) % capacity] }
+    }
     fun clear() { end = 0; size = 0 }
 }

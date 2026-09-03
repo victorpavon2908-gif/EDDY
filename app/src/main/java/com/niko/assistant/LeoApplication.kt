@@ -3,10 +3,15 @@ package com.niko.assistant
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import com.niko.assistant.voice.LeoVoiceDiagnostics
 import java.lang.ref.WeakReference
 
 class LeoApplication : Application(), Application.ActivityLifecycleCallbacks {
-    override fun onCreate() { super.onCreate(); registerActivityLifecycleCallbacks(this) }
+    override fun onCreate() {
+        super.onCreate()
+        LeoVoiceDiagnostics.configure(this)
+        registerActivityLifecycleCallbacks(this)
+    }
     override fun onActivityResumed(activity: Activity) { foregroundActivity = WeakReference(activity) }
     override fun onActivityPaused(activity: Activity) {
         if (foregroundActivity?.get() === activity) foregroundActivity = null

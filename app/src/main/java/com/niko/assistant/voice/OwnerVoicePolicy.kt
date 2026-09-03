@@ -6,6 +6,7 @@ import kotlin.math.sqrt
 object OwnerVoicePolicy {
     const val ENROLLMENT_SAMPLES = 4
     const val MIN_SAMPLE_SECONDS = 2
+    const val ACCEPTANCE_THRESHOLD = 0.62f
 
     fun valid(vector: FloatArray): Boolean = vector.isNotEmpty() && vector.all { it.isFinite() } &&
         vector.any { kotlin.math.abs(it) > 0.000001f }
@@ -24,7 +25,7 @@ object OwnerVoicePolicy {
     }
 
     fun accepts(centroid: FloatArray, segments: List<FloatArray>): Boolean =
-        segments.isNotEmpty() && segments.all { similarity(centroid, it) >= 0.62f }
+        segments.isNotEmpty() && segments.all { similarity(centroid, it) >= ACCEPTANCE_THRESHOLD }
 
     fun normalized(vector: FloatArray): FloatArray {
         if (!valid(vector)) return floatArrayOf()

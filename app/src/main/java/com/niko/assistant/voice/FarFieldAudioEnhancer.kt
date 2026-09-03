@@ -5,10 +5,9 @@ import kotlin.math.sqrt
 /**
  * Nivelador digital conservador para voz débil.
  *
- * Trabaja antes de KWS/VAD/ASR. Calcula energía sin componente DC para no convertir
- * el ruido constante del micrófono en una falsa voz y aplica más ganancia cuando ya
- * existe una ventana de comando. En modo pasivo sigue siendo prudente: el wake word
- * y la verificación de hablante continúan decidiendo si LEO debe activarse.
+ * Trabaja antes de KWS/VAD/ASR. La ganancia ahora usa el ruido medido en el propio teléfono:
+ * una voz suave claramente por encima del piso de ruido puede ganar nivel, mientras que ruido
+ * distante o constante no se amplifica de forma ciega.
  */
 object FarFieldAudioEnhancer {
     fun enhance(samples: FloatArray, activeCommand: Boolean): FloatArray {
@@ -23,12 +22,16 @@ object FarFieldAudioEnhancer {
             centeredEnergy += centered * centered
         }
         val rms = sqrt(centeredEnergy / samples.size).toFloat()
+        LeoVoiceDiagnostics.observeAudio(samples, activeCommand)
 
-        val minimumUsefulRms = if (activeCommand) 0.00055f else 0.00090f
-        val targetRms = if (activeCommand) 0.028f else 0.018f
-        val maximumGain = if (activeCommand) 4.5f else 2.4f
+        val tuning = LeoVoiceTuning.current()
+        val minimumUsefulRms = if (activeCommand) tuning.activeMinimumUsefulRms else tuning.passiveMinimumUsefulRms
+        val targetRms = if (activeCommand) tuning.activeTargetRms else tuning.passiveTargetRms
+        val maximumGain = if (activeCommand) tuning.activeMaxGain else tuning.passiveMaxGain
+        val noiseGuard = LeoVoiceDiagnostics.currentNoiseRms() * if (activeCommand) 0.85f else 1.50f
+        val usableFloor = maxOf(minimumUsefulRms, noiseGuard)
 
-        if (rms < minimumUsefulRms || rms >= targetRms) return samples
+        if (rms < usableFloor || rms >= targetRms) return samples
         val gain = (targetRms / rms).coerceIn(1f, maximumGain)
         if (gain <= 1.01f) return samples
 

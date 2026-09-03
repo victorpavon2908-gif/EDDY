@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Base64
 import com.niko.assistant.compat.UpgradeIdentity
+import com.niko.assistant.voice.LeoVoiceDiagnostics
 import com.niko.assistant.voice.OwnerVoicePolicy
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -23,8 +24,20 @@ class NikoVoiceProfile(context: Context) {
 
     fun hasProfile(): Boolean = isEnrolled
     fun score(embedding: FloatArray): Float = centroid()?.let { OwnerVoicePolicy.similarity(it, embedding) } ?: 0f
-    fun accepts(segments: List<FloatArray>): Boolean = !ownerOnly ||
-        centroid()?.let { OwnerVoicePolicy.accepts(it, segments) } == true
+    fun accepts(segments: List<FloatArray>): Boolean {
+        if (!ownerOnly) {
+            LeoVoiceDiagnostics.recordOwnerMatch(0f, accepted = true, enabled = false)
+            return true
+        }
+        val center = centroid() ?: run {
+            LeoVoiceDiagnostics.recordOwnerMatch(0f, accepted = false, enabled = true)
+            return false
+        }
+        val scores = segments.map { OwnerVoicePolicy.similarity(center, it) }
+        val accepted = segments.isNotEmpty() && scores.all { it >= OwnerVoicePolicy.ACCEPTANCE_THRESHOLD }
+        LeoVoiceDiagnostics.recordOwnerMatch(scores.minOrNull() ?: 0f, accepted, enabled = true)
+        return accepted
+    }
 
     fun setOwnerOnly(enabled: Boolean) { prefs.edit().putBoolean(KEY_ENABLED, enabled).apply() }
 
