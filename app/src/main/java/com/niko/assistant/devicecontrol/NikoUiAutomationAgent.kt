@@ -27,6 +27,7 @@ class NikoUiAutomationAgent(
         if (!safety.allowed) return Result(false, safety.message, 0)
         val service = NikoAccessibilityService.instance
             ?: return Result(false, "Activá LEO Device Control en Accesibilidad de Android para que pueda manejar pantallas de otras apps.", 0)
+        runDirect(service, request)?.let { return it }
         if (!localLlm.isAvailable) {
             return Result(false, "Prepará la conversación local en Ajustes para usar el control inteligente de aplicaciones.", 0)
         }
@@ -68,6 +69,26 @@ class NikoUiAutomationAgent(
         }
 
         return Result(false, "La tarea necesitó demasiados pasos y la detuve para no tocar controles de más.", MAX_ITERATIONS)
+    }
+
+    private fun runDirect(service: NikoAccessibilityService, request: String): Result? {
+        val action = NikoDirectUiAction.parse(request) ?: return null
+        val success = when (action) {
+            is NikoDirectUiAction.ClickLabel -> service.clickText(action.label)
+            is NikoDirectUiAction.TypeFocused -> service.setTextInFocusedField(action.text)
+            NikoDirectUiAction.ScrollForward -> service.scrollForward()
+            NikoDirectUiAction.ScrollBackward -> service.scrollBackward()
+            NikoDirectUiAction.Back -> service.goBack()
+        }
+        if (!success) return null
+        val message = when (action) {
+            is NikoDirectUiAction.ClickLabel -> "Toqué ${action.label}."
+            is NikoDirectUiAction.TypeFocused -> "Escribí el texto en el campo activo."
+            NikoDirectUiAction.ScrollForward -> "Bajé en la pantalla."
+            NikoDirectUiAction.ScrollBackward -> "Subí en la pantalla."
+            NikoDirectUiAction.Back -> "Cerré esa pantalla."
+        }
+        return Result(true, message, 1)
     }
 
     private fun prompt(task: String, packageName: String, tree: String, history: String): String = """

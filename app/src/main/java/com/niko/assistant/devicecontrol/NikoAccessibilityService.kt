@@ -117,7 +117,9 @@ open class NikoAccessibilityService : AccessibilityService() {
         if (query.isBlank()) return false
         val root = rootInActiveWindow ?: return false
         return try {
-            root.findAccessibilityNodeInfosByText(query).orEmpty().any(::clickNodeOrParent)
+            root.findAccessibilityNodeInfosByText(query).orEmpty().any { node ->
+                !node.isPassword && !isHighRiskNode(node) && clickNodeOrParent(node)
+            }
         } finally {
             runCatching { root.recycle() }
         }
@@ -228,6 +230,7 @@ open class NikoAccessibilityService : AccessibilityService() {
         var current = node
         var depth = 0
         while (current != null && depth < 7) {
+            if (current.isPassword || isHighRiskNode(current)) return false
             if (current.isClickable && current.isEnabled && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
             current = current.parent
             depth++
