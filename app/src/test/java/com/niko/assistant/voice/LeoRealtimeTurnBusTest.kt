@@ -1,7 +1,6 @@
 package com.niko.assistant.voice
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LeoRealtimeTurnBusTest {
@@ -22,14 +21,28 @@ class LeoRealtimeTurnBusTest {
             LeoRealtimeTurnBus.unregisterSpeechStopper(player)
         }
     }
-    @Test fun publishesBoundedLiveTranscript() {
+    @Test fun publishesTheWholeTranscriptWithoutDroppingWordsAfter320Characters() {
         LeoRealtimeTurnBus.clearTranscript()
         LeoRealtimeTurnBus.updateTranscript("  Leo entendiendo mi frase  ")
         assertEquals("Leo entendiendo mi frase", LeoRealtimeTurnBus.liveTranscript.value)
 
         LeoRealtimeTurnBus.updateTranscript("x".repeat(500))
-        assertEquals(320, LeoRealtimeTurnBus.liveTranscript.value.length)
+        assertEquals(500, LeoRealtimeTurnBus.liveTranscript.value.length)
         LeoRealtimeTurnBus.clearTranscript()
+    }
+
+    @Test fun latePreviewCannotOverwriteFinalWordsOrTheNextTurn() {
+        LeoRealtimeTurnBus.clearTranscript()
+        val token = LeoRealtimeTurnBus.previewToken()
+        LeoRealtimeTurnBus.updatePreview("llamá", token)
+        assertEquals("llamá", LeoRealtimeTurnBus.liveTranscript.value)
+        LeoRealtimeTurnBus.updateTranscript("no llamés a Nico")
+        LeoRealtimeTurnBus.updatePreview("llamá a Nico", token)
+        assertEquals("no llamés a Nico", LeoRealtimeTurnBus.liveTranscript.value)
+        val next = LeoRealtimeTurnBus.previewToken()
+        LeoRealtimeTurnBus.clearTranscript()
+        LeoRealtimeTurnBus.updatePreview("audio anterior", next)
+        assertEquals("", LeoRealtimeTurnBus.liveTranscript.value)
     }
 
     @Test fun wakeCanInterruptRegisteredSpeechOutputs() {
@@ -42,6 +55,6 @@ class LeoRealtimeTurnBusTest {
         } finally {
             LeoRealtimeTurnBus.unregisterSpeechStopper(stopper)
         }
-        assertTrue(LeoRealtimeTurnBus.liveTranscript.value.length <= 320)
+        LeoRealtimeTurnBus.clearTranscript()
     }
 }

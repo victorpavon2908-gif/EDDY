@@ -4,6 +4,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WakeCommandWindowTest {
+    @Test fun speechKeepsAnAuthorizedFollowUpAliveUntilItsEndpoint() {
+        val window = WakeCommandWindow()
+        window.openFollowUp(1_000L)
+        window.onSpeech(12_900L)
+        assertTrue(window.isOpen(13_100L))
+        window.onSpeech(14_000L)
+        assertTrue(window.isOpen(15_799L))
+        assertFalse(window.isOpen(15_800L))
+    }
+
+    @Test fun speechCannotAuthorizeOrResurrectAClosedWindow() {
+        val window = WakeCommandWindow()
+        window.onSpeech(500L)
+        assertFalse(window.isOpen(501L))
+        window.openFollowUp(1_000L)
+        window.onSpeech(13_000L)
+        assertFalse(window.isOpen(13_001L))
+    }
+
+    @Test fun continuousSpeechStillHasAHardLimit() {
+        val window = WakeCommandWindow()
+        window.openFollowUp(1_000L)
+        for (now in 12_000L..60_000L step 1_000L) window.onSpeech(now)
+        assertTrue(window.isOpen(60_999L))
+        window.onSpeech(61_000L)
+        assertFalse(window.isOpen(61_001L))
+    }
+
     @Test fun startupAndTtsAloneCannotAuthorizeACommand() {
         val window = WakeCommandWindow()
         assertFalse(window.isOpen(1_000L))

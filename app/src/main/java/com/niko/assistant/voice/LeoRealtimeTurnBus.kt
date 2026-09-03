@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 object LeoRealtimeTurnBus {
     private val _liveTranscript = MutableStateFlow("")
     val liveTranscript: StateFlow<String> = _liveTranscript.asStateFlow()
+    private var transcriptGeneration = 0L
 
     private val speechStoppers = CopyOnWriteArraySet<() -> Unit>()
     private val turnInterrupters = CopyOnWriteArraySet<() -> Unit>()
@@ -29,11 +30,19 @@ object LeoRealtimeTurnBus {
         interruptSpeech()
     }
 
-    fun updateTranscript(text: String) {
-        _liveTranscript.value = text.trim().take(320)
+    @Synchronized fun updateTranscript(text: String) {
+        transcriptGeneration++
+        _liveTranscript.value = text.trim()
     }
 
-    fun clearTranscript() {
+    @Synchronized fun previewToken(): Long = transcriptGeneration
+
+    @Synchronized fun updatePreview(text: String, token: Long) {
+        if (token == transcriptGeneration) _liveTranscript.value = text.trim()
+    }
+
+    @Synchronized fun clearTranscript() {
+        transcriptGeneration++
         _liveTranscript.value = ""
     }
 

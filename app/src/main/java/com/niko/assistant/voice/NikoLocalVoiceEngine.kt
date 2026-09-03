@@ -105,6 +105,7 @@ class NikoLocalVoiceEngine(
     private var wakeAcknowledged = false
     private var emptyRecognitionRetries = 0
     private val preRoll = PcmPreRoll(SAMPLE_RATE * 2)
+    private val commandAudio = SpeechAudioHistory()
     private val emotionEngine = NikoEmotionEngine(context)
     private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS, FOLLOW_UP_MS)
 
@@ -284,7 +285,7 @@ class NikoLocalVoiceEngine(
 
     private fun initVad() = initStage("detección de voz", NikoModelCatalog.vad) {
         val model = models.file(NikoModelCatalog.vad).absolutePath
-        vad = createVad(model, 0.24f, 0.72f, 0.06f, 30f)
+        vad = createVad(model, 0.24f, 1.05f, 0.06f, 45f)
         // Más receptivo para un nombre corto, pero Canary sigue verificando el texto antes de activar.
         passiveWakeVad = createVad(model, 0.25f, 0.24f, 0.06f, 3.2f)
     }
@@ -391,7 +392,9 @@ class NikoLocalVoiceEngine(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
-            maxOf(minimum * 6, 32_768),
+            // Four seconds of capture headroom while a passive acoustic probe is decoding.
+            // Reads remain 512 samples: a larger hardware buffer does not delay each read.
+            maxOf(minimum * 6, SAMPLE_RATE * 2 * 4),
         )
         val localRecorder = recorder
         check(localRecorder?.state == AudioRecord.STATE_INITIALIZED)
@@ -449,7 +452,7 @@ class NikoLocalVoiceEngine(
                         conversationAuthorized = false
                         reopenFollowUp = false
                         commandWindow.close()
-                        vad?.reset()
+                        resetCommandDetector()
                         passiveWakeVad?.reset()
                         resetKeywordStream()
                         preRoll.clear()
@@ -464,7 +467,7 @@ class NikoLocalVoiceEngine(
                     conversationAuthorized = false
                     reopenFollowUp = false
                     resumeAfterSpeech = false
-                    vad?.reset()
+                    resetCommandDetector()
                     passiveWakeVad?.reset()
                     resetKeywordStream()
                     preRoll.clear()
@@ -475,7 +478,7 @@ class NikoLocalVoiceEngine(
 
                 if (resetRequested) {
                     resetRequested = false
-                    vad?.reset()
+                    resetCommandDetector()
                     passiveWakeVad?.reset()
                     resetKeywordStream()
                     preRoll.clear()
@@ -555,7 +558,7 @@ class NikoLocalVoiceEngine(
         if (state != State.PASSIVE) {
             conversationAuthorized = false
             reopenFollowUp = false
-            vad?.reset()
+            resetCommandDetector()
             passiveWakeVad?.reset()
             resetKeywordStream()
             preRoll.clear()
@@ -599,11 +602,10 @@ class NikoLocalVoiceEngine(
                 is WakeResult.Command -> {
                     if (!activateWakeFromPassive(now, includePreRoll = false)) return
                     LeoRealtimeTurnBus.updateTranscript(wake.text)
-                    commandWindow.close()
-                    assistantBusy = true
-                    vad?.reset()
-                    setState(State.PROCESSING)
-                    onCommand(wake.text)
+                    // The passive probe ends after just 240 ms of silence. It may be a
+                    // pause before a name/number, not the end of the request. Hand its
+                    // audio to the full command detector; never execute this short probe.
+                    feedCommandDetector(speech)
                     return
                 }
             }
@@ -625,10 +627,10 @@ class NikoLocalVoiceEngine(
         commandSpeechFrames = 0
         clearLivePreview()
         resetKeywordStream()
-        vad?.reset()
+        resetCommandDetector()
         passiveWakeVad?.reset()
         commandWindow.onWake(now)
-        if (includePreRoll) vad?.acceptWaveform(preRoll.snapshot())
+        if (includePreRoll) feedCommandDetector(preRoll.snapshot())
         preRoll.clear()
         setState(State.ACTIVE)
         onWake(1f, ownerVoice.hasProfile())
@@ -640,7 +642,7 @@ class NikoLocalVoiceEngine(
             conversationAuthorized = false
             reopenFollowUp = false
             commandWindow.close()
-            vad?.reset()
+            resetCommandDetector()
             passiveWakeVad?.reset()
             resetKeywordStream()
             clearLivePreview()
@@ -651,13 +653,14 @@ class NikoLocalVoiceEngine(
         detectCommandContinuation(samples)
         updateLivePreview(samples)
         val localVad = vad ?: return
-        localVad.acceptWaveform(samples)
+        feedCommandDetector(samples)
+        if (localVad.isSpeechDetected()) commandWindow.onSpeech(SystemClock.elapsedRealtime())
 
         while (!localVad.empty()) {
             val segment = localVad.front()
             localVad.pop()
+            if (segment.samples.size < MIN_COMMAND_SAMPLES) continue
             val speech = segment.samples
-            if (speech.size < MIN_COMMAND_SAMPLES) continue
 
             if (enrolling) {
                 handleEnrollment(speech)
@@ -665,15 +668,15 @@ class NikoLocalVoiceEngine(
             }
             if (!acceptSpeaker(speech)) {
                 clearLivePreview()
-                localVad.reset()
+                resetCommandDetector()
                 setState(State.ACTIVE)
                 onUnauthorizedVoice()
                 return
             }
             emotionEngine.observeSpeech(speech, SAMPLE_RATE)
-            val recognitionSpeech = denoiseForRecognition(speech)
             setState(State.PROCESSING)
-            val transcript = transcribe(recognitionSpeech)
+            val recognition = transcribe(commandAudio.withContext(segment.start, speech))
+            val transcript = recognition.text
             if (transcript.isNotBlank()) LeoRealtimeTurnBus.updateTranscript(transcript)
             val text = when (val result = WakeWordGate().consume(transcript)) {
                 WakeResult.Activated -> ""
@@ -686,7 +689,7 @@ class NikoLocalVoiceEngine(
                 if (endsConversation(text)) conversationAuthorized = false
                 commandWindow.close()
                 assistantBusy = true
-                localVad.reset()
+                resetCommandDetector()
                 onCommand(text)
                 return
             }
@@ -696,15 +699,20 @@ class NikoLocalVoiceEngine(
                 val retry = emptyRecognitionRetries++ == 0
                 if (!retry) conversationAuthorized = false
                 speaking = true
-                localVad.reset()
-                onAwaitingCommand(if (retry) "No te entendí. ¿Lo repetís?" else "No alcancé a entenderte. Volvé a decir LEO.", retry)
+                resetCommandDetector()
+                val prompt = when {
+                    !retry -> "No alcancé a entenderte. Volvé a decir LEO."
+                    recognition.needsClarification -> "Escuché dos versiones distintas. Repetí la orden para no cambiar lo que dijiste."
+                    else -> "No te entendí. ¿Lo repetís?"
+                }
+                onAwaitingCommand(prompt, retry)
                 return
             }
 
             if (!wakeAcknowledged) {
                 wakeAcknowledged = true
                 speaking = true
-                localVad.reset()
+                resetCommandDetector()
                 onAwaitingCommand("Ajá.", true)
                 return
             }
@@ -741,11 +749,14 @@ class NikoLocalVoiceEngine(
         if (!previewRunning.compareAndSet(false, true)) return
         lastLivePreviewAt = now
         val snapshot = livePreviewSamples.copyOf()
+        val previewToken = LeoRealtimeTurnBus.previewToken()
         val localRecognizer = recognizer ?: run { previewRunning.set(false); return }
         previewExecutor.execute {
             try {
                 val text = runCatching { transcribeWith(localRecognizer, snapshot) }.getOrDefault("")
-                if (text.isNotBlank() && running.get()) LeoRealtimeTurnBus.updateTranscript(text)
+                if (text.isNotBlank() && running.get() && state == State.ACTIVE && !resetRequested) {
+                    LeoRealtimeTurnBus.updatePreview(text, previewToken)
+                }
             } finally {
                 previewRunning.set(false)
             }
@@ -776,18 +787,26 @@ class NikoLocalVoiceEngine(
         LeoRealtimeTurnBus.clearTranscript()
     }
 
-    private fun denoiseForRecognition(samples: FloatArray): FloatArray {
-        if (samples.size < SAMPLE_RATE / 4) return samples
-        val denoiser = speechDenoiser ?: return samples
-        return runCatching { denoiser.run(samples, SAMPLE_RATE).samples }.getOrNull()?.takeIf { it.isNotEmpty() } ?: samples
+    private fun resetCommandDetector() {
+        vad?.reset()
+        commandAudio.clear()
     }
 
-    private fun transcribe(samples: FloatArray): String {
-        val canary = transcribeWith(checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." }, samples)
-        val whisper = whisperRecognizer
-        if (whisper == null || !TranscriptQuality.shouldRefine(canary, samples.size, SAMPLE_RATE)) return canary
-        val refined = runCatching { transcribeWith(whisper, samples) }.getOrDefault("")
-        return TranscriptQuality.choose(canary, refined)
+    private fun feedCommandDetector(samples: FloatArray) {
+        val detector = vad ?: return
+        commandAudio.feed(samples, detector::acceptWaveform)
+    }
+
+    private fun transcribe(samples: FloatArray): FaithfulSpeechTranscriber.Result {
+        val canary = checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." }
+        val alternate: ((FloatArray) -> String)? = whisperRecognizer?.let { whisper ->
+            { audio -> transcribeWith(whisper, audio) }
+        }
+        return FaithfulSpeechTranscriber(
+            primaryDecoder = { transcribeWith(canary, it) },
+            alternateDecoder = alternate,
+            denoiser = { speechDenoiser?.run(it, SAMPLE_RATE)?.samples },
+        ).transcribe(samples)
     }
 
     private fun transcribeWith(asr: OfflineRecognizer, samples: FloatArray): String = synchronized(asr) {
@@ -836,7 +855,7 @@ class NikoLocalVoiceEngine(
     private fun handleEnrollment(samples: FloatArray) {
         if (!ownerVoice.enrollmentActive) {
             commandWindow.close()
-            vad?.reset()
+            resetCommandDetector()
             clearLivePreview()
             setState(State.PASSIVE)
             return
@@ -854,7 +873,7 @@ class NikoLocalVoiceEngine(
         }
         conversationAuthorized = false
         commandWindow.close()
-        vad?.reset()
+        resetCommandDetector()
         passiveWakeVad?.reset()
         clearLivePreview()
         speaking = true

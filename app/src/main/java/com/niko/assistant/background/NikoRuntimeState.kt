@@ -52,7 +52,7 @@ object NikoRuntimeState {
 
         return Snapshot(
             state = state,
-            heardText = LeoBrand.publicText(prefs.getString(KEY_HEARD, "").orEmpty()),
+            heardText = prefs.getString(KEY_HEARD, "").orEmpty(),
             responseText = LeoBrand.publicText(
                 prefs.getString(KEY_RESPONSE, "Decí LEO para activarme.")
                     .orEmpty()
@@ -107,7 +107,8 @@ object NikoRuntimeState {
     }
 
     fun setHeard(context: Context, value: String) {
-        edit(context) { putString(KEY_HEARD, LeoBrand.publicText(value)) }
+        // User dictation is evidence, not UI branding: Nico/Niko can be real contact names.
+        edit(context) { putString(KEY_HEARD, value) }
     }
 
     fun setResponse(context: Context, value: String) {

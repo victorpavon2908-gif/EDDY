@@ -20,6 +20,14 @@ class NikoRuntimeStateTest {
         context.getSharedPreferences("leo_first_run_setup", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
+    @Test fun heardTextKeepsRealNamesNumbersRepetitionsAndPunctuation() {
+        val dictated = "Escribí a Nico y Niko: no, no. Mi número es 8888 7777."
+        NikoRuntimeState.setHeard(context, dictated)
+        assertEquals(dictated, NikoRuntimeState.read(context).heardText)
+        assertEquals(dictated, context.getSharedPreferences("niko_runtime_state", Context.MODE_PRIVATE)
+            .getString("heard", ""))
+    }
+
     @Test fun runningServiceAndReadySpeakerDoNotImplyAWorkingMicrophone() {
         NikoRuntimeState.setRunning(context, true)
         NikoRuntimeState.setVoiceReady(context, true)
