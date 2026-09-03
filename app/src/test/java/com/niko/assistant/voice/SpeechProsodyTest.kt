@@ -18,7 +18,7 @@ class SpeechProsodyTest {
     }
 
     @Test fun mediumRepliesDoNotCreateATinyTail() {
-        val text = "Esta respuesta es suficientemente corta para sonar continua y sin un corte final raro."
+        val text = "Esta respuesta corta debe sonar seguida y natural."
         val chunks = SpeechProsody.fastStartChunks(text, firstLimit = 48, nextLimit = 96)
         assertEquals(1, chunks.size)
         assertEquals(text, chunks.single())
