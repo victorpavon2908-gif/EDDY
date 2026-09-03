@@ -95,6 +95,8 @@ open class NikoAccessibilityService : AccessibilityService() {
             "back" -> UiActionResult(goBack(), "Volví a la pantalla anterior.")
             "home" -> UiActionResult(goHome(), "Volví al inicio del teléfono.")
             "recents" -> UiActionResult(openRecents(), "Abrí aplicaciones recientes.")
+            "notifications" -> UiActionResult(openNotifications(), "Abrí las notificaciones.")
+            "quick_settings" -> UiActionResult(openQuickSettings(), "Abrí los ajustes rápidos.")
             "scroll_forward" -> nodeAction(nodeId) { node ->
                 val ok = scrollNodeForward(node)
                 UiActionResult(ok, if (ok) "Desplacé la pantalla hacia adelante." else "No encontré dónde desplazar.")

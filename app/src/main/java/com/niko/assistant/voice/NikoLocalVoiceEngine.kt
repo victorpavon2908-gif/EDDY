@@ -105,7 +105,6 @@ class NikoLocalVoiceEngine(
     private var wakeAcknowledged = false
     private var emptyRecognitionRetries = 0
     private val preRoll = PcmPreRoll(SAMPLE_RATE * 2)
-    private val nearFieldFocus = NearFieldAudioFocus()
     private val emotionEngine = NikoEmotionEngine(context)
     private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS, FOLLOW_UP_MS)
 
@@ -285,9 +284,9 @@ class NikoLocalVoiceEngine(
 
     private fun initVad() = initStage("detección de voz", NikoModelCatalog.vad) {
         val model = models.file(NikoModelCatalog.vad).absolutePath
-        vad = createVad(model, 0.30f, 0.72f, 0.10f, 30f)
+        vad = createVad(model, 0.24f, 0.72f, 0.06f, 30f)
         // Más receptivo para un nombre corto, pero Canary sigue verificando el texto antes de activar.
-        passiveWakeVad = createVad(model, 0.29f, 0.24f, 0.08f, 3.2f)
+        passiveWakeVad = createVad(model, 0.25f, 0.24f, 0.06f, 3.2f)
     }
 
     private fun createVad(
@@ -476,7 +475,6 @@ class NikoLocalVoiceEngine(
 
                 if (resetRequested) {
                     resetRequested = false
-                    nearFieldFocus.reset()
                     vad?.reset()
                     passiveWakeVad?.reset()
                     resetKeywordStream()
@@ -496,7 +494,8 @@ class NikoLocalVoiceEngine(
                 }
 
                 val raw = FloatArray(count) { buffer[it] / 32768.0f }
-                val focused = nearFieldFocus.process(raw)
+                val active = isActive()
+                val samples = FarFieldAudioEnhancer.enhance(raw, activeCommand = active)
 
                 // Full-duplex ligero: mientras el TTS suena sólo mantenemos KWS, no Canary.
                 // AEC reduce la voz del propio altavoz y una coincidencia "Leo" corta el TTS.
@@ -506,13 +505,11 @@ class NikoLocalVoiceEngine(
                         resetKeywordStream()
                         preRoll.clear()
                     }
-                    processBargeInWake(focused)
+                    processBargeInWake(samples)
                     continue
                 }
                 if (now < suppressUntil) continue
 
-                val active = isActive()
-                val samples = focused
                 if (active) processActive(samples) else processPassiveWake(samples)
             }
         } catch (error: Exception) {
@@ -923,7 +920,7 @@ class NikoLocalVoiceEngine(
         private const val BARGE_IN_DEBOUNCE_MS = 450L
         private const val BARGE_IN_GUARD_MS = 1_400L
         private const val POST_WAKE_GUARD_MS = 150L
-        private const val COMMAND_CONTINUATION_RMS = 0.0075f
+        private const val COMMAND_CONTINUATION_RMS = 0.0030f
         private const val COMMAND_CONTINUATION_FRAMES = 2
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
         private const val LIVE_PREVIEW_INTERVAL_MS = 950L

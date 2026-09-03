@@ -98,6 +98,26 @@ class NikoSemanticActionResolverTest {
         )
     }
 
+    @Test
+    fun naturalVisibleScreenTaskUsesClosedUiAutomationCommand() = runBlocking {
+        val resolver = NikoSemanticActionResolver(LocalBrain()) { "UI_TASK|tocá el botón Continuar" }
+        assertEquals(
+            listOf(AssistantCommand.AutomateUi("tocá el botón Continuar")),
+            resolver.resolveMany("Leo, dale al botón que dice Continuar"),
+        )
+    }
+
+    @Test
+    fun unsafeUiAutomationDslIsRejected() {
+        val resolver = NikoSemanticActionResolver(LocalBrain()) { null }
+        assertTrue(resolver.parseDsl("UI_TASK|tocá pagar y confirmá la compra").isEmpty())
+        assertTrue(resolver.parseDsl("UI_TASK|escribí mi contraseña 1234").isEmpty())
+        assertEquals(
+            listOf(AssistantCommand.NavigateDevice(DeviceDestination.NOTIFICATIONS)),
+            resolver.parseDsl("NAVIGATE|NOTIFICATIONS"),
+        )
+    }
+
     private infix fun List<AssistantCommand>.singleIsUnknown(expected: Boolean): Boolean =
         ((size == 1 && first() is AssistantCommand.Unknown) == expected)
 }

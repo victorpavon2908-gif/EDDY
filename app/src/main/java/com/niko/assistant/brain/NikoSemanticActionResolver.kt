@@ -1,6 +1,7 @@
 package com.niko.assistant.brain
 
 import com.niko.assistant.devicecontrol.NikoVisualContext
+import com.niko.assistant.devicecontrol.NikoUiTaskPolicy
 import java.text.Normalizer
 import java.util.Locale
 
@@ -115,6 +116,17 @@ class NikoSemanticActionResolver(
                 "SETTINGS" -> SystemPanel.SETTINGS
                 else -> null
             }?.let(AssistantCommand::OpenSystemPanel)
+            "NAVIGATE" -> when (arg(1)?.uppercase(Locale.ROOT)) {
+                "BACK" -> DeviceDestination.BACK
+                "HOME" -> DeviceDestination.HOME
+                "RECENTS" -> DeviceDestination.RECENTS
+                "NOTIFICATIONS" -> DeviceDestination.NOTIFICATIONS
+                "QUICK_SETTINGS" -> DeviceDestination.QUICK_SETTINGS
+                else -> null
+            }?.let(AssistantCommand::NavigateDevice)
+            "UI_TASK" -> safeText(1, 600)
+                ?.takeIf(NikoUiTaskPolicy::looksLikeExplicitUiTask)
+                ?.let(AssistantCommand::AutomateUi)
             "MAPS" -> safeText(1)?.let(AssistantCommand::OpenMaps)
             "SPOTIFY" -> safeText(1)?.let(AssistantCommand::PlaySpotify)
             "DIAL" -> safePhone(arg(1))?.let(AssistantCommand::Dial)
@@ -168,6 +180,8 @@ class NikoSemanticActionResolver(
         VOLUME|UP, DOWN, MUTE o 0..100
         BRIGHTNESS|0..100
         PANEL|WIFI, BLUETOOTH, INTERNET, LOCATION, NFC, AIRPLANE o SETTINGS
+        NAVIGATE|BACK, HOME, RECENTS, NOTIFICATIONS o QUICK_SETTINGS
+        UI_TASK|orden concreta para manipular controles de la aplicación visible
         MAPS|lugar o búsqueda
         SPOTIFY|canción, artista o búsqueda
         DIAL|número
@@ -186,6 +200,9 @@ class NikoSemanticActionResolver(
         Interpretá equivalencias naturales. Ejemplos: abrir/abrí/entra/entrá/metete/andá a una app => OPEN_APP;
         prender/encender/activar la linterna => TORCH|ON; apagar/desactivar => TORCH|OFF.
         Ignorá cortesía como "haceme el favor", "por favor", "podés", "quiero que" y conectores.
+        Usá UI_TASK para órdenes como tocar un botón, elegir una opción, escribir en un campo o desplazar la app visible.
+        UI_TASK nunca debe confirmar envíos, publicaciones, compras, pagos, transferencias, borrados, permisos,
+        seguridad, contraseñas, PIN ni códigos. Para esas peticiones respondé NONE.
         Podés usar el contexto reciente solo para resolver referencias como "apagála", "subilo" o "la misma".
         No uses el contexto para inventar una acción que el usuario no pidió ahora.
 

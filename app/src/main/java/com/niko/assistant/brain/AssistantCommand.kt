@@ -22,6 +22,8 @@ sealed interface AssistantCommand {
     data class AdjustVolume(val direction: VolumeDirection) : AssistantCommand
     data class SetBrightness(val percent: Int) : AssistantCommand
     data class OpenSystemPanel(val panel: SystemPanel) : AssistantCommand
+    data class NavigateDevice(val destination: DeviceDestination) : AssistantCommand
+    data class AutomateUi(val task: String) : AssistantCommand
     data object BatteryStatus : AssistantCommand
     data class Vibrate(val milliseconds: Long = 350L) : AssistantCommand
     data class SmartHomeControl(
@@ -31,6 +33,14 @@ sealed interface AssistantCommand {
     data object OpenSmartHomeSettings : AssistantCommand
     data object OpenAiSettings : AssistantCommand
     data class Unknown(val originalText: String) : AssistantCommand
+}
+
+enum class DeviceDestination {
+    BACK,
+    HOME,
+    RECENTS,
+    NOTIFICATIONS,
+    QUICK_SETTINGS,
 }
 
 enum class VolumeDirection {

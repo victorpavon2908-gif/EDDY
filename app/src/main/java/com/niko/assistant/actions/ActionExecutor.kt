@@ -19,9 +19,11 @@ import android.provider.Settings
 import com.niko.assistant.AiSettingsActivity
 import com.niko.assistant.MainActivity
 import com.niko.assistant.SmartHomeSettingsActivity
+import com.niko.assistant.brain.DeviceDestination
 import com.niko.assistant.brain.SupportedApp
 import com.niko.assistant.brain.SystemPanel
 import com.niko.assistant.brain.VolumeDirection
+import com.niko.assistant.devicecontrol.NikoAccessibilityService
 import com.niko.assistant.ui.NikoUiMode
 import com.niko.assistant.ui.NikoUiModeStore
 import java.text.Normalizer
@@ -202,6 +204,30 @@ class ActionExecutor(private val context: Context) {
         }
         val label = when (panel) { SystemPanel.WIFI -> "Wi‑Fi"; SystemPanel.BLUETOOTH -> "Bluetooth"; SystemPanel.INTERNET -> "Internet"; SystemPanel.LOCATION -> "ubicación"; SystemPanel.NFC -> "NFC"; SystemPanel.AIRPLANE -> "modo avión"; SystemPanel.SETTINGS -> "configuración" }
         return launch(intent, "Te abrí $label para que lo cambiés.", "No pude abrir los ajustes de $label.")
+    }
+
+    fun navigateDevice(destination: DeviceDestination): ActionResult {
+        val service = NikoAccessibilityService.instance
+            ?: return launch(
+                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
+                "Activá LEO Device Control en Accesibilidad y después repetí la orden.",
+                "No pude abrir los ajustes de Accesibilidad.",
+            )
+        val success = when (destination) {
+            DeviceDestination.BACK -> service.goBack()
+            DeviceDestination.HOME -> service.goHome()
+            DeviceDestination.RECENTS -> service.openRecents()
+            DeviceDestination.NOTIFICATIONS -> service.openNotifications()
+            DeviceDestination.QUICK_SETTINGS -> service.openQuickSettings()
+        }
+        val message = when (destination) {
+            DeviceDestination.BACK -> "Volví a la pantalla anterior."
+            DeviceDestination.HOME -> "Fui al inicio del teléfono."
+            DeviceDestination.RECENTS -> "Abrí las aplicaciones recientes."
+            DeviceDestination.NOTIFICATIONS -> "Abrí las notificaciones."
+            DeviceDestination.QUICK_SETTINGS -> "Abrí los ajustes rápidos."
+        }
+        return ActionResult(success, if (success) message else "Android no me dejó controlar esa pantalla.")
     }
 
     fun batteryStatus(): ActionResult {

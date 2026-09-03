@@ -49,6 +49,8 @@ import com.niko.assistant.brain.NikoMathEngine
 import com.niko.assistant.brain.LocalBrain
 import com.niko.assistant.brain.NikoSemanticActionResolver
 import com.niko.assistant.brain.WebQueryRouter
+import com.niko.assistant.devicecontrol.NikoUiAutomationAgent
+import com.niko.assistant.devicecontrol.NikoUiTaskPolicy
 import com.niko.assistant.learning.AdaptiveIntentStore
 import com.niko.assistant.learning.OnlineIntentNetwork
 import com.niko.assistant.learning.LearnedIntent
@@ -100,6 +102,7 @@ open class NikoAssistantService : Service() {
     private lateinit var deviceProfile: NikoDeviceProfile
     private lateinit var ownerVoice: NikoVoiceProfile
     private lateinit var localLlm: NikoLocalLlm
+    private lateinit var uiAutomation: NikoUiAutomationAgent
     private lateinit var codeAgent: NikoCodeAgent
     private val adaptiveStore by lazy { AdaptiveIntentStore(File(filesDir, "adaptive_learning")) }
     private var adaptiveNetwork: OnlineIntentNetwork? = null
@@ -159,6 +162,7 @@ open class NikoAssistantService : Service() {
         deviceProfile = NikoDeviceProfile.detect(applicationContext)
         ownerVoice = NikoVoiceProfile(applicationContext)
         localLlm = NikoLocalLlm(applicationContext, modelManager)
+        uiAutomation = NikoUiAutomationAgent(localLlm)
         semanticActions = NikoSemanticActionResolver(brain) { prompt -> localLlm.completeStructured(prompt) }
         codeAgent = NikoCodeAgent(applicationContext)
 
@@ -531,6 +535,11 @@ open class NikoAssistantService : Service() {
             speakResearchResponse(command.query, researchReply(command.query, openBrowser = true)); return
         }
         if (command is AssistantCommand.Unknown) {
+            if (NikoUiTaskPolicy.looksLikeExplicitUiTask(text)) {
+                learnIntent(text, LearnedIntent.ACTION)
+                speakResponse(uiAutomation.run(text).message)
+                return
+            }
             withContext(Dispatchers.IO) { memory.personalReply(text) }?.let {
                 learnIntent(text, LearnedIntent.MEMORY); speakResponse(it); return
             }
@@ -636,6 +645,8 @@ open class NikoAssistantService : Service() {
         is AssistantCommand.AdjustVolume -> executor.adjustVolume(command.direction).spokenMessage
         is AssistantCommand.SetBrightness -> executor.setBrightness(command.percent).spokenMessage
         is AssistantCommand.OpenSystemPanel -> executor.openSystemPanel(command.panel).spokenMessage
+        is AssistantCommand.NavigateDevice -> executor.navigateDevice(command.destination).spokenMessage
+        is AssistantCommand.AutomateUi -> uiAutomation.run(command.task).message
         AssistantCommand.BatteryStatus -> executor.batteryStatus().spokenMessage
         is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).spokenMessage
         is AssistantCommand.SmartHomeControl -> smartHome.control(command.target, command.enabled).spokenMessage

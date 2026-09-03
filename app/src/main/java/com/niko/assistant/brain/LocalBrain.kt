@@ -50,6 +50,7 @@ class LocalBrain {
         parseVolume(text)?.let { return it }
         parseBrightness(text)?.let { return it }
         parseSystemPanel(text)?.let { return it }
+        parseDeviceNavigation(text)?.let { return it }
         parseSmartHome(text)?.let { return it }
         parseShare(original, text)?.let { return it }
 
@@ -193,6 +194,38 @@ class LocalBrain {
             text.contains("configuracion") || text.contains("ajustes") -> AssistantCommand.OpenSystemPanel(SystemPanel.SETTINGS)
             else -> null
         }
+    }
+
+    private fun parseDeviceNavigation(text: String): AssistantCommand.NavigateDevice? {
+        val destination = when {
+            containsAny(
+                text,
+                "abre los ajustes rapidos", "abri los ajustes rapidos", "mostra los ajustes rapidos",
+                "muestra los ajustes rapidos", "panel rapido", "panel de control",
+            ) -> DeviceDestination.QUICK_SETTINGS
+            containsAny(
+                text,
+                "abre las notificaciones", "abri las notificaciones", "mostra las notificaciones",
+                "muestra las notificaciones", "baja las notificaciones", "panel de notificaciones",
+            ) -> DeviceDestination.NOTIFICATIONS
+            containsAny(
+                text,
+                "abre las aplicaciones recientes", "abri las aplicaciones recientes", "mostra las aplicaciones recientes",
+                "muestra las aplicaciones recientes", "aplicaciones recientes", "apps recientes", "multitarea",
+            ) -> DeviceDestination.RECENTS
+            containsAny(
+                text,
+                "anda al inicio", "ve al inicio", "volve al inicio", "regresa al inicio", "pantalla de inicio",
+                "anda a home", "ve a home", "boton de inicio",
+            ) -> DeviceDestination.HOME
+            containsAny(
+                text,
+                "volve atras", "regresa atras", "anda atras", "ve atras", "pantalla anterior",
+                "retrocede", "boton atras",
+            ) || text in setOf("atras", "volve", "regresa") -> DeviceDestination.BACK
+            else -> return null
+        }
+        return AssistantCommand.NavigateDevice(destination)
     }
 
     private fun parseSmartHome(text: String): AssistantCommand.SmartHomeControl? {

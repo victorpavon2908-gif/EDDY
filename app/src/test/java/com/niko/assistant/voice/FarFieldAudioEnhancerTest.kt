@@ -26,4 +26,13 @@ class FarFieldAudioEnhancerTest {
         val strong = FloatArray(512) { if (it % 2 == 0) 0.08f else -0.08f }
         assertSame(strong, FarFieldAudioEnhancer.enhance(strong, activeCommand = true))
     }
+
+    @Test
+    fun whisperedSpeechIsRaisedEnoughForTheCommandDetector() {
+        val whisper = FloatArray(512) { index -> if (index % 4 < 2) 0.0012f else -0.0012f }
+        val enhanced = FarFieldAudioEnhancer.enhance(whisper, activeCommand = true)
+
+        assertTrue(enhanced.maxOf { kotlin.math.abs(it) } >= 0.005f)
+        assertTrue(enhanced.all { it in -0.98f..0.98f })
+    }
 }

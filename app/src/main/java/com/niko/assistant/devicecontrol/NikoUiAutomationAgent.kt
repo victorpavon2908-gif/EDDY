@@ -23,8 +23,10 @@ class NikoUiAutomationAgent(
     suspend fun run(task: String): Result {
         val request = task.trim().take(600)
         if (request.isBlank()) return Result(false, "No recibí una tarea para la aplicación.", 0)
+        val safety = NikoUiTaskPolicy.evaluate(request)
+        if (!safety.allowed) return Result(false, safety.message, 0)
         val service = NikoAccessibilityService.instance
-            ?: return Result(false, "Activá NIKO Device Control en Accesibilidad de Android para que pueda manejar pantallas de otras apps.", 0)
+            ?: return Result(false, "Activá LEO Device Control en Accesibilidad de Android para que pueda manejar pantallas de otras apps.", 0)
         if (!localLlm.isAvailable) {
             return Result(false, "Prepará la conversación local en Ajustes para usar el control inteligente de aplicaciones.", 0)
         }
@@ -82,13 +84,17 @@ class NikoUiAutomationAgent(
         SCROLL_BACKWARD|node_id
         BACK
         HOME
+        RECENTS
+        NOTIFICATIONS
+        QUICK_SETTINGS
         DONE|mensaje breve para el usuario
         ABORT|motivo breve
 
         Reglas:
         - Usá solamente node_id presentes en el árbol actual.
         - No escribás contraseñas, PIN, códigos 2FA ni datos secretos.
-        - No confirmés compras, pagos, transferencias, borrados de cuenta, desinstalaciones ni cambios de seguridad.
+        - No confirmés mensajes, publicaciones, compras, pagos, transferencias, borrados de cuenta,
+          desinstalaciones, permisos ni cambios de seguridad.
         - Si el objetivo ya está cumplido, devolvé DONE.
         - Si no hay un control razonable para continuar, devolvé ABORT.
         - Después de un click NIKO volverá a observar la pantalla, así que hacé un solo paso.
@@ -116,6 +122,9 @@ class NikoUiAutomationAgent(
             "SCROLL_BACKWARD" -> node(parts.getOrNull(1))?.let { Step.Do("scroll_backward", it) }
             "BACK" -> Step.Do("back", null)
             "HOME" -> Step.Do("home", null)
+            "RECENTS" -> Step.Do("recents", null)
+            "NOTIFICATIONS" -> Step.Do("notifications", null)
+            "QUICK_SETTINGS" -> Step.Do("quick_settings", null)
             "DONE" -> Step.Done(parts.getOrNull(1).orEmpty().take(180))
             "ABORT" -> Step.Abort(parts.getOrNull(1).orEmpty().take(180))
             else -> null

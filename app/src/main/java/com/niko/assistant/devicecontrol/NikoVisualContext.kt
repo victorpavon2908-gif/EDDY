@@ -46,7 +46,7 @@ object NikoVisualContext {
     fun capture(): Capture {
         val service = NikoAccessibilityService.instance
             ?: return Capture(
-                problem = "Para mirar lo que aparece en pantalla, activá NIKO Device Control en Accesibilidad de Android.",
+                problem = "Para mirar lo que aparece en pantalla, activá LEO Device Control en Accesibilidad de Android.",
             )
 
         val snapshot = runCatching { service.snapshot(maxNodes = 110, maxDepth = 10) }

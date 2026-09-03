@@ -13,6 +13,14 @@ class LocalBrainTest {
         }
     }
 
+    @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
+        assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.BACK), brain.understand("Leo, volvé atrás"))
+        assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.HOME), brain.understand("andá a la pantalla de inicio"))
+        assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.RECENTS), brain.understand("mostrame las apps recientes"))
+        assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.NOTIFICATIONS), brain.understand("bajá las notificaciones"))
+        assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.QUICK_SETTINGS), brain.understand("abrime el panel de control"))
+    }
+
     @Test fun preservesDictationAndNeverUsesBodyNumbersAsRecipients() {
         assertEquals(AssistantCommand.WhatsAppMessage(null, "Leo, pará. Mi número es 8888 7777"),
             brain.understand("Leo, mandá un mensaje por Whats App así: Leo, pará. Mi número es 8888 7777"))
