@@ -68,13 +68,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 
-/**
- * LEO immersive voice surface.
- *
- * The screen deliberately avoids the old stack of white cards and mascot-demo controls. The
- * neural core is the product identity; supporting controls stay visually subordinate and work
- * like an ambient assistant rather than a dashboard.
- */
+/** LEO: articulated companion, with conversation and controls below the stage. */
 @Composable
 internal fun NikoReferenceScreen(
     visualState: NikoVisualState,
@@ -108,7 +102,7 @@ internal fun NikoReferenceScreen(
                 ),
             ),
     ) {
-        NeuralBackdrop(accent)
+        RobotBackdrop(accent)
 
         Column(
             modifier = Modifier
@@ -132,9 +126,10 @@ internal fun NikoReferenceScreen(
             ) {
                 NikoHero(
                     state = displayState,
+                    enabled = autoListeningEnabled,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 26.dp, vertical = 6.dp),
+                        .padding(top = 4.dp, bottom = 32.dp),
                 )
 
                 LiveStateBadge(
@@ -175,15 +170,7 @@ internal fun NikoReferenceScreen(
 }
 
 @Composable
-private fun NeuralBackdrop(accent: Color) {
-    val infinite = rememberInfiniteTransition(label = "nikoBackdrop")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(9_000), RepeatMode.Restart),
-        label = "backdropPhase",
-    )
-
+private fun RobotBackdrop(accent: Color) {
     Canvas(Modifier.fillMaxSize()) {
         drawCircle(
             brush = Brush.radialGradient(
@@ -203,18 +190,6 @@ private fun NeuralBackdrop(accent: Color) {
             radius = size.width * 0.72f,
             center = Offset(size.width * 0.10f, size.height * 0.78f),
         )
-
-        repeat(22) { index ->
-            val x = ((index * 83) % 101) / 100f * size.width
-            val baseY = ((index * 47) % 97) / 100f * size.height
-            val y = baseY + sin(phase * PI * 2 + index).toFloat() * 9f
-            val alpha = 0.08f + (index % 4) * 0.025f
-            drawCircle(
-                color = Color.White.copy(alpha = alpha),
-                radius = 0.7f + (index % 3) * 0.45f,
-                center = Offset(x, y),
-            )
-        }
     }
 }
 
@@ -246,7 +221,7 @@ private fun NikoTopBar(
                 }
             }
             Text(
-                text = "NEURAL COMPANION",
+                text = "TU COMPAÑERO PERSONAL",
                 color = Color.White.copy(alpha = 0.38f),
                 fontSize = 8.5.sp,
                 fontWeight = FontWeight.SemiBold,

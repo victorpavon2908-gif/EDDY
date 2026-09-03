@@ -24,7 +24,12 @@ class NikoSemanticActionResolver(
         val original = text.trim()
         if (original.isBlank()) return listOf(AssistantCommand.Unknown(text))
 
-        val deterministic = brain.understandMany(original)
+        val deterministic = brain.understandMany(original).map { command ->
+            if (command is AssistantCommand.ComposeMessage &&
+                !Regex("\\b(?:sms|mensajes de texto)\\b").containsMatchIn(key(original)) &&
+                recentContext().contains("whatsapp", ignoreCase = true)
+            ) AssistantCommand.WhatsAppMessage(command.number.takeIf(String::isNotBlank), command.message) else command
+        }
         if (deterministic.hasKnownAction()) {
             remember(deterministic)
             return deterministic
@@ -218,7 +223,7 @@ class NikoSemanticActionResolver(
     }
 
     private fun isProtectedNonAction(text: String): Boolean {
-        val value = key(text)
+        val value = key(text).replace(Regex("^(?:leo|niko|nico)\\s+"), "")
         return Regex(
             "^(?:no|nunca|jamas|tampoco|por que|explica|explicame|decime como|dime como|como (?:puedo|hago|funciona|se|abrir|borrar|apagar|prender|encender|enviar|llamar|poner))\\b",
         ).containsMatchIn(value)

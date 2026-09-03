@@ -20,7 +20,7 @@ class LocalBrain {
     }
 
     private fun understandSingle(input: String): AssistantCommand {
-        val original = cleanConversationalInput(input.trim())
+        val original = cleanConversationalInput(input.trim().replace(Regex("(?i)^(?:leo|niko|nico)\\b[\\s,.:;!¿?¡-]*"), ""))
         val text = normalize(original)
 
         // Negated orders and questions about an action must never execute that action.
@@ -93,7 +93,7 @@ class LocalBrain {
     }
 
     private fun splitActionClauses(value: String): List<String> {
-        val protectedMessage = normalize(value).contains("mensaje") && containsAny(normalize(value), "que diga", "diciendo", "con el texto", "con mensaje")
+        val protectedMessage = MESSAGE_BODY.containsMatchIn(value) && MESSAGE_ORDER.containsMatchIn(normalize(cleanConversationalInput(value)))
         if (protectedMessage) return listOf(value)
         return value
             .split(Regex("(?i)\\s*(?:,?\\s+(?:y\\s+despu[eé]s|despu[eé]s|luego|adem[aá]s|y\\s+luego|y))\\s+(?=(?:abre|abr[ií]|entra|enciende|encend[eé]|prende|apaga|llama|marca|pon|reproduce|sube|baja|activa|desactiva|busca|manda|env[ií]a|escribe|pon[eé]|quiero|necesito|haceme|hazme)\\b)"))
@@ -105,7 +105,7 @@ class LocalBrain {
         if (!containsAny(normalized, "abre", "abri", "abrir", "abrime", "abreme", "inicia", "lanza", "ejecuta", "entra a", "entra en", "metete en")) return null
         when {
             normalized.contains("youtube") -> return AssistantCommand.OpenApp(SupportedApp.YOUTUBE)
-            normalized.contains("whatsapp") || normalized.contains("wasa") || normalized.contains("guasap") -> return AssistantCommand.OpenApp(SupportedApp.WHATSAPP)
+            WHATSAPP_NAME.containsMatchIn(normalized) -> return AssistantCommand.OpenApp(SupportedApp.WHATSAPP)
             normalized.contains("spotify") -> return AssistantCommand.OpenApp(SupportedApp.SPOTIFY)
             normalized.contains("maps") || normalized.contains("mapas") -> return AssistantCommand.OpenApp(SupportedApp.MAPS)
             normalized.contains("chrome") || normalized.contains("navegador") -> return AssistantCommand.OpenApp(SupportedApp.CHROME)
@@ -124,29 +124,27 @@ class LocalBrain {
     }
 
     private fun parseMessage(original: String, normalized: String): AssistantCommand.ComposeMessage? {
-        if (!containsAny(normalized, "mensaje", "sms") || !containsAny(normalized, "envia", "enviar", "manda", "mandar", "escribe")) return null
-        if (containsAny(normalized, "whatsapp", "wasa", "guasap")) return null
-        val numberMatch = PHONE_REGEX.find(normalized) ?: return null
-        return AssistantCommand.ComposeMessage(cleanPhone(numberMatch.value), extractMessageBody(original))
+        if (!MESSAGE_ORDER.containsMatchIn(normalized) || WHATSAPP_NAME.containsMatchIn(normalize(messageEnvelope(original)))) return null
+        if (!Regex("\\b(?:mensaje|sms)\\b").containsMatchIn(normalized)) return null
+        val envelope = messageEnvelope(original)
+        val number = PHONE_REGEX.find(envelope)?.value?.let(::cleanPhone).orEmpty()
+        return AssistantCommand.ComposeMessage(number, extractMessageBody(original))
     }
 
     private fun parseWhatsApp(original: String, normalized: String): AssistantCommand.WhatsAppMessage? {
-        if (!containsAny(normalized, "whatsapp", "wasa", "guasap")) return null
-        if (!containsAny(normalized, "envia", "enviar", "manda", "mandar", "escribe", "mensaje")) return null
-        val number = PHONE_REGEX.find(normalized)?.value?.let(::cleanPhone)
-        var body = extractMessageBody(original)
-        if (body.isBlank()) {
-            body = normalize(original)
-                .replace(Regex("\\b(?:envia|enviar|manda|mandar|escribe|mensaje)\\b"), " ")
-                .replace(Regex("\\b(?:por|en)?\\s*(?:whatsapp|wasa|guasap)\\b"), " ")
-                .replace(PHONE_REGEX, " ")
-                .replace(Regex("\\s+"), " ")
-                .trim(' ', ',', '.', ':')
-        }
-        return AssistantCommand.WhatsAppMessage(number, body)
+        if (!WHATSAPP_NAME.containsMatchIn(normalize(messageEnvelope(original))) || !MESSAGE_ORDER.containsMatchIn(normalized)) return null
+        // A phone number dictated IN the message is content, never a recipient.
+        val number = PHONE_REGEX.find(messageEnvelope(original))?.value?.let(::cleanPhone)
+        return AssistantCommand.WhatsAppMessage(number, extractMessageBody(original))
     }
 
-    private fun extractMessageBody(original: String): String = Regex("""(?i)(?:diciendo|que diga|con el texto|con mensaje)\s+(.+)$""").find(original)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+    private fun messageEnvelope(original: String): String = MESSAGE_BODY.find(original)?.range?.first
+        ?.let { original.take(it) } ?: original
+
+    private fun extractMessageBody(original: String): String {
+        val delimiter = MESSAGE_BODY.find(original) ?: return ""
+        return original.substring(delimiter.range.last + 1).trim().trimStart(':').trim().trim('"', '“', '”')
+    }
 
     private fun parseSpotify(original: String, normalized: String): AssistantCommand.PlaySpotify? {
         if (!normalized.contains("spotify") || !containsAny(normalized, "pon", "pone", "reproduce", "toca", "escucha", "quiero escuchar", "musica")) return null
@@ -253,7 +251,7 @@ class LocalBrain {
     }
 
     private fun cleanConversationalInput(value: String): String {
-        var current = value.trim()
+        var current = value.trim().replace(Regex("(?i)^(?:leo|niko|nico)\\b[\\s,.:;!¿?¡-]*"), "")
         repeat(8) {
             val updated = current.replace(CONVERSATIONAL_PREFIX, "").replace(FILLER_PREFIX, "").trim(' ', ',', '.', ':', ';', '-', '¿', '?', '¡', '!')
             if (updated == current) return current
@@ -268,8 +266,12 @@ class LocalBrain {
     private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD).replace("\\p{Mn}+".toRegex(), "").replace(Regex("\\s+"), " ").trim()
 
     companion object {
+        private val WHATSAPP_NAME = Regex("\\b(?:whats?\\s*app|wats?\\s*ap+p?|guasap|wasap|wasa)\\b")
+        private val MESSAGE_ORDER = Regex("^(?:envia(?:me|le|r)?|manda(?:me|le|r)?|escrib[iíe](?:me|le)?|redacta)\\b")
+        private val MESSAGE_BODY = Regex("(?i)(?:\\b(?:diciendo|que diga|que dig[aá]s|con el texto|con mensaje|dile que|decile que|as[ií])\\b\\s*|:\\s*)")
+
         private val PHONE_REGEX = Regex("""\+?\d[\d\s-]{6,}\d""")
         private val FILLER_PREFIX = Regex("""(?i)^(?:este+|eh+|em+|mmm+|mira|fijate|bueno|a ver)\b\s*[,.:;!-]*\s*""")
-        private val CONVERSATIONAL_PREFIX = Regex("""(?i)^(?:(?:niko|nico)\s*[,.:;!¿?¡-]*\s*)?(?:(?:por\s+favor|porfa|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hac[eé]s\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey|mira|mir[aá])\s+)+""")
+        private val CONVERSATIONAL_PREFIX = Regex("""(?i)^(?:(?:leo|niko|nico)\s*[,.:;!¿?¡-]*\s*)?(?:(?:por\s+favor|porfa|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hac[eé]s\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey|mira|mir[aá])\s+)+""")
     }
 }

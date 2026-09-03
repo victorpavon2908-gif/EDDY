@@ -46,4 +46,11 @@ class WebQueryRouterTest {
         assertEquals(AssistantCommand.TellTime, brain.understand("qué hora es"))
         assertTrue(brain.understand("no busques noticias") is AssistantCommand.Unknown)
     }
+
+    @Test fun explicitResearchIsNotAutomaticallyTodaysNews() {
+        assertFalse(WebQueryRouter.needsRecentInformation("buscá información sobre Rubén Darío en 1916"))
+        assertTrue(WebQueryRouter.needsCurrentInformation("buscá información sobre Rubén Darío en 1916"))
+        assertEquals("informacion de nicaragua", WebQueryRouter.explicitQuery("Leo, por favor buscam información de Nicaragua"))
+        assertTrue(WebQueryRouter.needsRecentInformation("últimas noticias de Nicaragua"))
+    }
 }

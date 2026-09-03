@@ -6,6 +6,8 @@ import com.niko.assistant.memory.MemoryLearning
 object NikoIdentity {
     /** Old persisted branding is migrated before either speech engine sees it. */
     fun forSpeech(text: String): String = LeoBrand.publicText(text)
+        .replace(Regex("\\[\\d{1,2}\\]"), "")
+        .replace(Regex("(?m)^[•*#]+\\s*"), "")
 
     fun replyTo(input: String): String? {
         val question = MemoryLearning.key(input)

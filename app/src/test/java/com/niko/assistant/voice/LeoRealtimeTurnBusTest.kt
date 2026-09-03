@@ -5,6 +5,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LeoRealtimeTurnBusTest {
+    @Test fun interruptionCancelsTheProducerBeforeNotifyingPlayback() {
+        val events = mutableListOf<String>()
+        val producer: () -> Unit = { events.add("cancel search"); Unit }
+        val broken: () -> Unit = { error("one failed listener must not block stop") }
+        val player: () -> Unit = { events.add("stop audio"); Unit }
+        LeoRealtimeTurnBus.registerTurnInterrupter(producer)
+        LeoRealtimeTurnBus.registerSpeechStopper(broken)
+        LeoRealtimeTurnBus.registerSpeechStopper(player)
+        try {
+            LeoRealtimeTurnBus.interruptTurn()
+            assertEquals(listOf("cancel search", "stop audio"), events)
+        } finally {
+            LeoRealtimeTurnBus.unregisterTurnInterrupter(producer)
+            LeoRealtimeTurnBus.unregisterSpeechStopper(broken)
+            LeoRealtimeTurnBus.unregisterSpeechStopper(player)
+        }
+    }
     @Test fun publishesBoundedLiveTranscript() {
         LeoRealtimeTurnBus.clearTranscript()
         LeoRealtimeTurnBus.updateTranscript("  Leo entendiendo mi frase  ")

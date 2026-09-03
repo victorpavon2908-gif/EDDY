@@ -1,4 +1,4 @@
-name: LEO tests, lint and APK
+name: LEO tests and lint
 
 on:
   push:
@@ -57,20 +57,13 @@ jobs:
       - name: Prepare real wake detector test
         run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/niko-kws-native" --github-env "$GITHUB_ENV"
 
+      - name: Validate bundled 3D robot
+        run: |
+          npm install --prefix "$RUNNER_TEMP/leo-gltf" gltf-validator@2.0.0-dev.3.10 --ignore-scripts --no-audit --no-fund
+          node scripts/validate_leo_robot.cjs "$RUNNER_TEMP/leo-gltf/node_modules/gltf-validator"
+
       - name: Android unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Android lint
         run: ./gradlew :app:lintDebug --stacktrace
-
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Publish LEO APK
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: LEO-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14

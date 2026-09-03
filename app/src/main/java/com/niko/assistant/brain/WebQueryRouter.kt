@@ -10,7 +10,9 @@ object WebQueryRouter {
 
     fun explicitQuery(input: String): String? {
         val text = normalize(input)
-        val match = Regex("^(?:(?:podes|puedes|podrias|podria|quiero que|necesito que)\\s+)?(?:buscar|busca|buscame|busques|investiga|investigame|investigar|investigues|averigua|averiguame|averiguar|consulta|consultame|consultar|googlea)(?:\\s+(?:en|por)\\s+(?:internet|google|la web))?\\s+(.+)$")
+            .replace(Regex("^(?:(?:oye|hey|hola)\\s+)?leo\\b[ ,:]*"), "")
+            .replace(Regex("^por favor[ ,]+"), "")
+        val match = Regex("^(?:(?:podes|puedes|podrias|podria|quiero que|necesito que)\\s+)?(?:buscar|busca|buscame|busques|buscam|investiga|investigame|investigar|investigues|averigua|averiguame|averiguar|consulta|consultame|consultar|googlea)(?:\\s+(?:en|por)\\s+(?:internet|google|la web))?\\s+(.+)$")
             .find(text) ?: return null
         return match.groupValues[1].trim(' ', ',', '.', '?', '¿', ':').takeIf { it.isNotBlank() }
     }
@@ -20,6 +22,12 @@ object WebQueryRouter {
         if (Regex("\\b(?:sin (?:usar )?internet|no (?:busques|consultes)|no uses (?:internet|la web))\\b").containsMatchIn(text)) return false
         if (Regex("^no (?:quiero|necesito).*(?:busc|consult|investig)").containsMatchIn(text)) return false
         if (explicitQuery(input) != null) return true
+        return needsRecentInformation(input)
+    }
+
+    /** Explicit search is not necessarily news: dates and historical topics stay intact. */
+    fun needsRecentInformation(input: String): Boolean {
+        val text = normalize(input)
         if (Regex("\\b(?:me siento|estoy (?:triste|cansado|cansada|feliz|frustrado|frustrada))\\b").containsMatchIn(text)) return false
 
         val freshnessMarkers = listOf(

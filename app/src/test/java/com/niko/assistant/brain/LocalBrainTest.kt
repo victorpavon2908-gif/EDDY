@@ -7,6 +7,34 @@ import org.junit.Test
 class LocalBrainTest {
     private val brain = LocalBrain()
 
+    @Test fun opensWhatsAppWithVoiceSpellingAndNicaraguanVerbs() {
+        listOf("Leo, abrime WhatsApp", "Leo abrí Whats App", "abrime guasap", "Leo, por favor abrime wasap").forEach {
+            assertEquals(it, AssistantCommand.OpenApp(SupportedApp.WHATSAPP), brain.understand(it))
+        }
+    }
+
+    @Test fun preservesDictationAndNeverUsesBodyNumbersAsRecipients() {
+        assertEquals(AssistantCommand.WhatsAppMessage(null, "Leo, pará. Mi número es 8888 7777"),
+            brain.understand("Leo, mandá un mensaje por Whats App así: Leo, pará. Mi número es 8888 7777"))
+        assertEquals(AssistantCommand.ComposeMessage("", "Voy para Masaya"),
+            brain.understand("Leo, mandá un mensaje diciendo Voy para Masaya"))
+        assertEquals(AssistantCommand.WhatsAppMessage("88887777", "Ya voy"),
+            brain.understand("Leo, mandale por WhatsApp al 8888 7777 que diga Ya voy"))
+        assertEquals(AssistantCommand.WhatsAppMessage(null, ""), brain.understand("Leo, mandá un mensaje por WhatsApp"))
+    }
+
+    @Test fun dictatedActionsStayInsideTheMessage() {
+        assertEquals(AssistantCommand.ComposeMessage("", "abrí WhatsApp"),
+            brain.understand("mandá un SMS diciendo abrí WhatsApp"))
+        assertEquals(listOf(AssistantCommand.WhatsAppMessage(null, "pará y abre YouTube")),
+            brain.understandMany("Leo, mandá por WhatsApp así pará y abre YouTube"))
+    }
+
+    @Test fun namedAssistantDoesNotHideNegation() {
+        assertTrue(brain.understand("Leo, no abras WhatsApp") is AssistantCommand.Unknown)
+        assertTrue(brain.understand("Leo, cómo puedo abrir Whats App") is AssistantCommand.Unknown)
+    }
+
     @Test
     fun navigationQuestionsStillOpenMaps() {
         assertEquals(AssistantCommand.OpenMaps("masatepe"), brain.understand("cómo llego a Masatepe"))

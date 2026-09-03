@@ -30,7 +30,7 @@ import java.util.Locale
 class ActionExecutor(private val context: Context) {
 
     fun openApp(app: SupportedApp): ActionResult {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+        val launchIntent = (if (app == SupportedApp.WHATSAPP) whatsappPackage()?.let(context.packageManager::getLaunchIntentForPackage) else context.packageManager.getLaunchIntentForPackage(app.packageName))
             ?: return openAppByName(app.displayName)
         return launch(launchIntent, "De una, abriendo ${app.displayName}.", "No pude abrir ${app.displayName}.")
     }
@@ -130,19 +130,25 @@ class ActionExecutor(private val context: Context) {
 
     fun composeMessage(number: String, message: String): ActionResult {
         val intent = Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("smsto:${Uri.encode(number)}"); if (message.isNotBlank()) putExtra("sms_body", message) }
-        val spoken = if (message.isBlank()) "Listo, te abro un mensaje para $number." else "Ya te dejé preparado el mensaje para $number."
+        val spoken = if (number.isBlank()) "Elegí el contacto en Mensajes y revisá el texto antes de enviarlo." else if (message.isBlank()) "Listo, te abro un mensaje para $number." else "Ya te dejé preparado el mensaje para $number."
         return launch(intent, spoken, "No pude abrir una aplicación de mensajes.")
     }
 
+    private fun whatsappPackage(): String? = listOf("com.whatsapp", "com.whatsapp.w4b")
+        .firstOrNull { context.packageManager.getLaunchIntentForPackage(it) != null }
+
     fun whatsappMessage(number: String?, message: String): ActionResult {
+        val packageName = whatsappPackage() ?: return ActionResult(false, "No encuentro WhatsApp ni WhatsApp Business instalados.")
+        if (number.isNullOrBlank() && message.isBlank()) return openApp(SupportedApp.WHATSAPP)
+
         val intent = if (!number.isNullOrBlank()) {
             val digits = number.filter(Char::isDigit)
             val international = if (digits.length == 8) "505$digits" else digits
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$international?text=${Uri.encode(message)}")).apply { setPackage("com.whatsapp") }
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$international?text=${Uri.encode(message)}")).apply { setPackage(packageName) }
         } else {
-            Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, message); setPackage("com.whatsapp") }
+            Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, message); setPackage(packageName) }
         }
-        return launch(intent, if (number.isNullOrBlank()) "De una, te abro WhatsApp con el mensaje listo." else "Listo, te abro el chat de WhatsApp con el mensaje preparado.", "No pude abrir WhatsApp. Revisá que esté instalado.")
+        return launch(intent, if (number.isNullOrBlank()) "Elegí el contacto en WhatsApp y revisá el mensaje antes de enviarlo." else "Listo, te abro el chat de WhatsApp con el mensaje preparado.", "No pude abrir WhatsApp. Revisá que esté instalado.")
     }
 
     fun playSpotify(query: String): ActionResult {
@@ -242,7 +248,7 @@ class ActionExecutor(private val context: Context) {
 
     private fun launch(intent: Intent, successMessage: String, failureMessage: String, returnFailureImmediately: Boolean = true): ActionResult {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return try { context.startActivity(intent); ActionResult(true, successMessage) } catch (_: Exception) { ActionResult(false, if (returnFailureImmediately) failureMessage else "") }
+        return AndroidActionLauncher.launch(context, intent, successMessage, if (returnFailureImmediately) failureMessage else "")
     }
 
     private data class AppCandidate(val label: String, val packageName: String, val score: Int)
