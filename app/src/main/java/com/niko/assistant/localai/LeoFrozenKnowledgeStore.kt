@@ -6,6 +6,7 @@ import com.niko.assistant.brain.WebQueryRouter
 import com.niko.assistant.memory.MemoryLearning
 import java.io.Closeable
 import java.util.Locale
+import kotlin.math.ceil
 
 /** Read-only retrieval over Leo's downloaded frozen knowledge brain. */
 class LeoFrozenKnowledgeStore(context: Context) : Closeable {
@@ -31,13 +32,22 @@ class LeoFrozenKnowledgeStore(context: Context) : Closeable {
     fun recall(message: String): Hit? {
         if (WebQueryRouter.needsCurrentInformation(message)) return null
         val terms = queryTerms(message)
-        if (terms.isEmpty()) return null
+        // One generic word is too ambiguous for an encyclopedia-sized brain. Falling through is
+        // safer than answering a different question just because one title happens to match.
+        if (terms.size < MIN_QUERY_TERMS) return null
         val db = openDatabase() ?: return null
         return runCatching {
-            query(db, terms, andMode = true).ifEmpty {
-                if (terms.size > 1) query(db, terms, andMode = false) else emptyList()
-            }.maxByOrNull { score(it, terms) }
-                ?.takeIf { score(it, terms) >= minimumScore(terms) }
+            val strict = query(db, terms, andMode = true)
+            val candidates = if (strict.isNotEmpty()) {
+                strict
+            } else if (terms.size >= 3) {
+                query(db, terms, andMode = false)
+            } else {
+                emptyList()
+            }
+            candidates
+                .filter { isStrongMatch(it, terms) }
+                .maxByOrNull { score(it, terms) }
         }.getOrNull()
     }
 
@@ -85,6 +95,7 @@ class LeoFrozenKnowledgeStore(context: Context) : Closeable {
     }
 
     companion object {
+        private const val MIN_QUERY_TERMS = 2
         private const val MAX_QUERY_TERMS = 8
         private val STOP_WORDS = setOf(
             "a", "al", "algo", "como", "con", "cual", "cuales", "de", "del", "dime", "decime",
@@ -108,18 +119,28 @@ class LeoFrozenKnowledgeStore(context: Context) : Closeable {
             return safe.joinToString(if (andMode) " " else " OR ")
         }
 
+        internal fun isStrongMatch(hit: Hit, terms: List<String>): Boolean {
+            if (terms.size < MIN_QUERY_TERMS) return false
+            val title = MemoryLearning.key(hit.title)
+            val excerpt = MemoryLearning.key(hit.excerpt)
+            val matched = terms.count { term -> title.contains(term) || excerpt.contains(term) }
+            val titleMatches = terms.count(title::contains)
+            val requiredCoverage = if (terms.size == 2) 2 else ceil(terms.size * 0.67).toInt()
+            // At least one query concept must identify the article title; the rest must have strong
+            // coverage in title/excerpt. This prevents a random OR hit from impersonating an answer.
+            return titleMatches >= 1 && matched >= requiredCoverage
+        }
+
         private fun score(hit: Hit, terms: List<String>): Int {
             val title = MemoryLearning.key(hit.title)
             val excerpt = MemoryLearning.key(hit.excerpt)
             var score = 0
             terms.forEach { term ->
-                if (title.contains(term)) score += 4
+                if (title.contains(term)) score += 5
                 if (excerpt.contains(term)) score += 1
             }
-            if (terms.size >= 2 && terms.all(title::contains)) score += 6
+            if (terms.size >= 2 && terms.all { title.contains(it) || excerpt.contains(it) }) score += 6
             return score
         }
-
-        private fun minimumScore(terms: List<String>): Int = if (terms.size <= 1) 1 else 3
     }
 }
