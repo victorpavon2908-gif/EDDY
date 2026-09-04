@@ -18,6 +18,9 @@ class NikoIdentityTest {
         assertNull(NikoIdentity.replyTo("cómo se llama mi hijo"))
         assertNull(NikoIdentity.replyTo("cuando te pregunte mi nombre, respondé Manuel"))
         assertNull(NikoIdentity.replyTo("quién creó WhatsApp"))
+        assertNull(NikoIdentity.replyTo("cómo funciona la memoria RAM"))
+        assertNull(NikoIdentity.replyTo("explicame cómo funciona la memoria de una computadora"))
+        assertFalse(NikoIdentity.isLearningQuestion("cómo funciona la memoria RAM"))
     }
 
     @Test fun developerIdentityIsCanonicalAndLocal() {
