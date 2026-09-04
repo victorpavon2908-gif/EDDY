@@ -82,8 +82,9 @@ object NikoIdentity {
 
     private fun asksAboutLearning(question: String): Boolean {
         if (question in setOf("aprendes", "como aprendes", "vos aprendes", "tu aprendes", "vas aprendiendo", "podes aprender", "puedes aprender")) return true
-        val learning = Regex("\\b(?:aprend[a-z]*|entren[a-z]*|adaptas?|adaptando|mejoras?|mejorando|memoria)\\b")
-        val interaction = Regex("\\b(?:conmigo|con migo|de mi|sobre mi|al usar|con el uso|interactu[a-z]*|hablamos|convers[a-z]*|cada charla|mis pedidos|mis preferencias|con el tiempo|funciona)\\b")
-        return learning.containsMatchIn(question) && interaction.containsMatchIn(question)
+        val learning = Regex("\\b(?:aprend[a-z]*|entren[a-z]*|adaptas?|adaptando|mejoras?|mejorando)\\b")
+        val relationship = Regex("\\b(?:conmigo|con migo|de mi|sobre mi|al usar|con el uso|interactu[a-z]*|hablamos|convers[a-z]*|cada charla|mis pedidos|mis preferencias|con el tiempo)\\b")
+        val selfReference = Regex("\\b(?:vos|tu|te)\\b")
+        return learning.containsMatchIn(question) && (relationship.containsMatchIn(question) || selfReference.containsMatchIn(question))
     }
 }
