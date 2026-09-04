@@ -5,8 +5,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object GroqProtocol {
-    const val DEFAULT_MODEL = "llama-3.3-70b-versatile"
-    const val FAST_MODEL = "llama-3.1-8b-instant"
+    // Fast chat is the normal voice path. The larger model remains a quality fallback.
+    const val DEFAULT_MODEL = "llama-3.1-8b-instant"
+    const val FAST_MODEL = DEFAULT_MODEL
+    const val QUALITY_MODEL = "llama-3.3-70b-versatile"
     const val SEARCH_MODEL = "groq/compound"
     const val FAST_SEARCH_MODEL = "groq/compound-mini"
 
@@ -18,11 +20,27 @@ object GroqProtocol {
                 .none { model.contains(it, ignoreCase = true) }
 
     fun models(configured: String, useWeb: Boolean): List<String> = if (useWeb) {
-        listOf(SEARCH_MODEL, FAST_SEARCH_MODEL)
-    } else listOf(configured, DEFAULT_MODEL, FAST_MODEL).distinct()
+        // Compound Mini is intentionally first for voice latency; full Compound remains fallback.
+        listOf(FAST_SEARCH_MODEL, SEARCH_MODEL)
+    } else listOf(configured, FAST_MODEL, QUALITY_MODEL).distinct()
+
+    private fun errorText(body: String): String = runCatching {
+        val error = JSONObject(body).optJSONObject("error")
+        listOf(error?.optString("code"), error?.optString("message")).joinToString(" ")
+    }.getOrDefault(body).lowercase()
+
+    /** A 403 can be model permission, which should fall back without blaming the API key. */
+    fun isModelPermissionError(code: Int, body: String): Boolean {
+        if (code != 403) return false
+        val text = errorText(body)
+        if (listOf("invalid_api_key", "authentication", "api key", "api_key").any(text::contains)) return false
+        return text.contains("model") && listOf(
+            "permission", "restricted", "blocked", "not permitted", "not allowed", "access", "terms",
+        ).any(text::contains)
+    }
 
     fun canFallback(code: Int, body: String): Boolean {
-        if (code == 404 || code in setOf(500, 502, 503, 504)) return true
+        if (code == 404 || code in setOf(500, 502, 503, 504) || isModelPermissionError(code, body)) return true
         val errorCode = runCatching { JSONObject(body).optJSONObject("error")?.optString("code") }.getOrNull()
         return code == 400 && errorCode in setOf("model_decommissioned", "model_not_found")
     }
@@ -57,13 +75,15 @@ object GroqProtocol {
         return NikoAiReply(text, unique.isNotEmpty(), unique)
     }
 
-    fun describeError(code: Int): String = when (code) {
-        0 -> "No pude conectar con GroqCloud. Revisá la conexión a Internet."
-        400 -> "GroqCloud rechazó la solicitud. Revisá el modelo configurado."
-        401, 403 -> "La clave no tiene autorización para GroqCloud. Revisala en Ajustes."
-        404 -> "El modelo no está disponible en GroqCloud para esta clave."
-        413 -> "La conversación es demasiado larga para esta solicitud de GroqCloud."
-        429 -> "Se alcanzó el límite de uso de GroqCloud. Esperá y volvé a intentarlo."
+    fun describeError(code: Int, body: String = ""): String = when {
+        code == 0 -> "No pude conectar con GroqCloud. Revisá la conexión a Internet."
+        code == 400 -> "GroqCloud rechazó la solicitud. Revisá el modelo configurado."
+        code == 401 -> "La API key de GroqCloud no es válida o ya fue revocada. Revisala en Ajustes."
+        isModelPermissionError(code, body) -> "Ese modelo no está habilitado para esta clave de GroqCloud. Voy a probar otro modelo compatible."
+        code == 403 -> "GroqCloud rechazó la autorización. Revisá los permisos de la clave en GroqCloud."
+        code == 404 -> "El modelo no está disponible en GroqCloud para esta clave."
+        code == 413 -> "La conversación es demasiado larga para esta solicitud de GroqCloud."
+        code == 429 -> "Se alcanzó el límite de uso de GroqCloud. Esperá y volvé a intentarlo."
         else -> "GroqCloud no está disponible en este momento (HTTP $code)."
     }
 }
