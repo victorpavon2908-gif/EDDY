@@ -97,9 +97,10 @@ object LeoMicroGptGate {
 
     private fun isCompoundTurn(text: String): Boolean {
         if (!short(text, 5) && listOf(" ahora ", " pero ", " tambien ", " ademas ", " y luego ", " y despues ", " y decime ", " y dime ", " y explicame ", " y ayudame ").any(text::contains)) return true
-        if (text.startsWith("hola ") && text !in GREETINGS && text.split(' ').size > 3) return true
-        if (text.startsWith("buenas ") && text !in GREETINGS && text.split(' ').size > 3) return true
-        if (text.startsWith("que onda ") && text !in GREETINGS && text.split(' ').size > 3) return true
+        val wellbeing = containsAny(text, "como estas", "como andas", "que tal estas", "como te va", "como vas hoy", "todo bien")
+        if (!wellbeing && text.startsWith("hola ") && text !in GREETINGS && text.split(' ').size > 3) return true
+        if (!wellbeing && text.startsWith("buenas ") && text !in GREETINGS && text.split(' ').size > 3) return true
+        if (!wellbeing && text.startsWith("que onda ") && text !in GREETINGS && text.split(' ').size > 3) return true
         if ((text.startsWith("gracias ") || text.startsWith("perfecto gracias ")) && text.split(' ').size > 7) return true
         return false
     }
