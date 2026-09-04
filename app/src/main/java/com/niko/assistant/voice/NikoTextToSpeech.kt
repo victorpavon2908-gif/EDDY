@@ -38,7 +38,7 @@ class NikoTextToSpeech(
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
             ready = configureNicaraguanLatinVoice()
-            tts.setSpeechRate(1.03f)
+            tts.setSpeechRate(1.07f)
             tts.setPitch(0.92f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String) {
@@ -127,7 +127,12 @@ class NikoTextToSpeech(
         ++notificationEpoch
         tts.setSpeechRate(prosody.speed.coerceIn(0.85f, 1.15f))
         tts.setPitch(prosody.pitch.coerceIn(0.85f, 1.05f))
-        val chunks = SpeechProsody.chunks(spoken, minOf(320, TextToSpeech.getMaxSpeechInputLength() - 1))
+        val maximum = (TextToSpeech.getMaxSpeechInputLength() - 1).coerceAtLeast(80)
+        val nextLimit = minOf(240, maximum)
+        val firstLimit = minOf(56, nextLimit)
+        // A small first block reaches the engine sooner. The remaining speech is queued
+        // immediately, so the user hears Leo sooner without clipping the full reply.
+        val chunks = SpeechProsody.fastStartChunks(spoken, firstLimit = firstLimit, nextLimit = nextLimit)
         val id = "leo_reply_${System.nanoTime()}"
         currentPrefix = id
         currentUtterance = "${id}_${chunks.lastIndex}"
