@@ -1,18 +1,41 @@
 package com.niko.assistant.voice
 
-/** Prefer one low-latency speaker per session and switch only when that backend fails. */
+/** Prefer the low-latency Android voice as soon as it is ready, without retrying failed backends. */
 class SpeechOutputPolicy {
     enum class Backend { NEURAL, SYSTEM }
+
     @Volatile var selected: Backend? = null
         private set
+    @Volatile private var systemRejected = false
+    @Volatile private var neuralRejected = false
 
-    /** Android TTS starts almost immediately; the heavier neural voice remains the fallback. */
-    fun choose(neuralAvailable: Boolean, systemAvailable: Boolean): Backend = selected ?: when {
-        systemAvailable -> Backend.SYSTEM
-        neuralAvailable -> Backend.NEURAL
-        else -> Backend.SYSTEM
-    }.also { selected = it }
+    /**
+     * Android TTS can finish initializing after the first reply. Upgrade to it on the next
+     * reply when it becomes ready, but never bounce back to a backend that already failed.
+     */
+    @Synchronized
+    fun choose(neuralAvailable: Boolean, systemAvailable: Boolean): Backend {
+        val backend = when {
+            systemAvailable && !systemRejected -> Backend.SYSTEM
+            neuralAvailable && !neuralRejected -> Backend.NEURAL
+            selected != null -> selected!!
+            systemAvailable -> Backend.SYSTEM
+            neuralAvailable -> Backend.NEURAL
+            else -> Backend.SYSTEM
+        }
+        selected = backend
+        return backend
+    }
 
-    fun neuralFailed() { selected = Backend.SYSTEM }
-    fun systemFailed() { selected = Backend.NEURAL }
+    @Synchronized
+    fun neuralFailed() {
+        neuralRejected = true
+        selected = Backend.SYSTEM
+    }
+
+    @Synchronized
+    fun systemFailed() {
+        systemRejected = true
+        selected = Backend.NEURAL
+    }
 }

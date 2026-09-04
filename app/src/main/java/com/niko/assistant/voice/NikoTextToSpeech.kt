@@ -22,7 +22,7 @@ class NikoTextToSpeech(
     private val requestedEngine = voicePrefs.getString("system_engine", null)
     private val tts = TextToSpeech(context.applicationContext, this, requestedEngine)
     private val realtimeStopper: () -> Unit = { stop() }
-    private var ready = false
+    @Volatile private var ready = false
     val isReady: Boolean get() = ready
     var voiceDescription: String = "Falta una voz española instalada para usar sin conexión"
         private set
@@ -115,6 +115,7 @@ class NikoTextToSpeech(
     }
 
     private fun notifyFailure() {
+        ready = false
         val epoch = notificationEpoch
         mainHandler.post { if (epoch == notificationEpoch) { onReady(false); onSpeakingChanged(false) } }
     }
@@ -139,6 +140,7 @@ class NikoTextToSpeech(
                 "${id}_$index",
             )
             if (result != TextToSpeech.SUCCESS) {
+                ready = false
                 LeoVoiceDiagnostics.recordSpeechCancelled()
                 stop()
                 onReady(false)
