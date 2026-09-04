@@ -496,7 +496,10 @@ open class NikoAssistantService : Service() {
             speakResearchResponse(query, researchReply(query))
             return
         }
-        com.niko.assistant.ai.NikoIdentity.replyTo(text)?.let { speakResponse(it); return }
+        com.niko.assistant.ai.NikoIdentity.replyTo(
+            text,
+            adaptiveLearningEnabled = NikoAiSettings.adaptiveLearning(applicationContext),
+        )?.let { speakResponse(it); return }
         withContext(Dispatchers.IO) { memory.learnExplicitly(text) }?.let {
             learnIntent(text, LearnedIntent.MEMORY)
             speakResponse(it); return

@@ -15,16 +15,16 @@ class NikoFallbackConversation {
 
         return when {
             text.contains("quien eres") || text.contains("quien sos") || text.contains("que eres") || text.contains("como te llamas") ->
-                "Soy NIKO, tu asistente personal. Estoy hecho para ayudarte de una con el teléfono, tu casa inteligente y lo que vayás necesitando."
+                "Soy Leo, tu asistente personal desarrollado por ${LeoBrand.DEVELOPER_NAME}. Estoy hecho para ayudarte con el teléfono, tu casa inteligente y lo que vayás necesitando."
 
             text.contains("que puedes hacer") || text.contains("que sabes hacer") ->
-                "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería y ajustes del teléfono, controlar dispositivos de tu casa, resolver operaciones matemáticas y conversar y consultar información con GroqCloud cuando hay Internet."
+                "Puedo abrir apps, preparar llamadas y WhatsApp, poner música en Spotify, usar linterna, volumen, brillo, alarmas, mapas, batería y ajustes del teléfono, controlar dispositivos de tu casa, resolver operaciones matemáticas, conversar y buscar información en Internet."
 
             text.contains("estoy triste") || text.contains("me siento triste") ->
                 "Siento que estés pasando por eso. ¿Querés contarme qué pasó?"
 
             text.contains("no me escuchas") || text.contains("no funciona") ->
-                "Entiendo la frustración. Decí NIKO y después qué hora es; la frase que escuche aparecerá en pantalla."
+                "Entiendo la frustración. Decí Leo y después qué hora es; la frase que escuche aparecerá en pantalla."
 
             text.contains("gracias") ->
                 "De una. Aquí estoy para lo que ocupés."

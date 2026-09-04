@@ -10,6 +10,7 @@ object LeoBrand {
     const val DISPLAY_NAME = "Leo"
     const val BRAND_NAME = "LEO"
     const val WAKE_WORD = "leo"
+    const val DEVELOPER_NAME = "Víctor Pavón"
 
     private val retiredIdentity = Regex("(?i)\\b(?:niko|nico|nikko)\\b")
 

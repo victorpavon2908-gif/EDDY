@@ -21,6 +21,8 @@ class LeoNativeWebSearchTest {
         assertTrue(report.contains("ubicación y orientación"))
         assertTrue(report.contains("[1]"))
         assertTrue(report.contains("[2]"))
+        assertTrue(report.contains("Respuesta breve"))
+        assertTrue(report.contains("Contraste y límites"))
         assertFalse(report.contains("comprar ahora"))
         assertTrue(report.contains("no puedo asegurar su actualidad"))
     }
@@ -105,12 +107,24 @@ class LeoNativeWebSearchTest {
 
         assertTrue(summary.startsWith("Busqué información reciente en Internet."))
         assertTrue(summary.contains("magnitud 6.0"))
-        assertTrue(summary.contains("dos fuentes"))
+        assertTrue(summary.contains("dos sitios independientes"))
     }
 
     @Test fun conversationalBitcoinQuestionBecomesCleanSubject() {
         assertEquals("hoy bitcoin", LeoNativeWebSearch.subjectQuery("¿Qué ha pasado hoy con el Bitcoin?"))
         assertEquals("bitcoin", LeoNativeWebSearch.subjectQuery("Leo, hablame de las últimas noticias del Bitcoin"))
+    }
+
+    @Test fun plansComplementaryResearchAnglesFromTheActualQuestion() {
+        val causes = LeoNativeWebSearch.researchQueries("baterias de litio", "¿Por qué fallan las baterías de litio?", false)
+        assertEquals("baterias de litio", causes.first())
+        assertTrue(causes.any { "causas explicacion evidencia" in it })
+        assertTrue(causes.any { "fuente primaria" in it })
+
+        val current = LeoNativeWebSearch.researchQueries("bitcoin hoy", "¿Qué pasó con Bitcoin hoy?", true)
+        assertTrue(current.any { "ultimas actualizaciones" in it })
+        assertTrue(current.any { "datos recientes fuente oficial" in it })
+        assertEquals(current.distinct(), current)
     }
 
     @Test fun bitcoinSearchRejectsGrammarGarbageAndKeepsMarketNews() {
@@ -190,7 +204,7 @@ class LeoNativeWebSearchTest {
         assertFalse(visited.any { "news.google.com" in it })
         val queries = visited.filter { "bing.com" in it }
             .map { URLDecoder.decode(it.substringAfter("&q="), "UTF-8") }.toSet()
-        assertEquals(setOf("ruben dario", "ruben dario datos detalles fuente oficial"), queries)
+        assertEquals(setOf("ruben dario", "ruben dario contexto explicacion detallada"), queries)
     }
 
     @Test fun aRelevantTitleCannotSmuggleLoginOrUnrelatedRedirectContent() = runBlocking {

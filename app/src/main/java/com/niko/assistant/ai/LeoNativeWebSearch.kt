@@ -35,6 +35,7 @@ object LeoNativeWebSearch {
         val published: String = "",
         val rank: Int = 0,
         val articleText: String = "",
+        val angle: Int = 0,
     )
 
     internal data class Fetch(val body: String, val finalUrl: String)
@@ -55,24 +56,34 @@ object LeoNativeWebSearch {
         val terms = subjectTokens(subject)
         if (terms.isEmpty()) return@withContext NikoAiReply("Decime qué tema querés que busque.", false, emptyList())
         val current = WebQueryRouter.needsRecentInformation(cleanQuery)
+        val researchQueries = researchQueries(subject, cleanQuery, current)
         val hits = linkedMapOf<String, Hit>()
         val discovered = coroutineScope {
-            listOf(
-                async { searchBing(subject, fetch) },
-                async { if (current) searchGoogleNews(subject, fetch) else searchDuckDuckGo(subject, fetch) },
-                async { searchBing("$subject ${if (current) "actualizacion fuente oficial" else "datos detalles fuente oficial"}", fetch) },
-            ).awaitAll().flatten()
+            val base = listOf(
+                async { searchBing(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
+                async {
+                    val results = if (current) searchGoogleNews(researchQueries.first(), fetch) else searchDuckDuckGo(researchQueries.first(), fetch)
+                    results.map { it.copy(angle = 0) }
+                },
+            )
+            val facets = researchQueries.drop(1).mapIndexed { index, planned ->
+                async {
+                    val results = when {
+                        current && index == 0 -> searchGoogleNews(planned, fetch)
+                        index % 2 == 0 -> searchBing(planned, fetch)
+                        else -> searchDuckDuckGo(planned, fetch)
+                    }
+                    results.map { it.copy(angle = index + 1) }
+                }
+            }
+            (base + facets).awaitAll().flatten()
         }
         discovered.forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
         // Count useful hits, not login screens or unrelated RSS entries.
         if (current && hits.values.count { isRelevantTo(subject, it) } < MIN_RESULTS) {
             searchDuckDuckGo(subject, fetch).forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
         }
-        val relevant = hits.values.filter { isRelevantTo(subject, it) }
-            .sortedWith(compareByDescending<Hit> { relevanceScore(it, terms) }.thenBy { it.rank })
-            .groupBy { hostOf(it.url) }.values.let { groups ->
-                (groups.map { it.first() } + groups.flatMap { it.drop(1).take(1) }).take(MAX_RESULTS)
-            }
+        val relevant = selectDiverse(hits.values.filter { isRelevantTo(subject, it) }, terms)
         if (relevant.isEmpty()) return@withContext noResults(subject)
 
         val enriched = coroutineScope {
@@ -102,7 +113,7 @@ object LeoNativeWebSearch {
             text = summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." },
             webUsed = true,
             sources = sources,
-            evidence = "Resumen local de extractos web. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
+            evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
         )
     }
 
@@ -117,6 +128,33 @@ object LeoNativeWebSearch {
             .replace(Regex("^(?:informacion(?:es)?|datos|algo)\\s+(?:(?:sobre|acerca de|de|por)\\s+)?"), "")
         val tokens = normalized.split(' ').filter { it.length >= 2 && it !in QUERY_FILLERS }
         return tokens.joinToString(" ").trim().take(180).takeUnless { it in setOf("informacion", "datos", "algo") }.orEmpty()
+    }
+
+    /** Plans complementary queries instead of trusting one wording or one result page. */
+    internal fun researchQueries(subject: String, original: String, current: Boolean): List<String> {
+        val request = normalize(original)
+        val intentFacet = when {
+            Regex("\\b(?:comparar|compara|comparacion|diferencia|diferencias|versus|vs)\\b").containsMatchIn(request) ->
+                "$subject comparacion diferencias ventajas limitaciones"
+            Regex("\\b(?:por que|causa|causas|motivo|motivos)\\b").containsMatchIn(request) ->
+                "$subject causas explicacion evidencia"
+            Regex("\\b(?:como|funciona|funcionamiento|pasos|proceso)\\b").containsMatchIn(request) ->
+                "$subject funcionamiento proceso explicacion"
+            Regex("\\b(?:recomienda|recomendame|mejor|conviene|elegir)\\b").containsMatchIn(request) ->
+                "$subject criterios alternativas riesgos"
+            current -> "$subject cronologia ultimas actualizaciones"
+            else -> "$subject contexto explicacion detallada"
+        }
+        val primaryFacet = if (current) {
+            "$subject comunicado datos recientes fuente oficial"
+        } else {
+            "$subject datos evidencia fuente primaria"
+        }
+        return listOf(subject, intentFacet, primaryFacet)
+            .map { it.replace(Regex("\\s+"), " ").trim().take(220) }
+            .filter(String::isNotBlank)
+            .distinctBy(::normalize)
+            .take(MAX_RESEARCH_QUERIES)
     }
 
     internal fun isRelevantTo(query: String, hit: Hit): Boolean {
@@ -143,6 +181,36 @@ object LeoNativeWebSearch {
         // One generic word (e.g. información) must never validate an unrelated result.
         if (bodyOverlap == 0 || (terms.size > 1 && (bodyOverlap < 2 || coverage < 0.5))) return 0.0
         return titleOverlap * 2.5 + bodyOverlap * 1.5 + coverage * 2.0
+    }
+
+    private fun selectDiverse(candidates: List<Hit>, terms: Set<String>): List<Hit> {
+        val remaining = candidates.toMutableList()
+        val selected = mutableListOf<Hit>()
+        val usedHosts = mutableSetOf<String>()
+        val usedAngles = mutableSetOf<Int>()
+        while (remaining.isNotEmpty() && selected.size < MAX_RESULTS) {
+            val best = remaining.maxByOrNull { hit ->
+                val host = hostOf(hit.url)
+                relevanceScore(hit, terms) + sourceQualityScore(hit) - hit.rank * 0.04 +
+                    (if (host !in usedHosts) 2.8 else -1.2) +
+                    (if (hit.angle !in usedAngles) 1.2 else 0.0)
+            } ?: break
+            remaining.remove(best)
+            selected += best
+            usedHosts += hostOf(best.url)
+            usedAngles += best.angle
+        }
+        return selected
+    }
+
+    private fun sourceQualityScore(hit: Hit): Double {
+        val host = hostOf(hit.url)
+        val institutional = host.endsWith(".gov") || host.contains(".gov.") || host.endsWith(".gob") ||
+            host.contains(".gob.") || host.endsWith(".edu") || host.contains(".edu.")
+        val titledAsPrimary = Regex("(?i)\\b(?:oficial|ministerio|universidad|instituto|organizacion|reporte|estudio)\\b")
+            .containsMatchIn(hit.title)
+        return (if (institutional) 1.4 else 0.0) + (if (titledAsPrimary) 0.5 else 0.0) +
+            (if (hit.url.startsWith("https://")) 0.2 else 0.0)
     }
 
     private suspend fun searchBing(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
@@ -331,23 +399,36 @@ object LeoNativeWebSearch {
         if (selected.isEmpty()) return ""
         val publishers = selected.map { publisherKey(hits[it.sourceIndex]) }.distinct().size
         val pagesRead = selected.map { it.sourceIndex }.distinct().count { hits[it].articleText.isNotBlank() }
+        val anglesCovered = selected.map { hits[it.sourceIndex].angle }.distinct().size
+        val overview = selected.take(2)
+        val details = selected.drop(2)
         return buildString {
             appendLine(if (current) "Busqué información reciente en Internet." else "Busqué en Internet.")
             appendLine()
-            appendLine("Hallazgos sobre $query:")
-            selected.groupBy { it.sourceIndex }.forEach { (index, facts) ->
+            appendLine("Respuesta breve sobre $query:")
+            overview.groupBy { it.sourceIndex }.forEach { (index, facts) ->
                 val hit = hits[index]
                 appendLine("• ${facts.joinToString(" ") { it.text }} [${index + 1}]")
                 if (current && hit.published.isNotBlank()) appendLine("  Fecha de la fuente [${index + 1}]: ${hit.published}")
             }
+            if (details.isNotEmpty()) {
+                appendLine()
+                appendLine("Detalles y contexto:")
+                details.groupBy { it.sourceIndex }.forEach { (index, facts) ->
+                    val hit = hits[index]
+                    appendLine("• ${facts.joinToString(" ") { it.text }} [${index + 1}]")
+                    if (current && hit.published.isNotBlank()) appendLine("  Fecha de la fuente [${index + 1}]: ${hit.published}")
+                }
+            }
             appendLine()
+            appendLine("Contraste y límites:")
             appendLine(when (publishers) {
-                1 -> "Solo obtuve información útil de un sitio; falta contrastarla."
-                2 -> "Encontré dos fuentes relacionadas."
-                else -> "Encontré $publishers fuentes relacionadas."
+                1 -> "Solo obtuve información útil de un sitio; no alcanza para corroborarla de forma independiente."
+                2 -> "La cobertura reúne dos sitios independientes y $anglesCovered enfoques de consulta."
+                else -> "La cobertura reúne $publishers sitios independientes y $anglesCovered enfoques de consulta."
             })
             append(if (pagesRead == 0) "Solo pude leer extractos del buscador, no los artículos completos. " else "Leí texto de $pagesRead páginas. ")
-            append("Cada número indica de dónde sale el dato; varias fuentes no garantizan que coincidan ni confirman sus afirmaciones.")
+            append("Cada número indica de dónde sale el dato; si las fuentes discrepan, no debe asumirse consenso.")
             if (current && selected.none { hits[it.sourceIndex].published.isNotBlank() }) append(" Las fuentes no indican fecha de publicación; no puedo asegurar su actualidad.")
         }.trim()
     }
@@ -479,6 +560,7 @@ object LeoNativeWebSearch {
     private const val CONNECT_TIMEOUT_MS = 4_000
     private const val READ_TIMEOUT_MS = 4_000
     private const val MAX_QUERY_CHARS = 500
+    private const val MAX_RESEARCH_QUERIES = 3
     private const val MAX_RESULTS = 8
     private const val MIN_RESULTS = 4
     private const val MAX_SOURCES = 6

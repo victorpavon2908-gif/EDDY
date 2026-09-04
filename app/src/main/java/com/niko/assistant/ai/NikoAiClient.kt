@@ -3,6 +3,8 @@ package com.niko.assistant.ai
 import android.content.Context
 import com.niko.assistant.brain.WebQueryRouter
 import com.niko.assistant.learning.NikoKnowledgeStore
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Compatibility facade used by the assistant service.
@@ -43,10 +45,26 @@ class NikoAiClient(
 
         if (forceWeb) {
             val subject = WebQueryRouter.explicitQuery(message) ?: message
-            val native = LeoNativeWebSearch.search(subject)
-            val researched = groq.synthesizeResearch(subject, native) ?: native
-            nativeLastError = if (native.webUsed) null else native.text
-            if (native.webUsed && native.sources.isNotEmpty()) {
+            val (native, compound) = if (groq.isConfigured) {
+                coroutineScope {
+                    val nativeTask = async { LeoNativeWebSearch.search(subject) }
+                    // Search receives only the requested subject: personal memory and
+                    // dialogue history must never leak into provider search queries.
+                    val compoundTask = async { groq.reply(subject, "", useWeb = true, history = emptyList()) }
+                    nativeTask.await() to compoundTask.await()
+                }
+            } else {
+                LeoNativeWebSearch.search(subject) to null
+            }
+            val validatedCompound = compound?.takeIf { it.webUsed && it.sources.isNotEmpty() }
+            val selected = ResearchQuality.choose(native, validatedCompound)
+            // If Compound was unavailable, the normal chat model can still organize the
+            // locally retrieved evidence without inventing or adding source links.
+            val researched = if (selected === native && validatedCompound == null) {
+                groq.synthesizeResearch(subject, native) ?: native
+            } else selected
+            nativeLastError = if (researched.webUsed) null else researched.text
+            if (researched.webUsed && researched.sources.isNotEmpty()) {
                 runCatching { knowledge.learn(subject, researched) }
             }
             return researched

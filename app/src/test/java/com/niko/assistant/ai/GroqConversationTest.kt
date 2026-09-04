@@ -26,6 +26,7 @@ class GroqConversationTest {
         val system = payload.getJSONArray("messages").getJSONObject(0).getString("content")
         assertTrue(system.contains(NikoPersonality.DIRECT.guidance()))
         assertTrue(system.contains("fuentes independientes"))
+        assertTrue(system.contains("detalles útiles"))
         assertFalse(base.has("compound_custom"))
     }
 
