@@ -2,7 +2,7 @@ package com.niko.assistant.voice
 
 import com.niko.assistant.memory.MemoryLearning
 
-data class SpeechProsody(val speed: Float = 1.03f, val pitch: Float = 0.92f) {
+data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
     companion object {
         fun forInput(input: String): SpeechProsody {
             val text = MemoryLearning.key(input).replace(
@@ -10,7 +10,7 @@ data class SpeechProsody(val speed: Float = 1.03f, val pitch: Float = 0.92f) {
             )
             return when {
                 Regex("\\b(?:mas despacio|habla lento|estoy triste|me siento mal|estoy preocupado|estoy preocupada)\\b").containsMatchIn(text) -> SpeechProsody(speed = 0.93f)
-                Regex("\\b(?:mas rapido|date prisa|apurate)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.10f)
+                Regex("\\b(?:mas rapido|responde rapido|habla rapido|date prisa|apurate|no dilates|voz tarda)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.15f)
                 else -> SpeechProsody()
             }
         }
