@@ -1,0 +1,87 @@
+name: Build Leo 500MB Frozen Brain
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [leo-v2-staging]
+    paths:
+      - '.github/workflows/leo-frozen-brain.yml'
+      - 'tools/build_leo_frozen_brain.py'
+      - 'brain/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: leo-frozen-brain-v1
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONUNBUFFERED: '1'
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install frozen-brain builder dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'pyarrow==17.0.0' 'requests==2.32.3'
+
+      - name: Syntax-check brain builder
+        run: python -m py_compile tools/build_leo_frozen_brain.py
+
+      - name: Build and train 500MB frozen retrieval brain
+        run: |
+          python tools/build_leo_frozen_brain.py \
+            --output-dir build/leo-brain-v1 \
+            --seed brain/leo_seed_knowledge.jsonl \
+            --target-bytes 496000000 \
+            --min-bytes 490000000 \
+            --max-bytes 499000000
+
+      - name: Validate release payload
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib
+          root = pathlib.Path('build/leo-brain-v1')
+          manifest = json.loads((root / 'leo-brain-v1-manifest.json').read_text())
+          archive = root / manifest['archive_name']
+          assert 490_000_000 <= manifest['installed_bytes'] <= 500_000_000
+          assert archive.stat().st_size == manifest['archive_bytes']
+          h = hashlib.sha256()
+          with archive.open('rb') as f:
+              for block in iter(lambda: f.read(1024 * 1024), b''):
+                  h.update(block)
+          assert h.hexdigest() == manifest['archive_sha256']
+          print(json.dumps(manifest, indent=2))
+          PY
+          ls -lh build/leo-brain-v1/leo-brain-v1.zip build/leo-brain-v1/leo-brain-v1-manifest.json
+
+      - name: Publish GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view leo-brain-v1 >/dev/null 2>&1; then
+            gh release upload leo-brain-v1 \
+              build/leo-brain-v1/leo-brain-v1.zip \
+              build/leo-brain-v1/leo-brain-v1-manifest.json \
+              --clobber
+          else
+            gh release create leo-brain-v1 \
+              build/leo-brain-v1/leo-brain-v1.zip \
+              build/leo-brain-v1/leo-brain-v1-manifest.json \
+              --target "${GITHUB_SHA}" \
+              --title 'Leo Frozen Brain v1 · 500 MB' \
+              --notes 'Frozen Spanish knowledge brain for Leo. Built from the first-party Leo curriculum plus the fixed Wikimedia Wikipedia 20231101.es corpus. Installed database is SHA-256 verified, read-only, and constrained to the 490–500 MB range. Wikipedia-derived content is CC BY-SA 3.0/GFDL and attribution is included in the package.'
+          fi
