@@ -43,6 +43,22 @@ class LeoFrozenBrainContractTest {
         assertFalse(andQuery.contains("?"))
     }
 
+    @Test fun frozenBrainNeedsTitleIdentityAndStrongQueryCoverage() {
+        val relevant = LeoFrozenKnowledgeStore.Hit(
+            title = "Fotosíntesis",
+            excerpt = "La fotosíntesis es el proceso por el que las plantas convierten energía luminosa.",
+            url = "https://example.test/fotosintesis",
+        )
+        val unrelated = LeoFrozenKnowledgeStore.Hit(
+            title = "Energía",
+            excerpt = "La energía aparece en muchos procesos de la naturaleza y de la física.",
+            url = "https://example.test/energia",
+        )
+        assertTrue(LeoFrozenKnowledgeStore.isStrongMatch(relevant, listOf("fotosintesis", "plantas")))
+        assertFalse(LeoFrozenKnowledgeStore.isStrongMatch(unrelated, listOf("fotosintesis", "plantas")))
+        assertFalse(LeoFrozenKnowledgeStore.isStrongMatch(relevant, listOf("fotosintesis")))
+    }
+
     @Test fun currentReleaseUrlsPointToGithubReleaseAssets() {
         assertTrue(LeoFrozenBrainManager.MANIFEST_URL.startsWith("https://github.com/"))
         assertTrue(LeoFrozenBrainManager.ARCHIVE_URL.startsWith("https://github.com/"))
