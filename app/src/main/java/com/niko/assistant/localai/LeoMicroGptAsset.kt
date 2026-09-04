@@ -1,8 +1,8 @@
 package com.niko.assistant.localai
 
 import android.content.Context
+import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
-import java.util.Base64
 
 /** Lazy, checksum-verified loader for Leo's bundled pure-Kotlin conversational checkpoint. */
 class LeoMicroGptAsset(context: Context) {
@@ -25,13 +25,13 @@ class LeoMicroGptAsset(context: Context) {
         core?.let { return it }
         if (failed) return null
         return runCatching {
-            val encoded = buildString {
-                ASSET_PARTS.forEach { assetName ->
-                    append(appContext.assets.open(assetName).bufferedReader().use { it.readText() })
-                }
+            val output = ByteArrayOutputStream(EXPECTED_BYTES)
+            ASSET_PARTS.forEach { assetName ->
+                appContext.assets.open(assetName).use { input -> input.copyTo(output) }
             }
-            val bytes = Base64.getDecoder().decode(encoded)
-            require(sha256(bytes) == LeoMicroGptCore.SHA256) { "MicroGPT checkpoint checksum mismatch" }
+            val bytes = output.toByteArray()
+            require(bytes.size == EXPECTED_BYTES) { "MicroGPT v2 checkpoint length mismatch" }
+            require(sha256(bytes) == V2_SHA256) { "MicroGPT v2 checkpoint checksum mismatch" }
             LeoMicroGptCore(bytes).also { core = it }
         }.getOrElse {
             failed = true
@@ -44,11 +44,8 @@ class LeoMicroGptAsset(context: Context) {
         .joinToString("") { "%02x".format(it) }
 
     companion object {
-        private val ASSET_PARTS = buildList {
-            (1..8).forEach { add("leo-microgpt-v1.bundle.b64.part%02d".format(it)) }
-            (1..10).forEach { add("leo-microgpt-v1.bundle.b64.tail%03d".format(it)) }
-            (6..15).forEach { add("leo-microgpt-v1.bundle.b64.pair%02d".format(it)) }
-            (31..36).forEach { add("leo-microgpt-v1.bundle.b64.tail%03d".format(it)) }
-        }
+        const val V2_SHA256 = "df72b6a8ab27d8f8703079006581b135e705b2805c60f75cf275be6476ad6204"
+        const val EXPECTED_BYTES = 117_866
+        private val ASSET_PARTS = (1..29).map { "leo-microgpt-v2.bundle.part%02d".format(it) }
     }
 }
