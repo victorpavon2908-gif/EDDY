@@ -2,6 +2,7 @@ package com.niko.assistant.localai
 
 import android.content.Context
 import com.niko.assistant.ai.LeoStructuredGroq
+import com.niko.assistant.background.NikoRuntimeState
 import com.niko.assistant.devicecontrol.NikoVisualContext
 import com.niko.assistant.learning.NikoKnowledgeStore
 import kotlinx.coroutines.CoroutineScope
@@ -39,10 +40,12 @@ class NikoLocalLlm(
 
     init {
         // The APK stays small. Installation is resumable and happens outside the response path,
-        // so a first-run 500 MB download never blocks wake word, STT or the first spoken reply.
+        // so a first-run ~500 MB install never blocks wake word, STT or the first spoken reply.
         brainScope.launch {
             delay(FROZEN_BRAIN_START_DELAY_MS)
-            if (!closed) frozenManager.ensureInstalled()
+            if (!closed) {
+                frozenManager.ensureInstalled { progress -> publishFrozenBrainProgress(progress) }
+            }
         }
     }
 
@@ -88,7 +91,7 @@ class NikoLocalLlm(
                 return@withContext null
             }
 
-            // Static facts can now be answered entirely offline from the 500 MB brain.
+            // Static facts can now be answered entirely offline from the ~500 MB brain.
             runCatching { frozenKnowledge.recall(message) }.getOrNull()?.let { frozen ->
                 return@withContext frozen.answer
             }
@@ -114,6 +117,24 @@ class NikoLocalLlm(
         closed = true
         brainScope.cancel()
         frozenKnowledge.close()
+    }
+
+    private fun publishFrozenBrainProgress(progress: LeoFrozenBrainManager.Progress) {
+        val state = when (progress.state) {
+            LeoFrozenBrainManager.Progress.State.CHECKING -> NikoRuntimeState.BrainState.CHECKING
+            LeoFrozenBrainManager.Progress.State.DOWNLOADING -> NikoRuntimeState.BrainState.DOWNLOADING
+            LeoFrozenBrainManager.Progress.State.VERIFYING -> NikoRuntimeState.BrainState.VERIFYING
+            LeoFrozenBrainManager.Progress.State.INSTALLING -> NikoRuntimeState.BrainState.INSTALLING
+            LeoFrozenBrainManager.Progress.State.READY -> NikoRuntimeState.BrainState.READY
+            LeoFrozenBrainManager.Progress.State.FAILED -> NikoRuntimeState.BrainState.ERROR
+        }
+        NikoRuntimeState.setBrainProgress(
+            context = appContext,
+            state = state,
+            status = progress.message,
+            downloadedBytes = progress.downloadedBytes,
+            totalBytes = progress.totalBytes,
+        )
     }
 
     private fun localModelError(): String = when {
