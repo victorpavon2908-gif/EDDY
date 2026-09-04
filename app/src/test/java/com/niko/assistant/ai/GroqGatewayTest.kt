@@ -34,11 +34,29 @@ class GroqGatewayTest {
         assertEquals(GroqProtocol.DEFAULT_MODEL, gateway.lastModelUsed)
     }
 
-    @Test fun unavailableSearchOnlyTriesSearchCapableModels() = runBlocking {
+    @Test fun modelPermission403FallsBackButInvalidKey403DoesNot() = runBlocking {
+        val used = mutableListOf<String>()
+        val gateway = GroqGateway { _, request ->
+            used.add(request.getString("model"))
+            if (used.size == 1) GroqHttpResult(403, """{"error":{"code":"permission_denied","message":"model access is restricted for this project"}}""") else ok
+        }
+        assertNotNull(gateway.execute(payload(), "test_key", GroqProtocol.QUALITY_MODEL, false))
+        assertEquals(listOf(GroqProtocol.QUALITY_MODEL, GroqProtocol.DEFAULT_MODEL), used)
+
+        var calls = 0
+        val invalid = GroqGateway { _, _ ->
+            calls++
+            GroqHttpResult(403, """{"error":{"code":"invalid_api_key","message":"invalid API key"}}""")
+        }
+        assertNull(invalid.execute(payload(), "test_key", GroqProtocol.QUALITY_MODEL, false))
+        assertEquals(1, calls)
+    }
+
+    @Test fun unavailableSearchOnlyTriesSearchCapableModelsFastestFirst() = runBlocking {
         val used = mutableListOf<String>()
         val gateway = GroqGateway { _, request -> used.add(request.getString("model")); GroqHttpResult(503, "") }
         assertNull(gateway.execute(payload(true), "test_key", GroqProtocol.DEFAULT_MODEL, true))
-        assertEquals(listOf("groq/compound", "groq/compound-mini"), used)
+        assertEquals(listOf(GroqProtocol.FAST_SEARCH_MODEL, GroqProtocol.SEARCH_MODEL), used)
     }
 
     @Test fun emptyOrFilteredResponseIsNotRetried() = runBlocking {
