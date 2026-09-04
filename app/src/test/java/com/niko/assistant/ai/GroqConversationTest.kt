@@ -23,20 +23,24 @@ class GroqConversationTest {
         assertEquals("groq/compound", payload.getString("model"))
         assertEquals("[\"web_search\"]", payload.getJSONObject("compound_custom").getJSONObject("tools").getJSONArray("enabled_tools").toString())
         assertEquals("enabled", payload.getString("citation_options"))
+        assertEquals(1_200, payload.getInt("max_completion_tokens"))
         val system = payload.getJSONArray("messages").getJSONObject(0).getString("content")
         assertTrue(system.contains(NikoPersonality.DIRECT.guidance()))
         assertTrue(system.contains("fuentes independientes"))
         assertTrue(system.contains("detalles útiles"))
+        assertTrue(system.contains("no uses Markdown"))
         assertFalse(base.has("compound_custom"))
     }
 
-    @Test fun ordinaryChatDisablesToolsAndKeepsProviderSpecificParametersOut() {
+    @Test fun ordinaryChatDisablesToolsAndUsesShortVoiceBudget() {
         val payload = GroqConversation.forModel(GroqConversation.payload("Hola", "", emptyList(), false), GroqProtocol.DEFAULT_MODEL, false)
         assertEquals("none", payload.getString("tool_choice"))
         assertFalse(payload.has("compound_custom"))
         assertFalse(payload.has("generationConfig"))
         assertFalse(payload.has("google_search"))
-        assertEquals(2_048, payload.getInt("max_completion_tokens"))
+        assertEquals(512, payload.getInt("max_completion_tokens"))
         assertFalse(payload.getBoolean("stream"))
+        val system = payload.getJSONArray("messages").getJSONObject(0).getString("content")
+        assertTrue(system.contains("texto limpio"))
     }
 }
