@@ -23,8 +23,9 @@ class AdaptiveIntentStore(
             }
         }
         check(!file.exists() && !backup.exists()) { "Los datos de aprendizaje están dañados; se conservaron para recuperación." }
-        if (bundledCheckpoint != null) {
-            runCatching { bundledCheckpoint.invoke()?.let(OnlineIntentNetwork::decode) }.getOrNull()?.let { network ->
+        val checkpoint = bundledCheckpoint
+        if (checkpoint != null) {
+            runCatching { checkpoint.invoke()?.let(OnlineIntentNetwork::decode) }.getOrNull()?.let { network ->
                 network.ensureSeeded()
                 return network
             }
