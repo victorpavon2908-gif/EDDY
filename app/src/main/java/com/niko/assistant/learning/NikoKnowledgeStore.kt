@@ -8,6 +8,7 @@ import com.niko.assistant.compat.UpgradeIdentity
 import com.niko.assistant.memory.MemoryLearning
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.ceil
 import kotlin.math.sqrt
 
 /**
@@ -91,7 +92,10 @@ class NikoKnowledgeStore(context: Context) {
             .maxByOrNull { it.second }
             ?: return null
         val threshold = if (best.first.verified) VERIFIED_MATCH_THRESHOLD else SINGLE_SOURCE_MATCH_THRESHOLD
-        return best.takeIf { it.second >= threshold }?.first?.toHit()
+        val coverage = semanticCoverage(key, best.first.key)
+        return best.takeIf { it.second >= threshold && coverage >= MIN_SEMANTIC_COVERAGE }
+            ?.first
+            ?.toHit()
     }
 
     @Synchronized
@@ -155,14 +159,35 @@ class NikoKnowledgeStore(context: Context) {
         private const val MAX_ANSWER_CHARS = 4_000
         private const val EVERGREEN_TTL_MS = 45L * 24 * 60 * 60 * 1_000
         private const val VOLATILE_TTL_MS = 6L * 60 * 60 * 1_000
-        private const val VERIFIED_MATCH_THRESHOLD = 0.52
-        private const val SINGLE_SOURCE_MATCH_THRESHOLD = 0.68
+        // Fuzzy reuse must be much stricter than generation. A false negative can go to cloud/local
+        // reasoning; a false positive answers a question the user never asked.
+        private const val VERIFIED_MATCH_THRESHOLD = 0.78
+        private const val SINGLE_SOURCE_MATCH_THRESHOLD = 0.86
+        private const val MIN_SEMANTIC_COVERAGE = 0.67
+        private val SEMANTIC_STOP_WORDS = setOf(
+            "como", "cual", "cuales", "dime", "decime", "explicame", "explica", "funciona", "funcionan",
+            "para", "porque", "por", "que", "quien", "sobre", "una", "uno", "unos", "unas", "del", "las", "los",
+        )
 
         internal fun normalize(text: String): String = MemoryLearning.key(text)
-            .replace(Regex("\\b(?:niko|nico|nikko|nin|por favor|porfa)\\b"), " ")
+            .replace(Regex("\\b(?:niko|nico|nikko|nin|leo|por favor|porfa)\\b"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
             .take(600)
+
+        internal fun semanticCoverage(left: String, right: String): Double {
+            fun terms(text: String) = text.split(' ')
+                .asSequence()
+                .map(String::trim)
+                .filter { it.length >= 3 && it !in SEMANTIC_STOP_WORDS }
+                .toSet()
+            val a = terms(left)
+            val b = terms(right)
+            if (a.isEmpty() || b.isEmpty()) return 0.0
+            val required = ceil(a.size * MIN_SEMANTIC_COVERAGE).toInt().coerceAtLeast(1)
+            val matched = a.count { it in b }
+            return if (matched < required) matched.toDouble() / a.size else matched.toDouble() / a.size
+        }
 
         /** Weighted bag-of-words + character trigrams, small enough for on-device lookup. */
         internal fun cosineLikeSimilarity(left: String, right: String): Double {
