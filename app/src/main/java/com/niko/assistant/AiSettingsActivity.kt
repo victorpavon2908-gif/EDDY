@@ -217,10 +217,10 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 Switch(checked = autoResearch, onCheckedChange = { autoResearch = it; saveBehavior() })
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Aprender de órdenes reconocidas", modifier = Modifier.weight(1f))
+                Text("Entrenamiento local continuo", modifier = Modifier.weight(1f))
                 Switch(checked = learning, onCheckedChange = { learning = it; saveBehavior() })
             }
-            Text("El aprendizaje adapta cómo clasifica tus pedidos; no reemplaza el modelo que sabe hablar. Decí borrar tu memoria para eliminar también ese aprendizaje.", style = MaterialTheme.typography.bodySmall)
+            Text("Entrena una red neuronal pequeña con interacciones clasificables y aprende comandos a partir de tus correcciones. Todo queda en el teléfono; no reentrena el modelo generativo completo. Decí borrar tu memoria para eliminar también ese aprendizaje.", style = MaterialTheme.typography.bodySmall)
             Text(conversationLabel, style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { prepareModel(conversationModel) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN LOCAL") }
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }

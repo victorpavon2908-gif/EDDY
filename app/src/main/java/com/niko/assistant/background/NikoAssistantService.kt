@@ -52,8 +52,11 @@ import com.niko.assistant.brain.WebQueryRouter
 import com.niko.assistant.devicecontrol.NikoUiAutomationAgent
 import com.niko.assistant.devicecontrol.NikoUiTaskPolicy
 import com.niko.assistant.learning.AdaptiveIntentStore
-import com.niko.assistant.learning.OnlineIntentNetwork
+import com.niko.assistant.learning.InteractionCorrection
 import com.niko.assistant.learning.LearnedIntent
+import com.niko.assistant.learning.LearnedActionCodec
+import com.niko.assistant.learning.LearnedActionStore
+import com.niko.assistant.learning.OnlineIntentNetwork
 import com.niko.assistant.localai.NikoDeviceProfile
 import com.niko.assistant.localai.NikoLocalLlm
 import com.niko.assistant.localai.NikoModelManager
@@ -105,8 +108,10 @@ open class NikoAssistantService : Service() {
     private lateinit var uiAutomation: NikoUiAutomationAgent
     private lateinit var codeAgent: NikoCodeAgent
     private val adaptiveStore by lazy { AdaptiveIntentStore(File(filesDir, "adaptive_learning")) }
+    private val learnedActionStore by lazy { LearnedActionStore(File(filesDir, "adaptive_learning")) }
     private var adaptiveNetwork: OnlineIntentNetwork? = null
     private var adaptiveUnavailable = false
+    private var lastTrainableUtterance: String? = null
     private var replyProsody = SpeechProsody()
     private val speechOutput = SpeechOutputPolicy()
     private var localVoice: NikoLocalVoiceEngine? = null
@@ -478,8 +483,15 @@ open class NikoAssistantService : Service() {
         isListening = false
     }
 
-    private suspend fun handleCommand(text: String) {
+    private suspend fun handleCommand(rawText: String) {
+        val correctedText = InteractionCorrection.correctedText(rawText)
+        val text = correctedText ?: rawText
+        val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
+        lastTrainableUtterance = text
+        replyProsody = SpeechProsody.forInput(text)
+        withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
         RobotMotion.parse(text)?.let { motion ->
+            learnIntent(text, LearnedIntent.ACTION, correctionAlias)
             RobotMotionBus.perform(motion)
             speakResponse(when (motion) {
                 RobotMotion.DANCE -> "Va, mirá cómo bailo."
@@ -489,24 +501,47 @@ open class NikoAssistantService : Service() {
             })
             return
         }
-        replyProsody = SpeechProsody.forInput(text)
-        withContext(Dispatchers.IO) { memory.rememberUserTurn(text) }
         WebQueryRouter.explicitQuery(text)?.takeIf { AutonomousResearch.allowedFor(text) }?.let { query ->
-            learnIntent(query, LearnedIntent.SEARCH)
+            rememberCorrectedAction(correctionAlias, listOf(AssistantCommand.SearchWeb(query)))
+            learnIntent(text, LearnedIntent.SEARCH, correctionAlias)
             speakResearchResponse(query, researchReply(query))
             return
         }
-        com.niko.assistant.ai.NikoIdentity.replyTo(
+        val learningEnabled = NikoAiSettings.adaptiveLearning(applicationContext)
+        val identityReply = com.niko.assistant.ai.NikoIdentity.replyTo(
             text,
-            adaptiveLearningEnabled = NikoAiSettings.adaptiveLearning(applicationContext),
-        )?.let { speakResponse(it); return }
+            adaptiveLearningEnabled = learningEnabled,
+        )
+        if (identityReply != null) {
+            learnIntent(text, LearnedIntent.CONVERSATION, correctionAlias)
+            val response = if (com.niko.assistant.ai.NikoIdentity.isLearningQuestion(text)) {
+                val stats = learningStats()
+                com.niko.assistant.ai.NikoIdentity.replyTo(
+                    text,
+                    adaptiveLearningEnabled = learningEnabled,
+                    trainingUpdates = stats.updates,
+                    learnedCorrections = stats.corrections,
+                ) ?: identityReply
+            } else identityReply
+            speakResponse(response)
+            return
+        }
         withContext(Dispatchers.IO) { memory.learnExplicitly(text) }?.let {
-            learnIntent(text, LearnedIntent.MEMORY)
+            learnIntent(text, LearnedIntent.MEMORY, correctionAlias)
             speakResponse(it); return
         }
-        NikoMathEngine.solve(text)?.let { learnIntent(text, LearnedIntent.ACTION); speakResponse("El resultado es $it."); return }
-        val commands = semanticActions.resolveMany(text)
+        NikoMathEngine.solve(text)?.let { learnIntent(text, LearnedIntent.ACTION, correctionAlias); speakResponse("El resultado es $it."); return }
+        val learnedCommands = if (learningEnabled) withContext(Dispatchers.IO) {
+            runCatching { learnedActionStore.resolve(text) }.getOrNull()
+        }?.let(semanticActions::parseDsl)?.takeIf { it.isNotEmpty() } else null
+        val commands = learnedCommands ?: semanticActions.resolveMany(text)
+        rememberCorrectedAction(correctionAlias, commands)
         if (commands.size > 1) {
+            learnIntent(
+                text,
+                if (commands.all { it is AssistantCommand.SearchWeb }) LearnedIntent.SEARCH else LearnedIntent.ACTION,
+                correctionAlias,
+            )
             val responses = mutableListOf<String>()
             val sources = mutableListOf<NikoWebSource>()
             for (command in commands) {
@@ -534,17 +569,17 @@ open class NikoAssistantService : Service() {
         if (command == AssistantCommand.ClearMemory) { clearLocalMemory(); speakResponse("De una. Borré mi memoria local. Empezamos de nuevo."); return }
         memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
         if (command is AssistantCommand.SearchWeb) {
-            learnIntent(command.query, LearnedIntent.SEARCH)
+            learnIntent(text, LearnedIntent.SEARCH, correctionAlias)
             speakResearchResponse(command.query, researchReply(command.query, openBrowser = true)); return
         }
         if (command is AssistantCommand.Unknown) {
             if (NikoUiTaskPolicy.looksLikeExplicitUiTask(text)) {
-                learnIntent(text, LearnedIntent.ACTION)
+                learnIntent(text, LearnedIntent.ACTION, correctionAlias)
                 speakResponse(uiAutomation.run(text).message)
                 return
             }
             withContext(Dispatchers.IO) { memory.personalReply(text) }?.let {
-                learnIntent(text, LearnedIntent.MEMORY); speakResponse(it); return
+                learnIntent(text, LearnedIntent.MEMORY, correctionAlias); speakResponse(it); return
             }
             val prediction = predictIntent(text)
             val remoteContext = withContext(Dispatchers.IO) { memory.contextForAi(false, text) }
@@ -568,7 +603,10 @@ open class NikoAssistantService : Service() {
                     fallbackConversation.reply(text, memory, error)
                 } },
             )
-            if (WebQueryRouter.needsCurrentInformation(text) && AutonomousResearch.allowedFor(text)) learnIntent(text, LearnedIntent.SEARCH)
+            val learnedLabel = if (answer.webUsed || WebQueryRouter.needsCurrentInformation(text) && AutonomousResearch.allowedFor(text)) {
+                LearnedIntent.SEARCH
+            } else LearnedIntent.CONVERSATION
+            learnIntent(text, learnedLabel, correctionAlias)
             if (looksLikeCapabilityRequest(text)) {
                 val plan = codeAgent.analyze(text)
                 codeAgent.registerNativeProposal(plan.capability, "${plan.strategy}: ${plan.explanation}", answer.text, com.niko.assistant.BuildConfig.VERSION_NAME)
@@ -576,11 +614,15 @@ open class NikoAssistantService : Service() {
             speakResearchResponse(text, answer)
             return
         }
-        learnIntent(text, when (command) {
-            AssistantCommand.Greeting -> LearnedIntent.CONVERSATION
-            AssistantCommand.MemorySummary -> LearnedIntent.MEMORY
-            else -> LearnedIntent.ACTION
-        })
+        learnIntent(
+            text,
+            when (command) {
+                AssistantCommand.Greeting -> LearnedIntent.CONVERSATION
+                AssistantCommand.MemorySummary -> LearnedIntent.MEMORY
+                else -> LearnedIntent.ACTION
+            },
+            correctionAlias,
+        )
         val direct = executeDirectCommand(command) ?: "Listo."
         withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
         speakResponse(direct)
@@ -598,11 +640,12 @@ open class NikoAssistantService : Service() {
         }
     }
 
-    private suspend fun learnIntent(text: String, intent: LearnedIntent) = withContext(Dispatchers.IO) {
+    private suspend fun learnIntent(text: String, intent: LearnedIntent, correctionAlias: String? = null) = withContext(Dispatchers.IO) {
         if (!NikoAiSettings.adaptiveLearning(applicationContext) || adaptiveUnavailable) return@withContext
         try {
             val network = adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it }
             network.learn(text, intent)
+            correctionAlias?.takeIf { it != text }?.let { network.learn(it, intent) }
             adaptiveStore.save(network)
         } catch (_: Exception) {
             adaptiveUnavailable = true
@@ -613,9 +656,29 @@ open class NikoAssistantService : Service() {
     private suspend fun clearLocalMemory() = withContext(Dispatchers.IO) {
         memory.clearAll()
         adaptiveStore.clear()
+        learnedActionStore.clear()
         adaptiveNetwork = null
         adaptiveUnavailable = false
+        lastTrainableUtterance = null
     }
+
+    private suspend fun rememberCorrectedAction(alias: String?, commands: List<AssistantCommand>) {
+        alias ?: return
+        if (!NikoAiSettings.adaptiveLearning(applicationContext)) return
+        val dsl = LearnedActionCodec.encode(commands) ?: return
+        withContext(Dispatchers.IO) {
+            runCatching { learnedActionStore.remember(alias, dsl) }
+                .onFailure { NikoRuntimeState.setInputStatus(applicationContext, "No pude guardar esa corrección; el resto del aprendizaje sigue activo.") }
+        }
+    }
+
+    private suspend fun learningStats(): LearningStats = withContext(Dispatchers.IO) {
+        val network = runCatching { adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it } }.getOrNull()
+        val corrections = runCatching { learnedActionStore.count() }.getOrDefault(0)
+        LearningStats(network?.observations ?: 0L, corrections)
+    }
+
+    private data class LearningStats(val updates: Long, val corrections: Int)
 
     private fun looksLikeCapabilityRequest(text: String): Boolean {
         val value = text.lowercase(Locale.ROOT)

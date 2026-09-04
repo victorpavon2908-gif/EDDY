@@ -27,10 +27,13 @@ class NikoIdentityTest {
     }
 
     @Test fun explainsLocalLearningWithoutClaimingContinuousModelTraining() {
-        val enabled = NikoIdentity.replyTo("¿Te entrenás conforme interactuás conmigo?", true).orEmpty()
-        assertTrue(enabled.contains("guardo localmente"))
-        assertTrue(enabled.contains("No reentreno el modelo base"))
-        assertTrue(NikoIdentity.replyTo("se supone que Leo se va a entrenar conforme interactúa con migo", true).orEmpty().contains("guardo localmente"))
+        val enabled = NikoIdentity.replyTo("¿Te entrenás conforme interactuás conmigo?", true, 27, 3).orEmpty()
+        assertTrue(enabled.contains("Entreno de verdad"))
+        assertTrue(enabled.contains("27 actualizaciones"))
+        assertTrue(enabled.contains("3 correcciones"))
+        assertTrue(enabled.contains("No reentreno el modelo generativo completo"))
+        assertTrue(NikoIdentity.isLearningQuestion("se supone que Leo se va a entrenar conforme interactúa con migo"))
+        assertTrue(NikoIdentity.isLearningQuestion("lo que quiero es que en realidad él se entrene conforme va estando con migo"))
 
         val disabled = NikoIdentity.replyTo("¿Vas aprendiendo de mí?", false).orEmpty()
         assertTrue(disabled.contains("desactivado"))

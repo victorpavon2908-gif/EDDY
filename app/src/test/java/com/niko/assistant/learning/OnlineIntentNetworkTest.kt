@@ -48,4 +48,12 @@ class OnlineIntentNetworkTest {
         assertNull(OnlineIntentNetwork.decode(bytes))
         assertNull(OnlineIntentNetwork.decode(byteArrayOf(1, 2, 3)))
     }
+
+    @Test fun credentialsAndLongPrivateNumbersNeverBecomeTrainingReplay() {
+        val model = OnlineIntentNetwork(7)
+        model.learn("mi contraseña es abc123", LearnedIntent.MEMORY)
+        model.learn("llama al 88881234", LearnedIntent.ACTION)
+        assertEquals(0L, model.observations)
+        assertEquals(0, model.examples)
+    }
 }

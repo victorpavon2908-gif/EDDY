@@ -16,6 +16,7 @@ trap 'rm -f -- "$leo_test_dir/tests.jar"; rmdir -- "$leo_test_dir"' EXIT
 leo_classpath="$leo_kotlin_lib/kotlin-stdlib-2.0.21.jar:$leo_kotlin_lib/junit-4.13.2.jar:$leo_kotlin_lib/hamcrest-core-1.3.jar:$leo_kotlin_lib/kotlinx-coroutines-core-jvm-1.6.4.jar"
 leo_sources=(
     app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt
+    app/src/main/java/com/niko/assistant/brain/AssistantCommand.kt
     app/src/main/java/com/niko/assistant/brain/WebQueryRouter.kt
     app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt
     app/src/main/java/com/niko/assistant/ai/LeoBrand.kt
@@ -25,11 +26,21 @@ leo_sources=(
     app/src/main/java/com/niko/assistant/ai/AutonomousResearch.kt
     app/src/main/java/com/niko/assistant/ai/ResearchQuality.kt
     app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt
+    app/src/main/java/com/niko/assistant/learning/AdaptiveLearningPolicy.kt
+    app/src/main/java/com/niko/assistant/learning/InteractionCorrection.kt
+    app/src/main/java/com/niko/assistant/learning/LearnedActionCodec.kt
+    app/src/main/java/com/niko/assistant/learning/LearnedActionStore.kt
+    app/src/main/java/com/niko/assistant/learning/OnlineIntentNetwork.kt
     app/src/main/java/com/niko/assistant/localai/LocalConversationPrompt.kt
     app/src/test/java/com/niko/assistant/ai/NikoIdentityTest.kt
     app/src/test/java/com/niko/assistant/ai/ConversationContextTest.kt
     app/src/test/java/com/niko/assistant/ai/ResearchQualityTest.kt
     app/src/test/java/com/niko/assistant/ai/LeoNativeWebSearchTest.kt
+    app/src/test/java/com/niko/assistant/learning/AdaptiveLearningPolicyTest.kt
+    app/src/test/java/com/niko/assistant/learning/InteractionCorrectionTest.kt
+    app/src/test/java/com/niko/assistant/learning/LearnedActionCodecTest.kt
+    app/src/test/java/com/niko/assistant/learning/LearnedActionStoreTest.kt
+    app/src/test/java/com/niko/assistant/learning/OnlineIntentNetworkTest.kt
     app/src/test/java/com/niko/assistant/localai/LocalConversationPromptTest.kt
 )
 
@@ -41,4 +52,9 @@ java -cp "$leo_test_dir/tests.jar:$leo_classpath" org.junit.runner.JUnitCore \
     com.niko.assistant.ai.ConversationContextTest \
     com.niko.assistant.ai.ResearchQualityTest \
     com.niko.assistant.ai.LeoNativeWebSearchTest \
+    com.niko.assistant.learning.AdaptiveLearningPolicyTest \
+    com.niko.assistant.learning.InteractionCorrectionTest \
+    com.niko.assistant.learning.LearnedActionCodecTest \
+    com.niko.assistant.learning.LearnedActionStoreTest \
+    com.niko.assistant.learning.OnlineIntentNetworkTest \
     com.niko.assistant.localai.LocalConversationPromptTest

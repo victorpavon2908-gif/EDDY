@@ -9,7 +9,12 @@ object NikoIdentity {
         .replace(Regex("\\[\\d{1,2}\\]"), "")
         .replace(Regex("(?m)^[•*#]+\\s*"), "")
 
-    fun replyTo(input: String, adaptiveLearningEnabled: Boolean = true): String? {
+    fun replyTo(
+        input: String,
+        adaptiveLearningEnabled: Boolean = true,
+        trainingUpdates: Long = 0L,
+        learnedCorrections: Int = 0,
+    ): String? {
         val question = MemoryLearning.key(input)
             .removePrefix("leo ")
             .removePrefix("lio ")
@@ -22,8 +27,14 @@ object NikoIdentity {
             asksAboutDeveloper(question) ->
                 "Mi desarrollador es ${LeoBrand.DEVELOPER_NAME}. Él creó y dirige el proyecto Leo."
 
-            asksAboutLearning(question) && adaptiveLearningEnabled ->
-                "Sí. Conforme interactuás conmigo, guardo localmente los datos y preferencias que me enseñás, recuerdo acciones completadas y adapto cómo clasifico tus pedidos. No reentreno el modelo base con cada charla; podés preguntarme qué recuerdo o decirme que borre mi memoria."
+            asksAboutLearning(question) && adaptiveLearningEnabled -> {
+                val progress = if (trainingUpdates > 0L) {
+                    "Mi red local ya recibió $trainingUpdates actualizaciones supervisadas y aprendió $learnedCorrections correcciones de comandos."
+                } else {
+                    "Mi red local todavía está iniciando y aún no registra actualizaciones."
+                }
+                "Sí. Entreno de verdad una red neuronal pequeña dentro de tu teléfono: sus pesos cambian con cada interacción que puedo clasificar con seguridad, y tus correcciones explícitas pueden convertirse en comandos locales reutilizables. $progress También guardo preferencias y recuerdos útiles. No reentreno el modelo generativo completo, porque hacerlo continuamente en el teléfono sería inestable y muy pesado."
+            }
 
             asksAboutLearning(question) ->
                 "Mi aprendizaje adaptativo está desactivado ahora mismo. Sigo usando la memoria local para lo que me enseñés explícitamente, pero no adapto el clasificador de pedidos hasta que activés Aprendizaje en Ajustes."
@@ -37,9 +48,18 @@ object NikoIdentity {
             Regex("\\b(?:desarrollador|creador|programador)\\s+de\\s+leo\\b").containsMatchIn(question) ||
             Regex("\\bquien\\b.{0,32}\\bte\\s+(?:desarrollo|creo|programo|diseno|hizo)\\b").containsMatchIn(question)
 
+    fun isLearningQuestion(input: String): Boolean {
+        val question = MemoryLearning.key(input)
+            .removePrefix("leo ")
+            .removePrefix("lio ")
+            .removePrefix("niko ")
+            .removePrefix("nico ")
+        return asksAboutLearning(question)
+    }
+
     private fun asksAboutLearning(question: String): Boolean {
         if (question in setOf("aprendes", "como aprendes", "vos aprendes", "tu aprendes", "vas aprendiendo", "podes aprender", "puedes aprender")) return true
-        val learning = Regex("\\b(?:aprende[rs]?|aprendiendo|aprendizaje|entrena[rs]?|entrenando|adaptas?|adaptando|mejoras?|mejorando|memoria)\\b")
+        val learning = Regex("\\b(?:aprend[a-z]*|entren[a-z]*|adaptas?|adaptando|mejoras?|mejorando|memoria)\\b")
         val interaction = Regex("\\b(?:conmigo|con migo|de mi|sobre mi|al usar|con el uso|interactu[a-z]*|hablamos|convers[a-z]*|cada charla|mis pedidos|mis preferencias|con el tiempo|funciona)\\b")
         return learning.containsMatchIn(question) && interaction.containsMatchIn(question)
     }

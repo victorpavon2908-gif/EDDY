@@ -47,8 +47,7 @@ class OnlineIntentNetwork(seed: Long = System.nanoTime()) {
     }
 
     fun learn(text: String, label: LearnedIntent) {
-        val clean = MemoryLearning.key(text).take(MAX_TEXT)
-        if (clean.isBlank()) return
+        val clean = AdaptiveLearningPolicy.example(text) ?: return
         replay.removeAll { it.text == clean }
         // Reserve examples for every class so a run of one command cannot evict all others.
         if (replay.count { it.label == label } >= PER_CLASS) replay.removeAt(replay.indexOfFirst { it.label == label })
@@ -155,9 +154,13 @@ class OnlineIntentNetwork(seed: Long = System.nanoTime()) {
                 }
                 val count = input.readInt().also { require(it in 0..PER_CLASS * CLASSES) }
                 repeat(count) {
-                    val text = input.readUTF().also { require(it.length <= MAX_TEXT) }
+                    val storedText = input.readUTF().also { require(it.length <= MAX_TEXT) }
                     val label = input.readInt().also { require(it in 0 until CLASSES) }
-                    network.replay.add(Example(text, LearnedIntent.entries[label]))
+                    // Older checkpoints may predate the privacy filter. Unsafe replay
+                    // examples are dropped when loading and disappear on the next save.
+                    AdaptiveLearningPolicy.example(storedText)?.let { safe ->
+                        network.replay.add(Example(safe, LearnedIntent.entries[label]))
+                    }
                 }
                 require(input.available() == 0)
             }
