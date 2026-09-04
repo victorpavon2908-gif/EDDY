@@ -18,12 +18,17 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
@@ -32,6 +37,7 @@ import com.niko.assistant.background.NikoVoiceSettings
 import com.niko.assistant.background.NikoRuntimeState
 import com.niko.assistant.startup.LeoFirstRunSetup
 import com.niko.assistant.startup.LeoFirstRunState
+import com.niko.assistant.ui.LeoBrainStatusOverlay
 import com.niko.assistant.ui.LeoFirstRunScreen
 import com.niko.assistant.ui.LeoLiveTranscriptOverlay
 import com.niko.assistant.ui.NikoEmbeddedApp
@@ -266,6 +272,17 @@ class MainActivity : ComponentActivity() {
                         webSearching = snapshot.webSearching,
                         webUsed = snapshot.webUsed,
                         webSources = snapshot.webSources,
+                    )
+                    LeoBrainStatusOverlay(
+                        state = snapshot.brainState,
+                        progress = snapshot.brainProgress,
+                        status = snapshot.brainStatus,
+                        downloadedBytes = snapshot.brainDownloadedBytes,
+                        totalBytes = snapshot.brainTotalBytes,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .statusBarsPadding()
+                            .padding(top = 60.dp, start = 18.dp, end = 18.dp),
                     )
                     LeoLiveTranscriptOverlay(visualState)
                 }
