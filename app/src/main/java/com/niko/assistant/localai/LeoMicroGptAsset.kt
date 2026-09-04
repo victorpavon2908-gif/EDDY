@@ -44,8 +44,8 @@ class LeoMicroGptAsset(context: Context) {
         .joinToString("") { "%02x".format(it) }
 
     companion object {
-        const val V2_SHA256 = "df72b6a8ab27d8f8703079006581b135e705b2805c60f75cf275be6476ad6204"
-        const val EXPECTED_BYTES = 117_866
+        const val V2_SHA256 = "5b89324da9b37e8199913fad545d0e95ccf500ceb50594864bcbd67b07fc18d3"
+        const val EXPECTED_BYTES = 117_873
         private val ASSET_PARTS = (1..29).map { "leo-microgpt-v2.bundle.part%02d".format(it) }
     }
 }
