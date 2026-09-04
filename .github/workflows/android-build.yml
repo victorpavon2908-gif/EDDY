@@ -2,7 +2,7 @@ name: LEO tests and lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, leo-v2-staging]
   pull_request:
     branches: [main]
 
