@@ -39,7 +39,7 @@ class GroqGateway(private val budgetMs: Long = 18_000L, private val transport: G
                     lastError = "GroqCloud no devolvió una respuesta utilizable. Reformulá la pregunta."
                     break
                 }
-                lastError = GroqProtocol.describeError(result.code)
+                lastError = GroqProtocol.describeError(result.code, result.body)
                 if (!GroqProtocol.canFallback(result.code, result.body)) break
             }
             completed = true
