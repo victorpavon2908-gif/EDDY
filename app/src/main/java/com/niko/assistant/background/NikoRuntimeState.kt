@@ -21,8 +21,15 @@ object NikoRuntimeState {
     private const val KEY_SEARCHING = "searching"
     private const val KEY_WEB_USED = "web_used"
     private const val KEY_WEB_SOURCES = "web_sources"
+    private const val KEY_BRAIN_STATE = "brain_state"
+    private const val KEY_BRAIN_PROGRESS = "brain_progress"
+    private const val KEY_BRAIN_STATUS = "brain_status"
+    private const val KEY_BRAIN_DOWNLOADED_BYTES = "brain_downloaded_bytes"
+    private const val KEY_BRAIN_TOTAL_BYTES = "brain_total_bytes"
 
     enum class InputState { STOPPED, PREPARING, READY, ERROR }
+
+    enum class BrainState { WAITING, CHECKING, DOWNLOADING, VERIFYING, INSTALLING, READY, ERROR }
 
     enum class State {
         IDLE,
@@ -43,6 +50,11 @@ object NikoRuntimeState {
         val webSearching: Boolean = false,
         val webUsed: Boolean = false,
         val webSources: List<NikoWebSource> = emptyList(),
+        val brainState: BrainState = BrainState.WAITING,
+        val brainProgress: Int = 0,
+        val brainStatus: String = "Cerebro local pendiente",
+        val brainDownloadedBytes: Long = 0L,
+        val brainTotalBytes: Long = 0L,
     )
 
     fun read(context: Context): Snapshot {
@@ -50,6 +62,9 @@ object NikoRuntimeState {
         val state = runCatching {
             State.valueOf(prefs.getString(KEY_STATE, State.IDLE.name) ?: State.IDLE.name)
         }.getOrDefault(State.IDLE)
+        val brainState = runCatching {
+            BrainState.valueOf(prefs.getString(KEY_BRAIN_STATE, BrainState.WAITING.name).orEmpty())
+        }.getOrDefault(BrainState.WAITING)
 
         return Snapshot(
             state = state,
@@ -69,6 +84,13 @@ object NikoRuntimeState {
             webSearching = prefs.getBoolean(KEY_SEARCHING, false),
             webUsed = prefs.getBoolean(KEY_WEB_USED, false),
             webSources = decodeSources(prefs.getString(KEY_WEB_SOURCES, "[]").orEmpty()),
+            brainState = brainState,
+            brainProgress = prefs.getInt(KEY_BRAIN_PROGRESS, if (brainState == BrainState.READY) 100 else 0).coerceIn(0, 100),
+            brainStatus = LeoBrand.publicText(
+                prefs.getString(KEY_BRAIN_STATUS, "Cerebro local pendiente").orEmpty().ifBlank { "Cerebro local pendiente" },
+            ),
+            brainDownloadedBytes = prefs.getLong(KEY_BRAIN_DOWNLOADED_BYTES, 0L).coerceAtLeast(0L),
+            brainTotalBytes = prefs.getLong(KEY_BRAIN_TOTAL_BYTES, 0L).coerceAtLeast(0L),
         )
     }
 
@@ -106,6 +128,29 @@ object NikoRuntimeState {
 
     fun setState(context: Context, value: State) {
         edit(context) { putString(KEY_STATE, value.name) }
+    }
+
+    fun setBrainProgress(
+        context: Context,
+        state: BrainState,
+        status: String,
+        downloadedBytes: Long = 0L,
+        totalBytes: Long = 0L,
+    ) {
+        val progress = if (state == BrainState.READY) 100 else brainProgressPercent(downloadedBytes, totalBytes)
+        edit(context) {
+            putString(KEY_BRAIN_STATE, state.name)
+            putInt(KEY_BRAIN_PROGRESS, progress)
+            putString(KEY_BRAIN_STATUS, LeoBrand.publicText(status))
+            putLong(KEY_BRAIN_DOWNLOADED_BYTES, downloadedBytes.coerceAtLeast(0L))
+            putLong(KEY_BRAIN_TOTAL_BYTES, totalBytes.coerceAtLeast(0L))
+        }
+    }
+
+    internal fun brainProgressPercent(downloadedBytes: Long, totalBytes: Long): Int {
+        if (downloadedBytes <= 0L || totalBytes <= 0L) return 0
+        val bounded = downloadedBytes.coerceAtMost(totalBytes)
+        return ((bounded.toDouble() / totalBytes.toDouble()) * 100.0).toInt().coerceIn(0, 100)
     }
 
     fun setHeard(context: Context, value: String) {
@@ -149,6 +194,8 @@ object NikoRuntimeState {
             putString(KEY_VOICE_STATUS, "Voz en pausa")
             putBoolean(KEY_WEB_USED, false)
             putString(KEY_WEB_SOURCES, "[]")
+            // Brain state intentionally survives a voice/service reset: the frozen brain is
+            // independent persistent storage and a partial download can resume next launch.
         }
     }
 
