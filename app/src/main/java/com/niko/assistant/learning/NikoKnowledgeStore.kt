@@ -8,7 +8,6 @@ import com.niko.assistant.compat.UpgradeIdentity
 import com.niko.assistant.memory.MemoryLearning
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlin.math.ceil
 import kotlin.math.sqrt
 
 /**
@@ -181,12 +180,17 @@ class NikoKnowledgeStore(context: Context) {
                 .map(String::trim)
                 .filter { it.length >= 3 && it !in SEMANTIC_STOP_WORDS }
                 .toSet()
+            fun sameTerm(a: String, b: String): Boolean {
+                if (a == b) return true
+                val shorter = if (a.length <= b.length) a else b
+                val longer = if (a.length > b.length) a else b
+                return shorter.length >= 4 && longer.length - shorter.length <= 2 && longer.startsWith(shorter)
+            }
             val a = terms(left)
             val b = terms(right)
             if (a.isEmpty() || b.isEmpty()) return 0.0
-            val required = ceil(a.size * MIN_SEMANTIC_COVERAGE).toInt().coerceAtLeast(1)
-            val matched = a.count { it in b }
-            return if (matched < required) matched.toDouble() / a.size else matched.toDouble() / a.size
+            val matched = a.count { leftTerm -> b.any { rightTerm -> sameTerm(leftTerm, rightTerm) } }
+            return matched.toDouble() / a.size
         }
 
         /** Weighted bag-of-words + character trigrams, small enough for on-device lookup. */
