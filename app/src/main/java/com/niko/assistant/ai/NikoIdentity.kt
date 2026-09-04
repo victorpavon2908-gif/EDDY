@@ -4,10 +4,33 @@ import com.niko.assistant.memory.MemoryLearning
 
 /** Identity questions stay local and cannot be overwritten by an old learned answer. */
 object NikoIdentity {
-    /** Old persisted branding is migrated before either speech engine sees it. */
-    fun forSpeech(text: String): String = LeoBrand.publicText(text)
-        .replace(Regex("\\[\\d{1,2}\\]"), "")
-        .replace(Regex("(?m)^[•*#]+\\s*"), "")
+    /**
+     * Old persisted branding is migrated before either speech engine sees it.
+     * Screen formatting is intentionally not changed; this path is speech-only.
+     */
+    fun forSpeech(text: String): String {
+        var value = LeoBrand.publicText(text)
+        value = value
+            // Preserve the visible label of Markdown links/images, but never read the URL.
+            .replace(Regex("!\\[([^]]*)]\\((?:https?://)?[^)]*\\)"), "$1")
+            .replace(Regex("\\[([^]]+)]\\((?:https?://)?[^)]*\\)"), "$1")
+            // Citations and raw URLs belong on screen, not in spoken audio.
+            .replace(Regex("\\[\\d{1,3}]"), "")
+            .replace(Regex("https?://\\S+", RegexOption.IGNORE_CASE), "")
+            // Remove headings/list markers before stripping inline emphasis markers.
+            .replace(Regex("(?m)^\\s*(?:[-+•]|#{1,6})\\s+"), "")
+            .replace("```", "")
+            .replace("`", "")
+            .replace("**", "")
+            .replace("__", "")
+            .replace("~~", "")
+            .replace("*", "")
+            .replace("_", " ")
+            .replace(Regex("(?m)^\\s*#*\\s*"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return value
+    }
 
     fun replyTo(
         input: String,
