@@ -30,6 +30,7 @@ leo_sources=(
     app/src/main/java/com/niko/assistant/learning/InteractionCorrection.kt
     app/src/main/java/com/niko/assistant/learning/LearnedActionCodec.kt
     app/src/main/java/com/niko/assistant/learning/LearnedActionStore.kt
+    app/src/main/java/com/niko/assistant/learning/LeoIntentTrainingCorpus.kt
     app/src/main/java/com/niko/assistant/learning/OnlineIntentNetwork.kt
     app/src/main/java/com/niko/assistant/localai/LocalConversationPrompt.kt
     app/src/test/java/com/niko/assistant/ai/NikoIdentityTest.kt
@@ -40,6 +41,7 @@ leo_sources=(
     app/src/test/java/com/niko/assistant/learning/InteractionCorrectionTest.kt
     app/src/test/java/com/niko/assistant/learning/LearnedActionCodecTest.kt
     app/src/test/java/com/niko/assistant/learning/LearnedActionStoreTest.kt
+    app/src/test/java/com/niko/assistant/learning/LeoIntentTrainingCorpusTest.kt
     app/src/test/java/com/niko/assistant/learning/OnlineIntentNetworkTest.kt
     app/src/test/java/com/niko/assistant/localai/LocalConversationPromptTest.kt
 )
@@ -56,5 +58,6 @@ java -cp "$leo_test_dir/tests.jar:$leo_classpath" org.junit.runner.JUnitCore \
     com.niko.assistant.learning.InteractionCorrectionTest \
     com.niko.assistant.learning.LearnedActionCodecTest \
     com.niko.assistant.learning.LearnedActionStoreTest \
+    com.niko.assistant.learning.LeoIntentTrainingCorpusTest \
     com.niko.assistant.learning.OnlineIntentNetworkTest \
     com.niko.assistant.localai.LocalConversationPromptTest

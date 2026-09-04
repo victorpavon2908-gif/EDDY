@@ -56,6 +56,7 @@ import com.niko.assistant.learning.InteractionCorrection
 import com.niko.assistant.learning.LearnedIntent
 import com.niko.assistant.learning.LearnedActionCodec
 import com.niko.assistant.learning.LearnedActionStore
+import com.niko.assistant.learning.LeoIntentTrainingCorpus
 import com.niko.assistant.learning.OnlineIntentNetwork
 import com.niko.assistant.localai.NikoDeviceProfile
 import com.niko.assistant.localai.NikoLocalLlm
@@ -76,6 +77,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -88,6 +90,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import com.niko.assistant.voice.VoiceControl
 import com.niko.assistant.voice.LeoRealtimeTurnBus
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 open class NikoAssistantService : Service() {
@@ -107,10 +111,17 @@ open class NikoAssistantService : Service() {
     private lateinit var localLlm: NikoLocalLlm
     private lateinit var uiAutomation: NikoUiAutomationAgent
     private lateinit var codeAgent: NikoCodeAgent
-    private val adaptiveStore by lazy { AdaptiveIntentStore(File(filesDir, "adaptive_learning")) }
+    private val adaptiveStore by lazy {
+        AdaptiveIntentStore(File(filesDir, "adaptive_learning")) {
+            runCatching { assets.open(LeoIntentTrainingCorpus.ASSET_NAME).use { it.readBytes() } }.getOrNull()
+        }
+    }
     private val learnedActionStore by lazy { LearnedActionStore(File(filesDir, "adaptive_learning")) }
-    private var adaptiveNetwork: OnlineIntentNetwork? = null
-    private var adaptiveUnavailable = false
+    @Volatile private var adaptiveNetwork: OnlineIntentNetwork? = null
+    @Volatile private var adaptiveUnavailable = false
+    @Volatile private var learningEpoch = 0L
+    private val adaptiveLoading = AtomicBoolean(false)
+    private val learningMutex = Mutex()
     private var lastTrainableUtterance: String? = null
     private var replyProsody = SpeechProsody()
     private val speechOutput = SpeechOutputPolicy()
@@ -381,7 +392,11 @@ open class NikoAssistantService : Service() {
         if (destroyed) { engine.stop(); return false }
         return if (started && engine.isRunning) {
             localVoiceActive = true
-            neuralTts.prewarm()
+            serviceScope.launch {
+                delay(2_000L)
+                if (!destroyed && !platformTts.isReady) neuralTts.prewarm()
+            }
+            prewarmAdaptiveLearning()
             isListening = false
             initializationFailure = null
             voiceRecovery.started(SystemClock.elapsedRealtime())
@@ -513,7 +528,6 @@ open class NikoAssistantService : Service() {
             adaptiveLearningEnabled = learningEnabled,
         )
         if (identityReply != null) {
-            learnIntent(text, LearnedIntent.CONVERSATION, correctionAlias)
             val response = if (com.niko.assistant.ai.NikoIdentity.isLearningQuestion(text)) {
                 val stats = learningStats()
                 com.niko.assistant.ai.NikoIdentity.replyTo(
@@ -523,6 +537,7 @@ open class NikoAssistantService : Service() {
                     learnedCorrections = stats.corrections,
                 ) ?: identityReply
             } else identityReply
+            learnIntent(text, LearnedIntent.CONVERSATION, correctionAlias)
             speakResponse(response)
             return
         }
@@ -624,58 +639,99 @@ open class NikoAssistantService : Service() {
             correctionAlias,
         )
         val direct = executeDirectCommand(command) ?: "Listo."
-        withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
         speakResponse(direct)
+        withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
     }
 
     private suspend fun predictIntent(text: String): OnlineIntentNetwork.Prediction? = withContext(Dispatchers.IO) {
         if (!NikoAiSettings.adaptiveLearning(applicationContext) || adaptiveUnavailable) return@withContext null
-        try {
-            val network = adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it }
-            network.predict(text)
-        } catch (_: Exception) {
-            adaptiveUnavailable = true
-            NikoRuntimeState.setInputStatus(applicationContext, "Aprendizaje no disponible; conservé los datos para recuperación.")
-            null
+        val loaded = adaptiveNetwork ?: run {
+            prewarmAdaptiveLearning()
+            return@withContext null
+        }
+        learningMutex.withLock {
+            try {
+                loaded.predict(text)
+            } catch (_: Exception) {
+                adaptiveUnavailable = true
+                NikoRuntimeState.setInputStatus(applicationContext, "Aprendizaje no disponible; conservé los datos para recuperación.")
+                null
+            }
         }
     }
 
-    private suspend fun learnIntent(text: String, intent: LearnedIntent, correctionAlias: String? = null) = withContext(Dispatchers.IO) {
-        if (!NikoAiSettings.adaptiveLearning(applicationContext) || adaptiveUnavailable) return@withContext
-        try {
-            val network = adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it }
-            network.learn(text, intent)
-            correctionAlias?.takeIf { it != text }?.let { network.learn(it, intent) }
-            adaptiveStore.save(network)
-        } catch (_: Exception) {
-            adaptiveUnavailable = true
-            NikoRuntimeState.setInputStatus(applicationContext, "No pude guardar el aprendizaje. Las órdenes siguen disponibles.")
+    private fun prewarmAdaptiveLearning() {
+        if (destroyed || adaptiveUnavailable || adaptiveNetwork != null ||
+            !NikoAiSettings.adaptiveLearning(applicationContext) || !adaptiveLoading.compareAndSet(false, true)
+        ) return
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                learningMutex.withLock {
+                    if (adaptiveNetwork == null && !adaptiveUnavailable) adaptiveNetwork = adaptiveStore.load()
+                }
+            } catch (_: Exception) {
+                adaptiveUnavailable = true
+                NikoRuntimeState.setInputStatus(applicationContext, "Aprendizaje no disponible; conservé los datos para recuperación.")
+            } finally {
+                adaptiveLoading.set(false)
+            }
         }
     }
 
-    private suspend fun clearLocalMemory() = withContext(Dispatchers.IO) {
-        memory.clearAll()
-        adaptiveStore.clear()
-        learnedActionStore.clear()
-        adaptiveNetwork = null
-        adaptiveUnavailable = false
-        lastTrainableUtterance = null
+    /** Training and fsync must never delay command execution or the first spoken audio. */
+    private fun learnIntent(text: String, intent: LearnedIntent, correctionAlias: String? = null) {
+        if (!NikoAiSettings.adaptiveLearning(applicationContext) || adaptiveUnavailable) return
+        val epoch = learningEpoch
+        serviceScope.launch(Dispatchers.IO) {
+            learningMutex.withLock {
+                if (epoch != learningEpoch) return@withLock
+                try {
+                    val network = adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it }
+                    network.learn(text, intent)
+                    correctionAlias?.takeIf { it != text }?.let { network.learn(it, intent) }
+                    adaptiveStore.save(network)
+                } catch (_: Exception) {
+                    adaptiveUnavailable = true
+                    NikoRuntimeState.setInputStatus(applicationContext, "No pude guardar el aprendizaje. Las órdenes siguen disponibles.")
+                }
+            }
+        }
     }
 
-    private suspend fun rememberCorrectedAction(alias: String?, commands: List<AssistantCommand>) {
+    private suspend fun clearLocalMemory() {
+        ++learningEpoch
+        withContext(Dispatchers.IO) {
+            learningMutex.withLock {
+                memory.clearAll()
+                adaptiveStore.clear()
+                learnedActionStore.clear()
+                adaptiveNetwork = null
+                adaptiveUnavailable = false
+                lastTrainableUtterance = null
+            }
+        }
+    }
+
+    private fun rememberCorrectedAction(alias: String?, commands: List<AssistantCommand>) {
         alias ?: return
         if (!NikoAiSettings.adaptiveLearning(applicationContext)) return
         val dsl = LearnedActionCodec.encode(commands) ?: return
-        withContext(Dispatchers.IO) {
-            runCatching { learnedActionStore.remember(alias, dsl) }
-                .onFailure { NikoRuntimeState.setInputStatus(applicationContext, "No pude guardar esa corrección; el resto del aprendizaje sigue activo.") }
+        val epoch = learningEpoch
+        serviceScope.launch(Dispatchers.IO) {
+            learningMutex.withLock {
+                if (epoch != learningEpoch) return@withLock
+                runCatching { learnedActionStore.remember(alias, dsl) }
+                    .onFailure { NikoRuntimeState.setInputStatus(applicationContext, "No pude guardar esa corrección; el resto del aprendizaje sigue activo.") }
+            }
         }
     }
 
     private suspend fun learningStats(): LearningStats = withContext(Dispatchers.IO) {
-        val network = runCatching { adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it } }.getOrNull()
-        val corrections = runCatching { learnedActionStore.count() }.getOrDefault(0)
-        LearningStats(network?.observations ?: 0L, corrections)
+        learningMutex.withLock {
+            val network = runCatching { adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it } }.getOrNull()
+            val corrections = runCatching { learnedActionStore.count() }.getOrDefault(0)
+            LearningStats(network?.observations ?: 0L, corrections)
+        }
     }
 
     private data class LearningStats(val updates: Long, val corrections: Int)
@@ -774,7 +830,10 @@ open class NikoAssistantService : Service() {
                 onSpeakingChanged(false)
             }
         }
-        val backend = speechOutput.choose(neuralTts.isAvailable)
+        val backend = speechOutput.choose(
+            neuralAvailable = neuralTts.isAvailable,
+            systemAvailable = platformTts.isReady,
+        )
         val queued = if (backend == SpeechOutputPolicy.Backend.NEURAL) {
             NikoRuntimeState.setVoiceStatus(applicationContext, "Voz local de LEO · español de México · sin conexión")
             if (neuralTts.speak(text, replyProsody.speed)) true else {
@@ -784,7 +843,11 @@ open class NikoAssistantService : Service() {
             }
         } else {
             NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
-            platformTts.speak(text, replyProsody)
+            if (platformTts.speak(text, replyProsody)) true else {
+                speechOutput.systemFailed()
+                NikoRuntimeState.setVoiceStatus(applicationContext, "Voz local de LEO · español de México · sin conexión")
+                neuralTts.speak(text, replyProsody.speed)
+            }
         }
         if (queued) NikoRuntimeState.setVoiceReady(applicationContext, true)
         else { NikoRuntimeState.setVoiceReady(applicationContext, false); onSpeakingChanged(false) }

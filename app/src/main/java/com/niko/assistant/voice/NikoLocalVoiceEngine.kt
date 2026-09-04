@@ -37,7 +37,6 @@ import com.niko.assistant.localai.NikoModelSpec
 import com.niko.assistant.localai.NikoVoiceProfile
 import java.io.File
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -48,8 +47,8 @@ import kotlin.math.sqrt
  *
  * PASSIVE combina KWS + Silero/Canary. ACTIVE usa VAD + GTCRN + Canary y Whisper opcional.
  * Mientras LEO habla, el micrófono NO se apaga: AEC + KWS siguen buscando únicamente "Leo"
- * para permitir barge-in. Durante la orden, Canary publica previews locales periódicos para que
- * la interfaz muestre lo que está entendiendo antes de que termine la frase.
+ * para permitir barge-in. Durante la orden, la interfaz indica que escucha sin lanzar decodificaciones
+ * parciales que compitan con la transcripción final de Canary.
  */
 class NikoLocalVoiceEngine(
     private val context: Context,
@@ -99,7 +98,6 @@ class NikoLocalVoiceEngine(
     @Volatile private var lastPassiveWakeProbeAt = 0L
     @Volatile private var commandSpeechNotified = false
     @Volatile private var commandSpeechFrames = 0
-    @Volatile private var lastLivePreviewAt = 0L
     @Volatile private var ownerAuthorizedUntil = 0L
 
     private var enrolling = false
@@ -109,15 +107,6 @@ class NikoLocalVoiceEngine(
     private val commandAudio = SpeechAudioHistory()
     private val emotionEngine = NikoEmotionEngine(context)
     private val commandWindow = WakeCommandWindow(FIRST_COMMAND_MS, FOLLOW_UP_MS)
-
-    private val previewRunning = AtomicBoolean(false)
-    private val previewExecutor = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "LEO-LiveTranscript").apply {
-            isDaemon = true
-            priority = Thread.MIN_PRIORITY
-        }
-    }
-    private var livePreviewSamples = FloatArray(0)
 
     @Volatile
     var lastInitializationFailure: InitializationFailure? = null
@@ -285,7 +274,7 @@ class NikoLocalVoiceEngine(
 
     private fun initVad() = initStage("detección de voz", NikoModelCatalog.vad) {
         val model = models.file(NikoModelCatalog.vad).absolutePath
-        vad = createVad(model, 0.24f, 1.05f, 0.06f, 45f)
+        vad = createVad(model, 0.24f, 0.72f, 0.06f, 45f)
         passiveWakeVad = createVad(model, 0.25f, 0.24f, 0.06f, 3.2f)
     }
 
@@ -337,7 +326,7 @@ class NikoLocalVoiceEngine(
                         usePnc = true,
                     ),
                     tokens = File(root, "tokens.txt").absolutePath,
-                    numThreads = profile.inferenceThreads.coerceIn(1, 2),
+                    numThreads = realtimeAsrThreads(),
                     provider = "cpu",
                 ),
                 decodingMethod = "greedy_search",
@@ -360,7 +349,7 @@ class NikoLocalVoiceEngine(
                             task = "transcribe",
                         ),
                         tokens = File(root, "tiny-tokens.txt").absolutePath,
-                        numThreads = profile.inferenceThreads.coerceIn(1, 2),
+                        numThreads = realtimeAsrThreads(),
                         provider = "cpu",
                     ),
                     decodingMethod = "greedy_search",
@@ -655,7 +644,6 @@ class NikoLocalVoiceEngine(
         }
 
         detectCommandContinuation(samples)
-        updateLivePreview(samples)
         val localVad = vad ?: return
         feedCommandDetector(samples)
         if (localVad.isSpeechDetected()) commandWindow.onSpeech(SystemClock.elapsedRealtime())
@@ -741,49 +729,7 @@ class NikoLocalVoiceEngine(
         } else commandSpeechFrames = 0
     }
 
-    private fun updateLivePreview(samples: FloatArray) {
-        if (ownerVoice.ownerOnly || ownerVoice.enrollmentActive || !commandSpeechNotified || samples.isEmpty()) return
-        appendLiveSamples(samples)
-        val now = SystemClock.elapsedRealtime()
-        if (livePreviewSamples.size < LIVE_PREVIEW_MIN_SAMPLES || now - lastLivePreviewAt < LIVE_PREVIEW_INTERVAL_MS) return
-        if (!previewRunning.compareAndSet(false, true)) return
-        lastLivePreviewAt = now
-        val snapshot = livePreviewSamples.copyOf()
-        val previewToken = LeoRealtimeTurnBus.previewToken()
-        val localRecognizer = recognizer ?: run { previewRunning.set(false); return }
-        previewExecutor.execute {
-            try {
-                val text = runCatching { transcribeWith(localRecognizer, snapshot) }.getOrDefault("")
-                if (text.isNotBlank() && running.get() && state == State.ACTIVE && !resetRequested) {
-                    LeoRealtimeTurnBus.updatePreview(text, previewToken)
-                }
-            } finally {
-                previewRunning.set(false)
-            }
-        }
-    }
-
-    private fun appendLiveSamples(samples: FloatArray) {
-        val max = LIVE_PREVIEW_MAX_SAMPLES
-        val existing = livePreviewSamples
-        val total = existing.size + samples.size
-        if (total <= max) {
-            livePreviewSamples = FloatArray(total).also {
-                existing.copyInto(it, 0)
-                samples.copyInto(it, existing.size)
-            }
-            return
-        }
-        val keepOld = (max - samples.size).coerceAtLeast(0)
-        livePreviewSamples = FloatArray(max).also { target ->
-            if (keepOld > 0) existing.copyInto(target, 0, (existing.size - keepOld).coerceAtLeast(0), existing.size)
-            samples.copyInto(target, keepOld, (samples.size - (max - keepOld)).coerceAtLeast(0), samples.size)
-        }
-    }
-
     private fun clearLivePreview() {
-        livePreviewSamples = FloatArray(0)
-        lastLivePreviewAt = 0L
         LeoRealtimeTurnBus.clearTranscript()
     }
 
@@ -819,6 +765,12 @@ class NikoLocalVoiceEngine(
             stream.release()
         }
     }
+
+    private fun realtimeAsrThreads(): Int = minOf(
+        profile.inferenceThreads.coerceAtLeast(2),
+        profile.cpuCores.coerceAtLeast(1),
+        4,
+    )
 
     private fun embedding(samples: FloatArray): FloatArray? {
         val extractor = speakerExtractor ?: return null
@@ -943,7 +895,6 @@ class NikoLocalVoiceEngine(
         ownerAuthorizedUntil = 0L
         reopenFollowUp = false
         clearLivePreview()
-        previewExecutor.shutdownNow()
         releaseAudioEffects()
         runCatching { recorder?.release() }
         recorder = null
@@ -965,9 +916,6 @@ class NikoLocalVoiceEngine(
         private const val MIN_COMMAND_SAMPLES = SAMPLE_RATE / 10
         private const val MIN_SPEAKER_SAMPLES = SAMPLE_RATE * 3 / 10
         private const val OWNER_RECENT_MATCH_MS = 20_000L
-        private const val LIVE_PREVIEW_INTERVAL_MS = 950L
-        private const val LIVE_PREVIEW_MIN_SAMPLES = SAMPLE_RATE * 3 / 4
-        private const val LIVE_PREVIEW_MAX_SAMPLES = SAMPLE_RATE * 6
         private const val ASR_DIR = "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8"
         private const val WHISPER_DIR = "sherpa-onnx-whisper-tiny"
     }

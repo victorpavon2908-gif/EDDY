@@ -33,7 +33,6 @@ class NikoNeuralTextToSpeech(
     private val mutex = Mutex()
     private val playback = SpeechStartGate()
     @Volatile private var prewarming = false
-    @Volatile private var inferenceWarmed = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var tts: OfflineTts? = null
     @Volatile private var track: AudioTrack? = null
@@ -44,7 +43,7 @@ class NikoNeuralTextToSpeech(
 
     val isAvailable: Boolean get() = models.isInstalled(NikoModelCatalog.spanishVoice)
 
-    /** Create the engine and run one tiny silent warm inference so the first real reply is faster. */
+    /** Load the engine without running a blocking synthetic utterance ahead of a real reply. */
     fun prewarm() {
         if (closed || prewarming || !isAvailable) return
         prewarming = true
@@ -52,12 +51,7 @@ class NikoNeuralTextToSpeech(
             try {
                 mutex.withLock {
                     if (closed) return@withLock
-                    val engine = tts ?: createEngine()
-                    if (engine != null && !inferenceWarmed && !closed) {
-                        if (runCatching { engine.generate("Sí.", sid = 0, speed = 1.0f) }.isSuccess) {
-                            inferenceWarmed = true
-                        }
-                    }
+                    if (tts == null) createEngine()
                 }
             } finally {
                 prewarming = false
@@ -69,9 +63,9 @@ class NikoNeuralTextToSpeech(
         if (closed || text.isBlank() || !isAvailable) return false
         val token = playback.begin()
         LeoVoiceDiagnostics.recordSpeechRequested("Voz neural local")
-        // With a warmed engine and a short first synthesis block, 1.8 s is already generous.
+        // Never leave the visible answer waiting behind a slow native synthesis.
         val firstAudioDeadline = scope.launch(Dispatchers.Main) {
-            delay(1_800L)
+            delay(FIRST_AUDIO_DEADLINE_MS)
             if (!closed && canUseFallback() && playback.expire(token)) onFailure(text, false)
         }
         scope.launch {
@@ -81,14 +75,13 @@ class NikoNeuralTextToSpeech(
                 var audioStarted = false
                 try {
                     val engine = tts ?: createEngine() ?: error("Voz local no disponible")
-                    for (chunk in SpeechProsody.fastStartChunks(text, firstLimit = 48, nextLimit = 96)) {
+                    for (chunk in SpeechProsody.fastStartChunks(text, firstLimit = 28, nextLimit = 80)) {
                         if (closed || !playback.current(token)) break
                         val audio = engine.generate(
                             com.niko.assistant.ai.NikoIdentity.forSpeech(chunk),
                             sid = 0,
                             speed = speed.coerceIn(0.85f, 1.15f),
                         )
-                        inferenceWarmed = true
                         if (!closed && playback.current(token)) {
                             play(audio.samples, audio.sampleRate, token) {
                                 if (!audioStarted) {
@@ -106,7 +99,6 @@ class NikoNeuralTextToSpeech(
                     if (closed) {
                         runCatching { tts?.release() }
                         tts = null
-                        inferenceWarmed = false
                     }
                     firstAudioDeadline.cancel()
                     scope.launch(Dispatchers.Main) {
@@ -138,7 +130,6 @@ class NikoNeuralTextToSpeech(
             mutex.withLock {
                 runCatching { tts?.release() }
                 tts = null
-                inferenceWarmed = false
             }
             scope.cancel()
         }
@@ -163,7 +154,6 @@ class NikoNeuralTextToSpeech(
             ),
         ).also {
             tts = it
-            inferenceWarmed = false
         }
     }.getOrNull()
 
@@ -228,5 +218,8 @@ class NikoNeuralTextToSpeech(
         }
     }
 
-    companion object { private const val MODEL_DIR = "vits-piper-es_MX-claude-high" }
+    companion object {
+        private const val MODEL_DIR = "vits-piper-es_MX-claude-high"
+        private const val FIRST_AUDIO_DEADLINE_MS = 900L
+    }
 }

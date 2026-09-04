@@ -38,4 +38,18 @@ class AdaptiveIntentStoreTest {
         assertThrows(IllegalStateException::class.java) { AdaptiveIntentStore(dir).load() }
         assertEquals("corrupt", File(dir, "intent-network.bin").readText())
     }
+
+    @Test fun appStoreLoadsBundledTrainingAndUpgradesAnOlderLocalNetworkOnce() {
+        val seed = OnlineIntentNetwork.pretrained(9).encode()
+        val fresh = AdaptiveIntentStore(folder.newFolder()) { seed }.load()
+        assertEquals(LeoIntentTrainingCorpus.REVISION, fresh.seedRevision)
+
+        val dir = folder.newFolder()
+        val plainStore = AdaptiveIntentStore(dir)
+        plainStore.save(OnlineIntentNetwork(5))
+        val upgraded = AdaptiveIntentStore(dir) { seed }.load()
+        assertEquals(LeoIntentTrainingCorpus.REVISION, upgraded.seedRevision)
+        assertTrue(upgraded.observations > 0)
+        assertTrue(!upgraded.ensureSeeded())
+    }
 }

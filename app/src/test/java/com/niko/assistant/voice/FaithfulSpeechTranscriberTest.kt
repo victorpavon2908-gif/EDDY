@@ -19,14 +19,25 @@ class FaithfulSpeechTranscriberTest {
         assertEquals(1, passes)
     }
 
-    @Test fun quietAudioGetsAnIndependentReadOfTheSameWaveform() {
+    @Test fun clearLowRiskCommandUsesOneDecodeEvenWhenVoiceIsQuiet() {
         val original = audio(0.002f)
         var passes = 0
         val transcriber = FaithfulSpeechTranscriber(
             primaryDecoder = { passes++; "abrí WhatsApp" },
-            alternateDecoder = { assertSame(original, it); passes++; "¡Abrí WhatsApp!" },
+            alternateDecoder = { error("A clear app-open command must not wait for a second model") },
         )
         assertEquals("abrí WhatsApp", transcriber.transcribe(original).text)
+        assertEquals(1, passes)
+    }
+
+    @Test fun quietCommunicationCommandKeepsIndependentVerification() {
+        val original = audio(0.002f)
+        var passes = 0
+        val transcriber = FaithfulSpeechTranscriber(
+            primaryDecoder = { passes++; "llamá a Manuel" },
+            alternateDecoder = { assertSame(original, it); passes++; "llamá a Manuel" },
+        )
+        assertEquals("llamá a Manuel", transcriber.transcribe(original).text)
         assertEquals(2, passes)
     }
 

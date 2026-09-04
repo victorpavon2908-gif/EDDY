@@ -28,6 +28,8 @@ class OnlineIntentNetwork(seed: Long = System.nanoTime()) {
     private val replay = mutableListOf<Example>()
     var observations: Long = 0
         private set
+    var seedRevision: Int = 0
+        private set
     val examples: Int get() = replay.size
 
     fun predict(text: String): Prediction {
@@ -62,6 +64,16 @@ class OnlineIntentNetwork(seed: Long = System.nanoTime()) {
                 train(sample.text, sample.label, rate)
             }
         }
+    }
+
+    /** Applies each bundled training revision once while preserving personal examples. */
+    fun ensureSeeded(): Boolean {
+        if (seedRevision >= LeoIntentTrainingCorpus.REVISION) return false
+        val personalReplay = replay.toList()
+        LeoIntentTrainingCorpus.train(this)
+        personalReplay.forEach { example -> learn(example.text, example.label) }
+        seedRevision = LeoIntentTrainingCorpus.REVISION
+        return true
     }
 
     private fun train(text: String, label: LearnedIntent, rate: Float) {
@@ -119,7 +131,7 @@ class OnlineIntentNetwork(seed: Long = System.nanoTime()) {
     fun encode(): ByteArray {
         val bytes = ByteArrayOutputStream()
         DataOutputStream(bytes).use { out ->
-            out.writeInt(MAGIC); out.writeInt(VERSION); out.writeLong(observations)
+            out.writeInt(MAGIC); out.writeInt(VERSION); out.writeLong(observations); out.writeInt(seedRevision)
             listOf(inputWeights, hiddenBias, outputWeights, outputBias).forEach { array -> array.forEach { out.writeFloat(it) } }
             out.writeInt(replay.size)
             replay.forEach { out.writeUTF(it.text); out.writeInt(it.label.ordinal) }
@@ -138,7 +150,10 @@ class OnlineIntentNetwork(seed: Long = System.nanoTime()) {
         private const val PER_CLASS = 16
         private const val MAX_TEXT = 384
         private const val MAGIC = 0x45444459
-        private const val VERSION = 1
+        private const val VERSION = 2
+
+        fun pretrained(seed: Long = 20_260_904L): OnlineIntentNetwork =
+            OnlineIntentNetwork(seed).also { it.ensureSeeded() }
 
         fun decode(bytes: ByteArray): OnlineIntentNetwork? = runCatching {
             require(bytes.size in 16_000..150_000)
@@ -147,8 +162,10 @@ class OnlineIntentNetwork(seed: Long = System.nanoTime()) {
             require(CRC32().apply { update(body) }.value == expected)
             val network = OnlineIntentNetwork(0)
             DataInputStream(ByteArrayInputStream(body)).use { input ->
-                require(input.readInt() == MAGIC && input.readInt() == VERSION)
+                require(input.readInt() == MAGIC)
+                val version = input.readInt().also { require(it in 1..VERSION) }
                 network.observations = input.readLong().also { require(it >= 0) }
+                network.seedRevision = if (version >= 2) input.readInt().also { require(it in 0..LeoIntentTrainingCorpus.REVISION) } else 0
                 listOf(network.inputWeights, network.hiddenBias, network.outputWeights, network.outputBias).forEach { array ->
                     for (i in array.indices) array[i] = input.readFloat().also { require(it.isFinite()) }
                 }

@@ -39,6 +39,12 @@ object TranscriptQuality {
 
     fun isUsable(text: String): Boolean = text.isNotBlank() && !hasArtifacts(text)
 
+    /** A costly independent decode is reserved for low-quality, execution-sensitive dictation. */
+    fun requiresAcousticVerification(value: String): Boolean {
+        val normalized = normalizedForRules(value)
+        return tokens(normalized).any(::isCritical) || HIGH_RISK_DICTATION_CUE.containsMatchIn(normalized)
+    }
+
     fun requiresClarification(primary: String, refinement: String, sampleCount: Int): Boolean {
         if (!isUsable(primary) || !isUsable(refinement)) return false
         val a = tokens(primary)
@@ -73,10 +79,7 @@ object TranscriptQuality {
     }
 
     private fun literalSensitive(value: String): Boolean {
-        val normalized = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
-            .replace(Regex("\\p{Mn}+"), "")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        val normalized = normalizedForRules(value)
         return LITERAL_CUES.any(normalized::contains) ||
             CONTACT_OR_MESSAGE_CUE.containsMatchIn(normalized) ||
             Regex("\\b\\d{1,}\\b").containsMatchIn(normalized)
@@ -101,6 +104,11 @@ object TranscriptQuality {
             "decile|dile|mensaje|whatsapp|contacto)\\b",
     )
 
+    private val HIGH_RISK_DICTATION_CUE = Regex(
+        "\\b(?:llama(?:me|le)?|llamar|marca|escribi(?:le)?|escribe(?:le)?|manda(?:le)?|envia(?:le)?|" +
+            "decile|dile|mensaje|contacto)\\b",
+    )
+
     private val LITERAL_CUES = listOf(
         "numero", "direccion", "calle", "avenida", "a las ", "alarma", "cordoba", "dolar",
         "mensaje que", "decile que", "dile que", "casa ", "kilometro", "km ",
@@ -112,4 +120,9 @@ object TranscriptQuality {
             .replace(Regex("\\s+([,.;:!?])"), "$1")
             .trim()
     }
+
+    private fun normalizedForRules(value: String): String = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
 }

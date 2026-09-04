@@ -20,6 +20,7 @@ leo_units=(
     voice/SpeechAudioHistory
     voice/SpeechAudioFidelity
     voice/FaithfulSpeechTranscriber
+    voice/SpeechOutputPolicy
     voice/WakeCommandWindow
     voice/LeoRealtimeTurnBus
     voice/FarFieldAudioEnhancer
@@ -32,6 +33,10 @@ leo_units=(
 )
 leo_sources=()
 leo_tests=()
+leo_sources+=(
+    app/src/main/java/com/niko/assistant/voice/LeoVoiceMetrics.kt
+    scripts/testsupport/LeoVoiceJvmStubs.kt
+)
 for unit in "${leo_units[@]}"; do
     leo_sources+=("app/src/main/java/com/niko/assistant/$unit.kt" "app/src/test/java/com/niko/assistant/${unit}Test.kt")
     leo_tests+=("com.niko.assistant.${unit//\//.}Test")

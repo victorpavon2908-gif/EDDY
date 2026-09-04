@@ -19,9 +19,12 @@ internal class FaithfulSpeechTranscriber(
         val started = System.nanoTime()
         if (samples.isEmpty()) return finish(Result("", engine = primaryName), started)
         val primary = decode(primaryDecoder, samples)
-        if (!TranscriptQuality.shouldRefine(primary, samples.size) &&
-            !SpeechAudioFidelity.needsSecondPass(samples)
-        ) return finish(Result(primary, engine = primaryName), started)
+        val primaryNeedsRefinement = TranscriptQuality.shouldRefine(primary, samples.size)
+        val needsLiteralVerification = SpeechAudioFidelity.needsSecondPass(samples) &&
+            TranscriptQuality.requiresAcousticVerification(primary)
+        if (!primaryNeedsRefinement && !needsLiteralVerification) {
+            return finish(Result(primary, engine = primaryName), started)
+        }
 
         val alternate = alternateDecoder
         var refinementEngine = primaryName

@@ -1,5 +1,9 @@
 package com.niko.assistant.learning
 
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.nio.ByteBuffer
+import java.util.zip.CRC32
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -55,5 +59,23 @@ class OnlineIntentNetworkTest {
         model.learn("llama al 88881234", LearnedIntent.ACTION)
         assertEquals(0L, model.observations)
         assertEquals(0, model.examples)
+    }
+
+    @Test fun versionOneCheckpointsRemainReadableForExistingInstallations() {
+        val model = OnlineIntentNetwork(7)
+        model.learn("noticias de hoy", LearnedIntent.SEARCH)
+        val currentBody = model.encode().dropLast(8).toByteArray()
+        val legacyBody = ByteArray(currentBody.size - 4)
+        currentBody.copyInto(legacyBody, destinationOffset = 0, startIndex = 0, endIndex = 16)
+        currentBody.copyInto(legacyBody, destinationOffset = 16, startIndex = 20)
+        ByteBuffer.wrap(legacyBody).putInt(4, 1)
+        val legacy = ByteArrayOutputStream().also { output ->
+            output.write(legacyBody)
+            DataOutputStream(output).writeLong(CRC32().apply { update(legacyBody) }.value)
+        }.toByteArray()
+
+        val restored = OnlineIntentNetwork.decode(legacy)
+        assertEquals(model.observations, restored?.observations)
+        assertEquals(0, restored?.seedRevision)
     }
 }

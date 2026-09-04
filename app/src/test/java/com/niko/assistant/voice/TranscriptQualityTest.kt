@@ -13,6 +13,10 @@ class TranscriptQualityTest {
     @Test fun cleanNaturalCommandStaysOnFastCanaryPath() {
         assertFalse(TranscriptQuality.shouldRefine("abrí YouTube", 32_000))
         assertFalse(TranscriptQuality.shouldRefine("apagála", 20_000))
+        assertFalse(TranscriptQuality.requiresAcousticVerification("abrí WhatsApp"))
+        assertTrue(TranscriptQuality.requiresAcousticVerification("no abras WhatsApp"))
+        assertTrue(TranscriptQuality.requiresAcousticVerification("llamá a Manuel"))
+        assertTrue(TranscriptQuality.requiresAcousticVerification("poné una alarma a las 8"))
     }
 
     @Test fun artifactsAndImplausiblyFastOutputRequestRefinement() {

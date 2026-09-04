@@ -7,16 +7,29 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /** Atomic, versioned checkpoint with a previous known-good copy. Call from an IO worker. */
-class AdaptiveIntentStore(private val directory: File) {
+class AdaptiveIntentStore(
+    private val directory: File,
+    private val bundledCheckpoint: (() -> ByteArray?)? = null,
+) {
     private val file get() = File(directory, "intent-network.bin")
     private val backup get() = File(directory, "intent-network.bak")
 
     @Synchronized fun load(): OnlineIntentNetwork {
         for (candidate in listOf(file, backup)) {
             if (!candidate.exists() || candidate.length() !in 16_000L..150_000L) continue
-            runCatching { OnlineIntentNetwork.decode(candidate.readBytes()) }.getOrNull()?.let { return it }
+            runCatching { OnlineIntentNetwork.decode(candidate.readBytes()) }.getOrNull()?.let { network ->
+                if (bundledCheckpoint != null && network.ensureSeeded()) save(network)
+                return network
+            }
         }
         check(!file.exists() && !backup.exists()) { "Los datos de aprendizaje están dañados; se conservaron para recuperación." }
+        if (bundledCheckpoint != null) {
+            runCatching { bundledCheckpoint.invoke()?.let(OnlineIntentNetwork::decode) }.getOrNull()?.let { network ->
+                network.ensureSeeded()
+                return network
+            }
+            return OnlineIntentNetwork.pretrained()
+        }
         return OnlineIntentNetwork()
     }
 
