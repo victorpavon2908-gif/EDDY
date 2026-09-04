@@ -8,12 +8,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Fachada segura del cerebro local.
+ * Stable local-first brain facade.
  *
- * LEO conserva deshabilitado el runtime generativo JNI dentro del proceso principal
- * para evitar cierres nativos en Android 12+. Memoria aprendida y rutas deterministas
- * siguen funcionando localmente. La compilación semántica de acciones, cuando hace falta,
- * se delega a un adaptador Groq aislado que devuelve solo texto DSL para validación local.
+ * Open-domain native JNI LLMs stay disabled because they previously crashed the Android 12+
+ * process. Short conversational generation is now handled by Leo MicroGPT, a tiny pure-Kotlin
+ * Transformer bundled with the APK. Learned knowledge stays local and Groq remains the validated
+ * structured/action and open-domain fallback.
  */
 class NikoLocalLlm(
     context: Context,
@@ -22,23 +22,26 @@ class NikoLocalLlm(
     private val appContext = context.applicationContext
     private val knowledge = NikoKnowledgeStore(appContext)
     private val structuredCloud = LeoStructuredGroq(appContext)
+    private val microGpt = LeoMicroGptAsset(appContext)
 
     @Volatile private var closed = false
 
     @Volatile var lastError: String? = null
         private set
 
-    /** Nunca cargamos un runtime JNI generativo dentro del proceso principal. */
-    val runtimeSupported: Boolean get() = false
+    /** Pure Kotlin conversational generation is supported without loading JNI. */
+    val runtimeSupported: Boolean get() = microGpt.isAvailable
 
-    /** Evita prewarm y cualquier intento accidental de inicialización nativa. */
-    val isAvailable: Boolean get() = false
+    /** The bundled checkpoint can be prewarmed without downloading a model. */
+    val isAvailable: Boolean get() = !closed && microGpt.isAvailable
 
     val preferredModel: NikoModelSpec get() = NikoModelCatalog.localLlmFast
 
-    suspend fun prewarm(): Boolean {
-        lastError = universalSafeModeMessage()
-        return false
+    suspend fun prewarm(): Boolean = withContext(Dispatchers.IO) {
+        if (closed) return@withContext false
+        val ready = microGpt.prewarm()
+        lastError = if (ready) null else localModelError()
+        ready
     }
 
     suspend fun reply(
@@ -51,26 +54,27 @@ class NikoLocalLlm(
         lastError = null
         if (closed) return@withContext null
 
-        // El conocimiento aprendido local no necesita un LLM y sigue disponible.
         if (!NikoVisualContext.wantsScreenContext(message)) {
             runCatching { knowledge.recall(message) }.getOrNull()?.let { learned ->
                 return@withContext learned.answer
             }
+            microGpt.reply(message)?.let { generated ->
+                return@withContext generated
+            }
         }
 
-        lastError = universalSafeModeMessage()
+        lastError = localModelError()
         null
     }
 
     /**
-     * Compatibilidad con los routers existentes: no usa el LLM local desactivado.
-     * Groq solo compila intención -> DSL; el plan resultante todavía debe pasar por
-     * LeoStructuredPlanner antes de que cualquier acción pueda ejecutarse.
+     * Groq only compiles intention -> DSL; LeoStructuredPlanner still validates every resulting
+     * action. MicroGPT never emits executable DSL or receives permission to perform phone actions.
      */
     suspend fun completeStructured(instruction: String): String? {
         if (closed) return null
         val result = structuredCloud.complete(instruction)
-        lastError = if (result == null) structuredCloud.lastError ?: universalSafeModeMessage() else null
+        lastError = if (result == null) structuredCloud.lastError ?: localModelError() else null
         return result
     }
 
@@ -78,6 +82,6 @@ class NikoLocalLlm(
         closed = true
     }
 
-    private fun universalSafeModeMessage(): String =
-        "LEO está usando el núcleo universal seguro de Android 12+: voz, acciones, memoria y búsqueda web siguen disponibles sin cargar un LLM JNI en el proceso principal."
+    private fun localModelError(): String =
+        "Mi MicroGPT local cubre conversación breve y segura. Para conocimiento amplio o datos actuales uso Groq o búsqueda web cuando están disponibles."
 }

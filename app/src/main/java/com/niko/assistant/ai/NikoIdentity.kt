@@ -29,15 +29,15 @@ object NikoIdentity {
 
             asksAboutLearning(question) && adaptiveLearningEnabled -> {
                 val progress = if (trainingUpdates > 0L) {
-                    "Mi red local ya recibió $trainingUpdates actualizaciones supervisadas y aprendió $learnedCorrections correcciones de comandos."
+                    "Mi red adaptativa ya recibió $trainingUpdates actualizaciones supervisadas y aprendió $learnedCorrections correcciones de comandos."
                 } else {
-                    "Mi red local todavía está iniciando y aún no registra actualizaciones."
+                    "Mi red adaptativa todavía está iniciando y aún no registra actualizaciones."
                 }
-                "Sí. Entreno de verdad una red neuronal pequeña dentro de tu teléfono: sus pesos cambian con cada interacción que puedo clasificar con seguridad, y tus correcciones explícitas pueden convertirse en comandos locales reutilizables. $progress También guardo preferencias y recuerdos útiles. No reentreno el modelo generativo completo, porque hacerlo continuamente en el teléfono sería inestable y muy pesado."
+                "Sí. Aprendo de verdad en el teléfono: una red pequeña adapta sus pesos con interacciones que puedo clasificar con seguridad, y tus correcciones explícitas pueden convertirse en comandos locales reutilizables. $progress También uso un MicroGPT local ya entrenado para conversación breve y guardo preferencias y recuerdos útiles. El MicroGPT no se reentrena completo en cada charla porque eso sería demasiado pesado e inestable para el teléfono."
             }
 
             asksAboutLearning(question) ->
-                "Mi aprendizaje adaptativo está desactivado ahora mismo. Sigo usando la memoria local para lo que me enseñés explícitamente, pero no adapto el clasificador de pedidos hasta que activés Aprendizaje en Ajustes."
+                "Mi aprendizaje adaptativo está desactivado ahora mismo. Sigo usando mi MicroGPT local y la memoria para lo que me enseñés explícitamente, pero no adapto el clasificador de pedidos hasta que activés Aprendizaje en Ajustes."
 
             else -> null
         }
