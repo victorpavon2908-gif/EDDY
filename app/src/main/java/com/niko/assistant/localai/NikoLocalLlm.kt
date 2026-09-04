@@ -77,10 +77,17 @@ class NikoLocalLlm(
             runCatching { knowledge.recall(message) }.getOrNull()?.let { learned ->
                 return@withContext learned.answer
             }
-            // Conversational families should never be answered by a random encyclopedia hit.
-            microGpt.reply(message)?.let { generated ->
-                return@withContext generated
+
+            // If the conservative conversational gate recognizes this turn, do not let an
+            // encyclopedia hit impersonate a conversational answer. MicroGPT gets first chance;
+            // an unsupported/new family falls through to the normal cloud/fallback route.
+            val conversationalFamily = LeoMicroGptGate.classify(message)
+            if (conversationalFamily != null) {
+                microGpt.reply(message)?.let { generated -> return@withContext generated }
+                lastError = localModelError()
+                return@withContext null
             }
+
             // Static facts can now be answered entirely offline from the 500 MB brain.
             runCatching { frozenKnowledge.recall(message) }.getOrNull()?.let { frozen ->
                 return@withContext frozen.answer
