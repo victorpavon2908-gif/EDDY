@@ -58,6 +58,9 @@ ruido, no extrae una persona de una mezcla. Los umbrales necesitan prueba real e
 Honor X6c: una frase corta o dicha muy bajo puede rechazarse. No es autenticación segura.
 
 Pruebas y casos de aceptación: [validación de búsqueda y voz](docs/LEO_SEARCH_VOICE_VALIDATION.md).
+La validación integral pendiente en el Honor X6c usa el
+[protocolo físico de LEO 0.11](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md) y su
+[hoja de resultados sin datos supuestos](docs/LEO_011_PHYSICAL_TEST_RESULTS.md).
 
 
 ## Uso y desarrollo
