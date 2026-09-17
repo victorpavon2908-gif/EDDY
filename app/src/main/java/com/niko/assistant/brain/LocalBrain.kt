@@ -301,7 +301,7 @@ class LocalBrain {
     companion object {
         private val WHATSAPP_NAME = Regex("\\b(?:whats?\\s*app|wats?\\s*ap+p?|guasap|wasap|wasa)\\b")
         private val MESSAGE_ORDER = Regex("^(?:envia(?:me|le|r)?|manda(?:me|le|r)?|escrib[iíe](?:me|le)?|redacta)\\b")
-        private val MESSAGE_BODY = Regex("(?i)(?:\\b(?:diciendo|que diga|que dig[aá]s|con el texto|con mensaje|dile que|decile que|as[ií])\\b\\s*|:\\s*)")
+        private val MESSAGE_BODY = Regex("(?Ui)(?:\\b(?:diciendo|que diga|que dig[aá]s|con el texto|con mensaje|dile que|decile que|as[ií])\\b\\s*|:\\s*)")
 
         private val PHONE_REGEX = Regex("""\+?\d[\d\s-]{6,}\d""")
         private val FILLER_PREFIX = Regex("""(?i)^(?:este+|eh+|em+|mmm+|mira|fijate|bueno|a ver)\b\s*[,.:;!-]*\s*""")

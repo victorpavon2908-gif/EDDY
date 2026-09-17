@@ -51,7 +51,8 @@ class NikoKeywordNativeTest {
     }
 
     @Test fun previousNikoRecordingsNoLongerWakeLeo() {
-        val spotter = KeywordSpotter(config = config())
+        val configuration = config()
+        val spotter = KeywordSpotter(config = configuration)
         try {
             for (name in listOf("niko", "hey_niko", "hola_niko", "niko_command", "niko_fast", "niko_slow")) {
                 assertFalse("Retired Niko call woke Leo: $name", detects(spotter, name))
@@ -60,7 +61,8 @@ class NikoKeywordNativeTest {
     }
 
     @Test fun previousEddyNameNoLongerWakesTheAssistant() {
-        val spotter = KeywordSpotter(config = config())
+        val configuration = config()
+        val spotter = KeywordSpotter(config = configuration)
         try {
             for (name in listOf("retired_01", "retired_02", "retired_03", "retired_04", "retired_05")) {
                 assertFalse("Retired wake call is still active: $name", detects(spotter, name))
@@ -69,7 +71,8 @@ class NikoKeywordNativeTest {
     }
 
     @Test fun confusingWordsAndUnaddressedCommandsAreIgnored() {
-        val spotter = KeywordSpotter(config = config())
+        val configuration = config()
+        val spotter = KeywordSpotter(config = configuration)
         try {
             for (name in listOf("pedi", "medio", "nadie", "radio", "dia", "ella", "luz", "edificio", "edita", "le_di", "other_name", "pedir", "ayer_pedi", "edison", "rico", "pico", "micro", "mexico", "tecnico", "unico", "nicolas", "nicole")) {
                 assertFalse("False activation: $name", detects(spotter, name))
