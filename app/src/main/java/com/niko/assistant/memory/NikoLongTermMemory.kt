@@ -18,6 +18,7 @@ import kotlin.math.ln
 class NikoLongTermMemory(
     private val archive: NikoMemoryArchive,
     private val nowMillis: () -> Long = System::currentTimeMillis,
+    private val embedder: EddyTransformerEmbedder = EddyTransformerEmbedder.INSTANCE,
 ) {
     enum class Kind { CORE, EPISODIC, PROCEDURAL }
 
@@ -100,6 +101,7 @@ class NikoLongTermMemory(
         val normalizedQuery = normalize(query)
         val queryTokens = tokens(normalizedQuery)
         val queryTrigrams = trigrams(normalizedQuery)
+        val queryEmbedding = if (normalizedQuery.isNotBlank()) embedder.encode(normalizedQuery) else FloatArray(0)
         val candidates = archive.semanticCandidates(MAX_CANDIDATES, now)
         if (candidates.isEmpty()) return emptyList()
 
@@ -115,6 +117,9 @@ class NikoLongTermMemory(
                 val memoryTokens = tokens(item.normalized)
                 val tokenScore = jaccard(queryTokens, memoryTokens)
                 val trigramScore = jaccard(queryTrigrams, trigrams(item.normalized))
+                val memEmbedding = embedder.encode(item.normalized)
+                val transformerScore = embedder.cosineSimilarity(queryEmbedding, memEmbedding)
+
                 val exactBoost = when {
                     item.normalized == normalizedQuery -> 0.35
                     item.normalized.contains(normalizedQuery) || normalizedQuery.contains(item.normalized) -> 0.16
@@ -126,10 +131,12 @@ class NikoLongTermMemory(
                     Kind.EPISODIC -> 0.0
                 }
                 val accessBoost = (ln(1.0 + item.accessCount.toDouble()) / 12.0).coerceAtMost(0.08)
-                0.50 * tokenScore +
-                    0.22 * trigramScore +
-                    0.08 * recency(item.updatedAt, now) +
-                    0.08 * item.confidence.coerceIn(0f, 1f) +
+
+                0.35 * transformerScore +
+                    0.30 * tokenScore +
+                    0.15 * trigramScore +
+                    0.06 * recency(item.updatedAt, now) +
+                    0.06 * item.confidence.coerceIn(0f, 1f) +
                     exactBoost + kindBoost + accessBoost
             }
             val threshold = if (kind == Kind.CORE) 0.16 else 0.22
