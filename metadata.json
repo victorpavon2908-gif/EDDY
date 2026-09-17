@@ -1,0 +1,6 @@
+{
+  "name": "LEO Assistant",
+  "description": "Voice-enabled intelligent assistant web application inspired by LEO/EDDY, featuring multimodal conversation, intent resolution, robotic visualization, and diagnostics.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,97 +1,46 @@
-# LEO 0.11.0
+# LEO Assistant 0.11.0 (Web React)
 
-Robot 3D articulado: [diseño, movimientos y procedencia](docs/design/LEO_ROBOT.md).
+Compañero personal inteligente con control por voz en español, robot 3D articulado interactivo, búsqueda web en tiempo real con fuentes citadas, suite de herramientas integradas y compatibilidad con Gemini y GroqCloud.
 
-Búsqueda con fuentes, interrupción de respuestas, voz y comandos locales. Requiere Android 12 o posterior.
-La búsqueda explícita no requiere Groq. La conversación generativa puede usar
-GroqCloud opcionalmente. El identificador Android heredado se conserva para actualizar
-las instalaciones anteriores sin perder datos ni permisos.
+## Características Principales
 
-## Respuestas y control por voz
+- **Robot 3D Articulado**: Modelo 3D interactivo (`leo_robot.glb`) en WebGL/Three.js con transiciones suaves (crossfading de 280 ms) entre animaciones:
+  - *Idle*: Respiración y postura relajada con seguimiento sutil del cursor.
+  - *Listen*: Inclinación atenta de cabeza durante la escucha.
+  - *Think*: Gesto de concentración durante la búsqueda/procesamiento.
+  - *Talk*: Gestos y articulaciones activas durante la respuesta de voz.
+  - *Acciones manuales y por voz*: Bailar («Leo, bailá»), saltar («Leo, saltá»), girar («Leo, girá») y saludar («Leo, saludá»), además de activación al tocar al robot.
+- **Control por Voz & Interrupciones**:
+  - Reconocimiento de voz en vivo en español (Web Speech API).
+  - Interrupción inmediata («Leo, pará», «pará», «detener») que cancela de inmediato la voz y la búsqueda en curso.
+  - Síntesis de voz neural en español con control de tono y velocidad.
+  - Visualizador de ondas neuronales (`NeuralWaveform`) con 38 barras reactivas al volumen acústico y relación señal/ruido (SNR).
+- **Cerebro Local (Local Brain)**:
+  - Resolución matemática offline rápida («cuánto es 45 * 12», «raíz de 144», porcentajes).
+  - Consulta de hora y batería del dispositivo.
+  - Activación de linterna y accesos directos (WhatsApp, YouTube, Spotify, Google Maps).
+  - Memoria local de preferencias y hechos con opción de borrado.
+- **Búsqueda Web y Síntesis de Información**:
+  - Búsqueda en Wikipedia, DuckDuckGo y fuentes de noticias sin necesidad de claves externas.
+  - Citas numeradas directas en pantalla con enlaces a fuentes originales.
+  - Soporte para Gemini API (`@google/genai`) y clave opcional de GroqCloud (Llama 3.3).
+- **Suite de Aplicaciones Embebidas**:
+  - Calculadora con histórico de operaciones.
+  - Cronómetro con vueltas de alta precisión.
+  - Temporizador con presets y alerta auditiva.
+  - Reloj mundial con husos horarios internacionales.
+  - Bloc de notas local.
+  - Conversor de unidades (distancia, peso, temperatura).
+- **Telemetría y Diagnóstico de Voz**:
+  - Medición en tiempo real de dBFS, ruido de fondo y SNR.
+  - Banco de pruebas de 100 llamadas (True Positives, False Negatives, False Positives).
+- **Domótica (Casa Inteligente)**:
+  - Integración y prueba de entidades de Home Assistant (luces, ventilador, termostato, cerradura).
 
-- «Leo, pará» cancela el trabajo y el audio actuales; vuelve a esperar la palabra Leo.
-  «Leo, desactívate» deshabilita la escucha persistente y detiene el servicio. Para volver
-  a escuchar hay que activarlo desde la app. Se puede interrumpir mientras busca o habla.
-- La voz neural se prepara al iniciar la escucha y sintetiza bloques de hasta 96 caracteres.
-  Si no empieza en 2,3 segundos y hay voz española del sistema lista, usa esa voz durante
-  el resto de la sesión. Un resultado neural tardío no reproduce una respuesta cancelada.
-  El texto empieza a hablar antes de esperar la escritura del historial.
-- «Leo, abrime Whats App» admite variantes habituales y WhatsApp Business. «Mandá un
-  mensaje así Voy llegando» abre el compositor; después de abrir WhatsApp, ese seguimiento
-  usa WhatsApp durante 45 segundos. Un pedido explícito de SMS prevalece.
-- Si falta el destinatario se elige dentro de la app. El texto conserva mayúsculas y
-  números; nunca toma un número del cuerpo como destinatario. Se prepara el mensaje para
-  revisión y envío por el usuario. Sin permiso para abrir apps en segundo plano, una
-  notificación permite continuar; no se afirma que se abrió una pantalla bloqueada por Android.
-- La búsqueda lee más contenido, distribuye hallazgos entre sitios y cita cada extracto.
-  Incluye fechas disponibles y límites cuando solo hay extractos o no se conoce la fecha.
-  Con Groq ya configurado añade una síntesis explicativa de esas evidencias (hasta 6 s
-  extra); si falla o devuelve referencias inválidas conserva el informe local sin pedir
-  iniciar sesión. Sin clave sigue funcionando la búsqueda y el informe local.
+## Requisitos y Ejecución
 
-## Búsqueda y preferencia de voz
-
-- «Leo, buscame información sobre Rubén Darío en 1916» consulta la web directamente.
-  Conserva el tema y las fechas, aunque esté desactivada la investigación automática.
-- Bing y DuckDuckGo aportan resultados generales; las consultas de actualidad usan
-  también Google News. Se filtran por el tema real, antes y después de leer páginas.
-  Inicios de sesión (incluidos Outlook/Microsoft), formularios y páginas ajenas al tema
-  no forman parte de la respuesta. Los errores no se sustituyen por respuestas inventadas.
-- Hay un presupuesto de red de 20 segundos y lecturas concurrentes. Los extractos y
-  enlaces no implican corroboración independiente ni lectura completa de todas las páginas.
-- Se atenúa audio débil, se desactiva la ganancia automática adicional y se solicita
-  orientación del micrófono hacia el usuario cuando Android y el equipo lo admiten.
-- En **Ajustes → Mi voz → Registrar mi voz**, estando solo, decí cuatro frases distintas
-  de 2 a 6 segundos. Esperá la confirmación entre frases y mantené Ajustes abierto.
-  Si falta el modelo, usá «Preparar reconocimiento de mi voz». Al terminar se activa
-  «Priorizar mi voz»; desde ahí también podés desactivarlo, registrarte otra vez o borrarlo.
-- El registro no ejecuta las frases como órdenes. Guarda solo un vector numérico local;
-  el audio no se guarda ni se envía. No se reutiliza el perfil anterior aprendido
-  automáticamente, ni se aprende la voz de otras personas durante el uso normal.
-- Con el perfil activo, se comprueba la voz antes de ejecutar órdenes, seguimientos e
-  interrupciones. Una voz no verificable se rechaza; el registro vence a los tres minutos.
-  Los resultados provisionales de transcripción se ocultan hasta verificar la voz.
-
-**Límite:** esto prioriza la voz registrada y reduce interferencias, pero no separa
-perfectamente dos voces hablando a la vez. CAMPPlus identifica voces; GTCRN reduce
-ruido, no extrae una persona de una mezcla. Los umbrales necesitan prueba real en el
-Honor X6c: una frase corta o dicha muy bajo puede rechazarse. No es autenticación segura.
-
-Pruebas y casos de aceptación: [validación de búsqueda y voz](docs/LEO_SEARCH_VOICE_VALIDATION.md).
-La validación integral pendiente en el Honor X6c usa el
-[protocolo físico de LEO 0.11](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md) y su
-[hoja de resultados sin datos supuestos](docs/LEO_011_PHYSICAL_TEST_RESULTS.md).
-
-
-## Uso y desarrollo
-
-Abrí LEO, completá la preparación inicial y concedé permiso de micrófono. Decí
-«Leo» seguido de la petición. Para escuchar con la pantalla apagada, permití su
-funcionamiento en segundo plano en los ajustes de batería. Android puede interrumpir
-el micrófono por llamadas, otra aplicación, privacidad o ahorro de batería.
-
-Sin conexión quedan disponibles la voz instalada y las acciones locales del teléfono;
-la búsqueda necesita Internet. Para conversación remota configurá tu clave en Ajustes.
-El LLM MediaPipe en proceso está desactivado por estabilidad en Android 12+.
-
-Las entregas son commits. CI ejecuta pruebas y Lint. No genera APK automáticamente.
-JDK 17, SDK 36 y Gradle 8.13:
-
-```sh
-./gradlew :app:testDebugUnitTest :app:lintDebug
-pytest -q backend
-```
-
-Solo ante solicitud expresa de APK:
-
-```sh
-python scripts/bundle_voice_models.py
-./gradlew :app:assembleDebug
-```
-
-Los modelos no se guardan en Git. Conservá la misma clave de firma al actualizar;
-no desinstalés sin respaldar los datos que necesités. `backend/` es legado y no
-interviene en la búsqueda nativa ni en la conexión directa a GroqCloud.
-
-Referencias adicionales: [GroqCloud](docs/GROQ_CLOUD.md),
-[validación de voz](docs/VOICE_DIALOGUE_VALIDATION.md).
+- **Node.js**: 22+
+- **Comandos**:
+  - Desarrollo: `npm run dev`
+  - Construcción de producción: `npm run build`
+  - Verificación de tipos: `npm run lint`
