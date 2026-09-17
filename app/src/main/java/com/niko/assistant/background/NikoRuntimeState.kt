@@ -4,6 +4,9 @@ import android.content.Context
 import com.niko.assistant.ai.LeoBrand
 import com.niko.assistant.ai.NikoWebSource
 import com.niko.assistant.voice.LeoVoiceDiagnostics
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -57,6 +60,18 @@ object NikoRuntimeState {
         val brainTotalBytes: Long = 0L,
     )
 
+    /** In-memory reactive state — always up to date; no disk I/O on collection. */
+    private val _stateFlow = MutableStateFlow(Snapshot())
+    val stateFlow: StateFlow<Snapshot> get() = _stateFlow.asStateFlow()
+
+    /**
+     * Seeds the in-memory [StateFlow] from persisted SharedPreferences.
+     * Call once from the Application or Service when the process starts.
+     */
+    fun init(context: Context) {
+        _stateFlow.value = read(context)
+    }
+
     fun read(context: Context): Snapshot {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val state = runCatching {
@@ -104,30 +119,44 @@ object NikoRuntimeState {
                 putString(KEY_HEARD, "")
             }
         }
+        _stateFlow.value = _stateFlow.value.copy(
+            inputState = state,
+            inputStatus = LeoBrand.publicText(status),
+            state = if (state != InputState.READY) State.IDLE else _stateFlow.value.state,
+            heardText = if (state != InputState.READY) "" else _stateFlow.value.heardText,
+        )
     }
 
     fun setInputStatus(context: Context, value: String) {
-        edit(context) { putString(KEY_INPUT_STATUS, LeoBrand.publicText(value)) }
+        val publicValue = LeoBrand.publicText(value)
+        edit(context) { putString(KEY_INPUT_STATUS, publicValue) }
+        _stateFlow.value = _stateFlow.value.copy(inputStatus = publicValue)
     }
 
     fun setSearching(context: Context, value: Boolean) {
         edit(context) { putBoolean(KEY_SEARCHING, value) }
+        _stateFlow.value = _stateFlow.value.copy(webSearching = value)
     }
 
     fun setRunning(context: Context, value: Boolean) {
         edit(context) { putBoolean(KEY_RUNNING, value) }
+        _stateFlow.value = _stateFlow.value.copy(running = value)
     }
 
     fun setVoiceStatus(context: Context, value: String) {
-        edit(context) { putString(KEY_VOICE_STATUS, LeoBrand.publicText(value)) }
+        val publicValue = LeoBrand.publicText(value)
+        edit(context) { putString(KEY_VOICE_STATUS, publicValue) }
+        _stateFlow.value = _stateFlow.value.copy(voiceStatus = publicValue)
     }
 
     fun setVoiceReady(context: Context, value: Boolean) {
         edit(context) { putBoolean(KEY_VOICE_READY, value) }
+        _stateFlow.value = _stateFlow.value.copy(voiceReady = value)
     }
 
     fun setState(context: Context, value: State) {
         edit(context) { putString(KEY_STATE, value.name) }
+        _stateFlow.value = _stateFlow.value.copy(state = value)
     }
 
     fun setBrainProgress(
@@ -138,13 +167,21 @@ object NikoRuntimeState {
         totalBytes: Long = 0L,
     ) {
         val progress = if (state == BrainState.READY) 100 else brainProgressPercent(downloadedBytes, totalBytes)
+        val publicStatus = LeoBrand.publicText(status)
         edit(context) {
             putString(KEY_BRAIN_STATE, state.name)
             putInt(KEY_BRAIN_PROGRESS, progress)
-            putString(KEY_BRAIN_STATUS, LeoBrand.publicText(status))
+            putString(KEY_BRAIN_STATUS, publicStatus)
             putLong(KEY_BRAIN_DOWNLOADED_BYTES, downloadedBytes.coerceAtLeast(0L))
             putLong(KEY_BRAIN_TOTAL_BYTES, totalBytes.coerceAtLeast(0L))
         }
+        _stateFlow.value = _stateFlow.value.copy(
+            brainState = state,
+            brainProgress = progress,
+            brainStatus = publicStatus,
+            brainDownloadedBytes = downloadedBytes.coerceAtLeast(0L),
+            brainTotalBytes = totalBytes.coerceAtLeast(0L),
+        )
     }
 
     internal fun brainProgressPercent(downloadedBytes: Long, totalBytes: Long): Int {
@@ -157,14 +194,21 @@ object NikoRuntimeState {
         // User dictation is evidence, not UI branding: Nico/Niko can be real contact names.
         if (value.trim().equals("LEO", ignoreCase = true)) LeoVoiceDiagnostics.recordWake()
         edit(context) { putString(KEY_HEARD, value) }
+        _stateFlow.value = _stateFlow.value.copy(heardText = value)
     }
 
     fun setResponse(context: Context, value: String) {
+        val publicValue = LeoBrand.publicText(value)
         edit(context) {
-            putString(KEY_RESPONSE, LeoBrand.publicText(value))
+            putString(KEY_RESPONSE, publicValue)
             putBoolean(KEY_WEB_USED, false)
             putString(KEY_WEB_SOURCES, "[]")
         }
+        _stateFlow.value = _stateFlow.value.copy(
+            responseText = publicValue,
+            webUsed = false,
+            webSources = emptyList(),
+        )
     }
 
     fun setAiResponse(
@@ -173,11 +217,17 @@ object NikoRuntimeState {
         webUsed: Boolean,
         sources: List<NikoWebSource>,
     ) {
+        val publicValue = LeoBrand.publicText(value)
         edit(context) {
-            putString(KEY_RESPONSE, LeoBrand.publicText(value))
+            putString(KEY_RESPONSE, publicValue)
             putBoolean(KEY_WEB_USED, webUsed)
             putString(KEY_WEB_SOURCES, encodeSources(sources))
         }
+        _stateFlow.value = _stateFlow.value.copy(
+            responseText = publicValue,
+            webUsed = webUsed,
+            webSources = sources,
+        )
     }
 
     fun reset(context: Context) {
@@ -197,6 +247,19 @@ object NikoRuntimeState {
             // Brain state intentionally survives a voice/service reset: the frozen brain is
             // independent persistent storage and a partial download can resume next launch.
         }
+        _stateFlow.value = _stateFlow.value.copy(
+            state = State.IDLE,
+            heardText = "",
+            responseText = "Decí LEO para activarme.",
+            inputStatus = "Micrófono en pausa",
+            inputState = InputState.STOPPED,
+            webSearching = false,
+            running = false,
+            voiceReady = false,
+            voiceStatus = "Voz en pausa",
+            webUsed = false,
+            webSources = emptyList(),
+        )
     }
 
     private fun encodeSources(sources: List<NikoWebSource>): String {

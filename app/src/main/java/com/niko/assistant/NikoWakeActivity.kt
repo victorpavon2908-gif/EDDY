@@ -15,6 +15,7 @@ import com.niko.assistant.background.NikoRuntimeState
 import com.niko.assistant.ui.NikoReferenceScreen
 import com.niko.assistant.ui.NikoVisualState
 import com.niko.assistant.ui.theme.NikoTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 
 open class NikoWakeActivity : ComponentActivity() {
@@ -26,8 +27,8 @@ open class NikoWakeActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
 
         setContent {
@@ -43,33 +44,28 @@ open class NikoWakeActivity : ComponentActivity() {
 @Composable
 private fun NikoWakeScreen(onFinished: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val appContext = context.applicationContext
-    var snapshot by remember { mutableStateOf(NikoRuntimeState.read(appContext)) }
-    var elapsedMs by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        NikoRuntimeState.init(context)
+    }
+
+    val snapshot by NikoRuntimeState.stateFlow.collectAsStateWithLifecycle()
     var sawActiveWork by remember { mutableStateOf(false) }
-    var quietAfterWorkMs by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(snapshot.state) {
+        if (
+            snapshot.state == NikoRuntimeState.State.THINKING ||
+            snapshot.state == NikoRuntimeState.State.SPEAKING
+        ) {
+            sawActiveWork = true
+        } else if (sawActiveWork && snapshot.state == NikoRuntimeState.State.LISTENING) {
+            delay(2_800)
+            onFinished()
+        }
+    }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            delay(180)
-            elapsedMs += 180
-            snapshot = NikoRuntimeState.read(appContext)
-
-            if (
-                snapshot.state == NikoRuntimeState.State.THINKING ||
-                snapshot.state == NikoRuntimeState.State.SPEAKING
-            ) {
-                sawActiveWork = true
-                quietAfterWorkMs = 0L
-            } else if (sawActiveWork && snapshot.state == NikoRuntimeState.State.LISTENING) {
-                quietAfterWorkMs += 180
-            }
-
-            if (quietAfterWorkMs >= 2_800 || elapsedMs >= 30_000) {
-                onFinished()
-                break
-            }
-        }
+        delay(30_000)
+        onFinished()
     }
 
     val visualState = when (snapshot.state) {

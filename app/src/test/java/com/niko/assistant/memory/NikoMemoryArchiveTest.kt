@@ -21,7 +21,7 @@ class NikoMemoryArchiveTest {
         // Robolectric can reuse this application's singleton across test methods.
         // Each scenario needs a fresh archive, including its migration marker.
         val db = NikoMemoryArchive.get(context).writableDatabase
-        listOf("turns", "notes", "lessons", "legacy_backup", "metadata").forEach { db.delete(it, null, null) }
+        listOf("turns", "notes", "lessons", "semantic_memory", "legacy_backup", "metadata").forEach { db.delete(it, null, null) }
         context.getSharedPreferences("eddy_memory", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
@@ -88,6 +88,27 @@ class NikoMemoryArchiveTest {
         assertEquals(0L, count("notes"))
         assertEquals(0L, count("lessons"))
         assertEquals(0L, count("legacy_backup"))
+    }
+
+    @Test fun testPruneExpiredAndExcessive() {
+        val archive = NikoMemoryArchive.get(context)
+        val now = 1_000_000L
+        // Insert turns
+        repeat(25) { archive.appendTurn("user", "Turno $it", now + it) }
+        assertEquals(25L, count("turns"))
+
+        // Insert expired and non-expired semantic memory
+        archive.upsertSemanticMemory("exp1", "EPISODIC", "viejo", "viejo", 0.5f, expiresAt = now - 100)
+        archive.upsertSemanticMemory("exp2", "EPISODIC", "vencido", "vencido", 0.5f, expiresAt = now)
+        archive.upsertSemanticMemory("valid1", "EPISODIC", "fresco", "fresco", 0.5f, expiresAt = now + 50_000)
+        archive.upsertSemanticMemory("core1", "CORE", "permanente", "permanente", 1.0f, expiresAt = 0L)
+        assertEquals(4L, count("semantic_memory"))
+
+        // Prune keeping only 10 turns and current timestamp `now`
+        archive.pruneExpiredAndExcessive(maxTurns = 10, now = now)
+
+        assertEquals(10L, count("turns"))
+        assertEquals(2L, count("semantic_memory"))
     }
 
     private fun count(table: String): Long = NikoMemoryArchive.get(context).readableDatabase

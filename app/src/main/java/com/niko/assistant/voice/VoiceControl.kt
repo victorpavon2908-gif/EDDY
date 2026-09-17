@@ -20,9 +20,13 @@ enum class VoiceControl {
             return when (text) {
                 "desactivate", "desactiva te", "te desactives", "apagate", "te apagues",
                 "deja de escuchar", "desactiva la escucha", "desactiva el asistente" -> DEACTIVATE
-                "para", "parate", "stop", "detente", "callate", "basta", "silencio",
-                "cancela", "cancelalo", "cancela eso", "deja de hablar", "no sigas",
-                "dejes de hablar", "pares", "te calles", "termina la respuesta" -> STOP
+                "para", "parate", "pare", "paralo", "para ya",
+                "stop", "detente", "deten", "detente ya",
+                "callate", "calla", "basta", "silencio",
+                "cancela", "cancelalo", "cancela eso", "cancela todo",
+                "deja de hablar", "no sigas",
+                "dejes de hablar", "pares", "te calles", "termina la respuesta",
+                "espera", "esperate", "suficiente" -> STOP
                 else -> null
             }
         }

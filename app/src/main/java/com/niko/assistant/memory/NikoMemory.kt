@@ -39,7 +39,15 @@ class NikoMemory(context: Context) {
         appendTurn("user", cleaned)
         learnFacts(cleaned)
         longTerm.observeUserTurn(cleaned)
-        prefs.edit().putInt(KEY_TOTAL_INTERACTIONS, prefs.getInt(KEY_TOTAL_INTERACTIONS, 0) + 1).apply()
+        val count = prefs.getInt(KEY_TOTAL_INTERACTIONS, 0) + 1
+        prefs.edit().putInt(KEY_TOTAL_INTERACTIONS, count).apply()
+        if (count % 50 == 0) {
+            archive.pruneExpiredAndExcessive(maxTurns = 1_000)
+        }
+    }
+
+    fun prune(maxTurns: Int = 1_000, now: Long = System.currentTimeMillis()) {
+        archive.pruneExpiredAndExcessive(maxTurns, now)
     }
 
     fun rememberAssistantTurn(text: String) {

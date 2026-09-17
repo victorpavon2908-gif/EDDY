@@ -70,8 +70,6 @@ class NikoLocalLlm(
         memoryContext: String = "",
         evidence: String = "",
     ): String? = withContext(Dispatchers.IO) {
-        @Suppress("UNUSED_VARIABLE") val ignoredContext = memoryContext
-        @Suppress("UNUSED_VARIABLE") val ignoredEvidence = evidence
         lastError = null
         if (closed) return@withContext null
 
@@ -86,7 +84,21 @@ class NikoLocalLlm(
             // an unsupported/new family falls through to the normal cloud/fallback route.
             val conversationalFamily = LeoMicroGptGate.classify(message)
             if (conversationalFamily != null) {
-                microGpt.reply(message)?.let { generated -> return@withContext generated }
+                // Build a context-enriched prompt for MicroGPT using memory and conversation history.
+                val enrichedMessage = buildString {
+                    if (memoryContext.isNotBlank()) {
+                        append("[Contexto del usuario: ")
+                        append(memoryContext.take(300))
+                        append("] ")
+                    }
+                    if (evidence.isNotBlank()) {
+                        append("[Contexto previo: ")
+                        append(evidence.take(400))
+                        append("] ")
+                    }
+                    append(message)
+                }
+                microGpt.reply(enrichedMessage)?.let { generated -> return@withContext generated }
                 lastError = localModelError()
                 return@withContext null
             }

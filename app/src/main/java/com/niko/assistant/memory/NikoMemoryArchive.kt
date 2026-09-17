@@ -206,6 +206,16 @@ class NikoMemoryArchive private constructor(context: Context) :
         it.getLong(0)
     }
 
+    @Synchronized
+    fun pruneExpiredAndExcessive(maxTurns: Int = 1000, now: Long = System.currentTimeMillis()) {
+        val db = writableDatabase
+        db.delete("semantic_memory", "expires_at > 0 AND expires_at <= ?", arrayOf(now.toString()))
+        db.execSQL(
+            "DELETE FROM turns WHERE id NOT IN (SELECT id FROM turns ORDER BY timestamp DESC, id DESC LIMIT ?)",
+            arrayOf(maxTurns.toString()),
+        )
+    }
+
     fun clearMemory() {
         val db = writableDatabase
         db.beginTransaction()

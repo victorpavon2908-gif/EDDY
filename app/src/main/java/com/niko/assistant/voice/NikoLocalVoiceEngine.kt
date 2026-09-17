@@ -512,6 +512,14 @@ class NikoLocalVoiceEngine(
 
     private fun processBargeInWake(samples: FloatArray) {
         preRoll.append(samples)
+
+        // ── Stop-command fast path ──────────────────────────────────────────────
+        // While LEO is speaking we listen for immediate interruption words
+        // ("para", "detente", "cállate", …) so the user doesn't need to say
+        // "LEO" first and then repeat the command in a second turn.
+        if (speaking && tryDetectStopCommand(samples)) return
+
+        // ── Classic KWS wake-word barge-in ─────────────────────────────────────
         val spotter = keywordSpotter ?: return
         val stream = keywordStream ?: return
         stream.acceptWaveform(samples, SAMPLE_RATE)
@@ -536,6 +544,52 @@ class NikoLocalVoiceEngine(
         suppressUntil = 0L
         LeoRealtimeTurnBus.interruptTurn()
         activateWakeFromPassive(now, includePreRoll = true, debounceMs = BARGE_IN_DEBOUNCE_MS, source = "Sherpa KWS · barge-in")
+    }
+
+    /**
+     * Lightweight stop-command detector active while LEO is speaking.
+     *
+     * Computes RMS energy of the incoming frame. If it exceeds the minimum
+     * speech threshold, runs a quick Canary transcription on the accumulated
+     * pre-roll (≈2 s) and checks whether the result matches any interruption
+     * keyword. When a match is found, TTS is interrupted immediately via
+     * [LeoRealtimeTurnBus.interruptTurn] and a synthetic stop command is fired.
+     *
+     * @return `true` if a stop command was detected and handled (caller should return).
+     */
+    private fun tryDetectStopCommand(samples: FloatArray): Boolean {
+        // Cheap energy gate: skip frames with too little energy (silence/noise).
+        var energy = 0.0
+        for (s in samples) energy += s * s
+        val rms = sqrt(energy / samples.size).toFloat()
+        if (rms < STOP_COMMAND_MIN_RMS) return false
+
+        // Only accumulate when there's enough audio for a meaningful transcription.
+        val preRollSnap = preRoll.snapshot()
+        if (preRollSnap.size < STOP_COMMAND_MIN_SAMPLES) return false
+
+        val asr = recognizer ?: return false
+        val transcript = runCatching { transcribeWith(asr, preRollSnap) }.getOrDefault("")
+        if (transcript.isBlank()) return false
+
+        val normalized = transcript.lowercase()
+            .replace(Regex("[¿?¡!.,;:]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        val isStop = STOP_COMMAND_WORDS.any { word -> normalized == word || normalized.startsWith("$word ") }
+        if (!isStop) return false
+
+        // Confirmed stop — interrupt TTS and fire the stop command through the
+        // normal command pipeline so VoiceControl.parse() handles it correctly.
+        LeoRealtimeTurnBus.interruptTurn()
+        speaking = false
+        assistantBusy = false
+        suppressUntil = 0L
+        resetKeywordStream()
+        preRoll.clear()
+        onCommand(transcript.trim())
+        return true
     }
 
     private fun processPassiveWake(samples: FloatArray) {
@@ -918,5 +972,25 @@ class NikoLocalVoiceEngine(
         private const val OWNER_RECENT_MATCH_MS = 20_000L
         private const val ASR_DIR = "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8"
         private const val WHISPER_DIR = "sherpa-onnx-whisper-tiny"
+
+        // Stop-command barge-in: minimum RMS energy and audio length required
+        // before we spend CPU on a transcription during SPEAKING state.
+        private const val STOP_COMMAND_MIN_RMS = 0.0025f
+        private const val STOP_COMMAND_MIN_SAMPLES = SAMPLE_RATE / 4   // 250 ms
+
+        /**
+         * Words that interrupt LEO while speaking, without requiring the wake-word first.
+         * Kept intentionally short to avoid false positives during normal TTS playback.
+         */
+        private val STOP_COMMAND_WORDS = setOf(
+            "para", "pare", "páralo", "para ya",
+            "detente", "detén", "detente ya",
+            "cállate", "callate", "calla",
+            "silencio",
+            "basta", "suficiente",
+            "espera", "esperate",
+            "desactívate", "desactivate",
+            "cancela", "cancela eso", "cancela todo",
+        )
     }
 }

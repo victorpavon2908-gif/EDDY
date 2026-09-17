@@ -49,6 +49,7 @@ import com.niko.assistant.ui.theme.NikoTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 class MainActivity : ComponentActivity() {
     private lateinit var permissionLauncher: ActivityResultLauncher<Array<String>>
@@ -241,15 +242,21 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        var snapshot by remember { mutableStateOf(NikoRuntimeState.read(applicationContext)) }
+        // Seed in-memory StateFlow from disk on first render (no polling; single read).
+        val snapshot by NikoRuntimeState.stateFlow.collectAsStateWithLifecycle(
+            initialValue = NikoRuntimeState.read(applicationContext)
+        )
         var enabled by remember { mutableStateOf(assistantEnabled()) }
         var uiMode by remember { mutableStateOf(NikoUiModeStore.read(applicationContext)) }
         LaunchedEffect(Unit) {
+            // Seed the StateFlow from disk once so it reflects any state written before this
+            // composition started (e.g. by the Service in a previous session).
+            NikoRuntimeState.init(applicationContext)
+            // Poll only the lightweight non-reactive flags (enabled, uiMode) at a slower cadence.
             while (true) {
-                snapshot = NikoRuntimeState.read(applicationContext)
                 enabled = assistantEnabled()
                 uiMode = NikoUiModeStore.read(applicationContext)
-                delay(120L)
+                delay(500L)
             }
         }
         Crossfade(targetState = uiMode, label = "leo-transform") { mode ->
