@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Activity, Home, LayoutGrid } from "lucide-react";
+import { Settings, Activity, Home, LayoutGrid, Globe } from "lucide-react";
 import { NikoVisualState } from "../types";
 
 interface NikoTopBarProps {
@@ -9,6 +9,7 @@ interface NikoTopBarProps {
   onOpenDiagnostics: () => void;
   onOpenSmartHome: () => void;
   onOpenApps: () => void;
+  onOpenGoogleSearch: () => void;
 }
 
 export const NikoTopBar: React.FC<NikoTopBarProps> = ({
@@ -18,6 +19,7 @@ export const NikoTopBar: React.FC<NikoTopBarProps> = ({
   onOpenDiagnostics,
   onOpenSmartHome,
   onOpenApps,
+  onOpenGoogleSearch,
 }) => {
   const dotColor = !autoListeningEnabled
     ? "bg-slate-500"
@@ -44,6 +46,16 @@ export const NikoTopBar: React.FC<NikoTopBarProps> = ({
       </div>
 
       <div className="flex items-center gap-2">
+        <button
+          id="btn-open-google-search"
+          onClick={onOpenGoogleSearch}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-500/15 hover:bg-blue-500/25 active:scale-95 transition-all text-blue-300 hover:text-blue-100 border border-blue-500/30 shadow-sm"
+          title="Búsqueda Web con Google en tiempo real"
+        >
+          <Globe className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+          <span className="text-[11px] font-bold tracking-wide">Google</span>
+        </button>
+
         <button
           id="btn-open-apps"
           onClick={onOpenApps}

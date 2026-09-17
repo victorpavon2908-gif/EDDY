@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Mic, MicOff, Send } from "lucide-react";
+import { Mic, MicOff, Send, Globe } from "lucide-react";
 import { NikoVisualState, InputState } from "../types";
 
 interface WakeDockProps {
@@ -9,6 +9,7 @@ interface WakeDockProps {
   voiceReady: boolean;
   onToggleListening: () => void;
   onSubmitText: (text: string) => void;
+  onOpenGoogleSearch?: (query?: string) => void;
 }
 
 export const WakeDock: React.FC<WakeDockProps> = ({
@@ -17,6 +18,7 @@ export const WakeDock: React.FC<WakeDockProps> = ({
   state,
   onToggleListening,
   onSubmitText,
+  onOpenGoogleSearch,
 }) => {
   const [inputText, setInputText] = useState("");
 
@@ -87,10 +89,19 @@ export const WakeDock: React.FC<WakeDockProps> = ({
           className="flex-1 bg-white/5 hover:bg-white/10 focus:bg-white/10 text-white text-xs rounded-xl px-3 py-2 border border-white/10 focus:outline-none focus:border-teal-400/60 placeholder:text-white/30 transition-all font-sans"
         />
         <button
+          id="btn-wake-dock-google-search"
+          type="button"
+          onClick={() => onOpenGoogleSearch && onOpenGoogleSearch(inputText.trim())}
+          className="p-2 rounded-xl bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 active:scale-95 transition-all shrink-0"
+          title="Búsqueda Web con Google"
+        >
+          <Globe className="w-4 h-4 text-blue-400" />
+        </button>
+        <button
           id="btn-send-command"
           type="submit"
           disabled={!inputText.trim()}
-          className="p-2 rounded-xl bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 border border-teal-500/30 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+          className="p-2 rounded-xl bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 border border-teal-500/30 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all shrink-0"
           title="Enviar mensaje"
         >
           <Send className="w-4 h-4" />

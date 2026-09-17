@@ -6,6 +6,7 @@ import {
   RobotMotion,
   NikoWebSource,
   LeoVoiceSnapshot,
+  GoogleSearchResult,
 } from "./types";
 import { LocalBrain } from "./services/localBrain";
 import { voiceService } from "./services/voiceService";
@@ -21,6 +22,7 @@ import { VoiceDiagnosticsModal } from "./components/VoiceDiagnosticsModal";
 import { SmartHomeModal } from "./components/SmartHomeModal";
 import { EmbeddedAppsModal } from "./components/EmbeddedAppsModal";
 import { LeoFirstRunModal } from "./components/LeoFirstRunModal";
+import { GoogleSearchModal } from "./components/GoogleSearchModal";
 
 export const App: React.FC = () => {
   // Application Settings
@@ -48,6 +50,22 @@ export const App: React.FC = () => {
   const [showApps, setShowApps] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(!settings.firstRunCompleted);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Google Search Modal
+  const [showGoogleSearch, setShowGoogleSearch] = useState(false);
+  const [googleSearchQuery, setGoogleSearchQuery] = useState("");
+  const [googleSearchResult, setGoogleSearchResult] = useState<GoogleSearchResult | null>(null);
+
+  const openGoogleSearch = useCallback(
+    (query?: string, preloadedResult?: GoogleSearchResult | null) => {
+      setGoogleSearchQuery(query || "");
+      if (preloadedResult !== undefined) {
+        setGoogleSearchResult(preloadedResult);
+      }
+      setShowGoogleSearch(true);
+    },
+    []
+  );
 
   // Diagnostics state
   const [diagnostics, setDiagnostics] = useState<LeoVoiceSnapshot>({
@@ -242,34 +260,71 @@ export const App: React.FC = () => {
       // Handle Web Search or Generative Synthesis
       setVisualState("THINKING");
       let currentSources: NikoWebSource[] = [];
+      let latestSearchResult: GoogleSearchResult | null = null;
 
-      // If user asks a question or explicit search
+      const lower = text.toLowerCase().trim();
+      const isExplicitGoogle =
+        lower.includes("google") ||
+        lower.includes("busca en google") ||
+        lower.includes("buscar en google") ||
+        lower.includes("abrir google");
+
       const isSearch =
+        isExplicitGoogle ||
         cmd.type === "search_web" ||
-        text.toLowerCase().includes("busca") ||
-        text.toLowerCase().includes("quien es") ||
-        text.toLowerCase().includes("noticias");
+        lower.startsWith("busca") ||
+        lower.startsWith("buscar") ||
+        lower.includes("quien es") ||
+        lower.includes("noticias") ||
+        lower.includes("clima") ||
+        lower.includes("cuanto esta") ||
+        lower.includes("partido de");
 
       if (isSearch || settings.autoResearch) {
         setWebSearching(true);
         try {
-          const searchQuery = cmd.type === "search_web" ? cmd.payload?.query : text;
+          const searchQuery =
+            cmd.type === "search_web" && cmd.payload?.query
+              ? cmd.payload.query
+              : text
+                  .replace(/busca\s+en\s+google/i, "")
+                  .replace(/buscar\s+en\s+google/i, "")
+                  .replace(/abrir\s+google/i, "")
+                  .replace(/googlear/i, "")
+                  .replace(/^busca\s+/i, "")
+                  .replace(/^buscar\s+/i, "")
+                  .trim() || text;
+
           const searchResp = await fetch("/api/search", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query: searchQuery }),
           });
           if (searchResp.ok) {
-            const data = await searchResp.json();
+            const data: GoogleSearchResult = await searchResp.json();
+            latestSearchResult = data;
             currentSources = data.sources || [];
             setSources(currentSources);
             setWebUsed(currentSources.length > 0);
+            setGoogleSearchResult(data);
+            setGoogleSearchQuery(searchQuery);
+
+            if (isExplicitGoogle) {
+              openGoogleSearch(searchQuery, data);
+            }
           }
         } catch (err) {
           console.warn("Search fetch failed:", err);
         } finally {
           setWebSearching(false);
         }
+      }
+
+      // If search already yielded an articulate Google synthesis, we can prefer it or synthesize with chat
+      if (latestSearchResult && latestSearchResult.summary && (isExplicitGoogle || isSearch)) {
+        const speechClean = latestSearchResult.summary.replace(/\[\d+\]/g, "");
+        speakResponse(speechClean);
+        return;
       }
 
       // Query AI / Synthesis API
@@ -287,6 +342,10 @@ export const App: React.FC = () => {
 
         if (chatResp.ok) {
           const chatData = await chatResp.json();
+          if (chatData.sources && chatData.sources.length > 0) {
+            setSources(chatData.sources);
+            setWebUsed(true);
+          }
           speakResponse(chatData.reply || "Listo.");
         } else {
           speakResponse("Tuve un inconveniente al consultar la red, pero aquí estoy.");
@@ -295,7 +354,7 @@ export const App: React.FC = () => {
         speakResponse("No pude conectar con el servicio en este momento.");
       }
     },
-    [settings, audioLevel, snr, speakResponse, showToast]
+    [settings, audioLevel, snr, speakResponse, showToast, openGoogleSearch]
   );
 
   // Setup Voice Service listeners
@@ -394,6 +453,7 @@ export const App: React.FC = () => {
           onOpenDiagnostics={() => setShowDiagnostics(true)}
           onOpenSmartHome={() => setShowSmartHome(true)}
           onOpenApps={() => setShowApps(true)}
+          onOpenGoogleSearch={() => openGoogleSearch()}
         />
 
         {/* 2. Hero & 3D Robot stage */}
@@ -429,6 +489,7 @@ export const App: React.FC = () => {
             webSearching={webSearching}
             sources={sources}
             audioLevel={audioLevel}
+            onOpenGoogleSearch={(q) => openGoogleSearch(q || heardText, googleSearchResult)}
             onStop={() => {
               voiceService.cancelSpeech();
               setVisualState("IDLE");
@@ -447,6 +508,7 @@ export const App: React.FC = () => {
               setUiMode(tool as NikoUiMode);
               setShowApps(true);
             }}
+            onOpenGoogleSearch={() => openGoogleSearch()}
             onShowToast={showToast}
           />
         </div>
@@ -459,10 +521,24 @@ export const App: React.FC = () => {
           voiceReady={true}
           onToggleListening={toggleListening}
           onSubmitText={handleProcessCommand}
+          onOpenGoogleSearch={(q) => openGoogleSearch(q || "")}
         />
       </div>
 
       {/* --- Modals --- */}
+      <GoogleSearchModal
+        isOpen={showGoogleSearch}
+        onClose={() => setShowGoogleSearch(false)}
+        initialQuery={googleSearchQuery}
+        initialResult={googleSearchResult}
+        onSpeakText={(text) => speakResponse(text)}
+        onStopSpeaking={() => {
+          voiceService.cancelSpeech();
+          setVisualState("IDLE");
+        }}
+        isSpeaking={visualState === "SPEAKING"}
+      />
+
       <AiSettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}

@@ -12,7 +12,8 @@ export type NikoUiMode =
   | "NOTES"
   | "CONVERTER"
   | "AI_SETTINGS"
-  | "SMART_HOME_SETTINGS";
+  | "SMART_HOME_SETTINGS"
+  | "GOOGLE_SEARCH";
 
 export type RobotMotion = "WAVE" | "JUMP" | "DANCE" | "SPIN";
 
@@ -23,6 +24,17 @@ export interface NikoWebSource {
   domain: string;
   date?: string;
   score?: number;
+  sourceName?: string;
+  provider?: string;
+}
+
+export interface GoogleSearchResult {
+  query: string;
+  provider: string;
+  summary: string;
+  sources: NikoWebSource[];
+  suggestions?: string[];
+  groundedWithGoogle?: boolean;
 }
 
 export interface ConversationTurn {

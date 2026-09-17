@@ -12,6 +12,7 @@ interface ConversationGlassProps {
   sources: NikoWebSource[];
   audioLevel?: number;
   onStop?: () => void;
+  onOpenGoogleSearch?: (query?: string) => void;
 }
 
 export const ConversationGlass: React.FC<ConversationGlassProps> = ({
@@ -23,6 +24,7 @@ export const ConversationGlass: React.FC<ConversationGlassProps> = ({
   sources,
   audioLevel = -45,
   onStop,
+  onOpenGoogleSearch,
 }) => {
   const accentColor =
     state === "SPEAKING"
@@ -109,25 +111,51 @@ export const ConversationGlass: React.FC<ConversationGlassProps> = ({
         </div>
       )}
 
-      {/* Web sources pills */}
+      {/* Web sources & Google Search indicator */}
       {sources && sources.length > 0 && (
-        <div className="mt-3 pt-2 border-t border-white/5 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-          <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider shrink-0 mr-1">
-            Fuentes:
-          </span>
-          {sources.slice(0, 4).map((source, index) => (
-            <a
-              key={index}
-              href={source.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-teal-200/80 hover:text-teal-100 transition-colors whitespace-nowrap shrink-0"
-              title={source.title}
-            >
-              <span className="font-bold text-teal-400">{index + 1}</span>
-              <span className="max-w-[140px] truncate">{source.title || source.domain}</span>
-            </a>
-          ))}
+        <div className="mt-3 pt-2.5 border-t border-white/10 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              {/* Google Brand Dots */}
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4285F4]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#EA4335]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FBBC05]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#34A853]" />
+              </div>
+              <span className="text-[10px] text-blue-300 font-bold uppercase tracking-wider">
+                Google Search ({sources.length})
+              </span>
+            </div>
+
+            {onOpenGoogleSearch && (
+              <button
+                onClick={() => onOpenGoogleSearch(heardText || "")}
+                className="text-[10px] text-blue-400 hover:text-blue-300 font-medium inline-flex items-center gap-1 hover:underline"
+              >
+                <span>Ver detalles de búsqueda</span>
+                <Globe className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            {sources.slice(0, 5).map((source, index) => (
+              <a
+                key={index}
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-[10px] text-blue-200 hover:text-white transition-colors whitespace-nowrap shrink-0 group"
+                title={source.title}
+              >
+                <span className="font-bold text-blue-400">[{index + 1}]</span>
+                <span className="max-w-[130px] truncate font-medium">
+                  {source.sourceName || source.domain}
+                </span>
+              </a>
+            ))}
+          </div>
         </div>
       )}
     </section>

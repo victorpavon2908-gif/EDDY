@@ -1,16 +1,18 @@
 import React, { useState } from "react";
-import { Flashlight, Play, MessageCircle, Clock, Music } from "lucide-react";
+import { Flashlight, Play, MessageCircle, Clock, Music, Globe } from "lucide-react";
 
 interface QuickActionsRailProps {
   onOpenApp: (appName: string, url: string) => void;
   onOpenTool: (tool: string) => void;
   onShowToast: (msg: string) => void;
+  onOpenGoogleSearch?: () => void;
 }
 
 export const QuickActionsRail: React.FC<QuickActionsRailProps> = ({
   onOpenApp,
   onOpenTool,
   onShowToast,
+  onOpenGoogleSearch,
 }) => {
   const [torchActive, setTorchActive] = useState(false);
 
@@ -48,6 +50,13 @@ export const QuickActionsRail: React.FC<QuickActionsRailProps> = ({
   };
 
   const actions = [
+    {
+      id: "quick-google",
+      label: "Google",
+      icon: Globe,
+      color: "text-blue-400 border-blue-500/30 bg-blue-950/25 hover:bg-blue-900/30",
+      onClick: () => onOpenGoogleSearch ? onOpenGoogleSearch() : onOpenApp("Google", "https://www.google.com"),
+    },
     {
       id: "quick-torch",
       label: "Linterna",
