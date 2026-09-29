@@ -1,0 +1,12 @@
+id,metrica,escenario,intento,valor,unidad,estado,evidencia,observacion
+M01,tasa_activacion,voz_normal,1,,TP_o_FN,PENDIENTE,,
+M01,tasa_activacion,voz_normal,2,,TP_o_FN,PENDIENTE,,
+M02,falsos_positivos,30_minutos,1,,FP,PENDIENTE,,
+M03,latencia_activacion,wake_word,1,,ms,PENDIENTE,,
+M04,tiempo_interrupcion,durante_respuesta,1,,ms,PENDIENTE,,
+M05,tiempo_busqueda,Ruben_Dario_1916,1,,s,PENDIENTE,,
+M06,precision_fuentes,Ruben_Dario_1916,1,,correcta_o_incorrecta,PENDIENTE,,
+M07,exactitud_whatsapp,caso_1,1,,correcto_o_incorrecto,PENDIENTE,,
+M08,consumo_reposo,60_min,1,,puntos_bateria,PENDIENTE,,
+M09,consumo_uso_mixto,30_min,1,,puntos_bateria,PENDIENTE,,
+M10,estabilidad,sesion,1,,incidentes,PENDIENTE,,
