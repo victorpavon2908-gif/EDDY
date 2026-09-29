@@ -16,6 +16,7 @@ leo_test_dir=$(mktemp -d)
 trap 'rm -f -- "$leo_test_dir/tests.jar"; rmdir -- "$leo_test_dir"' EXIT
 leo_classpath="$leo_kotlin_lib/kotlin-stdlib-2.0.21.jar:$leo_kotlin_lib/junit-4.13.2.jar:$leo_kotlin_lib/hamcrest-core-1.3.jar:$leo_kotlin_lib/kotlinx-coroutines-core-jvm-1.6.4.jar"
 leo_units=(
+    ui/CountdownClock
     voice/TranscriptQuality
     voice/SpeechAudioHistory
     voice/SpeechAudioFidelity

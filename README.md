@@ -1,67 +1,43 @@
-# LEO Assistant 0.11.0 (Web React)
+# EDDY · Android 0.12.0
 
-Compañero personal inteligente con control por voz en español, robot 3D articulado interactivo, búsqueda web en tiempo real con fuentes citadas, suite de herramientas integradas y compatibilidad con Gemini y GroqCloud.
+Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
+Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
 
-## Características Principales
+## Abrir y validar
 
-- **Robot 3D Articulado**: Modelo 3D interactivo (`leo_robot.glb`) en WebGL/Three.js con transiciones suaves (crossfading de 280 ms) entre animaciones:
-  - *Idle*: Respiración y postura relajada con seguimiento sutil del cursor.
-  - *Listen*: Inclinación atenta de cabeza durante la escucha.
-  - *Think*: Gesto de concentración durante la búsqueda/procesamiento.
-  - *Talk*: Gestos y articulaciones activas durante la respuesta de voz.
-  - *Acciones manuales y por voz*: Bailar («Leo, bailá»), saltar («Leo, saltá»), girar («Leo, girá») y saludar («Leo, saludá»), además de activación al tocar al robot.
-- **Control por Voz & Interrupciones**:
-  - Reconocimiento de voz en vivo en español (Web Speech API).
-  - Interrupción inmediata («Leo, pará», «pará», «detener») que cancela de inmediato la voz y la búsqueda en curso.
-  - Síntesis de voz neural en español con control de tono y velocidad.
-  - Visualizador de ondas neuronales (`NeuralWaveform`) con 38 barras reactivas al volumen acústico y relación señal/ruido (SNR).
-- **Cerebro Local (Local Brain)**:
-  - Resolución matemática offline rápida («cuánto es 45 * 12», «raíz de 144», porcentajes).
-  - Consulta de hora y batería del dispositivo.
-  - Activación de linterna y accesos directos (WhatsApp, YouTube, Spotify, Google Maps).
-  - Memoria local de preferencias y hechos con opción de borrado.
-- **Búsqueda Web y Síntesis de Información**:
-  - Búsqueda en Wikipedia, DuckDuckGo y fuentes de noticias sin necesidad de claves externas.
-  - Citas numeradas directas en pantalla con enlaces a fuentes originales.
-  - Soporte para Gemini API (`@google/genai`) y clave opcional de GroqCloud (Llama 3.3).
-- **Suite de Aplicaciones Embebidas**:
-  - Calculadora con histórico de operaciones.
-  - Cronómetro con vueltas de alta precisión.
-  - Temporizador con presets y alerta auditiva.
-  - Reloj mundial con husos horarios internacionales.
-  - Bloc de notas local.
-  - Conversor de unidades (distancia, peso, temperatura).
-- **Telemetría y Diagnóstico de Voz**:
-  - Medición en tiempo real de dBFS, ruido de fondo y SNR.
-  - Banco de pruebas de 100 llamadas (True Positives, False Negatives, False Positives).
-- **Domótica (Casa Inteligente)**:
-  - Integración y prueba de entidades de Home Assistant (luces, ventilador, termostato, cerradura).
+Abrir la raíz en Android Studio, usar JDK 17 e instalar Android SDK 36. No configurar rutas personales de Java en archivos versionados.
 
-## Requisitos y Ejecución
+```sh
+./gradlew :app:testDebugUnitTest :app:lintDebug
+```
 
-- **Node.js**: 22+
-- **Comandos**:
-  - Desarrollo: `npm run dev`
-  - Construcción de producción: `npm run build`
-  - Verificación de tipos: `npm run lint`
+Los commits ejecutan pruebas Android y Lint; no generan APK. Las descargas iniciales de modelos necesitan conexión y espacio disponible.
 
-## 12. Anexos — Evidencias técnicas
+## Funciones
 
-Repositorio: [victorpavon2908-gif/EDDY](https://github.com/victorpavon2908-gif/EDDY).
+- Activación y reconocimiento local de voz en español, voz sintetizada y modo de servicio en primer plano.
+- Memoria local, acciones del teléfono, búsqueda y configuración de proveedores de IA.
+- Calculadora, notas, reloj, cronómetro, temporizador y conversor integrados.
+- Diagnóstico de voz y protocolo de medición física con evidencia.
 
-- [README.md](README.md) — descripción de LEO 0.11.0 y características.
-- [docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md) — protocolo de validación física.
-- [docs/LEO_011_PHYSICAL_TEST_RESULTS.md](docs/LEO_011_PHYSICAL_TEST_RESULTS.md) — plantilla de resultados; estado **NO EJECUTADO**.
-- [docs/LEO_PHASE3_VOICE_VALIDATION.md](docs/LEO_PHASE3_VOICE_VALIDATION.md) — validación de voz y banco de 100 llamadas.
-- [evidencias/README.md](evidencias/README.md) — matriz de métricas cuantitativas y reglas para adjuntar evidencia por medición.
-- [evidencias/mediciones.csv](evidencias/mediciones.csv) — registro central de mediciones reales por intento.
-- [scripts/calcular_metricas.mjs](scripts/calcular_metricas.mjs) — cálculo reproducible de tasas, medianas, precisión, consumo e incidentes a partir del CSV.
-- [src/services/voiceService.ts](src/services/voiceService.ts) — reconocimiento, síntesis y diagnóstico de audio.
-- [src/services/localBrain.ts](src/services/localBrain.ts) — interpretación local de comandos.
-- [src/services/memoryStore.ts](src/services/memoryStore.ts) — configuración, memoria, historial y domótica.
+## Recuperación y mejoras 0.12.0
 
-El repositorio incluye ahora una estructura explícita de **métricas cuantitativas + evidencia por medición**. Los valores permanecen **NO EJECUTADO/PENDIENTE** hasta registrar observaciones reales; el proyecto no inventa resultados.
+Se recuperó la aplicación nativa desde `66930d1`, conservando las mejoras posteriores de la versión web como complemento independiente. Gradle vuelve a validar Android, sin redirigir sus tareas a npm.
 
-## Mediciones verificables
+- Eliminada la ruta de JDK de una computadora Windows que impedía ejecutar Gradle en otras máquinas.
+- Actualizaciones de preferencias por eventos, sin consultas cada 500 ms.
+- Botón Atrás vuelve al asistente desde las herramientas.
+- Herramientas desplazables con márgenes para barras del sistema y teclado; calculadora adaptable al ancho disponible.
+- Estado de herramientas conservado al recrear la pantalla; relojes dejan de actualizar la interfaz cuando no está visible.
+- Temporizador basado en tiempo monotónico para evitar acumulación de retrasos. Es una herramienta visual: no sustituye una alarma del sistema ni promete avisos con la aplicación cerrada.
+- Errores de preparación recuperables y eliminación de la rama inalcanzable de descarga Qwen; el cerebro activo sigue siendo Kotlin/MicroGPT.
 
-Resultados de la revisión, correcciones y evidencia ejecutada: [informe de mediciones](evidencias/INFORME_EJECUTADO.md). Ejecutar `npm test` para regresiones, `npm run measure` para procesar observaciones físicas y `python3 scripts/medir_repo.py` para regenerar logs y hashes. Las métricas físicas pendientes se distinguen explícitamente de las pruebas de software.
+Ver [validación de esta revisión](docs/ANDROID_012_VALIDATION.md). Consumo, latencia del micrófono y funcionamiento físico siguen pendientes de prueba en un teléfono.
+
+## Complemento web y evidencias
+
+El código React se conserva para no perder trabajo previo; sus pruebas no equivalen a pruebas Android. Ver [documentación web](docs/WEB_COMPANION.md).
+
+- [Métricas y evidencia](evidencias/README.md)
+- [Protocolo físico](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md)
+- [Registro de mediciones](evidencias/mediciones.csv)
