@@ -14,13 +14,14 @@ export function normalize(text: string): string {
 function cleanConversationalPrefix(raw: string): string {
   return raw
     .trim()
-    .replace(/^(?:oye\s+|hola\s+|hey\s+)?(?:leo|niko|nico)[,\s.:;!¿?¡-]*/i, "")
+    .replace(/^(?:oye\s+|hola\s+|hey\s+)?(?:leo|niko|nico)\b[,\s.:;!¿?¡-]*/i, "")
     .trim();
 }
 
 export class LocalBrain {
   public static parseRobotMotion(input: string): RobotMotion | null {
     const text = normalize(cleanConversationalPrefix(input));
+    if (/\b(?:no|nunca|jamas)\b/.test(text)) return null;
     const command = text
       .replace(/^(?:por favor |podes |quiero que |podrias )/, "")
       .replace(/ (?:por favor|porfa)$/, "")
@@ -62,7 +63,9 @@ export class LocalBrain {
   }
 
   public static evaluateMath(expr: string): string | null {
-    const norm = normalize(expr);
+    // Preserve operators and decimal separators; general text normalization removes them.
+    const norm = expr.toLowerCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/(\d),(?=\d)/g, "$1.").trim();
 
     // Percentage: "20 por ciento de 150"
     const pctMatch = norm.match(/(\d+(?:\.\d+)?)\s*(?:%|por ciento)\s*de\s*(\d+(?:\.\d+)?)/);
@@ -79,15 +82,14 @@ export class LocalBrain {
       .replace(/calcula/g, "")
       .replace(/mas/g, "+")
       .replace(/menos/g, "-")
-      .replace(/por|multiplicado por/g, "*")
-      .replace(/entre|dividido por|dividido/g, "/")
+      .replace(/\b(?:dividido por|dividido entre|entre|dividido)\b/g, "/")
+      .replace(/\b(?:multiplicado por|por)\b/g, "*")
       .replace(/elevado a la|elevado a/g, "^")
-      .replace(/raiz de|raiz cuadrada de/g, "sqrt")
-      .replace(/[^0-9+\-*/().^sqrt\s]/g, "");
+      .replace(/raiz cuadrada de|raiz de/g, "sqrt").trim();
 
     // Square root
     if (cleaned.includes("sqrt")) {
-      const sqMatch = cleaned.match(/sqrt\s*(\d+(?:\.\d+)?)/);
+      const sqMatch = cleaned.match(/^sqrt\s*(\d+(?:\.\d+)?)$/);
       if (sqMatch) {
         const val = parseFloat(sqMatch[1]);
         return `${Math.sqrt(val)}`;
@@ -205,7 +207,7 @@ export class LocalBrain {
       norm.startsWith("cuanto es") ||
       norm.startsWith("calcula") ||
       norm.includes("por ciento de") ||
-      /^\d+\s*[\+\-\*\/]\s*\d+/.test(norm)
+      /^[\d\s.,()+*/^%-]+$/.test(withoutWake)
     ) {
       const res = this.evaluateMath(withoutWake);
       if (res !== null) {

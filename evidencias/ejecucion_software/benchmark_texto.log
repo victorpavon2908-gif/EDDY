@@ -1,0 +1,9 @@
+{
+  "scope": "Enrutador TypeScript en Node; entradas textuales fijas, NO micrófono ni latencia Android",
+  "cases": 10,
+  "iterations": 10000,
+  "correct": 10000,
+  "accuracy_percent": 100,
+  "median_ms": 0.0015829999999965594,
+  "p95_ms": 0.00372600000000034
+}

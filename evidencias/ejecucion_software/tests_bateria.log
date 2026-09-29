@@ -1,0 +1,10 @@
+test_charger (test_battery.BatteryTests.test_charger) ... ok
+test_invalid_scale (test_battery.BatteryTests.test_invalid_scale) ... ok
+test_missing_level (test_battery.BatteryTests.test_missing_level) ... ok
+test_real_reading (test_battery.BatteryTests.test_real_reading) ... ok
+test_simulation (test_battery.BatteryTests.test_simulation) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.000s
+
+OK

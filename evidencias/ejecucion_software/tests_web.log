@@ -1,0 +1,226 @@
+TAP version 13
+# Subtest: math: 2 + 3
+ok 1 - math: 2 + 3
+  ---
+  duration_ms: 1.769744
+  type: 'test'
+  ...
+# Subtest: math: 2.5 + 1.2
+ok 2 - math: 2.5 + 1.2
+  ---
+  duration_ms: 0.344608
+  type: 'test'
+  ...
+# Subtest: math: 2,5 + 1,2
+ok 3 - math: 2,5 + 1,2
+  ---
+  duration_ms: 0.322566
+  type: 'test'
+  ...
+# Subtest: math: 10 dividido por 2
+ok 4 - math: 10 dividido por 2
+  ---
+  duration_ms: 0.243757
+  type: 'test'
+  ...
+# Subtest: math: 3 multiplicado por 4
+ok 5 - math: 3 multiplicado por 4
+  ---
+  duration_ms: 0.206901
+  type: 'test'
+  ...
+# Subtest: math: 20 por ciento de 150
+ok 6 - math: 20 por ciento de 150
+  ---
+  duration_ms: 0.135514
+  type: 'test'
+  ...
+# Subtest: math: 20% de 150
+ok 7 - math: 20% de 150
+  ---
+  duration_ms: 0.117327
+  type: 'test'
+  ...
+# Subtest: math: raíz cuadrada de 81
+ok 8 - math: raíz cuadrada de 81
+  ---
+  duration_ms: 0.39193
+  type: 'test'
+  ...
+# Subtest: math: (2 + 3) * 4
+ok 9 - math: (2 + 3) * 4
+  ---
+  duration_ms: 0.233251
+  type: 'test'
+  ...
+# Subtest: math: 2 elevado a 3
+ok 10 - math: 2 elevado a 3
+  ---
+  duration_ms: 0.363928
+  type: 'test'
+  ...
+# Subtest: math: cuánto es 7 menos 2
+ok 11 - math: cuánto es 7 menos 2
+  ---
+  duration_ms: 0.209245
+  type: 'test'
+  ...
+# Subtest: math: 1 / 0
+ok 12 - math: 1 / 0
+  ---
+  duration_ms: 0.20581
+  type: 'test'
+  ...
+# Subtest: math: hola 123
+ok 13 - math: hola 123
+  ---
+  duration_ms: 0.126831
+  type: 'test'
+  ...
+# Subtest: math: raíz de 9 + 2
+ok 14 - math: raíz de 9 + 2
+  ---
+  duration_ms: 0.202514
+  type: 'test'
+  ...
+# Subtest: routing: Leo, pará
+ok 15 - routing: Leo, pará
+  ---
+  duration_ms: 0.601035
+  type: 'test'
+  ...
+# Subtest: routing: Leo, qué hora es
+ok 16 - routing: Leo, qué hora es
+  ---
+  duration_ms: 0.460703
+  type: 'test'
+  ...
+# Subtest: routing: abre calculadora
+ok 17 - routing: abre calculadora
+  ---
+  duration_ms: 0.176666
+  type: 'test'
+  ...
+# Subtest: routing: cómo está la batería
+ok 18 - routing: cómo está la batería
+  ---
+  duration_ms: 0.129746
+  type: 'test'
+  ...
+# Subtest: routing: apaga la linterna
+ok 19 - routing: apaga la linterna
+  ---
+  duration_ms: 0.104397
+  type: 'test'
+  ...
+# Subtest: routing: hola
+ok 20 - routing: hola
+  ---
+  duration_ms: 0.359201
+  type: 'test'
+  ...
+# Subtest: routing: 2 + 3
+ok 21 - routing: 2 + 3
+  ---
+  duration_ms: 0.194723
+  type: 'test'
+  ...
+# Subtest: routing: Leo, baila
+ok 22 - routing: Leo, baila
+  ---
+  duration_ms: 0.099961
+  type: 'test'
+  ...
+# Subtest: routing: no bailes
+ok 23 - routing: no bailes
+  ---
+  duration_ms: 0.236366
+  type: 'test'
+  ...
+# Subtest: routing: Leonardo da Vinci
+ok 24 - routing: Leonardo da Vinci
+  ---
+  duration_ms: 0.110346
+  type: 'test'
+  ...
+# Subtest: wake word does not truncate Leonardo
+ok 25 - wake word does not truncate Leonardo
+  ---
+  duration_ms: 0.184117
+  type: 'test'
+  ...
+# Subtest: CSV: quoted commas, escaped quotes, multiline, BOM and CRLF
+ok 26 - CSV: quoted commas, escaped quotes, multiline, BOM and CRLF
+  ---
+  duration_ms: 1.43509
+  type: 'test'
+  ...
+# Subtest: CSV rejects malformed rows and unterminated quotes
+ok 27 - CSV rejects malformed rows and unterminated quotes
+  ---
+  duration_ms: 0.411779
+  type: 'test'
+  ...
+# Subtest: M01 uses TP and FN, warns until 100 trials
+ok 28 - M01 uses TP and FN, warns until 100 trials
+  ---
+  duration_ms: 0.904651
+  type: 'test'
+  ...
+# Subtest: M02 divides total false positives by total observation hours
+ok 29 - M02 divides total false positives by total observation hours
+  ---
+  duration_ms: 0.238619
+  type: 'test'
+  ...
+# Subtest: M03/M04/M05 report medians including zero and decimals
+ok 30 - M03/M04/M05 report medians including zero and decimals
+  ---
+  duration_ms: 0.45859
+  type: 'test'
+  ...
+# Subtest: M06 and M07 use exact categorical values
+ok 31 - M06 and M07 use exact categorical values
+  ---
+  duration_ms: 0.234984
+  type: 'test'
+  ...
+# Subtest: M08/M09 retain duration and normalize battery drain
+ok 32 - M08/M09 retain duration and normalize battery drain
+  ---
+  duration_ms: 1.060907
+  type: 'test'
+  ...
+# Subtest: M10 counts incidents, zero is a real observation
+ok 33 - M10 counts incidents, zero is a real observation
+  ---
+  duration_ms: 0.224078
+  type: 'test'
+  ...
+# Subtest: Missing evidence cannot certify a measurement
+ok 34 - Missing evidence cannot certify a measurement
+  ---
+  duration_ms: 0.350698
+  type: 'test'
+  ...
+# Subtest: Reject duplicates, invalid values, durations and statuses
+ok 35 - Reject duplicates, invalid values, durations and statuses
+  ---
+  duration_ms: 0.444359
+  type: 'test'
+  ...
+# Subtest: Pending records do not become zero-valued results
+ok 36 - Pending records do not become zero-valued results
+  ---
+  duration_ms: 0.209045
+  type: 'test'
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 36
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 191.805668

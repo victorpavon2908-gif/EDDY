@@ -18,3 +18,7 @@ app/src/main/assets/voice-core/
 app/libs/
 
 __pycache__/
+
+# Web dependencies and generated build output
+node_modules/
+dist/

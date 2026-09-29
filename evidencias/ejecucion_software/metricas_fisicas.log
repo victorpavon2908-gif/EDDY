@@ -1,0 +1,78 @@
+{
+  "metricas": {
+    "M01": {
+      "valor": null,
+      "unidad": "%",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M02": {
+      "valor": null,
+      "unidad": "FP/h",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M03": {
+      "valor": null,
+      "unidad": "ms",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M04": {
+      "valor": null,
+      "unidad": "ms",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M05": {
+      "valor": null,
+      "unidad": "s",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M06": {
+      "valor": null,
+      "unidad": "%",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M07": {
+      "valor": null,
+      "unidad": "%",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M08": {
+      "valor": null,
+      "unidad": "puntos porcentuales",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M09": {
+      "valor": null,
+      "unidad": "puntos porcentuales",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    },
+    "M10": {
+      "valor": null,
+      "unidad": "incidentes",
+      "muestras": 0,
+      "estado": "PENDIENTE",
+      "evidencias": []
+    }
+  },
+  "rechazadas": [],
+  "advertencias": [
+    "M01: faltan intentos para completar el protocolo de 100."
+  ]
+}

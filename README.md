@@ -61,3 +61,7 @@ Repositorio: [victorpavon2908-gif/EDDY](https://github.com/victorpavon2908-gif/E
 - [src/services/memoryStore.ts](src/services/memoryStore.ts) — configuración, memoria, historial y domótica.
 
 El repositorio incluye ahora una estructura explícita de **métricas cuantitativas + evidencia por medición**. Los valores permanecen **NO EJECUTADO/PENDIENTE** hasta registrar observaciones reales; el proyecto no inventa resultados.
+
+## Mediciones verificables
+
+Resultados de la revisión, correcciones y evidencia ejecutada: [informe de mediciones](evidencias/INFORME_EJECUTADO.md). Ejecutar `npm test` para regresiones, `npm run measure` para procesar observaciones físicas y `python3 scripts/medir_repo.py` para regenerar logs y hashes. Las métricas físicas pendientes se distinguen explícitamente de las pruebas de software.

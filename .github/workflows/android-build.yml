@@ -1,74 +1,25 @@
-name: LEO tests and lint
-
+# Historical filename retained; main now contains the web application.
+name: LEO web tests and lint
 on:
   push:
     branches: [main, leo-v2-staging]
   pull_request:
     branches: [main]
-
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-
-      - name: Install SDK 36
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-
-      - name: Download sherpa-onnx Android core
-        shell: bash
-        run: |
-          mkdir -p app/libs
-          curl -L --fail --retry 3 --retry-delay 2 \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.7/sherpa-onnx-1.13.7.aar \
-            -o app/libs/sherpa-onnx-1.13.7.aar
-          test "$(stat -c%s app/libs/sherpa-onnx-1.13.7.aar)" -gt 40000000
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-
-      - name: Validate bundled MicroGPT checkpoint
-        run: python scripts/validate_leo_microgpt_assets.py
-
-      - name: Install backend dependencies
-        run: python -m pip install --upgrade pip && pip install -r backend/requirements.txt
-
-      - name: Run backend tests
-        run: pytest -q backend
-
-      - name: Make Gradle executable
-        run: chmod +x gradlew
-
-      - name: Cache native wake detector test dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/niko-kws-native
-          key: ${{ runner.os }}-kws-native-${{ hashFiles('app/src/main/java/com/niko/assistant/localai/NikoModelCatalog.kt') }}
-
-      - name: Prepare real wake detector test
-        run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/niko-kws-native" --github-env "$GITHUB_ENV"
-
-      - name: Validate bundled 3D robot
-        run: |
-          npm install --prefix "$RUNNER_TEMP/leo-gltf" gltf-validator@2.0.0-dev.3.10 --ignore-scripts --no-audit --no-fund
-          node scripts/validate_leo_robot.cjs "$RUNNER_TEMP/leo-gltf/node_modules/gltf-validator"
-
-      - name: Android unit tests
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
-
-      - name: Android lint
-        run: ./gradlew :app:lintDebug --stacktrace
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run measure

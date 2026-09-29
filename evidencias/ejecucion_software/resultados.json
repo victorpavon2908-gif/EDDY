@@ -1,0 +1,163 @@
+{
+  "fecha_utc": "2026-09-29T19:09:29.545426+00:00",
+  "commit_base": "1aea58527411a22d0c54182e0e912e6b9180e4c9",
+  "nota": "Ejecuci\u00f3n sobre \u00e1rbol de trabajo; hashes identifican fuentes exactas. Pruebas automatizadas no certifican m\u00e9tricas f\u00edsicas M01\u2013M10.",
+  "entorno": {
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+    "python": "3.12.14",
+    "node": "v24.19.0"
+  },
+  "comprobaciones": {
+    "tests_web": {
+      "comando": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "--test-reporter=tap",
+        "tests/local-brain.test.ts",
+        "tests/metrics.test.mjs"
+      ],
+      "exit_code": 0,
+      "segundos": 0.25187962499990135,
+      "log": "tests_web.log"
+    },
+    "tests_bateria": {
+      "comando": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "segundos": 0.04629553700010547,
+      "log": "tests_bateria.log"
+    },
+    "typescript": {
+      "comando": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit_code": 0,
+      "segundos": 2.1955002380000224,
+      "log": "typescript.log"
+    },
+    "build_web": {
+      "comando": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit_code": 0,
+      "segundos": 3.3145995649999804,
+      "log": "build_web.log"
+    },
+    "benchmark_texto": {
+      "comando": [
+        "node",
+        "--import",
+        "tsx",
+        "scripts/benchmark_local.ts"
+      ],
+      "exit_code": 0,
+      "segundos": 0.12819481099995755,
+      "log": "benchmark_texto.log"
+    },
+    "metricas_fisicas": {
+      "comando": [
+        "node",
+        "scripts/calcular_metricas.mjs"
+      ],
+      "exit_code": 0,
+      "segundos": 0.052860513000041465,
+      "log": "metricas_fisicas.log"
+    },
+    "microgpt_assets": {
+      "comando": [
+        "python3",
+        "scripts/validate_leo_microgpt_assets.py"
+      ],
+      "exit_code": 1,
+      "segundos": 0.022737431999985347,
+      "log": "microgpt_assets.log"
+    },
+    "android_ai_core": {
+      "comando": [
+        "bash",
+        "scripts/test_ai_core.sh"
+      ],
+      "exit_code": 1,
+      "segundos": 0.8107903000000078,
+      "log": "android_ai_core.log"
+    },
+    "android_voice": {
+      "comando": [
+        "bash",
+        "scripts/test_voice_fidelity.sh"
+      ],
+      "exit_code": 1,
+      "segundos": 0.803804045999982,
+      "log": "android_voice.log"
+    }
+  },
+  "sha256_fuentes": {
+    "package-lock.json": "2a60b25ea826268820b752cf458ef3b8cfe552f966bfda76e79355b55e6ca7ed",
+    "package.json": "902f283748a9816223dfc857ab8a7cd2ef9b8440dca2fd47a5960c50b8a3acc8",
+    "scripts/TrainLeoIntents.kt": "ee4fdd90b3fddcf4c291203d5168bb0d3869d995e68e612d44138376cf89c1fb",
+    "scripts/benchmark_local.ts": "2f0b9cc7963738cbe0f9b7cc0bb06a1f30e9ba64cbc06a58a1703572c17bcd2b",
+    "scripts/bundle_voice_models.py": "66319ad77f068ad85ae71eb887ddb104f43950033e9da567320cecb6307a4055",
+    "scripts/calcular_metricas.mjs": "66bcf6d199de61172c1ea0a5c8cdf7b9fbf12153e7b81800676baa2848f21153",
+    "scripts/leo_microgpt_corpus.json": "32884984de2ac86977c1ff18877dfdb7bf10089d998d854349990cc56c7031c5",
+    "scripts/medir_bateria.py": "5c226ca132b22d2fb947b4d4d166b652b853fba38804773733c4ad17b9208aa9",
+    "scripts/medir_repo.py": "3bb200364686aa9b60aded1685d34ef391e0dea28940cb4a6b1e1e0ecb7d9f70",
+    "scripts/prepare_kws_native_test.py": "e1a32d8f5f2e338e06a5fb44b15f288274880a9d4f6453152ee65fe92acd50be",
+    "scripts/prepare_leo_robot.py": "9a4b1ac8f35f140b02a36b3927bd7c731b76dc7a5b06e25e0974cf0fb39281f2",
+    "scripts/test_ai_core.sh": "5af527c7ac99256167356401265e4fb022fd04920fb08baea88190e97892a4da",
+    "scripts/test_voice_fidelity.sh": "97597d138b38fda08c708e5689d42f56198dd79fcc784e4674ce888c9e3c1102",
+    "scripts/testsupport/LeoVoiceJvmStubs.kt": "5fc426c0d6a12b83b42b63675f923baa1b44dee57c6e0bfa360937b68cc58fb7",
+    "scripts/train_leo_intents.sh": "b258747f2d393628a6e7a9e26b224e47d58b5cc18e27183f70aaca9f6cdc1e6d",
+    "scripts/train_leo_microgpt.py": "252274923a7704cdfd3d92fd7549cd1f7a6a8ec2d44c273826288b67e7a5fb07",
+    "scripts/validate_leo_microgpt_assets.py": "be04dd0d980102589d46b7ee1219801e8012e6108c1266051aaaa09073cb12b6",
+    "scripts/validate_leo_robot.cjs": "7b09dbb09cb4125c6bb9baeb0f76354661502ef373be435bf60e26202e326675",
+    "src/App.tsx": "d8a8936baed65079fdac8f2f0186df6956726dfb8193c45f9320d6806aef3c46",
+    "src/components/AiSettingsModal.tsx": "e0d2f7ea910cdb9899fdf2bdbe705839fcf580578addba7cd653b3aad7e19421",
+    "src/components/ConversationGlass.tsx": "b91a37ee833da18e2fcaf0fbd82411030c27d71dde3a8a2cfee57b26d3707c21",
+    "src/components/EmbeddedAppsModal.tsx": "19e8a69c37469cfc8b31dbec2a3e3022856a096a18c75a9899c94fb4a72d0328",
+    "src/components/GoogleSearchModal.tsx": "2a6b0bca7fb053da507aabe2451f4f385c408ece26246af7bb8506791eb646c7",
+    "src/components/LeoFirstRunModal.tsx": "2c0b3d8ee47456cb0f86074cdcf98181a83b9eb6d182a6fe117083c4d908cca2",
+    "src/components/LeoRobot.tsx": "8b680eded479b77c2baeb9b084b777d64f63f7d1027c881def7025cb7f99eb04",
+    "src/components/LiveStateBadge.tsx": "9d35b55dfdc73b71df3636458b2dbdef01c24eb08897e7fb12abb7943f5a66da",
+    "src/components/NeuralWaveform.tsx": "f7fb9fd929177460ef5fdb4b68c528b3807fceae91601795497d8b73ec164273",
+    "src/components/NikoTopBar.tsx": "2c17be2adf5e00fce3a47781b78cce1bd0d0b1d3a040e336e04fb5c9d821cb9f",
+    "src/components/QuickActionsRail.tsx": "a6dac16d7ac566b7e86a7772638f355649e3bfe0520559ecf830c1a7a8adaf8b",
+    "src/components/SmartHomeModal.tsx": "90cf4d2810d8aad71774eeca3fa6d8c1ce91089e53d91af228e3073a52ea8567",
+    "src/components/VoiceDiagnosticsModal.tsx": "eda8d52135affba46d5b0bfe3a0957d6c3fe56cb07296c08d57b2bb93611f95c",
+    "src/components/WakeDock.tsx": "f2f3950b6f1dff6bdf9719bb7b158127e9f0ed451a9ec05756c11fa746cfd796",
+    "src/index.css": "3d3e70fcab7aa761b08652231e95545ceb8052fba2797e9f837ea35784601d2f",
+    "src/main.tsx": "d9e716d14b40a3558182b3865301c46e5eff2f1e45cec432fbce0bdef97afd70",
+    "src/services/localBrain.ts": "6ca2ef4184ea1b86764b55c1cd12a934faf25b84d7103f7332322e0f6129932b",
+    "src/services/memoryStore.ts": "03615660d9cc5473b50a7b969b7543c966b97bb7f497a8a0a9bd429b82831b91",
+    "src/services/voiceService.ts": "5a284314aa7f83a83224b4338fc987161914f121b2929830b620f317d8302d49",
+    "src/types.ts": "d1b5891c46403c1d02d47432cb6698abf3c7fc21bb30f6e36afc3d8c2269310b",
+    "tests/local-brain.test.ts": "e0309f89cd73ceb5bfe44c565f79161ac75d7e801d150337af2307d81bc5ce28",
+    "tests/metrics.test.mjs": "1bfb68736dad6b5b4bae15f03e1898feed7eb08896bdcabdde19a7c7a1f1e192",
+    "tests/test_battery.py": "a52cd67eab7418468f94dd505054247b6eda61f30374af8a898289c93b056c24"
+  },
+  "sha256_logs": {
+    "android_ai_core.log": "1c592124fc57c33adb54c7f622b04cde768aaa65d70e52ee0fa8232bef0268bb",
+    "android_voice.log": "abe67426aad91b783744294de770874bf0894f49b80ccbabfe7a6f98abb7f47e",
+    "benchmark_texto.log": "e83c6a82ea9a8e03fdbb3148a0288fb334f40d2f75d48ca579f7eec2b3510b48",
+    "build_web.log": "29188268705fd471b5a40c1d389480a17ff44b6e84c51ef72f54fc2a4181a81f",
+    "metricas_fisicas.log": "4dc8b05d8c931bc81b3514fca4b0cd1a228e9c64b55dcbf3920d708d76c6b1c4",
+    "microgpt_assets.log": "91de0179742ecc21b97ce55832540d62b94bdbcb59608d248c8bec2539643e40",
+    "tests_bateria.log": "03417a90e9b48a837043b4f673efc98993b25ac80b030844913e653f869aaa14",
+    "tests_web.log": "c4c7886c53a2e2f5bb733f1d9d05cd1239e68281034bd9d2eabc2adfa87c61d8",
+    "typescript.log": "e114d5bf95549c57425611d05577589190c7f956c320739871d4214ee5442fbe"
+  }
+}

@@ -53,3 +53,9 @@ Dentro de cada carpeta, guardar las capturas/videos/logs con nombres que incluya
 ## Estado actual
 
 La infraestructura de medición está preparada. Los campos permanecen como **PENDIENTE** hasta que las pruebas se ejecuten físicamente y se adjunte evidencia real.
+
+## Revisión ejecutada del 29 de septiembre
+
+Consultar [INFORME_EJECUTADO.md](INFORME_EJECUTADO.md) para pruebas de software ejecutadas, resultados, logs, hashes y límites. El código actual de main es web; las plantillas Android no prueban que exista una versión Android medible en esta rama.
+
+El CSV incluye `duracion_h`, obligatoria en M02, M08 y M09. Usar estado `MEDIDO` para datos observados y una ruta de evidencia relativa a esta carpeta. `npm run measure` devuelve JSON y termina con error si encuentra filas registradas inválidas. Una métrica medida no se considera automáticamente aprobada contra un umbral.
