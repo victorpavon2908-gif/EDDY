@@ -53,8 +53,11 @@ Repositorio: [victorpavon2908-gif/EDDY](https://github.com/victorpavon2908-gif/E
 - [docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md) — protocolo de validación física.
 - [docs/LEO_011_PHYSICAL_TEST_RESULTS.md](docs/LEO_011_PHYSICAL_TEST_RESULTS.md) — plantilla de resultados; estado **NO EJECUTADO**.
 - [docs/LEO_PHASE3_VOICE_VALIDATION.md](docs/LEO_PHASE3_VOICE_VALIDATION.md) — validación de voz y banco de 100 llamadas.
+- [evidencias/README.md](evidencias/README.md) — matriz de métricas cuantitativas y reglas para adjuntar evidencia por medición.
+- [evidencias/mediciones.csv](evidencias/mediciones.csv) — registro central de mediciones reales por intento.
+- [scripts/calcular_metricas.mjs](scripts/calcular_metricas.mjs) — cálculo reproducible de tasas, medianas, precisión, consumo e incidentes a partir del CSV.
 - [src/services/voiceService.ts](src/services/voiceService.ts) — reconocimiento, síntesis y diagnóstico de audio.
 - [src/services/localBrain.ts](src/services/localBrain.ts) — interpretación local de comandos.
 - [src/services/memoryStore.ts](src/services/memoryStore.ts) — configuración, memoria, historial y domótica.
 
-Los protocolos y el código documentan el proyecto; los resultados de las pruebas físicas permanecen **NO EJECUTADO** hasta registrar mediciones reales.
+El repositorio incluye ahora una estructura explícita de **métricas cuantitativas + evidencia por medición**. Los valores permanecen **NO EJECUTADO/PENDIENTE** hasta registrar observaciones reales; el proyecto no inventa resultados.
