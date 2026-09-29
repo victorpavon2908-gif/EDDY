@@ -140,3 +140,23 @@ Bloques fallidos: —
 Bloques bloqueados: —  
 Bloques pendientes: A, B, C, D, E, F1 y F2  
 Versión física certificada: **NO**
+
+
+## Trazabilidad de métricas y evidencias
+
+Los resultados de esta hoja deben salir del registro central [../evidencias/mediciones.csv](../evidencias/mediciones.csv). El cálculo reproducible está en [../scripts/calcular_metricas.mjs](../scripts/calcular_metricas.mjs).
+
+| ID | Medición | Resultado requerido | Evidencia que debe adjuntarse | Estado actual |
+| --- | --- | --- | --- | --- |
+| M01 | Activación de voz | TP, FN y porcentaje | captura/log + 100 intentos | PENDIENTE |
+| M02 | Falsos positivos | FP/h | captura del contador + duración | PENDIENTE |
+| M03 | Latencia | mediana en ms | captura/log | PENDIENTE |
+| M04 | Interrupción | mediana en ms | video/cronómetro | PENDIENTE |
+| M05 | Búsqueda | tiempo en s | video/captura | PENDIENTE |
+| M06 | Fuentes | % respaldadas | capturas y enlaces revisados | PENDIENTE |
+| M07 | WhatsApp | % casos correctos | captura del compositor, sin enviar | PENDIENTE |
+| M08 | Batería en reposo | puntos porcentuales | batería inicial/final | PENDIENTE |
+| M09 | Batería uso mixto | puntos porcentuales | batería inicial/final | PENDIENTE |
+| M10 | Estabilidad | número de incidentes | log/video/observación | PENDIENTE |
+
+**Criterio de validez:** una métrica no pasa a `APROBADO` o `FALLÓ` si no existe el valor medido y una referencia de evidencia asociada. Las observaciones cualitativas pueden complementar, pero no sustituir, la medición cuantitativa cuando la métrica es medible.
