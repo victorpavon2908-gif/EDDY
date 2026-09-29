@@ -44,3 +44,17 @@ Compañero personal inteligente con control por voz en español, robot 3D articu
   - Desarrollo: `npm run dev`
   - Construcción de producción: `npm run build`
   - Verificación de tipos: `npm run lint`
+
+## 12. Anexos — Evidencias técnicas
+
+Repositorio: [victorpavon2908-gif/EDDY](https://github.com/victorpavon2908-gif/EDDY).
+
+- [README.md](README.md) — descripción de LEO 0.11.0 y características.
+- [docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md) — protocolo de validación física.
+- [docs/LEO_011_PHYSICAL_TEST_RESULTS.md](docs/LEO_011_PHYSICAL_TEST_RESULTS.md) — plantilla de resultados; estado **NO EJECUTADO**.
+- [docs/LEO_PHASE3_VOICE_VALIDATION.md](docs/LEO_PHASE3_VOICE_VALIDATION.md) — validación de voz y banco de 100 llamadas.
+- [src/services/voiceService.ts](src/services/voiceService.ts) — reconocimiento, síntesis y diagnóstico de audio.
+- [src/services/localBrain.ts](src/services/localBrain.ts) — interpretación local de comandos.
+- [src/services/memoryStore.ts](src/services/memoryStore.ts) — configuración, memoria, historial y domótica.
+
+Los protocolos y el código documentan el proyecto; los resultados de las pruebas físicas permanecen **NO EJECUTADO** hasta registrar mediciones reales.
