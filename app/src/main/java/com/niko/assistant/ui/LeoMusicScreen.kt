@@ -23,7 +23,9 @@ import com.niko.assistant.ui.robot.RobotMotion
 import com.niko.assistant.ui.robot.RobotMotionBus
 import com.niko.assistant.voice.NikoTextToSpeech
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -39,43 +41,32 @@ internal fun LeoMusicScreen(onHome: () -> Unit) {
     val voice = remember { NikoTextToSpeech(context.applicationContext, onSpeakingChanged = { speaking = it; player.duck(it) }) }
     var party by rememberSaveable { mutableStateOf(true) }
     var query by rememberSaveable { mutableStateOf(prefs.getString("query", "").orEmpty()) }
-    var results by remember { mutableStateOf(emptyList<MusicResult>()) }
-    var searching by remember { mutableStateOf(false) }
-    var searchJob by remember { mutableStateOf<Job?>(null) }
+    val searches = remember(scope) { MusicSearchSession(scope) }
+    val searchState by searches.state.collectAsStateWithLifecycle()
     var message by remember { mutableStateOf("") }
-    var progress by remember { mutableFloatStateOf(0f) }
-    fun search() {
-        if (query.isBlank()) return
-        searchJob?.cancel()
-        val term = query.trim().take(200)
-        searchJob = scope.launch {
-            searching = true; message = ""
-            try {
-                results = MusicSearch.search(term)
-                if (results.isEmpty()) message = "No encontré vistas previas. Podés buscar en YouTube o Spotify."
-            } catch (error: Exception) {
-                if (error is CancellationException) throw error
-                message = "No pude buscar ahora. Revisá Internet o abrí uno de los servicios."
-            } finally { searching = false }
-        }
-    }
+    fun search() { message = ""; searches.submit(query) }
     fun openLink(url: String) {
         if (runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isFailure)
             message = "No hay una aplicación disponible para abrir este enlace."
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            val name = runCatching {
-                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-                    if (it.moveToFirst()) it.getString(0) else null
+            scope.launch {
+                val name = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                            if (it.moveToFirst()) it.getString(0) else null
+                        }
+                    }.getOrNull() ?: "Audio del teléfono"
                 }
-            }.getOrNull() ?: "Audio del teléfono"
-            player.load(uri, name)
+                // A slow document provider can return after the activity has stopped.
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) player.load(uri, name)
+            }
         }
     }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) { player.pause(); voice.stop(); RobotMotionBus.clear() }
+            if (event == Lifecycle.Event.ON_STOP) { player.pause(); voice.stop(); searches.cancel(); RobotMotionBus.clear() }
         }
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == "query") { query = prefs.getString("query", "").orEmpty(); search() }
@@ -85,7 +76,7 @@ internal fun LeoMusicScreen(onHome: () -> Unit) {
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
             lifecycle.removeObserver(observer)
-            player.close(); voice.shutdown(); RobotMotionBus.clear()
+            searches.cancel(); player.close(); voice.shutdown(); RobotMotionBus.clear()
         }
     }
     LaunchedEffect(Unit) { if (query.isNotBlank()) search() }
@@ -100,16 +91,12 @@ internal fun LeoMusicScreen(onHome: () -> Unit) {
             delay(7500L)
         }
     }
-    LaunchedEffect(playback.playing, playback.title) {
-        progress = player.progress()
-        while (playback.playing) { progress = player.progress(); delay(500L) }
-    }
     MediaShell("Música con LEO", onHome) {
         NikoHero(if (speaking) NikoVisualState.SPEAKING else NikoVisualState.IDLE,
             modifier = Modifier.fillMaxWidth().height(230.dp))
         Text(playback.title.ifBlank { "Elegí música para empezar" }, style = MaterialTheme.typography.titleLarge)
         if (playback.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        Slider(value = progress, onValueChange = { progress = it; player.seek(it) }, enabled = playback.title.isNotBlank() && !playback.loading)
+        MusicProgress(player, playback)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(enabled = playback.title.isNotBlank() && !playback.loading, onClick = { if (playback.playing) player.pause() else player.play() }) {
                 Text(if (playback.playing) "Pausar" else "Reproducir")
@@ -123,13 +110,14 @@ internal fun LeoMusicScreen(onHome: () -> Unit) {
         }
         Text("Las reacciones son animaciones y frases ocasionales; no analizan el ritmo del audio.")
         OutlinedTextField(value = query, onValueChange = { query = it.take(200) }, label = { Text("Canción o artista") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = { search() }, enabled = query.isNotBlank() && !searching) { Text(if (searching) "Buscando…" else "Buscar música") }
+        Button(onClick = { search() }, enabled = query.isNotBlank() && !searchState.loading) { Text(if (searchState.loading) "Buscando…" else "Buscar música") }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { openLink("https://www.youtube.com/results?search_query=" + Uri.encode(query)) }) { Text("YouTube") }
             TextButton(onClick = { openLink("https://open.spotify.com/search/" + Uri.encode(query)) }) { Text("Spotify") }
         }
         if (message.isNotBlank()) Text(message)
-        results.forEach { result ->
+        if (searchState.message.isNotBlank()) Text(searchState.message)
+        searchState.results.forEach { result ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
                     Text(result.title, style = MaterialTheme.typography.titleMedium)
@@ -144,4 +132,25 @@ internal fun LeoMusicScreen(onHome: () -> Unit) {
         }
         Text("Reproduce completos los archivos que elijás del teléfono. Los resultados de búsqueda son muestras; los servicios externos pueden requerir suscripción. La música se pausa al salir.")
     }
+}
+
+/** Only this small subtree ticks; the 3D hero and search list do not read the playhead. */
+@Composable
+private fun MusicProgress(player: LeoMusicPlayer, playback: LeoMusicPlayer.State) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var position by remember(player) { mutableFloatStateOf(0f) }
+    var dragging by remember(player) { mutableStateOf(false) }
+    LaunchedEffect(playback.playing, playback.title, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            position = player.progress()
+            while (playback.playing) {
+                if (!dragging) position = player.progress()
+                delay(500L)
+            }
+        }
+    }
+    Slider(value = position,
+        onValueChange = { dragging = true; position = it },
+        onValueChangeFinished = { player.seek(position); dragging = false },
+        enabled = playback.title.isNotBlank() && !playback.loading)
 }

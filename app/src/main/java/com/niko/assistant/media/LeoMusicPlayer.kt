@@ -22,14 +22,15 @@ class LeoMusicPlayer(private val context: Context) {
         .setOnAudioFocusChangeListener({ change ->
             when (change) {
                 AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> pause()
-                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> setVolume(0.2f)
-                AudioManager.AUDIOFOCUS_GAIN -> setVolume(if (ducked) 0.25f else 1f)
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> { focusDucked = true; updateVolume() }
+                AudioManager.AUDIOFOCUS_GAIN -> { focusDucked = false; updateVolume() }
             }
         }, Handler(Looper.getMainLooper())).build()
     private var player: MediaPlayer? = null
     private var prepared = false
     private var allowPlay = false
     private var ducked = false
+    private var focusDucked = false
 
     fun load(uri: Uri, title: String) {
         close()
@@ -68,7 +69,8 @@ class LeoMusicPlayer(private val context: Context) {
         }
         runCatching {
             player?.start()
-            setVolume(if (ducked) 0.25f else 1f)
+            focusDucked = false
+            updateVolume()
             mutable.value = mutable.value.copy(playing = true, error = "")
         }.onFailure { pause(); mutable.value = mutable.value.copy(error = "No pude iniciar el audio.") }
     }
@@ -85,10 +87,11 @@ class LeoMusicPlayer(private val context: Context) {
     }.getOrDefault(0f).coerceIn(0f, 1f)
 
     fun seek(fraction: Float) { if (prepared) runCatching { player?.seekTo(((player?.duration ?: 0) * fraction.coerceIn(0f, 1f)).toInt()) } }
-    fun duck(value: Boolean) { ducked = value; setVolume(if (value) 0.25f else 1f) }
+    fun duck(value: Boolean) { ducked = value; updateVolume() }
+    private fun updateVolume() { setVolume(if (focusDucked) 0.2f else if (ducked) 0.25f else 1f) }
     private fun setVolume(value: Float) { runCatching { player?.setVolume(value, value) } }
     fun close() {
-        allowPlay = false; prepared = false
+        allowPlay = false; prepared = false; focusDucked = false
         player?.release(); player = null
         manager.abandonAudioFocusRequest(focus)
         mutable.value = mutable.value.copy(playing = false, loading = false)

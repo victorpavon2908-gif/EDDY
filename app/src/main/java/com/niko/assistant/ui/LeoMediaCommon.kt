@@ -21,6 +21,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.niko.assistant.media.MediaFiles
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun MediaShell(title: String, onHome: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
@@ -80,8 +82,9 @@ internal fun SavedMedia(file: File) {
 @Composable
 internal fun LeoToolbox(onHome: () -> Unit) {
     val context = LocalContext.current
-    val files = remember { MediaFiles.directory(context).listFiles().orEmpty().filter { it.isFile && it.length() > 0 }
-        .sortedByDescending { it.lastModified() }.take(30) }
+    val files by produceState<List<File>?>(initialValue = null, context) {
+        value = withContext(Dispatchers.IO) { runCatching { MediaFiles.recent(MediaFiles.directory(context)) }.getOrDefault(emptyList()) }
+    }
     MediaShell("¿En qué me convierto?", onHome) {
         Text("Elegí una forma o decí «LEO, conviértete en una cámara».")
         NikoUiMode.entries.filter { it !in setOf(NikoUiMode.ASSISTANT, NikoUiMode.TOOLBOX) }.forEach { mode ->
@@ -89,7 +92,8 @@ internal fun LeoToolbox(onHome: () -> Unit) {
         }
         Text("Capturas recientes", style = MaterialTheme.typography.titleLarge)
         Text("Se guardan en este teléfono. Exportalas antes de desinstalar EDDY.")
-        files.forEach { SavedMedia(it) }
-        if (files.isEmpty()) Text("Todavía no hay capturas.")
+        if (files == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+        files?.forEach { SavedMedia(it) }
+        if (files?.isEmpty() == true) Text("Todavía no hay capturas.")
     }
 }

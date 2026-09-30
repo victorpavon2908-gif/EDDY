@@ -1,4 +1,4 @@
-# EDDY · Android 0.13.0
+# EDDY · Android 0.13.1
 
 Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
@@ -74,3 +74,13 @@ Botón **Transformarme** y órdenes como «LEO, conviértete en una cámara» ab
 - Órdenes locales de transformación antes de la búsqueda web.
 
 Ver [funcionamiento, límites y comprobaciones en teléfono](docs/POLYMORPHIC_TOOLS.md). La música de los resultados es una vista previa; las reacciones son programadas. Las nuevas funciones todavía requieren validación física.
+
+## Rendimiento y estabilidad 0.13.1
+
+- Capturas recientes: lectura fuera del hilo de interfaz y selección de las 30 más recientes sin ordenar toda la carpeta ni consultar fechas repetidamente.
+- El indicador de reproducción actualiza únicamente su propio componente; no vuelve a componer la pantalla y el robot cada 500 ms. Arrastrar el control realiza un solo salto al soltarlo.
+- Búsquedas cancelables: cierre de conexión, dos trabajadores y cola limitada. Una respuesta anterior no reemplaza resultados ni el estado de carga de una nueva petición. Salir de Música cancela la búsqueda.
+- Lectura del nombre de archivos de proveedores externos fuera del hilo de interfaz. No se inicia reproducción si el proveedor responde después de salir de la pantalla.
+- El fin de una frase de LEO no restaura el volumen por encima de la reducción solicitada por Android.
+
+Pruebas de regresión para cancelación de conexión bloqueada, búsquedas superpuestas, salida de pantalla y selección de archivos. Son correcciones verificables de código; aún no hay mediciones de latencia, FPS o batería en teléfono.
