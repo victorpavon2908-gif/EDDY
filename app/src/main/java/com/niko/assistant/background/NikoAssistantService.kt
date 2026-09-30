@@ -90,6 +90,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import com.niko.assistant.voice.VoiceControl
+import com.niko.assistant.voice.LeoVoiceDiagnostics
 import com.niko.assistant.voice.LeoRealtimeTurnBus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
