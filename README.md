@@ -1,4 +1,4 @@
-# EDDY · Android 0.12.0
+# EDDY · Android 0.12.1
 
 Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
@@ -41,3 +41,15 @@ El código React se conserva para no perder trabajo previo; sus pruebas no equiv
 - [Métricas y evidencia](evidencias/README.md)
 - [Protocolo físico](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md)
 - [Registro de mediciones](evidencias/mediciones.csv)
+
+## Voz progresiva 0.12.1
+
+La conversación por Groq recibe texto por streaming y lo reproduce por frases mientras llega el resto. Usa la clave y el modelo ya configurados, sin nuevos proveedores ni envío del audio. La escucha/transcripción y la síntesis siguen siendo las locales existentes; no es una copia del modelo de voz de ChatGPT ni audio-a-audio nativo.
+
+- Cola ordenada de frases, cancelación de red y audio al interrumpir y sin repetir la respuesta completa al finalizar.
+- Actualización visual en memoria, limitada a una cada 80 ms; solo se guarda el resultado final.
+- Si la conexión falla tras comenzar, se informa la interrupción sin iniciar otra respuesta encima. Antes del primer texto se mantienen las alternativas de modelo autorizadas por el cliente.
+- Búsqueda con fuentes y órdenes del teléfono conservan sus rutas; la investigación no se lee parcialmente antes de validar las fuentes.
+- Diagnóstico: **Orden → primer texto** y **Orden → primer sonido**. Estos tiempos empiezan tras aceptar la transcripción, no incluyen ASR. No hay valores medidos en teléfono todavía.
+
+Implementación basada en el [protocolo público de streaming de Groq](https://console.groq.com/docs/text-chat). Ver [pruebas y límites](docs/VOICE_STREAMING.md).

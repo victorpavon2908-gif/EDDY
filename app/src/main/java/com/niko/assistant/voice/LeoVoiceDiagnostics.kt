@@ -20,6 +20,8 @@ object LeoVoiceDiagnostics {
         val transcriptionLatencyMs: Long = 0L,
         val speechEngine: String = "Sin salida de voz",
         val speechStartLatencyMs: Long = 0L,
+        val responseFirstTextMs: Long = -1L,
+        val responseFirstAudioMs: Long = -1L,
         val ownerScore: Float = 0f,
         val ownerAccepted: Boolean = false,
         val ownerProfileEnabled: Boolean = false,
@@ -53,6 +55,9 @@ object LeoVoiceDiagnostics {
     @Volatile private var speechRequestElapsed = 0L
     @Volatile private var speechStartLatencyMs = 0L
     @Volatile private var speechEngine = "Sin salida de voz"
+    private var responseStartedAt = 0L
+    private var responseFirstTextMs = -1L
+    private var responseFirstAudioMs = -1L
     @Volatile private var ownerScore = 0f
     @Volatile private var ownerAccepted = false
     @Volatile private var ownerProfileEnabled = false
@@ -137,6 +142,21 @@ object LeoVoiceDiagnostics {
         transcriptionLatencyMs = latencyMs.coerceAtLeast(0L)
     }
 
+    /** Starts when a final user command is accepted; excludes ASR time. */
+    fun recordResponseStarted() = synchronized(lock) {
+        responseStartedAt = elapsedNow()
+        responseFirstTextMs = -1L
+        responseFirstAudioMs = -1L
+    }
+
+    fun recordResponseText() = synchronized(lock) {
+        if (responseStartedAt > 0L && responseFirstTextMs < 0L) {
+            responseFirstTextMs = (elapsedNow() - responseStartedAt).coerceAtLeast(0L)
+        }
+    }
+
+    fun cancelResponseTiming() = synchronized(lock) { responseStartedAt = 0L }
+
     /** Called when the assistant has a final response and hands it to a TTS backend. */
     fun recordSpeechRequested(engine: String) {
         synchronized(lock) {
@@ -150,6 +170,9 @@ object LeoVoiceDiagnostics {
     fun recordSpeechStarted(engine: String) {
         synchronized(lock) {
             val now = elapsedNow()
+            if (responseStartedAt > 0L && responseFirstAudioMs < 0L) {
+                responseFirstAudioMs = (now - responseStartedAt).coerceAtLeast(0L)
+            }
             if (speechRequestElapsed > 0L) {
                 speechStartLatencyMs = (now - speechRequestElapsed).coerceAtLeast(0L)
             }
@@ -265,6 +288,8 @@ object LeoVoiceDiagnostics {
             transcriptionLatencyMs = transcriptionLatencyMs,
             speechEngine = speechEngine,
             speechStartLatencyMs = speechStartLatencyMs,
+            responseFirstTextMs = responseFirstTextMs,
+            responseFirstAudioMs = responseFirstAudioMs,
             ownerScore = ownerScore,
             ownerAccepted = ownerAccepted,
             ownerProfileEnabled = ownerProfileEnabled,

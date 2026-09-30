@@ -30,7 +30,7 @@ class NikoGroqClient(context: Context) {
         }
     }
 
-    suspend fun reply(message: String, memoryContext: String, useWeb: Boolean = false, history: List<ConversationTurn> = emptyList()): NikoAiReply? {
+    suspend fun reply(message: String, memoryContext: String, useWeb: Boolean = false, history: List<ConversationTurn> = emptyList(), onDelta: (suspend (String) -> Unit)? = null): NikoAiReply? {
         localError = null
         if (message.isBlank()) { localError = "El mensaje está vacío."; return null }
         if (AutonomousResearch.offlineOnly(message)) { localError = "Este pedido se mantiene sin Internet."; return null }
@@ -40,6 +40,10 @@ class NikoGroqClient(context: Context) {
         if (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) != true) {
             localError = "Sin conexión a Internet. Las funciones locales siguen disponibles."; return null
         }
+        if (!useWeb && onDelta != null) return gateway.executeStreaming(
+            GroqConversation.payload(message, memoryContext, history, false, NikoAiSettings.personality(appContext)),
+            NikoAiSettings.apiKey(appContext), NikoAiSettings.model(appContext), GroqHttpClient(), onDelta,
+        )
         return gateway.execute(
             GroqConversation.payload(message, memoryContext, history, useWeb, NikoAiSettings.personality(appContext)),
             NikoAiSettings.apiKey(appContext), NikoAiSettings.model(appContext), useWeb,

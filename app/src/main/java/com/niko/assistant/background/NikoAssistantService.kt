@@ -72,6 +72,7 @@ import com.niko.assistant.voice.NikoNeuralTextToSpeech
 import com.niko.assistant.voice.NikoTextToSpeech
 import com.niko.assistant.voice.VoiceRecoveryPolicy
 import com.niko.assistant.voice.SpeechOutputPolicy
+import com.niko.assistant.voice.ProgressiveSpeech
 import com.niko.assistant.voice.SpeechProsody
 import java.io.File
 import java.text.SimpleDateFormat
@@ -136,6 +137,7 @@ open class NikoAssistantService : Service() {
     private var localVoiceEpoch = 0
     private var isTranscribing = false
     private var commandJob: Job? = null
+    private var progressiveSpeech: ProgressiveSpeech? = null
     private var turnEpoch = 0L
     private val turnInterrupter: () -> Unit = { serviceScope.launch { interruptCurrentTurn() }; Unit }
     private var speechTimeout: Job? = null
@@ -245,6 +247,9 @@ open class NikoAssistantService : Service() {
         destroyed = true
         ++turnEpoch
         LeoRealtimeTurnBus.unregisterTurnInterrupter(turnInterrupter)
+        LeoVoiceDiagnostics.cancelResponseTiming()
+        progressiveSpeech?.cancel()
+        progressiveSpeech = null
         commandJob?.cancel()
         speechTimeout?.cancel()
         recoveryJob?.cancel()
@@ -432,6 +437,9 @@ open class NikoAssistantService : Service() {
         if (destroyed) return
         ++turnEpoch
         RobotMotionBus.clear()
+        LeoVoiceDiagnostics.cancelResponseTiming()
+        progressiveSpeech?.cancel()
+        progressiveSpeech = null
         commandJob?.cancel()
         commandJob = null
         speechTimeout?.cancel()
@@ -468,6 +476,7 @@ open class NikoAssistantService : Service() {
         }
         if (isSpeaking || isThinking || commandJob?.isActive == true) return
         val epoch = ++turnEpoch
+        LeoVoiceDiagnostics.recordResponseStarted()
         isListening = false
         isThinking = true
         NikoRuntimeState.setResponse(applicationContext, "Procesando tu petición…")
@@ -482,7 +491,12 @@ open class NikoAssistantService : Service() {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                if (epoch == turnEpoch) speakResponse("No pude completar eso. Volvé a llamarme y lo intentamos.")
+                if (epoch == turnEpoch) {
+                    progressiveSpeech?.cancel()
+                    progressiveSpeech = null
+                    LeoRealtimeTurnBus.interruptSpeech()
+                    speakResponse("No pude completar eso. Volvé a llamarme y lo intentamos.")
+                }
             } finally {
                 if (epoch == turnEpoch && !destroyed) {
                     isThinking = false
@@ -599,6 +613,8 @@ open class NikoAssistantService : Service() {
             val prediction = predictIntent(text)
             val remoteContext = withContext(Dispatchers.IO) { memory.contextForAi(false, text) }
             val history = memory.historyForAi(text)
+            val streamedText = StringBuilder()
+            var lastPreviewAt = 0L
             val answer = ConversationCoordinator.reply(
                 message = text,
                 localFirst = NikoAiSettings.localFirst(applicationContext),
@@ -610,7 +626,21 @@ open class NikoAssistantService : Service() {
                 },
                 cloud = { requireSources ->
                     if (requireSources) researchReply(text)
-                    else if (webClient.isConfigured) webClient.reply(text, remoteContext, false, history)
+                    else if (webClient.isConfigured) webClient.reply(text, remoteContext, false, history) { delta ->
+                        currentCoroutineContext().ensureActive()
+                        if (!destroyed) {
+                            val queue = progressiveSpeech ?: ProgressiveSpeech().also { progressiveSpeech = it }
+                            if (delta.isNotBlank()) LeoVoiceDiagnostics.recordResponseText()
+                            streamedText.append(delta)
+                            val now = SystemClock.elapsedRealtime()
+                            if (lastPreviewAt == 0L || now - lastPreviewAt >= 80L) {
+                                NikoRuntimeState.previewResponse(streamedText.toString())
+                                lastPreviewAt = now
+                            }
+                            queue.append(delta)
+                            if (!isSpeaking) playNextProgressivePhrase()
+                        }
+                    }
                     else null
                 },
                 fallback = { withContext(Dispatchers.IO) {
@@ -626,7 +656,12 @@ open class NikoAssistantService : Service() {
                 val plan = codeAgent.analyze(text)
                 codeAgent.registerNativeProposal(plan.capability, "${plan.strategy}: ${plan.explanation}", answer.text, com.niko.assistant.BuildConfig.VERSION_NAME)
             }
-            speakResearchResponse(text, answer)
+            if (progressiveSpeech != null) {
+                progressiveSpeech?.finish()
+                NikoRuntimeState.setAiResponse(applicationContext, answer.text, answer.webUsed, answer.sources)
+                if (!isSpeaking) playNextProgressivePhrase()
+                withContext(Dispatchers.IO) { memory.rememberAssistantTurn(answer.text) }
+            } else speakResearchResponse(text, answer)
             return
         }
         learnIntent(
@@ -801,6 +836,7 @@ open class NikoAssistantService : Service() {
 
     private suspend fun speakResearchResponse(question: String, reply: NikoAiReply) {
         currentCoroutineContext().ensureActive()
+        LeoVoiceDiagnostics.recordResponseText()
         val finalText = reply.text
         val evidenceNote = if (reply.webUsed) AutonomousResearch.evidenceNote(reply.sources.map { it.url }) else ""
         val displayed = if (evidenceNote.isBlank()) finalText else "$finalText\n\n$evidenceNote"
@@ -811,6 +847,7 @@ open class NikoAssistantService : Service() {
 
     private suspend fun speakResponse(text: String) {
         currentCoroutineContext().ensureActive()
+        LeoVoiceDiagnostics.recordResponseText()
         NikoRuntimeState.setResponse(applicationContext, text)
         speakOnly(text)
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }
@@ -852,10 +889,19 @@ open class NikoAssistantService : Service() {
         if (queued) NikoRuntimeState.setVoiceReady(applicationContext, true)
         else { NikoRuntimeState.setVoiceReady(applicationContext, false); onSpeakingChanged(false) }
     }
+    private fun playNextProgressivePhrase(): Boolean {
+        val queue = progressiveSpeech ?: return false
+        val phrase = queue.poll()
+        if (phrase != null) { speakOnly(phrase); return true }
+        if (queue.isDrained) progressiveSpeech = null
+        return false
+    }
+
     private fun onSpeakingChanged(speaking: Boolean) {
         serviceScope.launch {
             if (destroyed || (!speaking && !isSpeaking)) return@launch
             isSpeaking = speaking
+            if (!speaking && playNextProgressivePhrase()) return@launch
             if (localVoiceActive) localVoice?.setAssistantSpeaking(speaking, continueAfterSpeech)
             if (!speaking) {
                 speechTimeout?.cancel()

@@ -197,6 +197,13 @@ object NikoRuntimeState {
         _stateFlow.value = _stateFlow.value.copy(heardText = value)
     }
 
+    /** Token previews stay in memory. Persist the completed answer once, not every token. */
+    fun previewResponse(value: String) {
+        _stateFlow.value = _stateFlow.value.copy(
+            responseText = LeoBrand.publicText(value), webUsed = false, webSources = emptyList(),
+        )
+    }
+
     fun setResponse(context: Context, value: String) {
         val publicValue = LeoBrand.publicText(value)
         edit(context) {

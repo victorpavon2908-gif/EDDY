@@ -78,6 +78,8 @@ fun LeoVoiceDiagnosticsScreen(onHome: () -> Unit) {
             MetricLine("SNR instantáneo", "${snapshot.snrDb.oneDecimal()} dB")
             MetricLine("Latencia wake", if (snapshot.wakeLatencyMs > 0) "${snapshot.wakeLatencyMs} ms" else "Sin muestra")
             MetricLine("Motor ASR", snapshot.transcriptionEngine)
+            MetricLine("Orden → primer texto", if (snapshot.responseFirstTextMs >= 0) "${snapshot.responseFirstTextMs} ms" else "Sin muestra")
+            MetricLine("Orden → primer sonido", if (snapshot.responseFirstAudioMs >= 0) "${snapshot.responseFirstAudioMs} ms" else "Sin muestra")
             MetricLine("Latencia ASR", if (snapshot.transcriptionLatencyMs > 0) "${snapshot.transcriptionLatencyMs} ms" else "Sin muestra")
             MetricLine("Motor TTS", snapshot.speechEngine)
             MetricLine("Respuesta → primer sonido", if (snapshot.speechStartLatencyMs > 0) "${snapshot.speechStartLatencyMs} ms" else "Sin muestra")

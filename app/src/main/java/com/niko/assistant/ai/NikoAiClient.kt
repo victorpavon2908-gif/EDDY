@@ -40,6 +40,7 @@ class NikoAiClient(
         memoryContext: String,
         forceWeb: Boolean = false,
         history: List<ConversationTurn> = emptyList(),
+        onDelta: (suspend (String) -> Unit)? = null,
     ): NikoAiReply? {
         if (AutonomousResearch.offlineOnly(message)) return null
 
@@ -74,10 +75,10 @@ class NikoAiClient(
         // return null so the coordinator can stay local/fallback without blocking search.
         if (!groq.isConfigured) return null
         nativeLastError = null
-        val allowGroqWeb = NikoAiSettings.autoResearch(appContext) &&
+        val allowGroqWeb = onDelta == null && NikoAiSettings.autoResearch(appContext) &&
             AutonomousResearch.allowedFor(message) &&
             !WebQueryRouter.needsCurrentInformation(message)
-        val reply = groq.reply(message, memoryContext, useWeb = allowGroqWeb, history = history)
+        val reply = groq.reply(message, memoryContext, useWeb = allowGroqWeb, history = history, onDelta = onDelta)
         if (reply != null && reply.webUsed && reply.sources.isNotEmpty()) {
             val subject = WebQueryRouter.explicitQuery(message) ?: message
             runCatching { knowledge.learn(subject, reply) }

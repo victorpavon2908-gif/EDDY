@@ -16,6 +16,44 @@ class GroqGateway(private val budgetMs: Long = 18_000L, private val transport: G
     var lastModelUsed: String? = null
         private set
 
+    /** Retry only before any public text is emitted. Never restart an already spoken answer. */
+    suspend fun executeStreaming(
+        payload: JSONObject,
+        apiKey: String,
+        configuredModel: String,
+        streaming: GroqStreamTransport,
+        onDelta: suspend (String) -> Unit,
+    ): NikoAiReply? {
+        lastError = null
+        lastModelUsed = null
+        if (apiKey.isBlank() || apiKey.any { it.isWhitespace() || it.isISOControl() } || !GroqProtocol.isChatModel(configuredModel)) {
+            lastError = "Revisá la clave y el modelo de conversación en Ajustes."
+            return null
+        }
+        val text = StringBuilder()
+        val outcome = withTimeoutOrNull(budgetMs) {
+            for (model in GroqProtocol.models(configuredModel, false)) {
+                val request = GroqConversation.forModel(payload, model, false).put("stream", true)
+                val result = streaming.stream(apiKey, request) { delta ->
+                    text.append(delta)
+                    lastModelUsed = model
+                    onDelta(delta)
+                }
+                if (result.completed && text.isNotBlank()) return@withTimeoutOrNull true
+                lastError = GroqProtocol.describeError(result.code, result.body)
+                if (text.isNotEmpty() || !GroqProtocol.canFallback(result.code, result.body)) break
+            }
+            false
+        }
+        if (outcome == true) { lastError = null; return NikoAiReply(text.toString().trim(), false, emptyList()) }
+        if (outcome == null || text.isNotBlank()) lastError = "La respuesta se interrumpió. Revisá la conexión o volvé a intentarlo."
+        if (text.isBlank()) return null
+        val notice = " La respuesta se interrumpió; pedime que lo intente de nuevo."
+        text.append(notice)
+        onDelta(notice)
+        return NikoAiReply(text.toString().trim(), false, emptyList())
+    }
+
     suspend fun execute(payload: JSONObject, apiKey: String, configuredModel: String, useWeb: Boolean): NikoAiReply? {
         lastError = null
         lastModelUsed = null
