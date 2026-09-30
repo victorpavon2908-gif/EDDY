@@ -240,8 +240,12 @@ class NikoLocalVoiceEngine(
             initVad()
             initDenoiser()
             initSpanishAsr()
-            initWhisperAsrSoft()
-            initSpeakerIdSoft()
+            // Whisper y speaker-id son módulos opcionales y relativamente pesados.
+            // En teléfonos LITE no deben cargarse al activar "Escuchar LEO": cargar todos
+            // los runtimes ONNX de una vez puede provocar presión de memoria y matar el proceso.
+            // Se cargan solo cuando realmente hacen falta.
+            if (profile.tier != NikoDeviceProfile.Tier.LITE) initWhisperAsrSoft()
+            if (ownerVoice.ownerOnly || ownerVoice.enrollmentActive) initSpeakerIdSoft()
             true
         } catch (failure: StageFailure) {
             releaseModels()
@@ -799,9 +803,16 @@ class NikoLocalVoiceEngine(
 
     private fun transcribe(samples: FloatArray): FaithfulSpeechTranscriber.Result {
         val canary = checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." }
-        val alternate: ((FloatArray) -> String)? = whisperRecognizer?.let { whisper ->
-            { audio -> transcribeWith(whisper, audio) }
-        }
+        val alternate: ((FloatArray) -> String)? = if (models.isInstalled(NikoModelCatalog.whisperAsr)) {
+            { audio ->
+                val whisper = whisperRecognizer ?: run {
+                    // Carga diferida: evita pagar el costo de Whisper al encender la escucha.
+                    initWhisperAsrSoft()
+                    whisperRecognizer
+                }
+                whisper?.let { transcribeWith(it, audio) }.orEmpty()
+            }
+        } else null
         return FaithfulSpeechTranscriber(
             primaryDecoder = { transcribeWith(canary, it) },
             alternateDecoder = alternate,
@@ -821,7 +832,7 @@ class NikoLocalVoiceEngine(
     }
 
     private fun realtimeAsrThreads(): Int = minOf(
-        profile.inferenceThreads.coerceAtLeast(2),
+        profile.inferenceThreads.coerceAtLeast(1),
         profile.cpuCores.coerceAtLeast(1),
         4,
     )
