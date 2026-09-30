@@ -24,6 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -201,9 +204,28 @@ private fun NotesApp(onHome: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(UpgradeIdentity.notesPreferences, Context.MODE_PRIVATE) }
     var note by rememberSaveable { mutableStateOf(prefs.getString("quick_note", "").orEmpty()) }
+    var savedNote by remember { mutableStateOf(prefs.getString("quick_note", "").orEmpty()) }
+    val latestNote by rememberUpdatedState(note)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    fun saveNote(value: String) {
+        prefs.edit().putString("quick_note", value).apply()
+        savedNote = value
+    }
+    LaunchedEffect(note) {
+        if (note != savedNote) { delay(500L); saveNote(note) }
+    }
+    DisposableEffect(lifecycle, prefs) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) saveNote(latestNote)
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer); saveNote(latestNote) }
+    }
     AppShell("Notas", onHome) {
-        OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Nota rápida") }, modifier = Modifier.fillMaxWidth().height(320.dp))
-        Button(onClick = { prefs.edit().putString("quick_note", note).apply() }, modifier = Modifier.fillMaxWidth()) { Text("Guardar en LEO") }
+        OutlinedTextField(value = note, onValueChange = { note = it.take(20_000) }, label = { Text("Nota rápida") }, modifier = Modifier.fillMaxWidth().height(320.dp))
+        Text(if (note == savedNote) "Guardado en este teléfono" else "Guardando…", style = MaterialTheme.typography.bodySmall)
+        Text("${note.length} / 20000 caracteres", style = MaterialTheme.typography.bodySmall)
+        Button(onClick = { saveNote(note) }, modifier = Modifier.fillMaxWidth()) { Text("Guardar ahora") }
     }
 }
 
@@ -211,21 +233,21 @@ private fun NotesApp(onHome: () -> Unit) {
 private fun ConverterApp(onHome: () -> Unit) {
     var input by rememberSaveable { mutableStateOf("1") }
     var mode by rememberSaveable { mutableStateOf("km-mi") }
-    val value = input.toDoubleOrNull() ?: 0.0
-    val output = when (mode) {
-        "km-mi" -> value * 0.621371
-        "mi-km" -> value / 0.621371
-        "c-f" -> value * 9.0 / 5.0 + 32.0
-        else -> (value - 32.0) * 5.0 / 9.0
-    }
+    val value = input.replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
+    val output = value?.let { number -> when (mode) {
+        "km-mi" -> number * 0.621371
+        "mi-km" -> number / 0.621371
+        "c-f" -> number * 9.0 / 5.0 + 32.0
+        else -> (number - 32.0) * 5.0 / 9.0
+    } }?.takeIf { it.isFinite() }
     AppShell("Conversor", onHome) {
-        OutlinedTextField(value = input, onValueChange = { input = it.filter { ch -> ch.isDigit() || ch == '.' || ch == '-' } }, label = { Text("Valor") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = input, onValueChange = { input = it.take(40).filter { ch -> ch.isDigit() || ch == '.' || ch == ',' || ch == '-' } }, label = { Text("Valor") }, isError = input.isNotBlank() && output == null, supportingText = { if (input.isNotBlank() && output == null) Text("Escribí un número válido") }, modifier = Modifier.fillMaxWidth())
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("km-mi" to "km → mi", "mi-km" to "mi → km", "c-f" to "°C → °F", "f-c" to "°F → °C").forEach { (id, label) ->
                 OutlinedButton(onClick = { mode = id }, modifier = Modifier.fillMaxWidth()) { Text(label) }
             }
         }
-        Card(modifier = Modifier.fillMaxWidth()) { Text("%.3f".format(output), modifier = Modifier.padding(22.dp), style = MaterialTheme.typography.displaySmall) }
+        Card(modifier = Modifier.fillMaxWidth()) { Text(output?.let { "%.3f".format(it) } ?: "—", modifier = Modifier.padding(22.dp), style = MaterialTheme.typography.displaySmall) }
     }
 }
 

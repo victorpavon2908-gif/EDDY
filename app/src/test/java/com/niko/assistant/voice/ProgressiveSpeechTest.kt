@@ -28,6 +28,28 @@ class ProgressiveSpeechTest {
         assertNotNull(speech.poll())
         assertFalse(speech.isDrained)
     }
+    @Test fun largeSingleDeltaProducesBoundedOrderedPhrases() {
+        val speech = ProgressiveSpeech()
+        val text = "palabra ".repeat(700).trim() + "."
+        speech.append(text)
+        speech.finish()
+        val phrases = generateSequence { speech.poll() }.toList()
+        assertTrue(phrases.size > 10)
+        assertTrue(phrases.all { it.length <= 240 })
+        assertEquals(text, phrases.joinToString(" "))
+    }
+    @Test fun hugeTokenCannotBlockFirstAudioOrSplitEmoji() {
+        val speech = ProgressiveSpeech()
+        val text = "x".repeat(239) + "😀" + "y".repeat(500)
+        speech.append(text)
+        val first = speech.poll()
+        assertNotNull(first)
+        speech.finish()
+        val rest = generateSequence { speech.poll() }.toList()
+        assertEquals(text, first + rest.joinToString(""))
+        assertFalse(first!!.last().isHighSurrogate())
+        assertTrue(rest.all { it.length <= 240 })
+    }
     @Test fun cancelDiscardsPendingAndLateTokens() {
         val speech = ProgressiveSpeech()
         speech.append("Primera oración. Segunda oración incompleta")

@@ -37,7 +37,7 @@ class ProgressiveSpeech {
             val target = if (first) 100 else 220
             var end = -1
             // Wait for the next character, so a decimal or token-fragment is never mistaken for a sentence.
-            for (i in 1 until text.length - 1) {
+            for (i in 1 until minOf(text.length - 1, target)) {
                 if (text[i] in ".!?;:" && text[i + 1].isWhitespace()) {
                     val word = text.substring(0, i).substringAfterLast(' ').lowercase()
                     if (text[i] == '.' && (word in setOf("sr", "sra", "dr", "dra", "ud", "uds", "ej") || word.length == 1)) continue
@@ -46,7 +46,13 @@ class ProgressiveSpeech {
                 }
             }
             if (end < 0 && text.length >= target) {
-                end = text.indexOfLast { it.isWhitespace() }.takeIf { it >= target / 2 } ?: -1
+                // A provider can deliver a whole paragraph in one delta. Never pass it all
+                // to synthesis just because its last whitespace is far beyond the target.
+                end = text.take(target).indexOfLast { it.isWhitespace() }.takeIf { it > 0 } ?: -1
+                if (end < 0 && text.length >= 240) {
+                    end = 240
+                    if (text[end - 1].isHighSurrogate()) end--
+                }
             }
             if (end < 0) {
                 if (!final) return

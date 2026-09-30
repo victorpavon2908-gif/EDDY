@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -246,10 +247,8 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // Seed in-memory StateFlow from disk on first render (no polling; single read).
-        val snapshot by NikoRuntimeState.stateFlow.collectAsStateWithLifecycle(
-            initialValue = NikoRuntimeState.read(applicationContext)
-        )
+        // StateFlow already has a current value; do not reread preferences on each streamed token.
+        val snapshot by NikoRuntimeState.stateFlow.collectAsStateWithLifecycle()
         var enabled by remember { mutableStateOf(assistantEnabled()) }
         var uiMode by remember { mutableStateOf(NikoUiModeStore.read(applicationContext)) }
         LaunchedEffect(Unit) { NikoRuntimeState.init(applicationContext) }
@@ -272,42 +271,45 @@ class MainActivity : ComponentActivity() {
         BackHandler(enabled = uiMode != NikoUiMode.ASSISTANT) {
             NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT)
         }
+        val toolState = rememberSaveableStateHolder()
         Crossfade(targetState = uiMode, label = "leo-transform") { mode ->
-            if (mode == NikoUiMode.ASSISTANT) {
-                val visualState = when (snapshot.state) {
-                    NikoRuntimeState.State.IDLE -> NikoVisualState.IDLE
-                    NikoRuntimeState.State.LISTENING -> NikoVisualState.LISTENING
-                    NikoRuntimeState.State.THINKING -> NikoVisualState.THINKING
-                    NikoRuntimeState.State.SPEAKING -> NikoVisualState.SPEAKING
+            toolState.SaveableStateProvider(mode.id) {
+                if (mode == NikoUiMode.ASSISTANT) {
+                    val visualState = when (snapshot.state) {
+                        NikoRuntimeState.State.IDLE -> NikoVisualState.IDLE
+                        NikoRuntimeState.State.LISTENING -> NikoVisualState.LISTENING
+                        NikoRuntimeState.State.THINKING -> NikoVisualState.THINKING
+                        NikoRuntimeState.State.SPEAKING -> NikoVisualState.SPEAKING
+                    }
+                    Box {
+                        NikoReferenceScreen(
+                            visualState = visualState,
+                            heardText = snapshot.heardText,
+                            responseText = snapshot.responseText,
+                            voiceReady = snapshot.voiceReady,
+                            autoListeningEnabled = enabled,
+                            inputStatus = snapshot.inputStatus,
+                            inputState = snapshot.inputState,
+                            webSearching = snapshot.webSearching,
+                            webUsed = snapshot.webUsed,
+                            webSources = snapshot.webSources,
+                        )
+                        LeoBrainStatusOverlay(
+                            state = snapshot.brainState,
+                            progress = snapshot.brainProgress,
+                            status = snapshot.brainStatus,
+                            downloadedBytes = snapshot.brainDownloadedBytes,
+                            totalBytes = snapshot.brainTotalBytes,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .statusBarsPadding()
+                                .padding(top = 60.dp, start = 18.dp, end = 18.dp),
+                        )
+                        LeoLiveTranscriptOverlay(visualState)
+                    }
+                } else {
+                    NikoEmbeddedApp(mode = mode, onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) })
                 }
-                Box {
-                    NikoReferenceScreen(
-                        visualState = visualState,
-                        heardText = snapshot.heardText,
-                        responseText = snapshot.responseText,
-                        voiceReady = snapshot.voiceReady,
-                        autoListeningEnabled = enabled,
-                        inputStatus = snapshot.inputStatus,
-                        inputState = snapshot.inputState,
-                        webSearching = snapshot.webSearching,
-                        webUsed = snapshot.webUsed,
-                        webSources = snapshot.webSources,
-                    )
-                    LeoBrainStatusOverlay(
-                        state = snapshot.brainState,
-                        progress = snapshot.brainProgress,
-                        status = snapshot.brainStatus,
-                        downloadedBytes = snapshot.brainDownloadedBytes,
-                        totalBytes = snapshot.brainTotalBytes,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .statusBarsPadding()
-                            .padding(top = 60.dp, start = 18.dp, end = 18.dp),
-                    )
-                    LeoLiveTranscriptOverlay(visualState)
-                }
-            } else {
-                NikoEmbeddedApp(mode = mode, onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) })
             }
         }
     }

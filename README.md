@@ -1,4 +1,4 @@
-# EDDY · Android 0.12.1
+# EDDY · Android 0.12.2
 
 Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
@@ -53,3 +53,12 @@ La conversación por Groq recibe texto por streaming y lo reproduce por frases m
 - Diagnóstico: **Orden → primer texto** y **Orden → primer sonido**. Estos tiempos empiezan tras aceptar la transcripción, no incluyen ASR. No hay valores medidos en teléfono todavía.
 
 Implementación basada en el [protocolo público de streaming de Groq](https://console.groq.com/docs/text-chat). Ver [pruebas y límites](docs/VOICE_STREAMING.md).
+
+## Usabilidad y voz 0.12.2
+
+- Cada herramienta conserva su estado al volver al asistente y regresar, mediante un contenedor de estado por pantalla.
+- Las notas se guardan automáticamente tras una pausa breve de escritura, al salir de Notas y al pasar a segundo plano; muestran el estado de guardado. El guardado usa preferencias locales con escritura asíncrona, no sincronización en nube.
+- El conversor acepta coma decimal y muestra error para entradas inválidas en lugar de convertirlas silenciosamente a cero.
+- Los bloques grandes recibidos por streaming se dividen antes de la síntesis; cada frase se limita a 240 caracteres y se evita cortar pares Unicode de emojis.
+
+La revisión anterior `eae91c6` aprobó pruebas Android y Lint en GitHub (ejecución 36722239966). Cada nueva revisión debe validar su propio workflow. La fluidez y los cambios de pantalla aún requieren verificación visual y auditiva en dispositivo.
