@@ -1,4 +1,4 @@
-# EDDY · Android 0.12.2
+# EDDY · Android 0.13.0
 
 Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
@@ -62,3 +62,15 @@ Implementación basada en el [protocolo público de streaming de Groq](https://c
 - Los bloques grandes recibidos por streaming se dividen antes de la síntesis; cada frase se limita a 240 caracteres y se evita cortar pares Unicode de emojis.
 
 La revisión anterior `eae91c6` aprobó pruebas Android y Lint en GitHub (ejecución 36722239966). Cada nueva revisión debe validar su propio workflow. La fluidez y los cambios de pantalla aún requieren verificación visual y auditiva en dispositivo.
+
+## Transformaciones multimedia 0.13.0
+
+Botón **Transformarme** y órdenes como «LEO, conviértete en una cámara» abren herramientas dentro de EDDY: cámara, video con audio, grabadora de audio y música, junto a la calculadora, cronómetro y demás utilidades existentes.
+
+- Cámara frontal/trasera, captura y exportación de archivos privados.
+- Grabación con permisos, pausa exclusiva del micrófono del asistente y liberación al terminar.
+- Reproductor de archivos locales, búsqueda de muestras Apple/iTunes y enlaces a YouTube/Spotify.
+- Modo fiesta con baile y frases ocasionales de LEO; interruptor para desactivarlo.
+- Órdenes locales de transformación antes de la búsqueda web.
+
+Ver [funcionamiento, límites y comprobaciones en teléfono](docs/POLYMORPHIC_TOOLS.md). La música de los resultados es una vista previa; las reacciones son programadas. Las nuevas funciones todavía requieren validación física.

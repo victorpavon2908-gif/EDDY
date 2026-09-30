@@ -272,7 +272,8 @@ class MainActivity : ComponentActivity() {
             NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT)
         }
         val toolState = rememberSaveableStateHolder()
-        Crossfade(targetState = uiMode, label = "leo-transform") { mode ->
+        androidx.compose.runtime.key(uiMode) {
+            val mode = uiMode
             toolState.SaveableStateProvider(mode.id) {
                 if (mode == NikoUiMode.ASSISTANT) {
                     val visualState = when (snapshot.state) {
@@ -306,6 +307,10 @@ class MainActivity : ComponentActivity() {
                                 .padding(top = 60.dp, start = 18.dp, end = 18.dp),
                         )
                         LeoLiveTranscriptOverlay(visualState)
+                        androidx.compose.material3.TextButton(
+                            onClick = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
+                            modifier = Modifier.align(Alignment.BottomStart).padding(20.dp),
+                        ) { androidx.compose.material3.Text("Transformarme") }
                     }
                 } else {
                     NikoEmbeddedApp(mode = mode, onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) })

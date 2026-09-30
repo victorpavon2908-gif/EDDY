@@ -38,7 +38,15 @@ class ActionExecutor(private val context: Context) {
     }
 
     fun openAppByName(requestedName: String): ActionResult {
-        val embeddedName = when (requestedName) {
+        val musicQuery = requestedName.takeIf { it.startsWith("LEO_MUSIC_QUERY:") }?.removePrefix("LEO_MUSIC_QUERY:")
+        if (musicQuery != null) context.getSharedPreferences("leo_music", Context.MODE_PRIVATE)
+            .edit().putString("query", musicQuery.take(200)).apply()
+        val embeddedName = when (if (musicQuery != null) "NIKO_TOOL_MUSIC" else requestedName) {
+            "NIKO_TOOL_CAMERA" -> "camara"
+            "NIKO_TOOL_VIDEO" -> "video"
+            "NIKO_TOOL_AUDIO" -> "grabadora de audio"
+            "NIKO_TOOL_MUSIC" -> "musica"
+            "NIKO_TOOLBOX" -> "transformaciones"
             "NIKO_TOOL_CALCULATOR" -> "calculadora"
             "NIKO_TOOL_STOPWATCH" -> "cronometro"
             "NIKO_TOOL_TIMER" -> "temporizador"
@@ -55,6 +63,8 @@ class ActionExecutor(private val context: Context) {
             )
             val message = if (mode == NikoUiMode.ASSISTANT) {
                 "De una. Volví a mi pantalla principal."
+            } else if (mode == NikoUiMode.TOOLBOX) {
+                "Estas son mis formas disponibles. Elegí una para transformar mi pantalla."
             } else {
                 "De una. Me convertí en ${mode.title.lowercase(Locale.forLanguageTag("es-NI"))}."
             }
@@ -126,7 +136,7 @@ class ActionExecutor(private val context: Context) {
         return previous[right.length]
     }
 
-    fun openCamera(): ActionResult = launch(Intent(MediaStore.ACTION_IMAGE_CAPTURE), "De una, abriendo la cámara.", "No pude encontrar una aplicación de cámara disponible.")
+    fun openCamera(): ActionResult = openAppByName("NIKO_TOOL_CAMERA")
 
     fun dial(number: String): ActionResult = launch(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(number)}")), "Listo, te abro la llamada al $number.", "No pude abrir el marcador del teléfono.")
 

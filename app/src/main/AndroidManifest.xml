@@ -60,6 +60,11 @@
         android:theme="@style/Theme.NIKO"
         android:usesCleartextTraffic="false">
 
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.media" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/media_paths" />
+        </provider>
+
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />

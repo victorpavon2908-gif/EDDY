@@ -36,6 +36,8 @@ import androidx.core.content.ContextCompat
 import com.niko.assistant.NikoWakeActivity
 import com.niko.assistant.MainActivity
 import com.niko.assistant.R
+import com.niko.assistant.media.CaptureGate
+import kotlinx.coroutines.cancelAndJoin
 import com.niko.assistant.actions.ActionExecutor
 import com.niko.assistant.ai.NikoAiSettings
 import com.niko.assistant.ai.AutonomousResearch
@@ -222,6 +224,15 @@ open class NikoAssistantService : Service() {
             return
         }
         foregroundReady = true
+        CaptureGate.pauseVoice = {
+            interruptCurrentTurn()
+            LeoRealtimeTurnBus.interruptSpeech()
+            ++localVoiceEpoch
+            recoveryJob?.cancelAndJoin()
+            localVoiceActive = false
+            withContext(Dispatchers.IO) { localVoice?.stopAndAwait() ?: true }
+        }
+        CaptureGate.resumeVoice = { ensureVoiceListening() }
         acquireCpuWakeLock()
         registerScreenStateReceiver()
         NikoRuntimeState.setRunning(applicationContext, true)
@@ -246,6 +257,8 @@ open class NikoAssistantService : Service() {
 
     override fun onDestroy() {
         destroyed = true
+        CaptureGate.pauseVoice = null
+        CaptureGate.resumeVoice = null
         ++turnEpoch
         LeoRealtimeTurnBus.unregisterTurnInterrupter(turnInterrupter)
         LeoVoiceDiagnostics.cancelResponseTiming()
@@ -269,10 +282,10 @@ open class NikoAssistantService : Service() {
 
     /** One owner for preparation, native startup and recovery. No Android recognition sessions. */
     private fun ensureVoiceListening(initialDelay: Long = 0L) {
-        if (destroyed || !foregroundReady || localVoiceActive || recoveryJob?.isActive == true || !NikoVoiceSettings.enabled(this)) return
+        if (CaptureGate.held || destroyed || !foregroundReady || localVoiceActive || recoveryJob?.isActive == true || !NikoVoiceSettings.enabled(this)) return
         recoveryJob = serviceScope.launch {
             if (initialDelay > 0) delay(initialDelay)
-            while (!destroyed && NikoVoiceSettings.enabled(this@NikoAssistantService)) {
+            while (!CaptureGate.held && !destroyed && NikoVoiceSettings.enabled(this@NikoAssistantService)) {
                 if (!hasMicrophonePermission()) {
                     inputUnavailable("Concedé permiso de micrófono en los ajustes de Android y volvé a abrir LEO.")
                     return@launch
@@ -326,6 +339,7 @@ open class NikoAssistantService : Service() {
     }
 
     private suspend fun startLocalVoiceIfReady(): Boolean {
+        if (CaptureGate.held) return false
         if (localVoiceActive || !modelManager.coreReady() || !hasMicrophonePermission()) return localVoiceActive
         val epoch = ++localVoiceEpoch
         val engine = NikoLocalVoiceEngine(
@@ -529,6 +543,13 @@ open class NikoAssistantService : Service() {
                 RobotMotion.SPIN -> "¡Doy una vuelta!"
                 RobotMotion.WAVE -> "¡Hola! Aquí estoy con vos."
             })
+            return
+        }
+        // Tool transformations are local and must not become web research requests.
+        val directTool = com.niko.assistant.brain.LocalBrain().understandMany(text).singleOrNull()
+        if (directTool is AssistantCommand.OpenAppByName &&
+            (directTool.name.startsWith("NIKO_TOOL") || directTool.name.startsWith("LEO_MUSIC_QUERY:"))) {
+            speakResponse(executor.openAppByName(directTool.name).spokenMessage)
             return
         }
         WebQueryRouter.explicitQuery(text)?.takeIf { AutonomousResearch.allowedFor(text) }?.let { query ->

@@ -20,13 +20,15 @@ class LocalBrain {
     }
 
     private fun understandSingle(input: String): AssistantCommand {
-        val original = cleanConversationalInput(input.trim().replace(Regex("(?i)^(?:leo|niko|nico)\\b[\\s,.:;!¿?¡-]*"), ""))
+        val original = cleanConversationalInput(input.trim().replace(Regex("(?i)^(?:leo|eddy|niko|nico)\\b[\\s,.:;!¿?¡-]*"), ""))
         val text = normalize(original)
 
         // Negated orders and questions about an action must never execute that action.
         if (isNegationOrExplanation(text)) {
             return AssistantCommand.Unknown(original)
         }
+
+        MusicCommand.query(text)?.let { return AssistantCommand.OpenAppByName("LEO_MUSIC_QUERY:" + it) }
 
         // Resolve explicit searches before inspecting words contained in their query.
         parseWebSearch(original)?.let { return it }
@@ -73,6 +75,9 @@ class LocalBrain {
         val wantsTransformation = containsAny(
             text,
             "convertite en", "conviertete en", "transformate en", "transforma tu pantalla en",
+            "modo camara", "modo video", "modo grabadora", "modo musica", "modo reproductor",
+            "abre grabadora", "abre la grabadora", "abre reproductor", "abre el reproductor",
+            "transformaciones", "tus herramientas",
             "modo calculadora", "modo cronometro", "modo temporizador", "modo reloj", "modo notas", "modo conversor",
             "abre calculadora", "abri calculadora", "quiero calculadora",
             "abre cronometro", "abri cronometro", "quiero cronometro",
@@ -83,13 +88,17 @@ class LocalBrain {
         )
         if (!wantsTransformation) return null
         return when {
+            text.contains("video") -> AssistantCommand.OpenAppByName("NIKO_TOOL_VIDEO")
+            text.contains("grabador") || text.contains("gravador") -> AssistantCommand.OpenAppByName("NIKO_TOOL_AUDIO")
+            text.contains("camara") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA")
+            text.contains("musica") || text.contains("reproductor") -> AssistantCommand.OpenAppByName("NIKO_TOOL_MUSIC")
             text.contains("calculadora") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CALCULATOR")
             text.contains("cronometro") -> AssistantCommand.OpenAppByName("NIKO_TOOL_STOPWATCH")
             text.contains("temporizador") || text.contains("cuenta regresiva") -> AssistantCommand.OpenAppByName("NIKO_TOOL_TIMER")
             text.contains("reloj") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CLOCK")
             text.contains("nota") || text.contains("bloc") -> AssistantCommand.OpenAppByName("NIKO_TOOL_NOTES")
             text.contains("conversor") || text.contains("convertidor") || text.contains("unidades") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CONVERTER")
-            else -> null
+            else -> AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
         }
     }
 
@@ -284,7 +293,7 @@ class LocalBrain {
     }
 
     private fun cleanConversationalInput(value: String): String {
-        var current = value.trim().replace(Regex("(?i)^(?:leo|niko|nico)\\b[\\s,.:;!¿?¡-]*"), "")
+        var current = value.trim().replace(Regex("(?i)^(?:leo|eddy|niko|nico)\\b[\\s,.:;!¿?¡-]*"), "")
         repeat(8) {
             val updated = current.replace(CONVERSATIONAL_PREFIX, "").replace(FILLER_PREFIX, "").trim(' ', ',', '.', ':', ';', '-', '¿', '?', '¡', '!')
             if (updated == current) return current
@@ -305,6 +314,6 @@ class LocalBrain {
 
         private val PHONE_REGEX = Regex("""\+?\d[\d\s-]{6,}\d""")
         private val FILLER_PREFIX = Regex("""(?i)^(?:este+|eh+|em+|mmm+|mira|fijate|bueno|a ver)\b\s*[,.:;!-]*\s*""")
-        private val CONVERSATIONAL_PREFIX = Regex("""(?i)^(?:(?:leo|niko|nico)\s*[,.:;!¿?¡-]*\s*)?(?:(?:por\s+favor|porfa|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hac[eé]s\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey|mira|mir[aá])\s+)+""")
+        private val CONVERSATIONAL_PREFIX = Regex("""(?i)^(?:(?:leo|eddy|niko|nico)\s*[,.:;!¿?¡-]*\s*)?(?:(?:por\s+favor|porfa|haceme\s+el\s+favor(?:\s+de)?|hazme\s+el\s+favor(?:\s+de)?|me\s+haces\s+el\s+favor(?:\s+de)?|me\s+hac[eé]s\s+el\s+favor(?:\s+de)?|me\s+pod[eé]s|pod[eé]s|podr[ií]as|quiero\s+que|necesito\s+que|te\s+pido\s+que|dale|oye|ey|hey|mira|mir[aá])\s+)+""")
     }
 }

@@ -54,6 +54,11 @@ import java.util.Locale
 @Composable
 fun NikoEmbeddedApp(mode: NikoUiMode, onHome: () -> Unit) {
     when (mode) {
+        NikoUiMode.TOOLBOX -> LeoToolbox(onHome)
+        NikoUiMode.CAMERA -> LeoCameraScreen(false, onHome)
+        NikoUiMode.VIDEO -> LeoCameraScreen(true, onHome)
+        NikoUiMode.AUDIO_RECORDER -> LeoAudioRecorderScreen(onHome)
+        NikoUiMode.MUSIC -> LeoMusicScreen(onHome)
         NikoUiMode.VOICE_DIAGNOSTICS -> LeoVoiceDiagnosticsScreen(onHome)
         NikoUiMode.CALCULATOR -> CalculatorApp(onHome)
         NikoUiMode.STOPWATCH -> StopwatchApp(onHome)

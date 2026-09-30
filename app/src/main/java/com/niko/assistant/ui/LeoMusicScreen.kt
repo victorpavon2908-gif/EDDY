@@ -1,0 +1,147 @@
+package com.niko.assistant.ui
+
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.niko.assistant.media.*
+import com.niko.assistant.ui.robot.RobotMotion
+import com.niko.assistant.ui.robot.RobotMotionBus
+import com.niko.assistant.voice.NikoTextToSpeech
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+@Composable
+internal fun LeoMusicScreen(onHome: () -> Unit) {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val scope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences("leo_music", Context.MODE_PRIVATE) }
+    val player = remember { LeoMusicPlayer(context.applicationContext) }
+    val playback by player.state.collectAsStateWithLifecycle()
+    var speaking by remember { mutableStateOf(false) }
+    val voice = remember { NikoTextToSpeech(context.applicationContext, onSpeakingChanged = { speaking = it; player.duck(it) }) }
+    var party by rememberSaveable { mutableStateOf(true) }
+    var query by rememberSaveable { mutableStateOf(prefs.getString("query", "").orEmpty()) }
+    var results by remember { mutableStateOf(emptyList<MusicResult>()) }
+    var searching by remember { mutableStateOf(false) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+    var message by remember { mutableStateOf("") }
+    var progress by remember { mutableFloatStateOf(0f) }
+    fun search() {
+        if (query.isBlank()) return
+        searchJob?.cancel()
+        val term = query.trim().take(200)
+        searchJob = scope.launch {
+            searching = true; message = ""
+            try {
+                results = MusicSearch.search(term)
+                if (results.isEmpty()) message = "No encontré vistas previas. Podés buscar en YouTube o Spotify."
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                message = "No pude buscar ahora. Revisá Internet o abrí uno de los servicios."
+            } finally { searching = false }
+        }
+    }
+    fun openLink(url: String) {
+        if (runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isFailure)
+            message = "No hay una aplicación disponible para abrir este enlace."
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val name = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) it.getString(0) else null
+                }
+            }.getOrNull() ?: "Audio del teléfono"
+            player.load(uri, name)
+        }
+    }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) { player.pause(); voice.stop(); RobotMotionBus.clear() }
+        }
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "query") { query = prefs.getString("query", "").orEmpty(); search() }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        lifecycle.addObserver(observer)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            lifecycle.removeObserver(observer)
+            player.close(); voice.shutdown(); RobotMotionBus.clear()
+        }
+    }
+    LaunchedEffect(Unit) { if (query.isNotBlank()) search() }
+    LaunchedEffect(playback.playing, party) {
+        if (!playback.playing || !party) { voice.stop(); RobotMotionBus.clear(); return@LaunchedEffect }
+        var count = 0
+        val cheers = listOf("¡Qué cool!", "¡Hujuuu!", "¡Ese ritmo está buenísimo!")
+        while (true) {
+            RobotMotionBus.perform(RobotMotion.DANCE)
+            if (count % 6 == 1 && voice.isReady) voice.speak(cheers[(count / 6) % cheers.size])
+            count++
+            delay(7500L)
+        }
+    }
+    LaunchedEffect(playback.playing, playback.title) {
+        progress = player.progress()
+        while (playback.playing) { progress = player.progress(); delay(500L) }
+    }
+    MediaShell("Música con LEO", onHome) {
+        NikoHero(if (speaking) NikoVisualState.SPEAKING else NikoVisualState.IDLE,
+            modifier = Modifier.fillMaxWidth().height(230.dp))
+        Text(playback.title.ifBlank { "Elegí música para empezar" }, style = MaterialTheme.typography.titleLarge)
+        if (playback.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        Slider(value = progress, onValueChange = { progress = it; player.seek(it) }, enabled = playback.title.isNotBlank() && !playback.loading)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(enabled = playback.title.isNotBlank() && !playback.loading, onClick = { if (playback.playing) player.pause() else player.play() }) {
+                Text(if (playback.playing) "Pausar" else "Reproducir")
+            }
+            OutlinedButton(onClick = { picker.launch(arrayOf("audio/*")) }) { Text("Abrir archivo") }
+        }
+        if (playback.error.isNotBlank()) Text(playback.error)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Switch(checked = party, onCheckedChange = { party = it })
+            Text("Modo fiesta: baile y reacciones de LEO")
+        }
+        Text("Las reacciones son animaciones y frases ocasionales; no analizan el ritmo del audio.")
+        OutlinedTextField(value = query, onValueChange = { query = it.take(200) }, label = { Text("Canción o artista") }, modifier = Modifier.fillMaxWidth())
+        Button(onClick = { search() }, enabled = query.isNotBlank() && !searching) { Text(if (searching) "Buscando…" else "Buscar música") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { openLink("https://www.youtube.com/results?search_query=" + Uri.encode(query)) }) { Text("YouTube") }
+            TextButton(onClick = { openLink("https://open.spotify.com/search/" + Uri.encode(query)) }) { Text("Spotify") }
+        }
+        if (message.isNotBlank()) Text(message)
+        results.forEach { result ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(result.title, style = MaterialTheme.typography.titleMedium)
+                    Text(result.artist)
+                    Text("Vista previa · Apple/iTunes")
+                    Row {
+                        TextButton(onClick = { player.load(Uri.parse(result.preview), result.title) }) { Text("Escuchar muestra") }
+                        TextButton(onClick = { openLink(result.link) }) { Text("Abrir en Apple Music") }
+                    }
+                }
+            }
+        }
+        Text("Reproduce completos los archivos que elijás del teléfono. Los resultados de búsqueda son muestras; los servicios externos pueden requerir suscripción. La música se pausa al salir.")
+    }
+}
