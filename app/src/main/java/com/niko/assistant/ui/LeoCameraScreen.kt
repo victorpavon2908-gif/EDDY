@@ -91,7 +91,7 @@ private fun CameraContent(video: Boolean) {
         Button(enabled = ready && !busy, onClick = {
             busy = true
             val file = MediaFiles.create(context, "jpg")
-            photo.targetRotation = view.display?.rotation ?: 0
+            photo.targetRotation = view.display?.rotation ?: android.view.Surface.ROTATION_0
             runCatching {
                 photo.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), executor,
                     object : ImageCapture.OnImageSavedCallback {
@@ -118,7 +118,7 @@ private fun CameraContent(video: Boolean) {
                         }
                         val target = MediaFiles.create(context, "mp4")
                         file = target
-                        capture.targetRotation = view.display?.rotation ?: 0
+                        capture.targetRotation = view.display?.rotation ?: android.view.Surface.ROTATION_0
                         val output = FileOutputOptions.Builder(target).setFileSizeLimit(512L * 1024 * 1024).build()
                         recording = capture.output.prepareRecording(context, output).withAudioEnabled().start(executor) { event ->
                             when (event) {
