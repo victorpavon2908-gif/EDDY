@@ -21,8 +21,9 @@ class LeoNativeWebSearchTest {
         assertTrue(report.contains("ubicación y orientación"))
         assertTrue(report.contains("[1]"))
         assertTrue(report.contains("[2]"))
-        assertTrue(report.contains("Respuesta breve"))
-        assertTrue(report.contains("Contraste y límites"))
+        assertFalse(report.contains("Respuesta breve"))
+        assertFalse(report.contains("Contraste y límites"))
+        assertFalse(report.contains("Busqué"))
         assertFalse(report.contains("comprar ahora"))
         assertTrue(report.contains("no puedo asegurar su actualidad"))
     }
@@ -105,9 +106,10 @@ class LeoNativeWebSearchTest {
             current = true,
         )
 
-        assertTrue(summary.startsWith("Busqué información reciente en Internet."))
+        assertFalse(summary.startsWith("Busqué"))
         assertTrue(summary.contains("magnitud 6.0"))
-        assertTrue(summary.contains("dos sitios independientes"))
+        assertTrue(summary.contains("[1]"))
+        assertTrue(summary.contains("[2]"))
     }
 
     @Test fun conversationalBitcoinQuestionBecomesCleanSubject() {
