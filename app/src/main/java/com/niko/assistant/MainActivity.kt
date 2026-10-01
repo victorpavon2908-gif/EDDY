@@ -7,6 +7,8 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -56,6 +58,11 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 class MainActivity : ComponentActivity() {
+    private val runtimeStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent?.let(NikoRuntimeState::acceptExternalState)
+        }
+    }
     private lateinit var permissionLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var overlayLauncher: ActivityResultLauncher<Intent>
     private lateinit var fullScreenLauncher: ActivityResultLauncher<Intent>
@@ -106,6 +113,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        ContextCompat.registerReceiver(
+            this,
+            runtimeStateReceiver,
+            IntentFilter(NikoRuntimeState.ACTION_RUNTIME_STATE),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         setContent { NikoTheme { NikoAppScreen() } }
         requestAssistantPermissions()
     }
@@ -123,6 +136,11 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         if (canRunLeo()) sendServiceAction(NikoAssistantService.ACTION_SHOW_BUBBLE)
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(runtimeStateReceiver) }
+        super.onDestroy()
     }
 
     private fun requestAssistantPermissions() {
