@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = false
         }
 
+        NikoVoiceSettings.ensureCrashSafeBoot(applicationContext)
         firstRunSetup = LeoFirstRunSetup(applicationContext)
         setupState.value = if (firstRunSetup.isReady()) {
             LeoFirstRunState.ready(firstRunSetup.requiredModels().size)
