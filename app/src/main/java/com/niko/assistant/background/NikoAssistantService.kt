@@ -269,6 +269,7 @@ open class NikoAssistantService : Service() {
             ACTION_SHOW_BUBBLE -> showBubble()
             ACTION_HIDE_BUBBLE -> hideBubble()
             ACTION_REFRESH_BUBBLE -> { hideBubble(); showBubble() }
+            ACTION_RESET_BUBBLE -> resetBubblePosition()
         }
         if (!foregroundReady) { stopSelf(); return START_NOT_STICKY }
         if (!voiceRequested && intent?.action != ACTION_START) {
@@ -1242,7 +1243,7 @@ open class NikoAssistantService : Service() {
             elevation = dp(14).toFloat(); setPadding(dp(10), dp(10), dp(10), dp(10)); addView(ImageView(this@NikoAssistantService).apply { setImageResource(R.drawable.ic_niko_mark); scaleType = ImageView.ScaleType.CENTER_INSIDE }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         }
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
-        val params = WindowManager.LayoutParams(size, size, type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = bubblePrefs.getInt(KEY_BUBBLE_X, dp(18)); y = bubblePrefs.getInt(KEY_BUBBLE_Y, dp(220)) }
+        val params = WindowManager.LayoutParams(size, size, type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; x = bubblePrefs.getInt(KEY_BUBBLE_X, dp(DEFAULT_BUBBLE_X_DP)); y = bubblePrefs.getInt(KEY_BUBBLE_Y, dp(DEFAULT_BUBBLE_Y_DP)) }
         bubbleParams = params
         var downX = 0f; var downY = 0f; var originX = 0; var originY = 0; var dragging = false
         container.setOnTouchListener { _, event ->
@@ -1256,6 +1257,16 @@ open class NikoAssistantService : Service() {
         runCatching { wm.addView(container, params); bubbleView = container }
     }
     private fun hideBubble() { bubbleView?.let { view -> runCatching { windowManager?.removeView(view) } }; bubbleView = null }
+
+    private fun resetBubblePosition() {
+        bubblePrefs.edit().remove(KEY_BUBBLE_X).remove(KEY_BUBBLE_Y).apply()
+        val params = bubbleParams ?: return
+        params.x = dp(DEFAULT_BUBBLE_X_DP)
+        params.y = dp(DEFAULT_BUBBLE_Y_DP)
+        val view = bubbleView ?: return
+        runCatching { windowManager?.updateViewLayout(view, params) }
+    }
+
     private fun saveBubblePosition(params: WindowManager.LayoutParams) { bubblePrefs.edit().putInt(KEY_BUBBLE_X, params.x).putInt(KEY_BUBBLE_Y, params.y).apply() }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun acquireCpuWakeLock() { if (cpuWakeLock?.isHeld == true) return; cpuWakeLock = (getSystemService(PowerManager::class.java)?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NIKO:AlwaysOnWake")?.apply { setReferenceCounted(false); acquire() }) }
@@ -1271,10 +1282,13 @@ open class NikoAssistantService : Service() {
         private const val BUBBLE_PREFS = UpgradeIdentity.bubblePreferences
         private const val KEY_BUBBLE_X = "bubble_x"
         private const val KEY_BUBBLE_Y = "bubble_y"
+        private const val DEFAULT_BUBBLE_X_DP = 18
+        private const val DEFAULT_BUBBLE_Y_DP = 220
         const val ACTION_START = UpgradeIdentity.ACTION_START
         const val ACTION_STOP = UpgradeIdentity.ACTION_STOP
         const val ACTION_SHOW_BUBBLE = UpgradeIdentity.ACTION_SHOW_BUBBLE
         const val ACTION_HIDE_BUBBLE = UpgradeIdentity.ACTION_HIDE_BUBBLE
         const val ACTION_REFRESH_BUBBLE = UpgradeIdentity.ACTION_REFRESH_BUBBLE
+        const val ACTION_RESET_BUBBLE = UpgradeIdentity.ACTION_RESET_BUBBLE
     }
 }
