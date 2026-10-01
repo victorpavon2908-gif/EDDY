@@ -74,8 +74,14 @@ class LocalBrain {
 
         val wantsTransformation = containsAny(
             text,
-            "convertite en", "conviertete en", "transformate en", "transforma tu pantalla en",
-            "volvete", "hazte", "ponte en modo", "cambia a modo", "cambia tu pantalla a",
+            "convertite en", "conviertete en", "conviertete a", "convertite a",
+            "transformate en", "transformate a", "transformate como", "transforma tu pantalla en",
+            "volvete", "vuélvete", "hazte", "hacete", "ponte en modo", "ponete en modo",
+            "ponte como", "ponete como", "ponte de", "ponete de",
+            "cambia a modo", "cambiate a", "cámbiate a", "cambia tu pantalla a",
+            "pasa a modo", "pasate a", "pásate a",
+            "quiero que seas", "quiero verte como", "quiero que te vuelvas",
+            "se una", "se un", "sé una", "sé un",
             "modo camara", "modo video", "modo grabadora", "modo musica", "modo reproductor",
             "abre grabadora", "abre la grabadora", "abre reproductor", "abre el reproductor",
             "transformaciones", "tus herramientas",
