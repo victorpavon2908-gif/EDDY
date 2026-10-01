@@ -1055,7 +1055,7 @@ open class NikoAssistantService : Service() {
         return listOf(
             "aprende a", "aprendé a", "programate", "programáte", "prográmate", "mejorate", "mejoráte", "mejórate",
             "agrega una funcion", "agregá una función", "agrega una función", "crea una funcion", "creá una función",
-            "quiero que puedas", "necesito que puedas", "haz que puedas", "hacé que puedas", "convertite en", "conviértete en",
+            "quiero que puedas", "necesito que puedas", "haz que puedas", "hacé que puedas",
         ).any(value::contains)
     }
 
