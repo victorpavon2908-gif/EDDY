@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = false
         }
 
+        NikoVoiceSettings.ensureIsolatedVoiceMigration(applicationContext)
         firstRunSetup = LeoFirstRunSetup(applicationContext)
         frozenBrainManager = LeoFrozenBrainManager(applicationContext)
         setupState.value = if (firstRunSetup.isReady()) {
