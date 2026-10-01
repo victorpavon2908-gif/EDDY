@@ -94,6 +94,7 @@ import kotlinx.coroutines.ensureActive
 import com.niko.assistant.voice.VoiceControl
 import com.niko.assistant.voice.LeoVoiceDiagnostics
 import com.niko.assistant.voice.LeoRealtimeTurnBus
+import com.niko.assistant.voice.LeoPlatformVoiceEngine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -130,6 +131,7 @@ open class NikoAssistantService : Service() {
     private var replyProsody = SpeechProsody()
     private val speechOutput = SpeechOutputPolicy()
     private var localVoice: NikoLocalVoiceEngine? = null
+    private var platformVoice: LeoPlatformVoiceEngine? = null
     private var localVoiceActive = false
     private lateinit var platformTts: NikoTextToSpeech
     private lateinit var neuralTts: NikoNeuralTextToSpeech
@@ -231,7 +233,7 @@ open class NikoAssistantService : Service() {
             ++localVoiceEpoch
             recoveryJob?.cancelAndJoin()
             localVoiceActive = false
-            withContext(Dispatchers.IO) { localVoice?.stopAndAwait() ?: true }
+            stopActiveVoiceAndAwait()
         }
         CaptureGate.resumeVoice = { ensureVoiceListening() }
         acquireCpuWakeLock()
@@ -283,7 +285,7 @@ open class NikoAssistantService : Service() {
         bubbleParams?.let(::saveBubblePosition)
         hideBubble()
         unregisterScreenStateReceiver()
-        localVoice?.stop()
+        stopActiveVoice()
         neuralTts.shutdown()
         platformTts.shutdown()
         localLlm.release()
@@ -306,16 +308,25 @@ open class NikoAssistantService : Service() {
                 while (isThinking || isSpeaking || commandJob?.isActive == true) delay(250L)
                 localVoiceStarting = true
                 try {
-                    val previous = localVoice
-                    val released = withContext(Dispatchers.IO) { previous?.stopAndAwait() ?: true }
+                    val released = stopActiveVoiceAndAwait()
                     if (!released) {
                         inputUnavailable("El micrófono anterior aún se está cerrando. Voy a reintentar.")
                     } else {
                         localVoice = null
+                        platformVoice = null
+                        NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.PREPARING, "Iniciando micrófono…")
+
+                        // Ruta primaria: el reconocedor de Android evita cargar JNI/ONNX solo para
+                        // poder abrir el micrófono. Es especialmente útil en dispositivos donde
+                        // el KWS nativo puede abortar el proceso.
+                        if (startPlatformVoiceIfAvailable()) return@launch
+
+                        // Respaldo totalmente local: solo se usa si Android no ofrece un
+                        // RecognitionService compatible.
                         val failure = initializationFailure
                         initializationFailure = null
                         val failedModel = failure?.model
-                        NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.PREPARING, "Preparando escucha local…")
+                        NikoRuntimeState.setInputStatus(applicationContext, "Preparando activación local…")
                         val ready = withContext(Dispatchers.IO) {
                             if (failedModel != null && voiceRecovery.allowModelRepair(failedModel.id)) {
                                 modelManager.repair(failedModel, ::onModelProgress)
@@ -323,7 +334,7 @@ open class NikoAssistantService : Service() {
                             modelManager.ensureRecommended(deviceProfile, ::onModelProgress)
                         }
                         if (ready && startLocalVoiceIfReady()) return@launch
-                        if (!ready) inputUnavailable("Faltan modelos de voz. Conectate a Internet y comprobá el espacio disponible; reintentaré automáticamente.")
+                        if (!ready) inputUnavailable("No pude preparar el motor de voz. Revisá Internet, espacio y permiso de micrófono.")
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -350,6 +361,128 @@ open class NikoAssistantService : Service() {
         if (!isSpeaking && !isThinking) NikoRuntimeState.setResponse(applicationContext, message)
         updateVisualState()
     }
+
+    private fun startPlatformVoiceIfAvailable(): Boolean {
+        if (CaptureGate.held || !hasMicrophonePermission()) return false
+        val epoch = ++localVoiceEpoch
+        val engine = LeoPlatformVoiceEngine(
+            context = applicationContext,
+            onState = { state -> serviceScope.launch {
+                if (destroyed || epoch != localVoiceEpoch) return@launch
+                when (state) {
+                    LeoPlatformVoiceEngine.State.PASSIVE -> {
+                        isTranscribing = false
+                        isListening = false
+                        updateVisualState()
+                    }
+                    LeoPlatformVoiceEngine.State.ACTIVE -> {
+                        isTranscribing = false
+                        isListening = !isThinking && !isSpeaking
+                        updateVisualState()
+                    }
+                    LeoPlatformVoiceEngine.State.PROCESSING -> {
+                        isTranscribing = true
+                        isListening = false
+                        updateVisualState()
+                    }
+                    LeoPlatformVoiceEngine.State.SPEAKING -> {
+                        isListening = false
+                        updateVisualState()
+                    }
+                    LeoPlatformVoiceEngine.State.STOPPED -> {
+                        isTranscribing = false
+                        isListening = false
+                        updateVisualState()
+                    }
+                }
+            }},
+            onWake = { serviceScope.launch {
+                if (destroyed || epoch != localVoiceEpoch) return@launch
+                NikoRuntimeState.setHeard(applicationContext, "LEO")
+                NikoRuntimeState.setResponse(applicationContext, "Te escucho.")
+                revealNikoOnLockScreen()
+                if (localLlm.isAvailable) serviceScope.launch { localLlm.prewarm() }
+            }},
+            onCommand = { text -> serviceScope.launch {
+                if (!destroyed && epoch == localVoiceEpoch) {
+                    isTranscribing = false
+                    submitCommand(text)
+                }
+            }},
+            onStatus = { status -> serviceScope.launch {
+                if (!destroyed && epoch == localVoiceEpoch) {
+                    NikoRuntimeState.setInputStatus(applicationContext, status)
+                }
+            }},
+            onError = { error -> serviceScope.launch {
+                if (!destroyed && epoch == localVoiceEpoch) {
+                    NikoRuntimeState.setInputStatus(applicationContext, error)
+                }
+            }},
+        )
+        platformVoice = engine
+        localVoice = null
+        val started = engine.start()
+        if (!started) {
+            platformVoice = null
+            engine.stop()
+            return false
+        }
+
+        localVoiceActive = true
+        initializationFailure = null
+        voiceRecovery.started(SystemClock.elapsedRealtime())
+        isListening = false
+        NikoRuntimeState.setInput(
+            applicationContext,
+            NikoRuntimeState.InputState.READY,
+            "Micrófono listo · modo compatible · decí LEO",
+        )
+        NikoRuntimeState.setResponse(applicationContext, "Decí LEO para hablar conmigo.")
+        updateVisualState()
+        prewarmAdaptiveLearning()
+        return true
+    }
+
+    private suspend fun stopActiveVoiceAndAwait(): Boolean {
+        val platform = platformVoice
+        val native = localVoice
+        platformVoice = null
+        localVoice = null
+        val platformReleased = platform?.stopAndAwait() ?: true
+        val nativeReleased = withContext(Dispatchers.IO) { native?.stopAndAwait() ?: true }
+        return platformReleased && nativeReleased
+    }
+
+    private fun stopActiveVoice() {
+        platformVoice?.stop()
+        platformVoice = null
+        localVoice?.stop()
+        localVoice = null
+    }
+
+    private fun setActiveVoiceBusy(value: Boolean) {
+        platformVoice?.setAssistantBusy(value)
+        localVoice?.setAssistantBusy(value)
+    }
+
+    private fun cancelActiveVoiceConversation() {
+        platformVoice?.cancelConversation()
+        localVoice?.cancelConversation()
+    }
+
+    private fun finishActiveVoiceTurn() {
+        platformVoice?.finishTurn()
+        localVoice?.finishTurn()
+    }
+
+    private fun setActiveVoiceSpeaking(value: Boolean, continueCommand: Boolean = false) {
+        platformVoice?.setAssistantSpeaking(value, continueCommand)
+        localVoice?.setAssistantSpeaking(value, continueCommand)
+    }
+
+    private fun activeVoiceMicrophoneSilenced(): Boolean =
+        platformVoice?.isMicrophoneSilenced == true || localVoice?.isMicrophoneSilenced == true
 
     private suspend fun startLocalVoiceIfReady(): Boolean {
         if (CaptureGate.held) return false
@@ -425,6 +558,7 @@ open class NikoAssistantService : Service() {
         if (destroyed) { engine.stop(); return false }
         return if (started && engine.isRunning) {
             localVoiceActive = true
+            platformVoice = null
             serviceScope.launch {
                 delay(2_000L)
                 if (!destroyed && !platformTts.isReady) neuralTts.prewarm()
@@ -455,7 +589,7 @@ open class NikoAssistantService : Service() {
         if (destroyed) return
         ++localVoiceEpoch
         localVoiceActive = false
-        localVoice?.stop()
+        stopActiveVoice()
         inputUnavailable(error)
         ensureVoiceListening(voiceRecovery.nextDelayMillis(SystemClock.elapsedRealtime()))
     }
@@ -476,7 +610,7 @@ open class NikoAssistantService : Service() {
         isThinking = false
         isSpeaking = false
         isTranscribing = false
-        localVoice?.setAssistantBusy(false)
+        setActiveVoiceBusy(false)
         NikoRuntimeState.setSearching(applicationContext, false)
         updateVisualState()
     }
@@ -486,14 +620,14 @@ open class NikoAssistantService : Service() {
         VoiceControl.parse(text)?.let { control ->
             interruptCurrentTurn()
             LeoRealtimeTurnBus.interruptSpeech()
-            localVoice?.cancelConversation()
+            cancelActiveVoiceConversation()
             isListening = false
             NikoRuntimeState.setHeard(applicationContext, text)
             if (control == VoiceControl.DEACTIVATE) {
                 NikoVoiceSettings.setEnabled(this, false)
                 ++localVoiceEpoch
                 localVoiceActive = false
-                localVoice?.stop()
+                stopActiveVoice()
                 NikoRuntimeState.setResponse(applicationContext, "LEO desactivado. Podés activarme de nuevo desde la app.")
                 stopSelf()
             } else {
@@ -509,7 +643,7 @@ open class NikoAssistantService : Service() {
         isThinking = true
         NikoRuntimeState.setResponse(applicationContext, "Procesando tu petición…")
         isTranscribing = false
-        localVoice?.setAssistantBusy(true)
+        setActiveVoiceBusy(true)
         NikoRuntimeState.setHeard(applicationContext, text)
         revealNikoOnLockScreen()
         updateVisualState()
@@ -536,7 +670,7 @@ open class NikoAssistantService : Service() {
     }
 
     private fun finishTurn() {
-        localVoice?.finishTurn()
+        finishActiveVoiceTurn()
         isListening = false
     }
 
@@ -890,7 +1024,7 @@ open class NikoAssistantService : Service() {
     private fun speakOnly(text: String, continueCommand: Boolean = false) {
         if (text.isBlank() || destroyed) return
         continueAfterSpeech = continueCommand
-        if (localVoiceActive) localVoice?.setAssistantSpeaking(true, continueCommand)
+        if (localVoiceActive) setActiveVoiceSpeaking(true, continueCommand)
         isSpeaking = true
         updateVisualState()
         speechTimeout?.cancel()
@@ -937,12 +1071,12 @@ open class NikoAssistantService : Service() {
             if (destroyed || (!speaking && !isSpeaking)) return@launch
             isSpeaking = speaking
             if (!speaking && playNextProgressivePhrase()) return@launch
-            if (localVoiceActive) localVoice?.setAssistantSpeaking(speaking, continueAfterSpeech)
+            if (localVoiceActive) setActiveVoiceSpeaking(speaking, continueAfterSpeech)
             if (!speaking) {
                 speechTimeout?.cancel()
                 speechTimeout = null
                 if (continueAfterSpeech) {
-                    isListening = localVoiceActive && localVoice?.isMicrophoneSilenced != true
+                    isListening = localVoiceActive && !activeVoiceMicrophoneSilenced()
                 } else if (!isThinking) finishTurn()
             }
             updateVisualState()
