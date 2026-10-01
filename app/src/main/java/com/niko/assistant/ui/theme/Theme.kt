@@ -1,6 +1,5 @@
 package com.niko.assistant.ui.theme
 
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -138,11 +137,11 @@ private val NikoTypography = Typography(
 )
 
 private val NikoShapes = Shapes(
-    extraSmall = CutCornerShape(topStart = 2.dp, topEnd = 6.dp, bottomStart = 6.dp, bottomEnd = 2.dp),
-    small = CutCornerShape(topStart = 3.dp, topEnd = 9.dp, bottomStart = 9.dp, bottomEnd = 3.dp),
-    medium = CutCornerShape(topStart = 4.dp, topEnd = 13.dp, bottomStart = 13.dp, bottomEnd = 4.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = CutCornerShape(topStart = 6.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp),
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(30.dp),
 )
 
 @Composable
