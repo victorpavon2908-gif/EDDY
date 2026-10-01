@@ -28,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.niko.assistant.R
+import com.niko.assistant.diagnostics.LeoCrashRecorder
 import com.niko.assistant.ui.robot.LeoRobotView
 import com.niko.assistant.ui.robot.RobotActivity
 import com.niko.assistant.ui.robot.RobotMotion
@@ -73,9 +74,19 @@ internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, ena
                     android.view.View(context)
                 }
             },
-            update = { view -> (view as? LeoRobotView)?.update(activity, enabled, !ValueAnimator.areAnimatorsEnabled(), request) },
+            update = { view ->
+                runCatching {
+                    (view as? LeoRobotView)?.update(activity, enabled, !ValueAnimator.areAnimatorsEnabled(), request)
+                }.onFailure { error ->
+                    LeoCrashRecorder.recordHandled("NikoHero.update", error)
+                    failed = true
+                }
+            },
             onReset = null,
-            onRelease = { (it as? LeoRobotView)?.destroy() },
+            onRelease = { view ->
+                runCatching { (view as? LeoRobotView)?.destroy() }
+                    .onFailure { LeoCrashRecorder.recordHandled("NikoHero.release", it) }
+            },
         )
         if (!ready || failed) Image(
             painter = painterResource(R.drawable.leo_robot_poster), contentDescription = null,
