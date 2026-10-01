@@ -181,6 +181,7 @@ open class NikoAssistantService : Service() {
     private var destroyed = false
     private var foregroundReady = false
     @Volatile private var voiceRequested = false
+    @Volatile private var platformVoiceDisabledForSession = false
     private var localVoiceStarting = false
     private var localVoiceEpoch = 0
     private var isTranscribing = false
@@ -321,7 +322,7 @@ open class NikoAssistantService : Service() {
                         // Ruta primaria: el reconocedor de Android evita cargar JNI/ONNX solo para
                         // poder abrir el micrófono. Es especialmente útil en dispositivos donde
                         // el KWS nativo puede abortar el proceso.
-                        if (startPlatformVoiceIfAvailable()) return@launch
+                        if (!platformVoiceDisabledForSession && startPlatformVoiceIfAvailable()) return@launch
 
                         // Respaldo totalmente local: solo se usa si Android no ofrece un
                         // RecognitionService compatible.
@@ -425,11 +426,27 @@ open class NikoAssistantService : Service() {
                     NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.ERROR, error)
                 }
             }},
+            onFatal = { error -> serviceScope.launch {
+                if (!destroyed && epoch == localVoiceEpoch) {
+                    platformVoiceDisabledForSession = true
+                    ++localVoiceEpoch
+                    localVoiceActive = false
+                    platformVoice?.stop()
+                    platformVoice = null
+                    NikoRuntimeState.setInput(
+                        applicationContext,
+                        NikoRuntimeState.InputState.PREPARING,
+                        "$error Probando el motor local de respaldo…",
+                    )
+                    ensureVoiceListening(250L)
+                }
+            }},
         )
         platformVoice = engine
         localVoice = null
         val started = engine.start()
         if (!started) {
+            platformVoiceDisabledForSession = true
             platformVoice = null
             engine.stop()
             return false
