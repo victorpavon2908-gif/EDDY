@@ -22,6 +22,27 @@ class NikoSemanticActionResolverTest {
         val resolver = NikoSemanticActionResolver(LocalBrain()) { error("Protected request reached the model") }
         assertTrue(resolver.resolveMany("Leo, no abras WhatsApp").single() is AssistantCommand.Unknown)
     }
+    @Test fun transformationsStayLocalAndNeverNeedTheModel() = runBlocking {
+        var modelCalls = 0
+        val resolver = NikoSemanticActionResolver(LocalBrain()) {
+            modelCalls++
+            "NONE"
+        }
+        val cases = listOf(
+            "Leo, quiero que seas una cámara" to "NIKO_TOOL_CAMERA",
+            "Leo, convertite en calculadora" to "NIKO_TOOL_CALCULATOR",
+            "Leo, pasate a música" to "NIKO_TOOL_MUSIC",
+            "Leo, hacete temporizador" to "NIKO_TOOL_TIMER",
+        )
+        cases.forEach { (phrase, expected) ->
+            assertEquals(
+                listOf(AssistantCommand.OpenAppByName(expected)),
+                resolver.resolveMany(phrase),
+            )
+        }
+        assertEquals(0, modelCalls)
+    }
+
     @Test
     fun freeWordingCanOpenAnyNamedApp() = runBlocking {
         val resolver = NikoSemanticActionResolver(LocalBrain()) { "OPEN_APP|YouTube" }
