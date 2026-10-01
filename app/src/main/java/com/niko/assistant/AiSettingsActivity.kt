@@ -123,6 +123,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
     var voiceEnabled by remember { mutableStateOf(NikoVoiceSettings.enabled(context)) }
     var voiceStatus by remember { mutableStateOf(NikoRuntimeState.read(context).inputStatus) }
     var outputVoiceStatus by remember { mutableStateOf(NikoRuntimeState.read(context).voiceStatus) }
+    var bubbleStatus by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         while (true) {
             voiceEnabled = NikoVoiceSettings.enabled(context)
@@ -194,6 +195,32 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             }
             Text("Decí LEO para empezar. Después de responder, Leo mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
             Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
+
+            Text("BURBUJA FLOTANTE", style = MaterialTheme.typography.headlineSmall)
+            Text("Si moviste la burbuja fuera de lugar, podés devolverla a su posición inicial.", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(
+                onClick = {
+                    val restored = runCatching {
+                        context.startService(
+                            UpgradeIdentity.assistantService(context).apply {
+                                action = com.niko.assistant.background.NikoAssistantService.ACTION_RESET_BUBBLE
+                            },
+                        )
+                        true
+                    }.getOrDefault(false)
+                    bubbleStatus = if (restored) {
+                        "Posición restaurada. La burbuja volvió a su ubicación inicial."
+                    } else {
+                        "No pude restaurarla. Abrí LEO y volvé a intentarlo."
+                    }
+                },
+            ) {
+                Text("RESTAURAR POSICIÓN DE LA BURBUJA")
+            }
+            if (bubbleStatus.isNotBlank()) {
+                Text(bubbleStatus, style = MaterialTheme.typography.bodySmall)
+            }
+
             Text("MI VOZ", style = MaterialTheme.typography.headlineSmall)
             Text("Se reduce la amplificación de voces lejanas. Registrá tu voz para rechazar órdenes que no coincidan; las voces superpuestas todavía pueden confundirse.", style = MaterialTheme.typography.bodySmall)
             if (registering) {
