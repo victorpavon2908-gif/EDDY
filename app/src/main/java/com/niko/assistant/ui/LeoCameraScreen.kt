@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun LeoCameraScreen(video: Boolean, onHome: () -> Unit) {
-    MediaShell(if (video) "Grabadora de video" else "Cámara", onHome) {
+    MediaShell(if (video) "Grabadora de video" else "Cámara", if (video) NikoUiMode.VIDEO else NikoUiMode.CAMERA, onHome) {
         MediaPermissions(camera = true, audio = video) { CameraContent(video) }
     }
 }
