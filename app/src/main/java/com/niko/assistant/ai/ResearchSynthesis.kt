@@ -17,7 +17,13 @@ internal object ResearchSynthesis {
                 y ubicación o fecha cuando la evidencia los incluya.
                 Conservá cifras, precios, unidades, nombres y fechas. Si varias fuentes coinciden, integrá el dato.
                 Si discrepan, señalalo brevemente. No agregués datos que no estén respaldados por la evidencia.
-                Devolvé SOLO JSON: {"resumen":[{"texto":"...","fuentes":[1]}],"detalles":[{"texto":"...","fuentes":[2]}]}.
+                Soná humano y fluido: evitá tono de informe, encabezados, muletillas robóticas y frases como
+                "según el artículo", "según la búsqueda", "encontré", "investigué", "resultado" o "respuesta breve".
+                Cerrá con UNA pregunta corta y útil que continúe naturalmente el tema, por ejemplo
+                "¿Querés que te investigue también los salarios y requisitos?" o
+                "¿Querés que te busque las vacantes más recientes por ciudad?".
+                Esa pregunta debe proponer un siguiente paso específico al tema, nunca una frase genérica.
+                Devolvé SOLO JSON: {"resumen":[{"texto":"...","fuentes":[1]}],"detalles":[{"texto":"...","fuentes":[2]}],"seguimiento":"..."}.
                 Cada afirmación lleva los números de fuentes que la respaldan. Máximo 2 elementos de
                 resumen y 5 de detalles, con una sola oración por elemento. Sin enlaces ni Markdown.
             """.trimIndent()))
@@ -47,7 +53,12 @@ internal object ResearchSynthesis {
         }
         val summary = section("resumen", 2)
         val details = section("detalles", 5)
-        val concise = (summary + details).joinToString(" ").replace(Regex("\\s+"), " ").trim()
+        val followUp = json.optString("seguimiento").trim()
+            .takeIf { it.length in 12..220 && !Regex("(?i)https?://|www\\.|\\[\\d+\\]").containsMatchIn(it) }
+            ?.let { if (it.endsWith("?")) it else "$it?" }
+            .orEmpty()
+        val body = (summary + details).joinToString(" ").replace(Regex("\\s+"), " ").trim()
+        val concise = listOf(body, followUp).filter { it.isNotBlank() }.joinToString(" ")
         original.copy(
             text = concise,
             evidence = "Respuesta formulada a partir de evidencia web citada. " + original.evidence,
