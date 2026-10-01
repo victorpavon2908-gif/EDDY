@@ -1,6 +1,7 @@
 package com.niko.assistant.ui
 
 import com.niko.assistant.compat.UpgradeIdentity
+import com.niko.assistant.ui.generated.GeneratedToolScreen
 
 import android.content.Context
 import android.os.SystemClock
@@ -55,6 +56,7 @@ import java.util.Locale
 fun NikoEmbeddedApp(mode: NikoUiMode, onHome: () -> Unit) {
     when (mode) {
         NikoUiMode.TOOLBOX -> LeoToolbox(onHome)
+        NikoUiMode.GENERATED -> GeneratedToolScreen(onHome)
         NikoUiMode.CAMERA -> LeoCameraScreen(false, onHome)
         NikoUiMode.VIDEO -> LeoCameraScreen(true, onHome)
         NikoUiMode.AUDIO_RECORDER -> LeoAudioRecorderScreen(onHome)
