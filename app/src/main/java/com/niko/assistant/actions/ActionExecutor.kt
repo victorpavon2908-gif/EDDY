@@ -62,11 +62,11 @@ class ActionExecutor(private val context: Context) {
                 Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP,
             )
             val message = if (mode == NikoUiMode.ASSISTANT) {
-                "De una. Volví a mi pantalla principal."
+                "Listo. Volví a mi pantalla principal."
             } else if (mode == NikoUiMode.TOOLBOX) {
-                "Estas son mis formas disponibles. Elegí una para transformar mi pantalla."
+                "Listo. Estas son mis formas disponibles."
             } else {
-                "De una. Me convertí en ${mode.title.lowercase(Locale.forLanguageTag("es-NI"))}."
+                "Listo. Modo ${mode.title.lowercase(Locale.forLanguageTag("es-NI"))} activado."
             }
             return launch(intent, message, "No pude cambiar mi interfaz ahorita.")
         }
