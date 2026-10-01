@@ -91,7 +91,7 @@ internal fun LeoMusicScreen(onHome: () -> Unit) {
             delay(7500L)
         }
     }
-    MediaShell("Música con LEO", onHome) {
+    MediaShell("Música con LEO", NikoUiMode.MUSIC, onHome) {
         NikoHero(if (speaking) NikoVisualState.SPEAKING else NikoVisualState.IDLE,
             modifier = Modifier.fillMaxWidth().height(230.dp))
         Text(playback.title.ifBlank { "Elegí música para empezar" }, style = MaterialTheme.typography.titleLarge)
