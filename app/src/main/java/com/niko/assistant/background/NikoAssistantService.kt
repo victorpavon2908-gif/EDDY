@@ -404,7 +404,6 @@ open class NikoAssistantService : Service() {
                 NikoRuntimeState.setHeard(applicationContext, "LEO")
                 NikoRuntimeState.setResponse(applicationContext, "Te escucho.")
                 revealNikoOnLockScreen()
-                if (localLlm.isAvailable) serviceScope.launch { localLlm.prewarm() }
             }},
             onCommand = { text -> serviceScope.launch {
                 if (!destroyed && epoch == localVoiceEpoch) {
@@ -414,10 +413,20 @@ open class NikoAssistantService : Service() {
             }},
             onStatus = { status -> serviceScope.launch {
                 if (!destroyed && epoch == localVoiceEpoch) {
-                    if (status.startsWith("Micrófono listo") || status.startsWith("Te escucho")) {
-                        NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, status)
-                    } else {
-                        NikoRuntimeState.setInputStatus(applicationContext, status)
+                    when {
+                        status.startsWith("Micrófono listo") -> {
+                            NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, status)
+                            if (!isSpeaking && !isThinking) {
+                                NikoRuntimeState.setResponse(applicationContext, "Decí LEO para hablar conmigo.")
+                            }
+                        }
+                        status.startsWith("Te escucho") || status.startsWith("LEO detectado") -> {
+                            NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, status)
+                            if (!isSpeaking && !isThinking) {
+                                NikoRuntimeState.setResponse(applicationContext, "Te escucho.")
+                            }
+                        }
+                        else -> NikoRuntimeState.setInputStatus(applicationContext, status)
                     }
                 }
             }},
