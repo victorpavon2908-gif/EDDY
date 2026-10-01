@@ -34,7 +34,9 @@ class LocalBrainTest {
             "Leo, funciona como conversor de unidades" to "NIKO_TOOL_CONVERTER",
         )
         cases.forEach { (phrase, tool) ->
-            assertEquals(phrase, AssistantCommand.OpenAppByName(tool), brain.understand(phrase))
+            val expected = AssistantCommand.OpenAppByName(tool)
+            assertEquals(phrase, expected, brain.understand(phrase))
+            assertEquals("$phrase via understandMany", listOf(expected), brain.understandMany(phrase))
         }
         assertTrue(brain.understand("cómo funciona una calculadora") is AssistantCommand.Unknown)
         assertTrue(brain.understand("no te conviertas en cámara") is AssistantCommand.Unknown)
