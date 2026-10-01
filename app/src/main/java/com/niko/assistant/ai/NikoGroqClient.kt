@@ -20,13 +20,20 @@ class NikoGroqClient(context: Context) {
     internal suspend fun synthesizeResearch(question: String, evidence: NikoAiReply): NikoAiReply? {
         if (!isConfigured || !evidence.webUsed || evidence.sources.isEmpty()) return null
         val configured = NikoAiSettings.model(appContext)
-        val model = configured.takeIf(GroqProtocol::isChatModel) ?: GroqProtocol.DEFAULT_MODEL
-        return withTimeoutOrNull(6_000L) {
-            val payload = GroqConversation.forModel(ResearchSynthesis.payload(question, evidence), model, false)
-            val response = GroqHttpClient().complete(NikoAiSettings.apiKey(appContext), payload)
-            if (response.code !in 200..299) return@withTimeoutOrNull null
-            val answer = runCatching { GroqProtocol.answer(JSONObject(response.body)) }.getOrNull()
-            answer?.let { ResearchSynthesis.apply(it.text, evidence) }
+        val models = listOf(
+            GroqProtocol.QUALITY_MODEL,
+            configured.takeIf(GroqProtocol::isChatModel) ?: GroqProtocol.DEFAULT_MODEL,
+            GroqProtocol.FAST_MODEL,
+        ).distinct()
+        return withTimeoutOrNull(12_000L) {
+            for (model in models) {
+                val payload = GroqConversation.forModel(ResearchSynthesis.payload(question, evidence), model, false)
+                val response = GroqHttpClient().complete(NikoAiSettings.apiKey(appContext), payload)
+                if (response.code !in 200..299) continue
+                val answer = runCatching { GroqProtocol.answer(JSONObject(response.body)) }.getOrNull() ?: continue
+                ResearchSynthesis.apply(answer.text, evidence)?.let { return@withTimeoutOrNull it }
+            }
+            null
         }
     }
 
