@@ -67,7 +67,11 @@ class NikoAiClient(
                 groq.synthesizeResearch(subject, native) ?: native
             } else native
 
-            val researched = ResearchQuality.choose(interpretedNative, validatedCompound)
+            val researched = when {
+                interpretedNative.webUsed && interpretedNative.sources.isNotEmpty() && interpretedNative !== native -> interpretedNative
+                validatedCompound != null -> validatedCompound
+                else -> native
+            }
             nativeLastError = if (researched.webUsed) null else researched.text
             if (researched.webUsed && researched.sources.isNotEmpty()) {
                 runCatching { knowledge.learn(subject, researched) }
