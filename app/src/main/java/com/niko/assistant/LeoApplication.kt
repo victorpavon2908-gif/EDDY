@@ -5,11 +5,13 @@ import android.app.Application
 import android.os.Bundle
 import com.niko.assistant.voice.LeoVoiceDiagnostics
 import com.niko.assistant.background.NikoRuntimeState
+import com.niko.assistant.diagnostics.LeoCrashRecorder
 import java.lang.ref.WeakReference
 
 class LeoApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onCreate() {
         super.onCreate()
+        LeoCrashRecorder.install(this)
         NikoRuntimeState.init(this)
         LeoVoiceDiagnostics.configure(this)
         registerActivityLifecycleCallbacks(this)
