@@ -489,7 +489,7 @@ private fun QuickActionsRail() {
     val context = LocalContext.current
     var torchOn by remember { mutableStateOf(false) }
     val actions = listOf(
-        QuickAction("Linterna", Icons.Rounded.FlashlightOn, Color(0xFF4FE4F8)) {
+        QuickAction("Linterna", Icons.Rounded.FlashlightOn, Color(0xFF3DA9A1)) {
             runCatching {
                 val manager = context.getSystemService(CameraManager::class.java)
                 val cameraId = manager.cameraIdList.firstOrNull { id ->
@@ -499,17 +499,17 @@ private fun QuickActionsRail() {
                 manager.setTorchMode(cameraId, torchOn)
             }
         },
-        QuickAction("YouTube", Icons.Rounded.SmartDisplay, Color(0xFFFF5A67)) {
+        QuickAction("YouTube", Icons.Rounded.SmartDisplay, Color(0xFFD96A72)) {
             val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
             if (launch != null) context.startActivity(launch)
             else runCatching {
                 context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://youtube.com")))
             }
         },
-        QuickAction("WhatsApp", Icons.Rounded.Chat, Color(0xFF54E38C)) {
+        QuickAction("WhatsApp", Icons.Rounded.Chat, Color(0xFF3FA86E)) {
             context.packageManager.getLaunchIntentForPackage("com.whatsapp")?.let(context::startActivity)
         },
-        QuickAction("Alarmas", Icons.Rounded.Alarm, Color(0xFFA97BFF)) {
+        QuickAction("Alarmas", Icons.Rounded.Alarm, Color(0xFF7D75BF)) {
             runCatching { context.startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS)) }
         },
     )
@@ -617,7 +617,7 @@ private fun PremiumBottomDock(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(status, color = Color(0xFF33413C), fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold)
-                Text(detail, color = Color(0xFF89958F), fontSize = 8.dp.value.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(detail, color = Color(0xFF89958F), fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             Column(
@@ -640,10 +640,10 @@ private data class QuickAction(
 )
 
 private fun stateAccent(state: NikoVisualState): Color = when (state) {
-    NikoVisualState.IDLE -> Color(0xFF5CEBFF)
-    NikoVisualState.LISTENING -> Color(0xFF49F2C2)
-    NikoVisualState.THINKING -> Color(0xFFA071FF)
-    NikoVisualState.SPEAKING -> Color(0xFFFF72D8)
+    NikoVisualState.IDLE -> Color(0xFF3DAE9A)
+    NikoVisualState.LISTENING -> Color(0xFF24B784)
+    NikoVisualState.THINKING -> Color(0xFF766CC2)
+    NikoVisualState.SPEAKING -> Color(0xFFC9699E)
 }
 
 private fun mix(start: Color, end: Color, fraction: Float): Color {
