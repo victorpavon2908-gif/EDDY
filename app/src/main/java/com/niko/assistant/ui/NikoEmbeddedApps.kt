@@ -71,24 +71,25 @@ fun NikoEmbeddedApp(mode: NikoUiMode, onHome: () -> Unit) {
 }
 
 @Composable
-private fun AppShell(title: String, onHome: () -> Unit, content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            OutlinedButton(onClick = onHome) { Text("LEO") }
-        }
-        content()
-    }
+private fun AppShell(
+    mode: NikoUiMode,
+    title: String = mode.title,
+    onHome: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    LeoToolSurface(
+        mode = mode,
+        title = title,
+        onHome = onHome,
+        content = content,
+    )
 }
 
 @Composable
 private fun CalculatorApp(onHome: () -> Unit) {
     var expression by rememberSaveable { mutableStateOf("") }
     var result by rememberSaveable { mutableStateOf("0") }
-    AppShell("Calculadora", onHome) {
+    AppShell(NikoUiMode.CALCULATOR, "Calculadora", onHome) {
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
             Column(modifier = Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.End) {
                 Text(expression.ifBlank { " " }, style = MaterialTheme.typography.bodyLarge)
@@ -132,7 +133,7 @@ private fun StopwatchApp(onHome: () -> Unit) {
         }
     }
     val elapsed = accumulated + if (running) (now - startedAt).coerceAtLeast(0L) else 0L
-    AppShell("Cronómetro", onHome) {
+    AppShell(NikoUiMode.STOPWATCH, "Cronómetro", onHome) {
         Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
             Text(formatMillis(elapsed), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         }
@@ -162,7 +163,7 @@ private fun TimerApp(onHome: () -> Unit) {
             }
         }
     }
-    AppShell("Temporizador", onHome) {
+    AppShell(NikoUiMode.TIMER, "Temporizador", onHome) {
         OutlinedTextField(value = minutesText, onValueChange = { minutesText = it.filter(Char::isDigit).take(4) }, label = { Text("Minutos") }, modifier = Modifier.fillMaxWidth())
         Box(modifier = Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
             Text(formatCountdown(remaining), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
@@ -194,7 +195,7 @@ private fun ClockApp(onHome: () -> Unit) {
     }
     val time = remember(now) { SimpleDateFormat("h:mm:ss a", Locale.forLanguageTag("es-NI")).format(Date(now)) }
     val date = remember(now / 60_000L) { SimpleDateFormat("EEEE, d 'de' MMMM", Locale.forLanguageTag("es-NI")).format(Date(now)) }
-    AppShell("Reloj", onHome) {
+    AppShell(NikoUiMode.CLOCK, "Reloj", onHome) {
         Box(modifier = Modifier.fillMaxWidth().height(360.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(time, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
@@ -226,7 +227,7 @@ private fun NotesApp(onHome: () -> Unit) {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer); saveNote(latestNote) }
     }
-    AppShell("Notas", onHome) {
+    AppShell(NikoUiMode.NOTES, "Notas", onHome) {
         OutlinedTextField(value = note, onValueChange = { note = it.take(20_000) }, label = { Text("Nota rápida") }, modifier = Modifier.fillMaxWidth().height(320.dp))
         Text(if (note == savedNote) "Guardado en este teléfono" else "Guardando…", style = MaterialTheme.typography.bodySmall)
         Text("${note.length} / 20000 caracteres", style = MaterialTheme.typography.bodySmall)
@@ -245,7 +246,7 @@ private fun ConverterApp(onHome: () -> Unit) {
         "c-f" -> number * 9.0 / 5.0 + 32.0
         else -> (number - 32.0) * 5.0 / 9.0
     } }?.takeIf { it.isFinite() }
-    AppShell("Conversor", onHome) {
+    AppShell(NikoUiMode.CONVERTER, "Conversor", onHome) {
         OutlinedTextField(value = input, onValueChange = { input = it.take(40).filter { ch -> ch.isDigit() || ch == '.' || ch == ',' || ch == '-' } }, label = { Text("Valor") }, isError = input.isNotBlank() && output == null, supportingText = { if (input.isNotBlank() && output == null) Text("Escribí un número válido") }, modifier = Modifier.fillMaxWidth())
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("km-mi" to "km → mi", "mi-km" to "mi → km", "c-f" to "°C → °F", "f-c" to "°F → °C").forEach { (id, label) ->
