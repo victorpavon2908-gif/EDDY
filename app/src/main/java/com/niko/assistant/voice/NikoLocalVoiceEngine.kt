@@ -81,6 +81,7 @@ class NikoLocalVoiceEngine(
     private val running = AtomicBoolean(false)
     private val lifecycleLock = Any()
     private val released = CountDownLatch(1)
+    private val commandModelLock = Any()
     private var initializing = false
     private var stopRequested = false
 
@@ -126,10 +127,10 @@ class NikoLocalVoiceEngine(
     private var keywordStream: OnlineStream? = null
     private var vad: Vad? = null
     private var passiveWakeVad: Vad? = null
-    private var speechDenoiser: OfflineSpeechDenoiser? = null
-    private var speakerExtractor: SpeakerEmbeddingExtractor? = null
-    private var recognizer: OfflineRecognizer? = null
-    private var whisperRecognizer: OfflineRecognizer? = null
+    @Volatile private var speechDenoiser: OfflineSpeechDenoiser? = null
+    @Volatile private var speakerExtractor: SpeakerEmbeddingExtractor? = null
+    @Volatile private var recognizer: OfflineRecognizer? = null
+    @Volatile private var whisperRecognizer: OfflineRecognizer? = null
 
     val ready: Boolean get() = models.coreReady()
     val isRunning: Boolean get() = running.get()
@@ -143,7 +144,7 @@ class NikoLocalVoiceEngine(
         try {
             if (!ready) return false
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return false
-            if (!initializeModels() || !initializeMicrophone()) return false
+            if (!initializeWakeModels() || !initializeMicrophone()) return false
             synchronized(lifecycleLock) {
                 if (stopRequested) return false
                 recorder?.startRecording()
@@ -233,15 +234,13 @@ class NikoLocalVoiceEngine(
         throw StageFailure(name, spec, error)
     }
 
-    private fun initializeModels(): Boolean {
+    private fun initializeWakeModels(): Boolean {
         lastInitializationFailure = null
         return try {
+            // Arranque mínimo y estable: para escuchar "LEO" solo hacen falta KWS + VAD.
+            // Canary/GTCRN/Whisper/Speaker se cargan después, cuando realmente hacen falta.
             initKeywordSpotter()
             initVad()
-            initDenoiser()
-            initSpanishAsr()
-            initWhisperAsrSoft()
-            initSpeakerIdSoft()
             true
         } catch (failure: StageFailure) {
             releaseModels()
@@ -255,8 +254,42 @@ class NikoLocalVoiceEngine(
             false
         } catch (error: Throwable) {
             releaseModels()
-            lastInitializationFailure = InitializationFailure("núcleo", null, error.message ?: error.javaClass.simpleName)
-            onError("No pude iniciar el núcleo local de voz. Voy a intentar recuperarlo.")
+            lastInitializationFailure = InitializationFailure("núcleo de activación", null, error.message ?: error.javaClass.simpleName)
+            onError("No pude iniciar la activación local de LEO.")
+            false
+        }
+    }
+
+    /**
+     * Carga diferida del reconocimiento de órdenes.
+     *
+     * Mantener Canary, GTCRN, Whisper y Speaker fuera del arranque evita que varios
+     * runtimes ONNX grandes compitan por memoria justo al abrir el micrófono.
+     */
+    private fun ensureCommandModelsReady(): Boolean = synchronized(commandModelLock) {
+        if (recognizer != null && speechDenoiser != null) return@synchronized true
+        return@synchronized try {
+            if (speechDenoiser == null) initDenoiser()
+            if (recognizer == null) initSpanishAsr()
+            true
+        } catch (failure: StageFailure) {
+            releaseCommandModels()
+            val cause = failure.cause
+            lastInitializationFailure = InitializationFailure(
+                failure.stageName,
+                failure.spec,
+                cause?.message ?: cause?.javaClass?.simpleName ?: "error desconocido",
+            )
+            onError("No pude preparar ${failure.stageName}.")
+            false
+        } catch (error: Throwable) {
+            releaseCommandModels()
+            lastInitializationFailure = InitializationFailure(
+                "reconocimiento de órdenes",
+                NikoModelCatalog.spanishAsr,
+                error.message ?: error.javaClass.simpleName,
+            )
+            onError("No pude preparar el reconocimiento de órdenes.")
             false
         }
     }
@@ -675,12 +708,20 @@ class NikoLocalVoiceEngine(
         resetKeywordStream()
         resetCommandDetector()
         passiveWakeVad?.reset()
-        commandWindow.onWake(now)
+        LeoVoiceDiagnostics.recordWake(source)
+        onWake(1f, ownerVoice.hasProfile())
+        setState(State.VERIFYING)
+        if (!ensureCommandModelsReady()) {
+            conversationAuthorized = false
+            commandWindow.close()
+            preRoll.clear()
+            setState(State.PASSIVE)
+            return false
+        }
+        commandWindow.onWake(SystemClock.elapsedRealtime())
         if (includePreRoll) feedCommandDetector(preRoll.snapshot())
         preRoll.clear()
         setState(State.ACTIVE)
-        LeoVoiceDiagnostics.recordWake(source)
-        onWake(1f, ownerVoice.hasProfile())
         return true
     }
 
@@ -798,10 +839,17 @@ class NikoLocalVoiceEngine(
     }
 
     private fun transcribe(samples: FloatArray): FaithfulSpeechTranscriber.Result {
+        check(ensureCommandModelsReady()) { "El reconocimiento español no está disponible." }
         val canary = checkNotNull(recognizer) { "El reconocimiento español Canary no está disponible." }
-        val alternate: ((FloatArray) -> String)? = whisperRecognizer?.let { whisper ->
-            { audio -> transcribeWith(whisper, audio) }
-        }
+        val alternate: ((FloatArray) -> String)? = if (models.isInstalled(NikoModelCatalog.whisperAsr)) {
+            { audio ->
+                val whisper = whisperRecognizer ?: synchronized(commandModelLock) {
+                    if (whisperRecognizer == null) initWhisperAsrSoft()
+                    whisperRecognizer
+                }
+                whisper?.let { transcribeWith(it, audio) }.orEmpty()
+            }
+        } else null
         return FaithfulSpeechTranscriber(
             primaryDecoder = { transcribeWith(canary, it) },
             alternateDecoder = alternate,
@@ -844,6 +892,7 @@ class NikoLocalVoiceEngine(
      */
     private fun acceptSpeaker(samples: FloatArray, allowRecentOwner: Boolean = true): Boolean {
         if (!ownerVoice.ownerOnly) return true
+        if (speakerExtractor == null) initSpeakerIdSoft()
         val now = SystemClock.elapsedRealtime()
         if (samples.size < MIN_SPEAKER_SAMPLES) {
             val recent = allowRecentOwner && now <= ownerAuthorizedUntil
@@ -931,6 +980,13 @@ class NikoLocalVoiceEngine(
         if (state == value) return
         state = value
         onState(value)
+    }
+
+    private fun releaseCommandModels() {
+        runCatching { speechDenoiser?.release() }; speechDenoiser = null
+        runCatching { speakerExtractor?.release() }; speakerExtractor = null
+        runCatching { recognizer?.release() }; recognizer = null
+        runCatching { whisperRecognizer?.release() }; whisperRecognizer = null
     }
 
     private fun releaseModels() {
