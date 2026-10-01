@@ -58,7 +58,7 @@ internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, ena
         Canvas(Modifier.fillMaxSize()) {
             val center = Offset(size.width * .5f, size.height * .865f)
             drawOval(
-                brush = Brush.radialGradient(listOf(Color(0xFF56DBC4).copy(alpha = .12f), Color.Transparent), center, size.width * .4f),
+                brush = Brush.radialGradient(listOf(Color(0xFF58CFAF).copy(alpha = .10f), Color.Transparent), center, size.width * .4f),
                 topLeft = Offset(size.width * .12f, center.y - size.height * .025f),
                 size = Size(size.width * .76f, size.height * .05f),
             )
@@ -82,8 +82,8 @@ internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, ena
             modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
         )
         if (state == NikoVisualState.IDLE && enabled) Text(
-            text = if (failed) "Leo sigue aquí para escucharte" else "Tocame o decí «Leo, bailá»",
-            color = Color(0xFF76939E), fontSize = 11.sp,
+            text = if (failed) "LEO está listo para escucharte" else "Decí «Leo» y hablame normal",
+            color = Color(0xFF7C8A85), fontSize = 11.sp,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp),
         )
     }
