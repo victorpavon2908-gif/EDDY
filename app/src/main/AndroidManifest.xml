@@ -93,6 +93,7 @@
             android:name="com.eddy.assistant.background.EddyAssistantService"
             android:exported="false"
             android:foregroundServiceType="microphone"
+            android:process=":voice"
             android:stopWithTask="false" />
 
         <service
