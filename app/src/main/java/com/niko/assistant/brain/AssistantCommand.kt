@@ -3,6 +3,7 @@ package com.niko.assistant.brain
 sealed interface AssistantCommand {
     data class OpenApp(val app: SupportedApp) : AssistantCommand
     data class OpenAppByName(val name: String) : AssistantCommand
+    data class GenerateTool(val request: String) : AssistantCommand
     data object OpenCamera : AssistantCommand
     data object TellTime : AssistantCommand
     data object Greeting : AssistantCommand
