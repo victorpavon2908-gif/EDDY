@@ -20,6 +20,18 @@ class ResearchSynthesisTest {
         assertFalse(result.text.contains("Detalles:"))
         assertTrue(result.text.contains("El informe describe los resultados disponibles."))
     }
+    @Test fun appendsNaturalFollowUpWhenModelProvidesOne() {
+        val raw = """
+            {"resumen":[{"texto":"Hay vacantes activas en varias áreas de Nicaragua.","fuentes":[1]}],
+             "detalles":[{"texto":"Algunas ofertas indican ubicación y requisitos concretos.","fuentes":[1]}],
+             "seguimiento":"¿Querés que te busque las vacantes más recientes por ciudad?"}
+        """.trimIndent()
+        val result = ResearchSynthesis.apply(raw, original)!!
+        assertTrue(result.text.endsWith("¿Querés que te busque las vacantes más recientes por ciudad?"))
+        assertFalse(result.text.contains("Busqué"))
+        assertFalse(result.text.contains("Respuesta breve"))
+    }
+
     @Test fun rejectsInventedSourcesUrlsAndUnstructuredAnswers() {
         assertNull(ResearchSynthesis.apply(answer(2), original))
         assertNull(ResearchSynthesis.apply(answer(detail = "El dato proviene de otra supuesta fuente [99]."), original))
