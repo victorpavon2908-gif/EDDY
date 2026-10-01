@@ -26,6 +26,18 @@ class LocalBrainTest {
             AssistantCommand.OpenAppByName("NIKO_TOOL_STOPWATCH"),
             brain.understand("Leo, ponte en modo cronómetro"),
         )
+        assertEquals(
+            AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA"),
+            brain.understand("Leo, quiero que seas una cámara"),
+        )
+        assertEquals(
+            AssistantCommand.OpenAppByName("NIKO_TOOL_MUSIC"),
+            brain.understand("Leo, pasate a música"),
+        )
+        assertEquals(
+            AssistantCommand.OpenAppByName("NIKO_TOOL_TIMER"),
+            brain.understand("Leo, hacete temporizador"),
+        )
     }
 
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
