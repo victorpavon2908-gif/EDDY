@@ -40,6 +40,7 @@ import androidx.lifecycle.lifecycleScope
 import com.niko.assistant.background.NikoAssistantService
 import com.niko.assistant.background.NikoVoiceSettings
 import com.niko.assistant.background.NikoRuntimeState
+import com.niko.assistant.diagnostics.LeoCrashRecorder
 import com.niko.assistant.startup.LeoFirstRunSetup
 import com.niko.assistant.startup.LeoFirstRunState
 import com.niko.assistant.localai.LeoFrozenBrainManager
@@ -77,8 +78,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
 
         NikoVoiceSettings.ensureIsolatedVoiceMigration(applicationContext)
@@ -300,12 +301,15 @@ class MainActivity : ComponentActivity() {
         // mientras crea la nueva. Primero cubrimos con el morph, luego cambiamos de forma.
         LaunchedEffect(uiMode) {
             if (uiMode != renderedMode) {
+                LeoCrashRecorder.breadcrumb("morph_begin from=${renderedMode.id} to=${uiMode.id}")
                 morphTarget = uiMode
                 morphing = true
                 delay(260L)
                 renderedMode = uiMode
+                LeoCrashRecorder.breadcrumb("morph_render mode=${uiMode.id}")
                 delay(360L)
                 morphing = false
+                LeoCrashRecorder.breadcrumb("morph_complete mode=${uiMode.id}")
             }
         }
 
