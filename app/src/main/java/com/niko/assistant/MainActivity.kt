@@ -244,7 +244,9 @@ class MainActivity : ComponentActivity() {
 
     private fun startAssistantService(action: String? = null) {
         if (!canRunLeo()) return
-        val intent = UpgradeIdentity.assistantService(this).apply { this.action = action }
+        val intent = UpgradeIdentity.assistantService(this).apply {
+            this.action = action ?: NikoAssistantService.ACTION_START
+        }
         runCatching { ContextCompat.startForegroundService(this, intent) }
             .onFailure { NikoRuntimeState.setResponse(applicationContext, "No pude iniciar el modo permanente de LEO. Abrí la aplicación nuevamente.") }
     }
