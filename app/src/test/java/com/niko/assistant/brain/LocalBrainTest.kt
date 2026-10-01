@@ -17,6 +17,8 @@ class LocalBrainTest {
         val cases = listOf(
             "Leo, conviértete en una cámara" to "NIKO_TOOL_CAMERA",
             "Leo, transformate en cámara" to "NIKO_TOOL_CAMERA",
+            "Leo, quiero convertirte en cámara" to "NIKO_TOOL_CAMERA",
+            "Leo, te transformas en cámara" to "NIKO_TOOL_CAMERA",
             "Leo, quiero que seas una cámara" to "NIKO_TOOL_CAMERA",
             "Leo, actuá como cámara" to "NIKO_TOOL_CAMERA",
             "Leo, conviértete en grabadora de video" to "NIKO_TOOL_VIDEO",
