@@ -47,7 +47,6 @@ import com.niko.assistant.ui.LeoBrainStatusOverlay
 import com.niko.assistant.ui.LeoFirstRunScreen
 import com.niko.assistant.ui.LeoLiveTranscriptOverlay
 import com.niko.assistant.ui.LeoMorphTransitionOverlay
-import com.niko.assistant.ui.LeoTransformLauncher
 import com.niko.assistant.ui.NikoEmbeddedApp
 import com.niko.assistant.ui.NikoReferenceScreen
 import com.niko.assistant.ui.NikoUiMode
@@ -332,6 +331,7 @@ class MainActivity : ComponentActivity() {
                             webSearching = snapshot.webSearching,
                             webUsed = snapshot.webUsed,
                             webSources = snapshot.webSources,
+                            onTools = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
                         )
                         LeoBrainStatusOverlay(
                             state = snapshot.brainState,
@@ -345,10 +345,6 @@ class MainActivity : ComponentActivity() {
                                 .padding(top = 60.dp, start = 18.dp, end = 18.dp),
                         )
                         LeoLiveTranscriptOverlay(visualState)
-                        LeoTransformLauncher(
-                            onClick = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
-                            modifier = Modifier.align(Alignment.BottomStart).padding(18.dp),
-                        )
                     }
                 } else {
                     NikoEmbeddedApp(
