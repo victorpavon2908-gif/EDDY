@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun LeoAudioRecorderScreen(onHome: () -> Unit) {
-    MediaShell("Grabadora de audio", onHome) {
+    MediaShell("Grabadora de audio", NikoUiMode.AUDIO_RECORDER, onHome) {
         MediaPermissions(camera = false, audio = true) { AudioRecorderContent() }
     }
 }
