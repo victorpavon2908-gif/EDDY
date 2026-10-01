@@ -14,7 +14,7 @@ object NikoVoiceSettings {
     fun enabled(context: Context): Boolean =
         userEnabled(context) && LeoFirstRunSetup.isMarkedReady(context)
 
-    fun userEnabled(context: Context): Boolean = prefs(context).getBoolean("assistant_enabled", false)
+    fun userEnabled(context: Context): Boolean = prefs(context).getBoolean("assistant_enabled", true)
 
     /**
      * Protección de arranque: después de una actualización que pueda afectar el motor
