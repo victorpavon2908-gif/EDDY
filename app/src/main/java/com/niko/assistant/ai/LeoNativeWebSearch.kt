@@ -114,6 +114,14 @@ object LeoNativeWebSearch {
             webUsed = true,
             sources = sources,
             evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
+            researchContext = cited.mapIndexed { index, hit ->
+                buildString {
+                    appendLine("FUENTE ${index + 1}: ${hit.title.ifBlank { hostOf(hit.url) }}")
+                    if (hit.publisher.isNotBlank()) appendLine("Medio: ${hit.publisher}")
+                    if (hit.published.isNotBlank()) appendLine("Fecha: ${hit.published}")
+                    append("Extracto: ${hit.articleText.ifBlank { hit.snippet }.take(1_500)}")
+                }
+            }.joinToString("\n\n").take(9_000),
         )
     }
 
