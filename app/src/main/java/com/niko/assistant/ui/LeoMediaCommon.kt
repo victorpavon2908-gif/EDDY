@@ -25,14 +25,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun MediaShell(title: String, onHome: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun MediaShell(
+    title: String,
+    mode: NikoUiMode,
+    onHome: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onHome) { Text("LEO") }
-            OutlinedButton(onClick = { NikoUiModeStore.set(context, NikoUiMode.TOOLBOX) }) { Text("Transformarme") }
+    LeoToolSurface(mode = mode, title = title, onHome = onHome) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(onClick = { NikoUiModeStore.set(context, NikoUiMode.TOOLBOX) }) {
+                Text("CAMBIAR FORMA")
+            }
         }
         content()
     }
@@ -85,13 +89,35 @@ internal fun LeoToolbox(onHome: () -> Unit) {
     val files by produceState<List<File>?>(initialValue = null, context) {
         value = withContext(Dispatchers.IO) { runCatching { MediaFiles.recent(MediaFiles.directory(context)) }.getOrDefault(emptyList()) }
     }
-    MediaShell("¿En qué me convierto?", onHome) {
-        Text("Elegí una forma o decí «LEO, conviértete en una cámara».")
-        NikoUiMode.entries.filter { it !in setOf(NikoUiMode.ASSISTANT, NikoUiMode.TOOLBOX) }.forEach { mode ->
-            FilledTonalButton(onClick = { NikoUiModeStore.set(context, mode) }, modifier = Modifier.fillMaxWidth()) { Text(mode.title) }
+    MediaShell("Centro de transformación", NikoUiMode.TOOLBOX, onHome) {
+        Text(
+            "Decí «LEO, conviértete en una cámara» o elegí una forma. La pantalla cambia sin salir del asistente.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val modes = NikoUiMode.entries.filter {
+            it !in setOf(NikoUiMode.ASSISTANT, NikoUiMode.TOOLBOX, NikoUiMode.VOICE_DIAGNOSTICS)
         }
+        modes.chunked(2).forEach { rowModes ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                rowModes.forEach { mode ->
+                    LeoTransformCard(
+                        mode = mode,
+                        modifier = Modifier.weight(1f),
+                        onClick = { NikoUiModeStore.set(context, mode) },
+                    )
+                }
+                if (rowModes.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+
         Text("Capturas recientes", style = MaterialTheme.typography.titleLarge)
-        Text("Se guardan en este teléfono. Exportalas antes de desinstalar EDDY.")
+        Text(
+            "Todo queda en este teléfono. Podés abrir o exportar tus capturas cuando quieras.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (files == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         files?.forEach { SavedMedia(it) }
         if (files?.isEmpty() == true) Text("Todavía no hay capturas.")
