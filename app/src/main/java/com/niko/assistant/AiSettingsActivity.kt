@@ -4,6 +4,9 @@ import com.niko.assistant.compat.UpgradeIdentity
 
 import android.Manifest
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -57,6 +60,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
 class AiSettingsActivity : ComponentActivity() {
+    private val runtimeStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent?.let(NikoRuntimeState::acceptExternalState)
+        }
+    }
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startVoiceListener() else {
             NikoVoiceSettings.setEnabled(this, false)
@@ -66,7 +74,18 @@ class AiSettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(
+            this,
+            runtimeStateReceiver,
+            IntentFilter(NikoRuntimeState.ACTION_RUNTIME_STATE),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         setContent { NikoTheme { GroqSettingsScreen(onClose = { finish() }, onVoiceEnabled = ::setVoiceEnabled) } }
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(runtimeStateReceiver) }
+        super.onDestroy()
     }
 
     private fun setVoiceEnabled(enabled: Boolean) {
