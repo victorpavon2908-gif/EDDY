@@ -28,7 +28,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -272,7 +271,6 @@ class MainActivity : ComponentActivity() {
         val snapshot by NikoRuntimeState.stateFlow.collectAsStateWithLifecycle()
         var enabled by remember { mutableStateOf(assistantEnabled()) }
         var uiMode by remember { mutableStateOf(NikoUiModeStore.read(applicationContext)) }
-        LaunchedEffect(Unit) { NikoRuntimeState.init(applicationContext) }
         DisposableEffect(Unit) {
             val controls = getSharedPreferences(UpgradeIdentity.controlPreferences, Context.MODE_PRIVATE)
             val modes = getSharedPreferences(UpgradeIdentity.uiPreferences, Context.MODE_PRIVATE)
