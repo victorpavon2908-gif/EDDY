@@ -20,7 +20,9 @@ class LocalBrain {
     }
 
     private fun understandSingle(input: String): AssistantCommand {
-        val original = cleanConversationalInput(input.trim().replace(Regex("(?i)^(?:leo|eddy|niko|nico)\\b[\\s,.:;!¿?¡-]*"), ""))
+        val rawOriginal = input.trim().replace(Regex("(?i)^(?:leo|eddy|niko|nico)\\b[\\s,.:;!¿?¡-]*"), "")
+        val original = cleanConversationalInput(rawOriginal)
+        val rawText = normalize(rawOriginal)
         val text = normalize(original)
 
         // Negated orders and questions about an action must never execute that action.
@@ -32,6 +34,11 @@ class LocalBrain {
 
         // Resolve explicit searches before inspecting words contained in their query.
         parseWebSearch(original)?.let { return it }
+
+        // Transformation language is intentionally checked before removing polite prefixes.
+        // Example: "quiero que seas una cámara" becomes "seas una cámara" after cleanup.
+        // Keeping the raw normalized sentence makes those natural requests deterministic.
+        parseDynamicTool(rawText)?.let { return it }
 
         if (containsAny(text, "olvida todo", "borra tu memoria", "borra lo que sabes de mi")) return AssistantCommand.ClearMemory
         if (containsAny(text, "que sabes de mi", "que has aprendido de mi", "que recuerdas de mi", "que te pedi que recordaras", "que te ensene", "que hago mas", "que uso mas")) return AssistantCommand.MemorySummary
@@ -80,8 +87,10 @@ class LocalBrain {
             "ponte como", "ponete como", "ponte de", "ponete de",
             "cambia a modo", "cambiate a", "cámbiate a", "cambia tu pantalla a",
             "pasa a modo", "pasate a", "pásate a",
-            "quiero que seas", "quiero verte como", "quiero que te vuelvas",
-            "se una", "se un", "sé una", "sé un",
+            "quiero que seas", "quiero que te conviertas", "quiero que te transformes",
+            "quiero verte como", "quiero que te vuelvas", "quiero una", "quiero un",
+            "seas una", "seas un", "se una", "se un", "sé una", "sé un",
+            "actua como", "actuá como", "funciona como", "comportate como", "compórtate como",
             "modo camara", "modo video", "modo grabadora", "modo musica", "modo reproductor",
             "abre grabadora", "abre la grabadora", "abre reproductor", "abre el reproductor",
             "transformaciones", "tus herramientas",
