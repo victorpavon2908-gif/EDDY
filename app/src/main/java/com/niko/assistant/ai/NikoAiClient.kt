@@ -32,6 +32,17 @@ class NikoAiClient(
 
     val lastError: String? get() = nativeLastError ?: groq.lastError
 
+    private fun conciseWebAnswer(reply: NikoAiReply): NikoAiReply {
+        if (!reply.webUsed || reply.text.isBlank()) return reply
+        var text = reply.text.trim()
+        text = text
+            .replace(Regex("(?im)^\\s*(?:respuesta breve(?: sobre [^:]+)?|detalles(?: y contexto| y verificacion)?|contraste y limites)\\s*:\\s*"), "")
+            .replace(Regex("(?i)^(?:busqu[eé]|investigu[eé]|consult[eé])[^.!?]*[.!?]\\s*"), "")
+            .replace(Regex("\\n{3,}"), "\n\n")
+            .trim()
+        return reply.copy(text = text.ifBlank { reply.text.trim() })
+    }
+
     /** Keeps the settings-screen Groq test meaningful; native search itself needs no setup. */
     suspend fun healthCheck(): Boolean = groq.testConnection()
 
@@ -72,11 +83,12 @@ class NikoAiClient(
                 validatedCompound != null -> validatedCompound
                 else -> native
             }
-            nativeLastError = if (researched.webUsed) null else researched.text
-            if (researched.webUsed && researched.sources.isNotEmpty()) {
-                runCatching { knowledge.learn(subject, researched) }
+            val finalReply = conciseWebAnswer(researched)
+            nativeLastError = if (finalReply.webUsed) null else finalReply.text
+            if (finalReply.webUsed && finalReply.sources.isNotEmpty()) {
+                runCatching { knowledge.learn(subject, finalReply) }
             }
-            return researched
+            return finalReply
         }
 
         // Conversation remains optional cloud assistance. If there is no Groq key,
