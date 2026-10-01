@@ -78,7 +78,12 @@ class AiSettingsActivity : ComponentActivity() {
     }
 
     private fun startVoiceListener() {
-        runCatching { ContextCompat.startForegroundService(this, UpgradeIdentity.assistantService(this)) }
+        runCatching {
+            ContextCompat.startForegroundService(
+                this,
+                UpgradeIdentity.assistantService(this).apply { action = com.niko.assistant.background.NikoAssistantService.ACTION_START },
+            )
+        }
             .onFailure {
                 NikoVoiceSettings.setEnabled(this, false)
                 NikoRuntimeState.setInput(this, NikoRuntimeState.InputState.ERROR, "No pude iniciar el micrófono. Volvé a abrir LEO.")
