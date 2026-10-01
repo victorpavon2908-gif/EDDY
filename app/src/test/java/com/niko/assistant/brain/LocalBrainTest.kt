@@ -13,6 +13,21 @@ class LocalBrainTest {
         }
     }
 
+    @Test fun transformsTheScreenFromNaturalVoicePhrases() {
+        assertEquals(
+            AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA"),
+            brain.understand("Leo, conviértete en una cámara"),
+        )
+        assertEquals(
+            AssistantCommand.OpenAppByName("NIKO_TOOL_CALCULATOR"),
+            brain.understand("Leo, cambia tu pantalla a una calculadora"),
+        )
+        assertEquals(
+            AssistantCommand.OpenAppByName("NIKO_TOOL_STOPWATCH"),
+            brain.understand("Leo, ponte en modo cronómetro"),
+        )
+    }
+
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.BACK), brain.understand("Leo, volvé atrás"))
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.HOME), brain.understand("andá a la pantalla de inicio"))
