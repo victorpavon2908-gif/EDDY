@@ -1119,7 +1119,11 @@ open class NikoAssistantService : Service() {
         val evidenceNote = if (reply.webUsed) AutonomousResearch.evidenceNote(reply.sources.map { it.url }) else ""
         val displayed = if (evidenceNote.isBlank()) finalText else "$finalText\n\n$evidenceNote"
         NikoRuntimeState.setAiResponse(applicationContext, displayed, reply.webUsed, reply.sources)
-        speakOnly(finalText)
+        val spokenText = finalText
+            .replace(Regex("\\s*\\[\\d+\\]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        speakOnly(spokenText.ifBlank { finalText })
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }
     }
 
