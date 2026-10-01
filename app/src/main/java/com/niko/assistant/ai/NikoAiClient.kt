@@ -58,12 +58,16 @@ class NikoAiClient(
                 LeoNativeWebSearch.search(subject) to null
             }
             val validatedCompound = compound?.takeIf { it.webUsed && it.sources.isNotEmpty() }
-            val selected = ResearchQuality.choose(native, validatedCompound)
-            // If Compound was unavailable, the normal chat model can still organize the
-            // locally retrieved evidence without inventing or adding source links.
-            val researched = if (selected === native && validatedCompound == null) {
+
+            // La búsqueda nativa recupera y valida las fuentes; después, cuando Groq está
+            // disponible, siempre intentamos convertir esos hallazgos en una respuesta
+            // razonada. Antes solo sintetizábamos cuando Compound fallaba, por eso muchas
+            // respuestas terminaban sonando como una lectura de extractos del buscador.
+            val interpretedNative = if (native.webUsed && native.sources.isNotEmpty() && groq.isConfigured) {
                 groq.synthesizeResearch(subject, native) ?: native
-            } else selected
+            } else native
+
+            val researched = ResearchQuality.choose(interpretedNative, validatedCompound)
             nativeLastError = if (researched.webUsed) null else researched.text
             if (researched.webUsed && researched.sources.isNotEmpty()) {
                 runCatching { knowledge.learn(subject, researched) }
