@@ -408,36 +408,22 @@ object LeoNativeWebSearch {
         val publishers = selected.map { publisherKey(hits[it.sourceIndex]) }.distinct().size
         val pagesRead = selected.map { it.sourceIndex }.distinct().count { hits[it].articleText.isNotBlank() }
         val anglesCovered = selected.map { hits[it.sourceIndex].angle }.distinct().size
-        val overview = selected.take(2)
-        val details = selected.drop(2)
+        val conciseFacts = selected.take(4)
         return buildString {
-            appendLine(if (current) "Busqué información reciente en Internet." else "Busqué en Internet.")
-            appendLine()
-            appendLine("Respuesta breve sobre $query:")
-            overview.groupBy { it.sourceIndex }.forEach { (index, facts) ->
-                val hit = hits[index]
-                appendLine("• ${facts.joinToString(" ") { it.text }} [${index + 1}]")
-                if (current && hit.published.isNotBlank()) appendLine("  Fecha de la fuente [${index + 1}]: ${hit.published}")
+            conciseFacts.forEachIndexed { position, fact ->
+                if (position > 0) append(" ")
+                append(fact.text.trim())
+                append(" [${fact.sourceIndex + 1}]")
             }
-            if (details.isNotEmpty()) {
-                appendLine()
-                appendLine("Detalles y contexto:")
-                details.groupBy { it.sourceIndex }.forEach { (index, facts) ->
-                    val hit = hits[index]
-                    appendLine("• ${facts.joinToString(" ") { it.text }} [${index + 1}]")
-                    if (current && hit.published.isNotBlank()) appendLine("  Fecha de la fuente [${index + 1}]: ${hit.published}")
-                }
+            if (publishers == 1) {
+                append(" No pude corroborarlo con una segunda fuente independiente.")
             }
-            appendLine()
-            appendLine("Contraste y límites:")
-            appendLine(when (publishers) {
-                1 -> "Solo obtuve información útil de un sitio; no alcanza para corroborarla de forma independiente."
-                2 -> "La cobertura reúne dos sitios independientes y $anglesCovered enfoques de consulta."
-                else -> "La cobertura reúne $publishers sitios independientes y $anglesCovered enfoques de consulta."
-            })
-            append(if (pagesRead == 0) "Solo pude leer extractos del buscador, no los artículos completos. " else "Leí texto de $pagesRead páginas. ")
-            append("Cada número indica de dónde sale el dato; si las fuentes discrepan, no debe asumirse consenso.")
-            if (current && selected.none { hits[it.sourceIndex].published.isNotBlank() }) append(" Las fuentes no indican fecha de publicación; no puedo asegurar su actualidad.")
+            if (current && selected.none { hits[it.sourceIndex].published.isNotBlank() }) {
+                append(" Las fuentes disponibles no muestran fecha de publicación, así que la actualidad no queda confirmada.")
+            }
+            if (pagesRead == 0 && conciseFacts.isNotEmpty()) {
+                append(" La respuesta se basa en extractos del buscador porque no pude leer las páginas completas.")
+            }
         }.trim()
     }
 
