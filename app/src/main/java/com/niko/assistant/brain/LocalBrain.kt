@@ -111,6 +111,9 @@ class LocalBrain {
             "abre conversor", "abri conversor", "quiero conversor", "abre convertidor",
         )
         if (!wantsTransformation) return null
+        if (containsAny(text, "transformaciones", "tus herramientas")) {
+            return AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
+        }
         return when {
             text.contains("video") -> AssistantCommand.OpenAppByName("NIKO_TOOL_VIDEO")
             text.contains("grabador") || text.contains("gravador") -> AssistantCommand.OpenAppByName("NIKO_TOOL_AUDIO")
@@ -122,8 +125,29 @@ class LocalBrain {
             text.contains("reloj") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CLOCK")
             text.contains("nota") || text.contains("bloc") -> AssistantCommand.OpenAppByName("NIKO_TOOL_NOTES")
             text.contains("conversor") || text.contains("convertidor") || text.contains("unidades") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CONVERTER")
-            else -> AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
+            else -> dynamicToolRequest(text)?.let(AssistantCommand::GenerateTool)
+                ?: AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
         }
+    }
+
+    private fun dynamicToolRequest(text: String): String? {
+        val prefixes = listOf(
+            "convertite en", "conviertete en", "conviertete a", "convertite a",
+            "convertirte en", "convertir en", "transformate en", "transformate a",
+            "transformate como", "transformarte en", "transformar en", "volvete",
+            "hazte", "hacete", "ponte en modo", "ponete en modo", "ponte como",
+            "ponete como", "cambia a modo", "cambiate a", "cambia tu pantalla a",
+            "pasa a modo", "pasate a", "quiero que seas", "quiero que te conviertas",
+            "quiero que te transformes", "quiero verte como", "quiero que te vuelvas",
+            "actua como", "funciona como", "comportate como",
+        )
+        val prefix = prefixes.firstOrNull { text.contains(it) }
+        var target = if (prefix != null) text.substringAfter(prefix) else text
+        target = target
+            .replace(Regex("^(?:un|una|el|la|modo|de)\\s+"), "")
+            .replace(Regex("\\s+(?:por favor|porfa)$"), "")
+            .trim()
+        return target.takeIf { it.length in 3..180 }
     }
 
     private fun splitActionClauses(value: String): List<String> {
