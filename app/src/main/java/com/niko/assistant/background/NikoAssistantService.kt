@@ -212,7 +212,7 @@ open class NikoAssistantService : Service() {
             } },
         )
 
-        if (!NikoVoiceSettings.enabled(this) || !hasMicrophonePermission()) {
+        if (!hasMicrophonePermission()) {
             NikoRuntimeState.setResponse(applicationContext, "Abrí LEO y concedé el permiso de micrófono.")
             stopSelf()
             return
@@ -243,12 +243,17 @@ open class NikoAssistantService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_START -> NikoVoiceSettings.setEnabled(this, true)
             ACTION_STOP -> { NikoVoiceSettings.setEnabled(this, false); stopSelf(); return START_NOT_STICKY }
             ACTION_SHOW_BUBBLE -> showBubble()
             ACTION_HIDE_BUBBLE -> hideBubble()
             ACTION_REFRESH_BUBBLE -> { hideBubble(); showBubble() }
         }
-        if (!foregroundReady || !NikoVoiceSettings.enabled(this)) { stopSelf(); return START_NOT_STICKY }
+        if (!foregroundReady) { stopSelf(); return START_NOT_STICKY }
+        if (intent?.action != ACTION_START && !NikoVoiceSettings.enabled(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         ensureVoiceListening()
         return START_STICKY
     }
@@ -1001,6 +1006,7 @@ open class NikoAssistantService : Service() {
         private const val BUBBLE_PREFS = UpgradeIdentity.bubblePreferences
         private const val KEY_BUBBLE_X = "bubble_x"
         private const val KEY_BUBBLE_Y = "bubble_y"
+        const val ACTION_START = UpgradeIdentity.ACTION_START
         const val ACTION_STOP = UpgradeIdentity.ACTION_STOP
         const val ACTION_SHOW_BUBBLE = UpgradeIdentity.ACTION_SHOW_BUBBLE
         const val ACTION_HIDE_BUBBLE = UpgradeIdentity.ACTION_HIDE_BUBBLE
