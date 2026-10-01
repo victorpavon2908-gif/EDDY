@@ -56,22 +56,25 @@ class LeoPlatformVoiceEngine(
             onError("Android no tiene un servicio de reconocimiento de voz disponible.")
             return false
         }
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            onError("El motor compatible debe iniciarse desde el hilo principal.")
+            return false
+        }
         return runCatching {
-            main.post {
-                if (destroyed) return@post
-                recognizer?.destroy()
-                recognizer = SpeechRecognizer.createSpeechRecognizer(appContext).also {
-                    it.setRecognitionListener(this)
-                }
-                running = true
-                restartAttempt = 0
-                awaitingCommand = false
-                onState(State.PASSIVE)
-                onStatus("Micrófono listo · modo compatible · decí LEO")
-                startListening(120L)
+            recognizer?.destroy()
+            recognizer = SpeechRecognizer.createSpeechRecognizer(appContext).also {
+                it.setRecognitionListener(this)
             }
+            running = true
+            restartAttempt = 0
+            awaitingCommand = false
+            onState(State.PASSIVE)
+            onStatus("Micrófono listo · modo compatible · decí LEO")
+            startListening(120L)
             true
         }.getOrElse {
+            recognizer = null
+            running = false
             onError("No pude iniciar el reconocimiento de voz de Android.")
             false
         }
