@@ -27,7 +27,8 @@ class GroqConversationTest {
         val system = payload.getJSONArray("messages").getJSONObject(0).getString("content")
         assertTrue(system.contains(NikoPersonality.DIRECT.guidance()))
         assertTrue(system.contains("fuentes independientes"))
-        assertTrue(system.contains("detalles útiles"))
+        assertTrue(system.contains("2 a 4 oraciones breves"))
+        assertTrue(system.contains("pregunta breve"))
         assertTrue(system.contains("no uses Markdown"))
         assertFalse(base.has("compound_custom"))
     }
