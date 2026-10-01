@@ -261,7 +261,7 @@ private fun LiveStateBadge(
     val accent = if (enabled && inputState == InputState.READY) stateAccent(state) else Color(0xFF7C8791)
     val text = when {
         !enabled -> "EN PAUSA"
-        inputState == InputState.PREPARING -> "INICIANDO OÍDO LOCAL"
+        inputState == InputState.PREPARING -> "INICIANDO MICRÓFONO"
         inputState != InputState.READY -> "MICRÓFONO NO DISPONIBLE"
         webSearching -> "BUSCANDO EN INTERNET"
         state == NikoVisualState.LISTENING -> "ESCUCHANDO"
@@ -547,7 +547,7 @@ private fun WakeDock(
     val accent = if (ready) stateAccent(state) else Color(0xFF69757E)
     val title = when {
         !enabled -> "LEO EN PAUSA"
-        inputState == InputState.PREPARING -> "PREPARANDO ESCUCHA LOCAL"
+        inputState == InputState.PREPARING -> "PREPARANDO MICRÓFONO"
         inputState != InputState.READY -> "ESCUCHA NO DISPONIBLE"
         else -> "ESCUCHA AMBIENTAL ACTIVA"
     }
