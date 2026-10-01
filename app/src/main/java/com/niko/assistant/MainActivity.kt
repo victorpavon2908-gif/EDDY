@@ -99,11 +99,10 @@ class MainActivity : ComponentActivity() {
 
         batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refreshLockScreenSetupStatus() }
         fullScreenLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            maybeRequestBatteryOptimizationExemption(); refreshLockScreenSetupStatus()
+            refreshLockScreenSetupStatus()
         }
         overlayLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (Settings.canDrawOverlays(this) && canRunLeo()) sendServiceAction(NikoAssistantService.ACTION_REFRESH_BUBBLE)
-            maybeRequestFullScreenIntentPermission()
         }
         permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             val micGranted = grants[Manifest.permission.RECORD_AUDIO] ?: hasMicrophonePermission()
@@ -129,6 +128,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (canRunLeo()) {
+            val snapshot = NikoRuntimeState.read(applicationContext)
+            if (snapshot.inputState == NikoRuntimeState.InputState.STOPPED || snapshot.inputState == NikoRuntimeState.InputState.ERROR) {
+                NikoRuntimeState.setResponse(applicationContext, "Preparando el micrófono de LEO…")
+            }
             startAssistantService(); sendServiceAction(NikoAssistantService.ACTION_HIDE_BUBBLE)
             ensureFrozenBrain()
         } else if (hasMicrophonePermission()) {
@@ -209,32 +212,15 @@ class MainActivity : ComponentActivity() {
 
     private fun maybeRequestOverlayPermission() {
         if (!firstRunSetup.isReady()) return
-        if (Settings.canDrawOverlays(this)) { maybeRequestFullScreenIntentPermission(); return }
+        if (Settings.canDrawOverlays(this)) return
         if (overlayPromptedThisSession) return
         overlayPromptedThisSession = true
         overlayLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
     }
 
-    private fun maybeRequestFullScreenIntentPermission() {
-        if (!firstRunSetup.isReady()) return
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { maybeRequestBatteryOptimizationExemption(); return }
-        if (fullScreenPromptedThisSession) { maybeRequestBatteryOptimizationExemption(); return }
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.canUseFullScreenIntent()) { maybeRequestBatteryOptimizationExemption(); return }
-        fullScreenPromptedThisSession = true
-        fullScreenLauncher.launch(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName")))
-    }
+    private fun maybeRequestFullScreenIntentPermission() = Unit
 
-    private fun maybeRequestBatteryOptimizationExemption() {
-        if (!firstRunSetup.isReady()) return
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || batteryPromptedThisSession) return
-        val powerManager = getSystemService(PowerManager::class.java) ?: return
-        if (powerManager.isIgnoringBatteryOptimizations(packageName)) return
-        batteryPromptedThisSession = true
-        val directIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
-        runCatching { batteryLauncher.launch(directIntent) }
-            .onFailure { runCatching { batteryLauncher.launch(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } }
-    }
+    private fun maybeRequestBatteryOptimizationExemption() = Unit
 
     private fun refreshLockScreenSetupStatus() {
         // Estos permisos mejoran el funcionamiento con la pantalla apagada, pero NO
