@@ -23,7 +23,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Switch
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Button
@@ -188,7 +188,17 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             modifier = Modifier.systemBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("ACTIVACIÓN POR VOZ", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                "LEO",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                "Configuración del asistente",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("ACTIVACIÓN POR VOZ", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Escuchar la palabra LEO", modifier = Modifier.weight(1f))
                 Switch(checked = voiceEnabled, onCheckedChange = { voiceEnabled = it; onVoiceEnabled(it) })
@@ -196,7 +206,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             Text("Decí LEO para empezar. Después de responder, Leo mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
             Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
 
-            Text("BURBUJA FLOTANTE", style = MaterialTheme.typography.headlineSmall)
+            Text("BURBUJA FLOTANTE", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Si moviste la burbuja fuera de lugar, podés devolverla a su posición inicial.", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(
                 onClick = {
@@ -221,7 +231,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 Text(bubbleStatus, style = MaterialTheme.typography.bodySmall)
             }
 
-            Text("MI VOZ", style = MaterialTheme.typography.headlineSmall)
+            Text("MI VOZ", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Se reduce la amplificación de voces lejanas. Registrá tu voz para rechazar órdenes que no coincidan; las voces superpuestas todavía pueden confundirse.", style = MaterialTheme.typography.bodySmall)
             if (registering) {
                 Text("Registro $voiceSamples de 4. Hablá solo vos, cerca del teléfono: cuatro frases distintas de 2 a 6 segundos. Esperá la respuesta entre frases. Estas frases no ejecutan acciones.")
@@ -248,10 +258,10 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 OutlinedButton(onClick = { ownerVoice.reset(); enrolled = false; ownerOnly = false; registering = false }) { Text("BORRAR MI PERFIL DE VOZ") }
             }
             Text("Solo se guarda un perfil numérico local. No se guardan ni envían las grabaciones del registro.", style = MaterialTheme.typography.bodySmall)
-            Text("RECONOCIMIENTO AVANZADO", style = MaterialTheme.typography.headlineSmall)
+            Text("RECONOCIMIENTO AVANZADO", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Canary transcribe primero para responder rápido. Whisper multilingual INT8 puede hacer una segunda pasada local cuando la primera transcripción sale dudosa.", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.whisperAsr) }, enabled = !preparing) { Text("PREPARAR WHISPER LOCAL") }
-            Text("LEO · PERSONALIDAD Y APRENDIZAJE", style = MaterialTheme.typography.headlineSmall)
+            Text("LEO · PERSONALIDAD Y APRENDIZAJE", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Elegí cómo te responde. Los cambios se guardan al instante.")
             NikoPersonality.entries.forEach { option ->
                 Row {
@@ -291,7 +301,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = CutCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 4.dp),
+                shape = RoundedCornerShape(18.dp),
             )
             OutlinedTextField(
                 value = model,
@@ -318,7 +328,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
                         }
                     },
                     enabled = !testing && apiKey.isNotBlank(),
-                    shape = CutCornerShape(topStart = 3.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 3.dp),
+                    shape = RoundedCornerShape(18.dp),
                 ) { Text(if (testing) "PROBANDO" else "GUARDAR Y PROBAR") }
                 OutlinedButton(onClick = onClose) { Text("CERRAR") }
             }
