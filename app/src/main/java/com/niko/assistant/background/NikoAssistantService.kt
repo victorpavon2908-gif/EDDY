@@ -13,6 +13,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import com.niko.assistant.ui.robot.RobotMotion
 import com.niko.assistant.ui.robot.RobotMotionBus
+import com.niko.assistant.ui.generated.GeneratedToolStore
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -42,6 +43,7 @@ import com.niko.assistant.actions.ActionExecutor
 import com.niko.assistant.ai.NikoAiSettings
 import com.niko.assistant.ai.AutonomousResearch
 import com.niko.assistant.ai.ConversationCoordinator
+import com.niko.assistant.ai.GeneratedToolPlanner
 import com.niko.assistant.ai.NikoAiClient
 import com.niko.assistant.ai.NikoAiReply
 import com.niko.assistant.ai.NikoWebSource
@@ -110,6 +112,7 @@ open class NikoAssistantService : Service() {
     private val smartHome by lazy(LazyThreadSafetyMode.NONE) { LocalSmartHomeClient(applicationContext) }
     private val memory by lazy(LazyThreadSafetyMode.NONE) { NikoMemory(applicationContext) }
     private val webClient by lazy(LazyThreadSafetyMode.NONE) { NikoAiClient(applicationContext) }
+    private val generatedToolPlanner by lazy(LazyThreadSafetyMode.NONE) { GeneratedToolPlanner(applicationContext) }
     private val fallbackConversation by lazy(LazyThreadSafetyMode.NONE) { NikoFallbackConversation() }
     private val proactiveScheduler by lazy(LazyThreadSafetyMode.NONE) { NikoProactiveScheduler(applicationContext, memory) }
     private val modelManager by lazy(LazyThreadSafetyMode.NONE) { NikoModelManager(applicationContext) }
@@ -751,6 +754,14 @@ open class NikoAssistantService : Service() {
             return
         }
 
+        val generatedTool = brain.understandMany(text).singleOrNull() as? AssistantCommand.GenerateTool
+        if (generatedTool != null) {
+            learnIntent(text, LearnedIntent.ACTION, correctionAlias)
+            val response = createGeneratedTool(generatedTool.request)
+            speakResponse(response)
+            return
+        }
+
         // Memoria y conversación quedan después de todas las acciones inmediatas.
         withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
         // Tool transformations are local and must not become web research requests.
@@ -912,7 +923,9 @@ open class NikoAssistantService : Service() {
         correctionAlias: String?,
     ): Boolean {
         val commands = brain.understandMany(text)
-        if (commands.isEmpty() || commands.any { it is AssistantCommand.Unknown || it is AssistantCommand.SearchWeb }) {
+        if (commands.isEmpty() || commands.any {
+                it is AssistantCommand.Unknown || it is AssistantCommand.SearchWeb || it is AssistantCommand.GenerateTool
+            }) {
             return false
         }
 
@@ -1059,6 +1072,18 @@ open class NikoAssistantService : Service() {
         ).any(value::contains)
     }
 
+    private suspend fun createGeneratedTool(request: String): String {
+        NikoRuntimeState.setResponse(applicationContext, "Diseñando una herramienta para vos…")
+        val spec = withContext(Dispatchers.IO) { generatedToolPlanner.generate(request) }
+        GeneratedToolStore.save(applicationContext, spec)
+        val opened = executor.openAppByName("herramienta generada")
+        return if (opened.success) {
+            "Listo. Me convertí en ${spec.title.lowercase(Locale.forLanguageTag("es-NI"))}."
+        } else {
+            "Creé ${spec.title}, pero Android no me dejó abrirla ahora mismo."
+        }
+    }
+
     private suspend fun executeDirectCommand(command: AssistantCommand): String? = when (command) {
         AssistantCommand.Greeting -> "Aquí estoy. Decime."
         AssistantCommand.TellTime -> "Son las ${SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())}."
@@ -1067,6 +1092,7 @@ open class NikoAssistantService : Service() {
         AssistantCommand.ClearMemory -> { clearLocalMemory(); "Borré mi memoria local." }
         is AssistantCommand.OpenApp -> executor.openApp(command.app).spokenMessage
         is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).spokenMessage
+        is AssistantCommand.GenerateTool -> createGeneratedTool(command.request)
         is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
         is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).spokenMessage
         is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).spokenMessage
