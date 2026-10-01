@@ -16,7 +16,9 @@ class ResearchSynthesisTest {
         assertEquals(original.sources, result.sources)
         assertTrue(result.webUsed)
         assertTrue(result.text.contains("[1]"))
-        assertTrue(result.text.endsWith("Solo una fuente; falta contrastarla."))
+        assertFalse(result.text.contains("Respuesta breve"))
+        assertFalse(result.text.contains("Detalles:"))
+        assertTrue(result.text.contains("El informe describe los resultados disponibles."))
     }
     @Test fun rejectsInventedSourcesUrlsAndUnstructuredAnswers() {
         assertNull(ResearchSynthesis.apply(answer(2), original))
