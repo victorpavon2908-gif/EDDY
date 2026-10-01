@@ -29,6 +29,7 @@ class LeoPlatformVoiceEngine(
     private val onCommand: (String) -> Unit,
     private val onStatus: (String) -> Unit = {},
     private val onError: (String) -> Unit = {},
+    private val onFatal: (String) -> Unit = {},
 ) : RecognitionListener {
     enum class State { PASSIVE, ACTIVE, PROCESSING, SPEAKING, STOPPED }
 
@@ -40,6 +41,9 @@ class LeoPlatformVoiceEngine(
     private var awaitingCommand = false
     private var continueAfterSpeech = false
     private var restartAttempt = 0
+    private var listenGeneration = 0
+    private var readyGeneration = 0
+    private var consecutiveReadyTimeouts = 0
     private var destroyed = false
 
     val isRunning: Boolean get() = running && !destroyed
@@ -159,7 +163,22 @@ class LeoPlatformVoiceEngine(
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (awaitingCommand) 900L else 650L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 550L)
         }
+        val generation = ++listenGeneration
         runCatching { sr.startListening(intent) }
+            .onSuccess {
+                main.postDelayed({
+                    if (!running || destroyed || speaking || readyGeneration >= generation) return@postDelayed
+                    runCatching { sr.cancel() }
+                    consecutiveReadyTimeouts++
+                    if (consecutiveReadyTimeouts >= MAX_READY_TIMEOUTS) {
+                        running = false
+                        onFatal("Android no confirmó la apertura del micrófono.")
+                    } else {
+                        onStatus("El micrófono tardó en responder · reintentando…")
+                        scheduleRecovery()
+                    }
+                }, READY_TIMEOUT_MS)
+            }
             .onFailure {
                 onError("El servicio de voz de Android no pudo abrir el micrófono.")
                 scheduleRecovery()
@@ -167,6 +186,8 @@ class LeoPlatformVoiceEngine(
     }
 
     override fun onReadyForSpeech(params: Bundle?) {
+        readyGeneration = listenGeneration
+        consecutiveReadyTimeouts = 0
         restartAttempt = 0
         onStatus(if (awaitingCommand) "Te escucho…" else "Micrófono listo · decí LEO")
         onState(if (awaitingCommand) State.ACTIVE else State.PASSIVE)
@@ -185,8 +206,11 @@ class LeoPlatformVoiceEngine(
     override fun onError(error: Int) {
         if (!running || destroyed || speaking) return
         when (error) {
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-                onError("Android bloqueó el permiso del micrófono.")
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
+                running = false
+                onFatal("Android bloqueó el permiso del micrófono.")
+                return
+            }
             SpeechRecognizer.ERROR_AUDIO ->
                 onError("Android no pudo capturar audio del micrófono.")
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
@@ -264,6 +288,8 @@ class LeoPlatformVoiceEngine(
     }
 
     companion object {
+        private const val READY_TIMEOUT_MS = 4_000L
+        private const val MAX_READY_TIMEOUTS = 3
         private val WAKE = Regex("(?i)(?:^|\\s|[¿¡,.;:!?])leo(?:\\s|[¿¡,.;:!?]|$)")
 
         internal fun extractWakeCommand(value: String): String? {
