@@ -43,6 +43,7 @@ class LeoPlatformVoiceEngine(
     private var restartAttempt = 0
     private var listenGeneration = 0
     private var readyGeneration = 0
+    private var wakeNotifiedGeneration = -1
     private var consecutiveReadyTimeouts = 0
     private var destroyed = false
 
@@ -159,7 +160,9 @@ class LeoPlatformVoiceEngine(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, preferredLanguage())
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // No forzamos EXTRA_PREFER_OFFLINE: varios proveedores OEM (incluido HONOR)
+            // aceptan la sesión pero no devuelven resultados fiables si no tienen un
+            // paquete offline instalado. Dejamos que Android elija su mejor backend.
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (awaitingCommand) 900L else 650L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 550L)
         }
@@ -195,6 +198,7 @@ class LeoPlatformVoiceEngine(
 
     override fun onBeginningOfSpeech() {
         if (awaitingCommand) onState(State.ACTIVE)
+        else onStatus("Oyéndote…")
     }
 
     override fun onRmsChanged(rmsdB: Float) = Unit
@@ -205,19 +209,36 @@ class LeoPlatformVoiceEngine(
 
     override fun onError(error: Int) {
         if (!running || destroyed || speaking) return
+
+        if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+            running = false
+            onFatal("Android bloqueó el permiso del micrófono.")
+            return
+        }
+
+        // En varios RecognitionService OEM una palabra muy corta como "LEO" llega como
+        // resultado parcial y luego la sesión termina en NO_MATCH/SPEECH_TIMEOUT. Si ya
+        // detectamos LEO en ese parcial, el wake es válido y abrimos una nueva sesión
+        // para escuchar la orden en vez de descartarlo.
+        if (!awaitingCommand &&
+            wakeNotifiedGeneration == listenGeneration &&
+            (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+        ) {
+            awaitingCommand = true
+            onState(State.ACTIVE)
+            onStatus("Te escucho…")
+            startListening(140L)
+            return
+        }
+
         when (error) {
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
-                running = false
-                onFatal("Android bloqueó el permiso del micrófono.")
-                return
-            }
             SpeechRecognizer.ERROR_AUDIO ->
                 onError("Android no pudo capturar audio del micrófono.")
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
                 onStatus("Reiniciando micrófono…")
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
-                onStatus("Reconocimiento sin conexión no disponible · reintentando")
+                onStatus("El reconocimiento necesita conexión · reintentando")
             else -> Unit
         }
         scheduleRecovery()
@@ -225,13 +246,7 @@ class LeoPlatformVoiceEngine(
 
     override fun onResults(results: Bundle?) {
         if (!running || destroyed) return
-        val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            .map(String::trim)
-            .filter(String::isNotBlank)
-        if (phrases.isEmpty()) {
-            scheduleRecovery()
-            return
-        }
+        val phrases = recognitionPhrases(results)
 
         if (awaitingCommand) {
             val command = phrases.firstOrNull().orEmpty().trim()
@@ -247,14 +262,15 @@ class LeoPlatformVoiceEngine(
         }
 
         val wake = phrases.asSequence().mapNotNull(::extractWakeCommand).firstOrNull()
-        if (wake == null) {
+        val wakeWasAlreadyHeard = wakeNotifiedGeneration == listenGeneration
+        if (wake == null && !wakeWasAlreadyHeard) {
             onState(State.PASSIVE)
             startListening(90L)
             return
         }
 
-        onWake()
-        val inlineCommand = wake.trim()
+        if (!wakeWasAlreadyHeard) notifyWakeForCurrentSession()
+        val inlineCommand = wake.orEmpty().trim()
         if (inlineCommand.isNotBlank()) {
             onState(State.PROCESSING)
             onCommand(inlineCommand)
@@ -266,8 +282,32 @@ class LeoPlatformVoiceEngine(
         }
     }
 
-    override fun onPartialResults(partialResults: Bundle?) = Unit
+    override fun onPartialResults(partialResults: Bundle?) {
+        if (!running || destroyed || speaking || awaitingCommand) return
+        val wake = recognitionPhrases(partialResults)
+            .asSequence()
+            .mapNotNull(::extractWakeCommand)
+            .firstOrNull()
+            ?: return
+
+        // El parcial es suficiente para despertar la interfaz inmediatamente. Esperamos
+        // el resultado final para decidir si venía una orden en la misma frase.
+        notifyWakeForCurrentSession()
+        onState(State.ACTIVE)
+        onStatus(if (wake.isBlank()) "Te escucho…" else "LEO detectado…")
+    }
     override fun onEvent(eventType: Int, params: Bundle?) = Unit
+
+    private fun notifyWakeForCurrentSession() {
+        if (wakeNotifiedGeneration == listenGeneration) return
+        wakeNotifiedGeneration = listenGeneration
+        onWake()
+    }
+
+    private fun recognitionPhrases(bundle: Bundle?): List<String> =
+        bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+            .map(String::trim)
+            .filter(String::isNotBlank)
 
     private fun scheduleRecovery() {
         if (!running || destroyed || speaking) return
