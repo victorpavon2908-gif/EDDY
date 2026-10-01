@@ -32,6 +32,15 @@ object NikoVoiceSettings {
         return true
     }
 
+    fun ensureIsolatedVoiceMigration(context: Context) {
+        val preferences = prefs(context)
+        if (preferences.getInt(KEY_ISOLATED_VOICE_MIGRATION, 0) >= ISOLATED_VOICE_MIGRATION_VERSION) return
+        preferences.edit()
+            .putBoolean("assistant_enabled", true)
+            .putInt(KEY_ISOLATED_VOICE_MIGRATION, ISOLATED_VOICE_MIGRATION_VERSION)
+            .apply()
+    }
+
     fun setEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("assistant_enabled", enabled).apply()
     }
@@ -41,4 +50,6 @@ object NikoVoiceSettings {
 
     private const val KEY_SAFE_BOOT_VERSION = "voice_safe_boot_version"
     private const val SAFE_BOOT_VERSION = 1
+    private const val KEY_ISOLATED_VOICE_MIGRATION = "isolated_voice_migration"
+    private const val ISOLATED_VOICE_MIGRATION_VERSION = 1
 }
