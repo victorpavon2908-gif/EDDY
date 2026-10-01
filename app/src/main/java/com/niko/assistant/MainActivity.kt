@@ -19,11 +19,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +53,8 @@ import com.niko.assistant.localai.LeoFrozenBrainManager
 import com.niko.assistant.ui.LeoBrainStatusOverlay
 import com.niko.assistant.ui.LeoFirstRunScreen
 import com.niko.assistant.ui.LeoLiveTranscriptOverlay
+import com.niko.assistant.ui.LeoMorphTransitionOverlay
+import com.niko.assistant.ui.LeoTransformLauncher
 import com.niko.assistant.ui.NikoEmbeddedApp
 import com.niko.assistant.ui.NikoReferenceScreen
 import com.niko.assistant.ui.NikoUiMode
@@ -52,6 +63,7 @@ import com.niko.assistant.ui.NikoVisualState
 import com.niko.assistant.ui.theme.NikoTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 class MainActivity : ComponentActivity() {
@@ -287,50 +299,82 @@ class MainActivity : ComponentActivity() {
             NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT)
         }
         val toolState = rememberSaveableStateHolder()
-        androidx.compose.runtime.key(uiMode) {
-            val mode = uiMode
-            toolState.SaveableStateProvider(mode.id) {
-                if (mode == NikoUiMode.ASSISTANT) {
-                    val visualState = when (snapshot.state) {
-                        NikoRuntimeState.State.IDLE -> NikoVisualState.IDLE
-                        NikoRuntimeState.State.LISTENING -> NikoVisualState.LISTENING
-                        NikoRuntimeState.State.THINKING -> NikoVisualState.THINKING
-                        NikoRuntimeState.State.SPEAKING -> NikoVisualState.SPEAKING
-                    }
-                    Box {
-                        NikoReferenceScreen(
-                            visualState = visualState,
-                            heardText = snapshot.heardText,
-                            responseText = snapshot.responseText,
-                            voiceReady = snapshot.voiceReady,
-                            autoListeningEnabled = enabled,
-                            inputStatus = snapshot.inputStatus,
-                            inputState = snapshot.inputState,
-                            webSearching = snapshot.webSearching,
-                            webUsed = snapshot.webUsed,
-                            webSources = snapshot.webSources,
+        var previousMode by remember { mutableStateOf(NikoUiMode.ASSISTANT) }
+        var morphTarget by remember { mutableStateOf(uiMode) }
+        var morphing by remember { mutableStateOf(false) }
+
+        LaunchedEffect(uiMode) {
+            if (uiMode != previousMode) {
+                morphTarget = uiMode
+                morphing = true
+                delay(720L)
+                morphing = false
+                previousMode = uiMode
+            }
+        }
+
+        Box(Modifier.fillMaxSize()) {
+            AnimatedContent(
+                targetState = uiMode,
+                transitionSpec = {
+                    (fadeIn(tween(300)) + scaleIn(initialScale = 0.965f, animationSpec = tween(360)))
+                        .togetherWith(
+                            fadeOut(tween(180)) + scaleOut(targetScale = 1.035f, animationSpec = tween(240)),
                         )
-                        LeoBrainStatusOverlay(
-                            state = snapshot.brainState,
-                            progress = snapshot.brainProgress,
-                            status = snapshot.brainStatus,
-                            downloadedBytes = snapshot.brainDownloadedBytes,
-                            totalBytes = snapshot.brainTotalBytes,
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .statusBarsPadding()
-                                .padding(top = 60.dp, start = 18.dp, end = 18.dp),
+                },
+                label = "leoPolymorphicScreen",
+            ) { mode ->
+                toolState.SaveableStateProvider(mode.id) {
+                    if (mode == NikoUiMode.ASSISTANT) {
+                        val visualState = when (snapshot.state) {
+                            NikoRuntimeState.State.IDLE -> NikoVisualState.IDLE
+                            NikoRuntimeState.State.LISTENING -> NikoVisualState.LISTENING
+                            NikoRuntimeState.State.THINKING -> NikoVisualState.THINKING
+                            NikoRuntimeState.State.SPEAKING -> NikoVisualState.SPEAKING
+                        }
+                        Box(Modifier.fillMaxSize()) {
+                            NikoReferenceScreen(
+                                visualState = visualState,
+                                heardText = snapshot.heardText,
+                                responseText = snapshot.responseText,
+                                voiceReady = snapshot.voiceReady,
+                                autoListeningEnabled = enabled,
+                                inputStatus = snapshot.inputStatus,
+                                inputState = snapshot.inputState,
+                                webSearching = snapshot.webSearching,
+                                webUsed = snapshot.webUsed,
+                                webSources = snapshot.webSources,
+                            )
+                            LeoBrainStatusOverlay(
+                                state = snapshot.brainState,
+                                progress = snapshot.brainProgress,
+                                status = snapshot.brainStatus,
+                                downloadedBytes = snapshot.brainDownloadedBytes,
+                                totalBytes = snapshot.brainTotalBytes,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .statusBarsPadding()
+                                    .padding(top = 60.dp, start = 18.dp, end = 18.dp),
+                            )
+                            LeoLiveTranscriptOverlay(visualState)
+                            LeoTransformLauncher(
+                                onClick = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
+                                modifier = Modifier.align(Alignment.BottomStart).padding(18.dp),
+                            )
+                        }
+                    } else {
+                        NikoEmbeddedApp(
+                            mode = mode,
+                            onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) },
                         )
-                        LeoLiveTranscriptOverlay(visualState)
-                        androidx.compose.material3.TextButton(
-                            onClick = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
-                            modifier = Modifier.align(Alignment.BottomStart).padding(20.dp),
-                        ) { androidx.compose.material3.Text("Transformarme") }
                     }
-                } else {
-                    NikoEmbeddedApp(mode = mode, onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) })
                 }
             }
+
+            LeoMorphTransitionOverlay(
+                mode = morphTarget,
+                visible = morphing,
+            )
         }
     }
 }
