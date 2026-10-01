@@ -5,7 +5,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -38,19 +38,19 @@ private val md_onError          = Color(0xFF5F0021)
 private val md_errorContainer   = Color(0xFF890036)
 private val md_onErrorContainer = Color(0xFFFFD9DF)
 
-private val md_background       = Color(0xFF03050A)   // matches NikoReferenceScreen
-private val md_onBackground     = Color(0xFFE0E8E5)
+private val md_background       = Color(0xFFF6F8F7)
+private val md_onBackground     = Color(0xFF18221F)
 
-private val md_surface          = Color(0xFF07110E)
-private val md_onSurface        = Color(0xFFDCE9E5)
-private val md_surfaceVariant   = Color(0xFF0D1E19)
-private val md_onSurfaceVariant = Color(0xFF8FADA7)
+private val md_surface          = Color(0xFFFFFFFF)
+private val md_onSurface        = Color(0xFF17201D)
+private val md_surfaceVariant   = Color(0xFFF0F4F2)
+private val md_onSurfaceVariant = Color(0xFF63716D)
 
-private val md_outline          = Color(0xFF3A5550)
-private val md_outlineVariant   = Color(0xFF1C3430)
+private val md_outline          = Color(0xFFCBD6D2)
+private val md_outlineVariant   = Color(0xFFE2E9E6)
 private val md_surfaceTint      = md_primary
 
-private val NikoColors = darkColorScheme(
+private val NikoColors = lightColorScheme(
     primary              = md_primary,
     onPrimary            = md_onPrimary,
     primaryContainer     = md_primaryContainer,
@@ -76,9 +76,9 @@ private val NikoColors = darkColorScheme(
     outline              = md_outline,
     outlineVariant       = md_outlineVariant,
     surfaceTint          = md_surfaceTint,
-    inverseSurface       = Color(0xFFDCE9E5),
-    inverseOnSurface     = Color(0xFF0A1F1A),
-    inversePrimary       = Color(0xFF006B50),
+    inverseSurface       = Color(0xFF1C2824),
+    inverseOnSurface     = Color(0xFFF4F8F6),
+    inversePrimary       = Color(0xFF63E8BE),
     scrim                = Color(0xFF000000),
 )
 
@@ -92,10 +92,10 @@ private val NikoTypography = Typography(
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
-        lineHeight = 27.sp,
-        letterSpacing = (-0.35).sp,
+        lineHeight = 28.sp,
+        letterSpacing = (-0.25).sp,
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
