@@ -32,7 +32,7 @@ class NikoAiClient(
 
     val lastError: String? get() = nativeLastError ?: groq.lastError
 
-    private fun conciseWebAnswer(reply: NikoAiReply): NikoAiReply {
+    private fun conciseWebAnswer(reply: NikoAiReply, subject: String): NikoAiReply {
         if (!reply.webUsed || reply.text.isBlank()) return reply
         var text = reply.text.trim()
         text = text
@@ -40,6 +40,23 @@ class NikoAiClient(
             .replace(Regex("(?i)^(?:busqu[eé]|investigu[eé]|consult[eé])[^.!?]*[.!?]\\s*"), "")
             .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
+
+        if (!text.trimEnd().endsWith("?")) {
+            val normalized = subject.lowercase()
+            val followUp = when {
+                listOf("empleo", "empleos", "trabajo", "vacante", "vacantes").any(normalized::contains) ->
+                    "¿Querés que te busque las vacantes más recientes y te las ordene por ciudad o área?"
+                listOf("bitcoin", "btc", "cripto").any(normalized::contains) ->
+                    "¿Querés que te investigue también qué está moviendo el precio hoy?"
+                listOf("precio", "cuesta", "cotizacion", "cotización").any(normalized::contains) ->
+                    "¿Querés que te compare también el precio actual con otras opciones?"
+                listOf("noticia", "noticias", "hoy", "reciente").any(normalized::contains) ->
+                    "¿Querés que te investigue también qué cambió más recientemente sobre este tema?"
+                else ->
+                    "¿Querés que te investigue también lo más reciente sobre este tema?"
+            }
+            text = "$text $followUp".trim()
+        }
         return reply.copy(text = text.ifBlank { reply.text.trim() })
     }
 
@@ -83,7 +100,7 @@ class NikoAiClient(
                 validatedCompound != null -> validatedCompound
                 else -> native
             }
-            val finalReply = conciseWebAnswer(researched)
+            val finalReply = conciseWebAnswer(researched, subject)
             nativeLastError = if (finalReply.webUsed) null else finalReply.text
             if (finalReply.webUsed && finalReply.sources.isNotEmpty()) {
                 runCatching { knowledge.learn(subject, finalReply) }
