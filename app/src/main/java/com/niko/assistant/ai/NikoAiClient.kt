@@ -41,7 +41,8 @@ class NikoAiClient(
             .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
 
-        if (!text.trimEnd().endsWith("?")) {
+        val hasClosingQuestion = Regex("\\?\\s*(?:\\[\\d+\\]\\s*)*$").containsMatchIn(text)
+        if (!hasClosingQuestion) {
             val normalized = subject.lowercase()
             val followUp = when {
                 listOf("empleo", "empleos", "trabajo", "vacante", "vacantes").any(normalized::contains) ->
@@ -116,10 +117,11 @@ class NikoAiClient(
             AutonomousResearch.allowedFor(message) &&
             !WebQueryRouter.needsCurrentInformation(message)
         val reply = groq.reply(message, memoryContext, useWeb = allowGroqWeb, history = history, onDelta = onDelta)
-        if (reply != null && reply.webUsed && reply.sources.isNotEmpty()) {
-            val subject = WebQueryRouter.explicitQuery(message) ?: message
-            runCatching { knowledge.learn(subject, reply) }
+        val subject = WebQueryRouter.explicitQuery(message) ?: message
+        val finalReply = if (reply != null && reply.webUsed) conciseWebAnswer(reply, subject) else reply
+        if (finalReply != null && finalReply.webUsed && finalReply.sources.isNotEmpty()) {
+            runCatching { knowledge.learn(subject, finalReply) }
         }
-        return reply
+        return finalReply
     }
 }
