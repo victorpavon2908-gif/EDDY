@@ -27,6 +27,8 @@ object UpgradeIdentity {
     const val proactiveMessageExtra = "eddy_message"
     const val proactiveIdExtra = "eddy_notification_id"
 
+    const val ACTION_START = "com.eddy.assistant.action.START"
+
     const val ACTION_STOP = "com.eddy.assistant.action.STOP"
 
     const val ACTION_SHOW_BUBBLE = "com.eddy.assistant.action.SHOW_BUBBLE"
