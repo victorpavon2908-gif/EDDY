@@ -23,13 +23,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -299,75 +292,69 @@ class MainActivity : ComponentActivity() {
             NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT)
         }
         val toolState = rememberSaveableStateHolder()
-        var previousMode by remember { mutableStateOf(NikoUiMode.ASSISTANT) }
+        var renderedMode by remember { mutableStateOf(uiMode) }
         var morphTarget by remember { mutableStateOf(uiMode) }
         var morphing by remember { mutableStateOf(false) }
 
+        // Evitamos componer dos pantallas pesadas a la vez. CameraX, SceneView y Audio
+        // pueden chocar en algunos OEM si una transición mantiene viva la pantalla anterior
+        // mientras crea la nueva. Primero cubrimos con el morph, luego cambiamos de forma.
         LaunchedEffect(uiMode) {
-            if (uiMode != previousMode) {
+            if (uiMode != renderedMode) {
                 morphTarget = uiMode
                 morphing = true
-                delay(720L)
+                delay(260L)
+                renderedMode = uiMode
+                delay(360L)
                 morphing = false
-                previousMode = uiMode
             }
         }
 
         Box(Modifier.fillMaxSize()) {
-            AnimatedContent(
-                targetState = uiMode,
-                transitionSpec = {
-                    (fadeIn(tween(300)) + scaleIn(initialScale = 0.965f, animationSpec = tween(360)))
-                        .togetherWith(
-                            fadeOut(tween(180)) + scaleOut(targetScale = 1.035f, animationSpec = tween(240)),
+            val mode = renderedMode
+            toolState.SaveableStateProvider(mode.id) {
+                if (mode == NikoUiMode.ASSISTANT) {
+                    val visualState = when (snapshot.state) {
+                        NikoRuntimeState.State.IDLE -> NikoVisualState.IDLE
+                        NikoRuntimeState.State.LISTENING -> NikoVisualState.LISTENING
+                        NikoRuntimeState.State.THINKING -> NikoVisualState.THINKING
+                        NikoRuntimeState.State.SPEAKING -> NikoVisualState.SPEAKING
+                    }
+                    Box(Modifier.fillMaxSize()) {
+                        NikoReferenceScreen(
+                            visualState = visualState,
+                            heardText = snapshot.heardText,
+                            responseText = snapshot.responseText,
+                            voiceReady = snapshot.voiceReady,
+                            autoListeningEnabled = enabled,
+                            inputStatus = snapshot.inputStatus,
+                            inputState = snapshot.inputState,
+                            webSearching = snapshot.webSearching,
+                            webUsed = snapshot.webUsed,
+                            webSources = snapshot.webSources,
                         )
-                },
-                label = "leoPolymorphicScreen",
-            ) { mode ->
-                toolState.SaveableStateProvider(mode.id) {
-                    if (mode == NikoUiMode.ASSISTANT) {
-                        val visualState = when (snapshot.state) {
-                            NikoRuntimeState.State.IDLE -> NikoVisualState.IDLE
-                            NikoRuntimeState.State.LISTENING -> NikoVisualState.LISTENING
-                            NikoRuntimeState.State.THINKING -> NikoVisualState.THINKING
-                            NikoRuntimeState.State.SPEAKING -> NikoVisualState.SPEAKING
-                        }
-                        Box(Modifier.fillMaxSize()) {
-                            NikoReferenceScreen(
-                                visualState = visualState,
-                                heardText = snapshot.heardText,
-                                responseText = snapshot.responseText,
-                                voiceReady = snapshot.voiceReady,
-                                autoListeningEnabled = enabled,
-                                inputStatus = snapshot.inputStatus,
-                                inputState = snapshot.inputState,
-                                webSearching = snapshot.webSearching,
-                                webUsed = snapshot.webUsed,
-                                webSources = snapshot.webSources,
-                            )
-                            LeoBrainStatusOverlay(
-                                state = snapshot.brainState,
-                                progress = snapshot.brainProgress,
-                                status = snapshot.brainStatus,
-                                downloadedBytes = snapshot.brainDownloadedBytes,
-                                totalBytes = snapshot.brainTotalBytes,
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .statusBarsPadding()
-                                    .padding(top = 60.dp, start = 18.dp, end = 18.dp),
-                            )
-                            LeoLiveTranscriptOverlay(visualState)
-                            LeoTransformLauncher(
-                                onClick = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
-                                modifier = Modifier.align(Alignment.BottomStart).padding(18.dp),
-                            )
-                        }
-                    } else {
-                        NikoEmbeddedApp(
-                            mode = mode,
-                            onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) },
+                        LeoBrainStatusOverlay(
+                            state = snapshot.brainState,
+                            progress = snapshot.brainProgress,
+                            status = snapshot.brainStatus,
+                            downloadedBytes = snapshot.brainDownloadedBytes,
+                            totalBytes = snapshot.brainTotalBytes,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .statusBarsPadding()
+                                .padding(top = 60.dp, start = 18.dp, end = 18.dp),
+                        )
+                        LeoLiveTranscriptOverlay(visualState)
+                        LeoTransformLauncher(
+                            onClick = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
+                            modifier = Modifier.align(Alignment.BottomStart).padding(18.dp),
                         )
                     }
+                } else {
+                    NikoEmbeddedApp(
+                        mode = mode,
+                        onHome = { NikoUiModeStore.set(applicationContext, NikoUiMode.ASSISTANT) },
+                    )
                 }
             }
 
