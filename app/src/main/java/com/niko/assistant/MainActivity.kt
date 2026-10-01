@@ -43,6 +43,7 @@ import com.niko.assistant.background.NikoVoiceSettings
 import com.niko.assistant.background.NikoRuntimeState
 import com.niko.assistant.startup.LeoFirstRunSetup
 import com.niko.assistant.startup.LeoFirstRunState
+import com.niko.assistant.localai.LeoFrozenBrainManager
 import com.niko.assistant.ui.LeoBrainStatusOverlay
 import com.niko.assistant.ui.LeoFirstRunScreen
 import com.niko.assistant.ui.LeoLiveTranscriptOverlay
@@ -68,6 +69,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var batteryLauncher: ActivityResultLauncher<Intent>
     private lateinit var firstRunSetup: LeoFirstRunSetup
     private var setupJob: Job? = null
+    private var frozenBrainJob: Job? = null
+    private lateinit var frozenBrainManager: LeoFrozenBrainManager
     private val setupState = mutableStateOf(LeoFirstRunState())
     private var overlayPromptedThisSession = false
     private var fullScreenPromptedThisSession = false
@@ -81,8 +84,8 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = false
         }
 
-        NikoVoiceSettings.ensureCrashSafeBoot(applicationContext)
         firstRunSetup = LeoFirstRunSetup(applicationContext)
+        frozenBrainManager = LeoFrozenBrainManager(applicationContext)
         setupState.value = if (firstRunSetup.isReady()) {
             LeoFirstRunState.ready(firstRunSetup.requiredModels().size)
         } else {
@@ -126,6 +129,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (canRunLeo()) {
             startAssistantService(); sendServiceAction(NikoAssistantService.ACTION_HIDE_BUBBLE)
+            ensureFrozenBrain()
         } else if (hasMicrophonePermission()) {
             beginInitialSetupOrStart()
         }
@@ -167,6 +171,7 @@ class MainActivity : ComponentActivity() {
                 startAssistantService()
                 maybeRequestOverlayPermission()
             }
+            ensureFrozenBrain()
             return
         }
         if (setupJob?.isActive == true) return
@@ -190,6 +195,7 @@ class MainActivity : ComponentActivity() {
                     startAssistantService()
                     maybeRequestOverlayPermission()
                 }
+                ensureFrozenBrain()
             } else if (setupState.value.phase != LeoFirstRunState.Phase.FAILED) {
                 setupState.value = LeoFirstRunState.failed(firstRunSetup.requiredModels().size, result.message)
             }
@@ -230,14 +236,39 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshLockScreenSetupStatus() {
-        if (!canRunLeo()) return
-        if (NikoRuntimeState.read(applicationContext).running) return
-        val fullScreenReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true else true
-        val batteryReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true else true
-        if (!fullScreenReady) {
-            NikoRuntimeState.setResponse(applicationContext, "Activá pantalla completa para que LEO pueda mostrarse con el teléfono bloqueado.")
-        } else if (!batteryReady) {
-            NikoRuntimeState.setResponse(applicationContext, "Permití a LEO funcionar sin optimización de batería para mantener activa la palabra LEO con la pantalla apagada.")
+        // Estos permisos mejoran el funcionamiento con la pantalla apagada, pero NO
+        // bloquean el micrófono ni deben reemplazar el mensaje principal de LEO.
+        if (!firstRunSetup.isReady()) return
+    }
+
+    private fun ensureFrozenBrain() {
+        if (!firstRunSetup.isReady() || frozenBrainJob?.isActive == true) return
+        if (frozenBrainManager.isInstalled()) {
+            NikoRuntimeState.setBrainProgress(
+                applicationContext,
+                NikoRuntimeState.BrainState.READY,
+                "Cerebro local listo",
+            )
+            return
+        }
+        frozenBrainJob = lifecycleScope.launch {
+            frozenBrainManager.ensureInstalled { progress ->
+                val state = when (progress.state) {
+                    LeoFrozenBrainManager.Progress.State.CHECKING -> NikoRuntimeState.BrainState.CHECKING
+                    LeoFrozenBrainManager.Progress.State.DOWNLOADING -> NikoRuntimeState.BrainState.DOWNLOADING
+                    LeoFrozenBrainManager.Progress.State.VERIFYING -> NikoRuntimeState.BrainState.VERIFYING
+                    LeoFrozenBrainManager.Progress.State.INSTALLING -> NikoRuntimeState.BrainState.INSTALLING
+                    LeoFrozenBrainManager.Progress.State.READY -> NikoRuntimeState.BrainState.READY
+                    LeoFrozenBrainManager.Progress.State.FAILED -> NikoRuntimeState.BrainState.ERROR
+                }
+                NikoRuntimeState.setBrainProgress(
+                    applicationContext,
+                    state,
+                    progress.message,
+                    progress.downloadedBytes,
+                    progress.totalBytes,
+                )
+            }
         }
     }
 
