@@ -93,10 +93,10 @@ internal fun LeoToolSurface(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF020408),
-                        Color(0xFF07101A),
-                        Color(0xFF080C16),
-                        Color(0xFF03050A),
+                        Color(0xFFFBFCFB),
+                        Color(0xFFF5F8F7),
+                        Color(0xFFF1F5F3),
+                        Color(0xFFF8FAF9),
                     ),
                 ),
             ),
@@ -128,7 +128,7 @@ internal fun LeoToolSurface(
                     Spacer(Modifier.size(4.dp))
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = Color(0xFF19231F),
                         style = MaterialTheme.typography.headlineMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -140,8 +140,8 @@ internal fun LeoToolSurface(
                         .size(44.dp)
                         .clickable(onClick = onHome),
                     shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.055f),
-                    border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+                    color = Color.White.copy(alpha = 0.98f),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.22f)),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
@@ -157,8 +157,8 @@ internal fun LeoToolSurface(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
-                color = Color.White.copy(alpha = 0.035f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
+                color = Color.White.copy(alpha = 0.92f),
+                border = BorderStroke(1.dp, Color(0xFFE1E8E5)),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -168,7 +168,7 @@ internal fun LeoToolSurface(
                     Spacer(Modifier.size(9.dp))
                     Text(
                         text = "MODO ${mode.title.uppercase()} ACTIVO",
-                        color = Color.White.copy(alpha = 0.62f),
+                        color = Color(0xFF65736E),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.0.sp,
@@ -196,7 +196,7 @@ private fun LeoToolBackdrop(accent: Color) {
         )
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Color(0xFF765BFF).copy(alpha = 0.09f), Color.Transparent),
+                colors = listOf(Color(0xFF9EB7E8).copy(alpha = 0.06f), Color.Transparent),
                 center = Offset(size.width * 0.08f, size.height * 0.86f),
                 radius = size.width * 0.70f,
             ),
@@ -204,7 +204,7 @@ private fun LeoToolBackdrop(accent: Color) {
             center = Offset(size.width * 0.08f, size.height * 0.86f),
         )
         val gap = 34.dp.toPx()
-        val line = Color.White.copy(alpha = 0.025f)
+        val line = Color(0xFF6F7D77).copy(alpha = 0.045f)
         var x = 0f
         while (x < size.width) {
             drawLine(line, Offset(x, 0f), Offset(x, size.height), 1f)
@@ -228,7 +228,7 @@ internal fun LeoTransformCard(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(22.dp),
-        color = Color(0xFF0A111B).copy(alpha = 0.94f),
+        color = Color.White.copy(alpha = 0.98f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
         shadowElevation = 3.dp,
     ) {
@@ -255,7 +255,7 @@ internal fun LeoTransformCard(
             }
             Text(
                 text = mode.title,
-                color = Color.White.copy(alpha = 0.94f),
+                color = Color(0xFF1D2723),
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 maxLines = 1,
@@ -263,7 +263,7 @@ internal fun LeoTransformCard(
             )
             Text(
                 text = leoModeDescription(mode),
-                color = Color.White.copy(alpha = 0.36f),
+                color = Color(0xFF75827D),
                 fontSize = 8.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.8.sp,
@@ -278,7 +278,7 @@ internal fun LeoTransformLauncher(onClick: () -> Unit, modifier: Modifier = Modi
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(100.dp),
-        color = Color(0xFF0A101A).copy(alpha = 0.90f),
+        color = Color.White.copy(alpha = 0.96f),
         border = BorderStroke(1.dp, Color(0xFF8C7CFF).copy(alpha = 0.34f)),
         shadowElevation = 8.dp,
     ) {
@@ -290,7 +290,7 @@ internal fun LeoTransformLauncher(onClick: () -> Unit, modifier: Modifier = Modi
             Spacer(Modifier.size(8.dp))
             Text(
                 text = "TRANSFORMAR",
-                color = Color.White.copy(alpha = 0.82f),
+                color = Color(0xFF4D5B56),
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.1.sp,
@@ -310,7 +310,7 @@ internal fun LeoMorphTransitionOverlay(mode: NikoUiMode, visible: Boolean) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xF203050A)),
+                .background(Color(0xF8F7F9F8)),
             contentAlignment = Alignment.Center,
         ) {
             val infinite = rememberInfiniteTransition(label = "leoMorphRing")
@@ -347,7 +347,7 @@ internal fun LeoMorphTransitionOverlay(mode: NikoUiMode, visible: Boolean) {
                             style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx()),
                         )
                         drawArc(
-                            color = Color.White.copy(alpha = 0.22f),
+                            color = Color(0xFF6C7974).copy(alpha = 0.20f),
                             startAngle = 190f,
                             sweepAngle = 62f,
                             useCenter = false,
@@ -358,7 +358,7 @@ internal fun LeoMorphTransitionOverlay(mode: NikoUiMode, visible: Boolean) {
                     }
                     Text(
                         text = "L",
-                        color = Color.White,
+                        color = Color(0xFF1A2420),
                         fontSize = 38.sp,
                         fontWeight = FontWeight.Black,
                     )
@@ -374,7 +374,7 @@ internal fun LeoMorphTransitionOverlay(mode: NikoUiMode, visible: Boolean) {
                 Spacer(Modifier.size(7.dp))
                 Text(
                     text = mode.title.uppercase(),
-                    color = Color.White,
+                    color = Color(0xFF18221E),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 0.8.sp,
