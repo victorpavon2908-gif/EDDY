@@ -24,6 +24,7 @@ import com.niko.assistant.brain.SupportedApp
 import com.niko.assistant.brain.SystemPanel
 import com.niko.assistant.brain.VolumeDirection
 import com.niko.assistant.devicecontrol.NikoAccessibilityService
+import com.niko.assistant.diagnostics.LeoCrashRecorder
 import com.niko.assistant.ui.NikoUiMode
 import com.niko.assistant.ui.NikoUiModeStore
 import java.text.Normalizer
@@ -57,6 +58,7 @@ class ActionExecutor(private val context: Context) {
             else -> requestedName
         }
         NikoUiModeStore.resolve(embeddedName)?.let { mode ->
+            LeoCrashRecorder.breadcrumb("ui_mode_request requested=$requestedName resolved=${mode.id}")
             NikoUiModeStore.set(context, mode)
             val intent = Intent(context, MainActivity::class.java).addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP,
