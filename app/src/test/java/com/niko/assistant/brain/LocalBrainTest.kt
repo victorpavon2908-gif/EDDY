@@ -14,30 +14,28 @@ class LocalBrainTest {
     }
 
     @Test fun transformsTheScreenFromNaturalVoicePhrases() {
-        assertEquals(
-            AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA"),
-            brain.understand("Leo, conviértete en una cámara"),
+        val cases = listOf(
+            "Leo, conviértete en una cámara" to "NIKO_TOOL_CAMERA",
+            "Leo, transformate en cámara" to "NIKO_TOOL_CAMERA",
+            "Leo, quiero que seas una cámara" to "NIKO_TOOL_CAMERA",
+            "Leo, actuá como cámara" to "NIKO_TOOL_CAMERA",
+            "Leo, conviértete en grabadora de video" to "NIKO_TOOL_VIDEO",
+            "Leo, hacete grabadora de audio" to "NIKO_TOOL_AUDIO",
+            "Leo, pasate a música" to "NIKO_TOOL_MUSIC",
+            "Leo, quiero que te transformes en reproductor" to "NIKO_TOOL_MUSIC",
+            "Leo, cambia tu pantalla a una calculadora" to "NIKO_TOOL_CALCULATOR",
+            "Leo, quiero una calculadora" to "NIKO_TOOL_CALCULATOR",
+            "Leo, ponte en modo cronómetro" to "NIKO_TOOL_STOPWATCH",
+            "Leo, hacete temporizador" to "NIKO_TOOL_TIMER",
+            "Leo, sé un reloj" to "NIKO_TOOL_CLOCK",
+            "Leo, conviértete en notas" to "NIKO_TOOL_NOTES",
+            "Leo, funciona como conversor de unidades" to "NIKO_TOOL_CONVERTER",
         )
-        assertEquals(
-            AssistantCommand.OpenAppByName("NIKO_TOOL_CALCULATOR"),
-            brain.understand("Leo, cambia tu pantalla a una calculadora"),
-        )
-        assertEquals(
-            AssistantCommand.OpenAppByName("NIKO_TOOL_STOPWATCH"),
-            brain.understand("Leo, ponte en modo cronómetro"),
-        )
-        assertEquals(
-            AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA"),
-            brain.understand("Leo, quiero que seas una cámara"),
-        )
-        assertEquals(
-            AssistantCommand.OpenAppByName("NIKO_TOOL_MUSIC"),
-            brain.understand("Leo, pasate a música"),
-        )
-        assertEquals(
-            AssistantCommand.OpenAppByName("NIKO_TOOL_TIMER"),
-            brain.understand("Leo, hacete temporizador"),
-        )
+        cases.forEach { (phrase, tool) ->
+            assertEquals(phrase, AssistantCommand.OpenAppByName(tool), brain.understand(phrase))
+        }
+        assertTrue(brain.understand("cómo funciona una calculadora") is AssistantCommand.Unknown)
+        assertTrue(brain.understand("no te conviertas en cámara") is AssistantCommand.Unknown)
     }
 
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
