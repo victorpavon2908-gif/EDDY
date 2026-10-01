@@ -25,7 +25,7 @@ class LeoNativeWebSearchTest {
         assertFalse(report.contains("Contraste y límites"))
         assertFalse(report.contains("Busqué"))
         assertFalse(report.contains("comprar ahora"))
-        assertTrue(report.contains("no puedo asegurar su actualidad"))
+        assertTrue(report.contains("actualidad no queda confirmada"))
     }
 
     @Test fun cancellationDoesNotReturnAReplyFromAnOldSearch() = runBlocking {
