@@ -12,11 +12,14 @@ internal object ResearchSynthesis {
                 Respondé en español natural usando únicamente la evidencia adjunta.
                 Formulá una respuesta directa, breve y clara; no recites los extractos ni describás el proceso de búsqueda.
                 La primera oración debe contestar la pregunta. Después agregá solo el motivo o contexto más importante.
+                En una pregunta normal usá 2 a 4 oraciones. Si el usuario pide opciones concretas como empleos,
+                vacantes, lugares, eventos o alternativas, podés dar hasta 5 hallazgos cortos con nombre, dato útil
+                y ubicación o fecha cuando la evidencia los incluya.
                 Conservá cifras, precios, unidades, nombres y fechas. Si varias fuentes coinciden, integrá el dato.
                 Si discrepan, señalalo brevemente. No agregués datos que no estén respaldados por la evidencia.
                 Devolvé SOLO JSON: {"resumen":[{"texto":"...","fuentes":[1]}],"detalles":[{"texto":"...","fuentes":[2]}]}.
                 Cada afirmación lleva los números de fuentes que la respaldan. Máximo 2 elementos de
-                resumen y 2 de detalles, con una sola oración por elemento. Sin enlaces ni Markdown.
+                resumen y 5 de detalles, con una sola oración por elemento. Sin enlaces ni Markdown.
             """.trimIndent()))
             .put(JSONObject().put("role", "user").put("content", JSONObject()
                 .put("pregunta", question.take(500)).put("evidencia", evidence.researchContext.ifBlank { evidence.text }.take(9_000))
@@ -43,7 +46,7 @@ internal object ResearchSynthesis {
             }
         }
         val summary = section("resumen", 2)
-        val details = section("detalles", 2)
+        val details = section("detalles", 5)
         val concise = (summary + details).joinToString(" ").replace(Regex("\\s+"), " ").trim()
         original.copy(
             text = concise,
