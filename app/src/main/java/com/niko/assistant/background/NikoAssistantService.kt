@@ -231,6 +231,13 @@ open class NikoAssistantService : Service() {
             return
         }
         foregroundReady = true
+
+        // Inicializá la voz del sistema cuanto antes. Antes se construía por primera vez
+        // al terminar una orden; si todavía no estaba lista, el código elegía la voz neural
+        // ONNX y podía abortar el proceso justo después de mostrar "Procesando tu petición…".
+        // Esto NO cambia la escucha: solo prepara la salida de voz segura de Android.
+        runCatching { platformTts.isReady }
+
         CaptureGate.pauseVoice = {
             interruptCurrentTurn()
             LeoRealtimeTurnBus.interruptSpeech()
@@ -592,10 +599,6 @@ open class NikoAssistantService : Service() {
         return if (started && engine.isRunning) {
             localVoiceActive = true
             platformVoice = null
-            serviceScope.launch {
-                delay(2_000L)
-                if (!destroyed && !platformTts.isReady) neuralTts.prewarm()
-            }
             prewarmAdaptiveLearning()
             isListening = false
             initializationFailure = null
@@ -1130,7 +1133,27 @@ open class NikoAssistantService : Service() {
     private fun speakOnly(text: String, continueCommand: Boolean = false) {
         if (text.isBlank() || destroyed) return
         continueAfterSpeech = continueCommand
+
+        // Pausamos la escucha mientras LEO responde, pero no cargamos ningún runtime
+        // neural nativo en esta ruta. La estabilidad del reconocimiento que ya funciona
+        // queda intacta y la salida usa únicamente Android TTS.
         if (localVoiceActive) setActiveVoiceSpeaking(true, continueCommand)
+
+        val systemReady = runCatching { platformTts.isReady }.getOrDefault(false)
+        if (!systemReady) {
+            isSpeaking = false
+            NikoRuntimeState.setVoiceReady(applicationContext, false)
+            NikoRuntimeState.setVoiceStatus(applicationContext, "Respuesta mostrada en pantalla · preparando voz del teléfono")
+            if (localVoiceActive) setActiveVoiceSpeaking(false, continueCommand)
+            if (continueCommand) {
+                isListening = localVoiceActive && !activeVoiceMicrophoneSilenced()
+            } else if (!isThinking) {
+                finishTurn()
+            }
+            updateVisualState()
+            return
+        }
+
         isSpeaking = true
         updateVisualState()
         speechTimeout?.cancel()
@@ -1138,32 +1161,21 @@ open class NikoAssistantService : Service() {
             delay((text.length * 110L + 5_000L).coerceIn(12_000L, 360_000L))
             if (!destroyed && isSpeaking) {
                 platformTts.stop()
-                neuralTts.stop()
                 onSpeakingChanged(false)
             }
         }
-        val backend = speechOutput.choose(
-            neuralAvailable = neuralTts.isAvailable,
-            systemAvailable = platformTts.isReady,
-        )
-        val queued = if (backend == SpeechOutputPolicy.Backend.NEURAL) {
-            NikoRuntimeState.setVoiceStatus(applicationContext, "Voz local de LEO · español de México · sin conexión")
-            if (neuralTts.speak(text, replyProsody.speed)) true else {
-                speechOutput.neuralFailed()
-                NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
-                platformTts.speak(text, replyProsody)
-            }
+
+        NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
+        val queued = runCatching { platformTts.speak(text, replyProsody) }.getOrDefault(false)
+        if (queued) {
+            NikoRuntimeState.setVoiceReady(applicationContext, true)
         } else {
-            NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
-            if (platformTts.speak(text, replyProsody)) true else {
-                speechOutput.systemFailed()
-                NikoRuntimeState.setVoiceStatus(applicationContext, "Voz local de LEO · español de México · sin conexión")
-                neuralTts.speak(text, replyProsody.speed)
-            }
+            NikoRuntimeState.setVoiceReady(applicationContext, false)
+            NikoRuntimeState.setVoiceStatus(applicationContext, "Respuesta mostrada en pantalla · voz del teléfono no disponible")
+            onSpeakingChanged(false)
         }
-        if (queued) NikoRuntimeState.setVoiceReady(applicationContext, true)
-        else { NikoRuntimeState.setVoiceReady(applicationContext, false); onSpeakingChanged(false) }
     }
+
     private fun playNextProgressivePhrase(): Boolean {
         val queue = progressiveSpeech ?: return false
         val phrase = queue.poll()
