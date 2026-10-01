@@ -35,6 +35,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.FlashlightOn
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Settings
@@ -81,6 +83,7 @@ internal fun NikoReferenceScreen(
     webSources: List<NikoWebSource> = emptyList(),
     inputStatus: String = "",
     webSearching: Boolean = false,
+    onTools: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val displayState = if (visualState == NikoVisualState.LISTENING && inputState != InputState.READY) {
@@ -94,10 +97,10 @@ internal fun NikoReferenceScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF03050A),
-                        Color(0xFF070B14),
-                        Color(0xFF0A0F1B),
-                        Color(0xFF05070D),
+                        Color(0xFFFAFBFA),
+                        Color(0xFFF6F8F7),
+                        Color(0xFFF2F6F4),
+                        Color(0xFFF8FAF9),
                     ),
                 ),
             ),
@@ -124,13 +127,29 @@ internal fun NikoReferenceScreen(
                     .weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
-                NikoHero(
-                    state = displayState,
-                    enabled = autoListeningEnabled,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 4.dp, bottom = 32.dp),
-                )
+                Surface(
+                    modifier = Modifier.size(252.dp),
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.96f),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.18f)),
+                    shadowElevation = 12.dp,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    listOf(accent.copy(alpha = 0.13f), Color.Transparent),
+                                ),
+                                radius = size.minDimension * 0.48f,
+                            )
+                        }
+                        NikoHero(
+                            state = displayState,
+                            enabled = autoListeningEnabled,
+                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                        )
+                    }
+                }
 
                 LiveStateBadge(
                     state = displayState,
@@ -139,7 +158,7 @@ internal fun NikoReferenceScreen(
                     webSearching = webSearching,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 4.dp),
+                        .padding(bottom = 2.dp),
                 )
             }
 
@@ -156,15 +175,16 @@ internal fun NikoReferenceScreen(
             QuickActionsRail()
             Spacer(Modifier.height(12.dp))
 
-            WakeDock(
+            PremiumBottomDock(
                 enabled = autoListeningEnabled,
                 inputState = inputState,
                 inputStatus = inputStatus,
                 voiceReady = voiceReady,
                 state = displayState,
+                onTools = onTools,
             )
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
@@ -174,7 +194,7 @@ private fun RobotBackdrop(accent: Color) {
     Canvas(Modifier.fillMaxSize()) {
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(accent.copy(alpha = 0.15f), Color.Transparent),
+                colors = listOf(accent.copy(alpha = 0.10f), Color.Transparent),
                 center = Offset(size.width * 0.52f, size.height * 0.28f),
                 radius = size.width * 0.86f,
             ),
@@ -183,7 +203,7 @@ private fun RobotBackdrop(accent: Color) {
         )
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Color(0xFF805CFF).copy(alpha = 0.10f), Color.Transparent),
+                colors = listOf(Color(0xFF9EDFCB).copy(alpha = 0.08f), Color.Transparent),
                 center = Offset(size.width * 0.10f, size.height * 0.78f),
                 radius = size.width * 0.72f,
             ),
@@ -210,8 +230,8 @@ private fun NikoTopBar(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "LEO",
-                    color = Color.White,
-                    fontSize = 24.sp,
+                    color = Color(0xFF1A2421),
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.3.sp,
                 )
@@ -222,7 +242,7 @@ private fun NikoTopBar(
             }
             Text(
                 text = "TU COMPAÑERO PERSONAL",
-                color = Color.White.copy(alpha = 0.38f),
+                color = Color(0xFF71807B),
                 fontSize = 8.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.55.sp,
@@ -234,15 +254,15 @@ private fun NikoTopBar(
                 .size(42.dp)
                 .clickable(onClick = onSettings),
             shape = CircleShape,
-            color = Color.White.copy(alpha = 0.055f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+            color = Color.White.copy(alpha = 0.96f),
+            border = BorderStroke(1.dp, Color(0xFFE2E9E6)),
             shadowElevation = 0.dp,
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Rounded.Settings,
                     contentDescription = "Configuración",
-                    tint = Color.White.copy(alpha = 0.82f),
+                    tint = Color(0xFF4B5A55),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -273,7 +293,7 @@ private fun LiveStateBadge(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(100.dp),
-        color = Color(0xFF0B111C).copy(alpha = 0.82f),
+        color = Color.White.copy(alpha = 0.94f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
         shadowElevation = 5.dp,
     ) {
@@ -285,7 +305,7 @@ private fun LiveStateBadge(
             Spacer(Modifier.size(8.dp))
             Text(
                 text = text,
-                color = Color.White.copy(alpha = 0.78f),
+                color = Color(0xFF4E5D58),
                 fontSize = 9.5.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.9.sp,
@@ -323,8 +343,8 @@ private fun ConversationGlass(
             .fillMaxWidth()
             .animateContentSize(),
         shape = RoundedCornerShape(26.dp),
-        color = Color(0xFF0A101A).copy(alpha = 0.86f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
+        color = Color.White.copy(alpha = 0.96f),
+        border = BorderStroke(1.dp, Color(0xFFE2E9E6)),
         shadowElevation = 10.dp,
     ) {
         Column(modifier = Modifier.padding(horizontal = 17.dp, vertical = 14.dp)) {
@@ -361,7 +381,7 @@ private fun ConversationGlass(
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = message,
-                        color = Color.White.copy(alpha = 0.92f),
+                        color = Color(0xFF1C2623),
                         fontSize = 15.5.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 3,
@@ -382,7 +402,7 @@ private fun ConversationGlass(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = "VOS · $heardText",
-                    color = Color.White.copy(alpha = 0.36f),
+                    color = Color(0xFF788680),
                     fontSize = 10.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -400,13 +420,13 @@ private fun ConversationGlass(
                         Surface(
                             modifier = Modifier.clickable { runCatching { uriHandler.openUri(source.url) } },
                             shape = RoundedCornerShape(100.dp),
-                            color = Color.White.copy(alpha = 0.055f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
+                            color = Color(0xFFF5F8F7),
+                            border = BorderStroke(1.dp, Color(0xFFE1E8E5)),
                         ) {
                             Text(
                                 text = "${index + 1} · ${source.title}",
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                color = Color.White.copy(alpha = 0.52f),
+                                color = Color(0xFF687670),
                                 fontSize = 9.5.sp,
                                 maxLines = 1,
                             )
@@ -509,8 +529,8 @@ private fun QuickActionsRail() {
                         .size(50.dp)
                         .clickable(onClick = action.onClick),
                     shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.055f),
-                    border = BorderStroke(1.dp, action.tint.copy(alpha = 0.22f)),
+                    color = Color.White.copy(alpha = 0.96f),
+                    border = BorderStroke(1.dp, action.tint.copy(alpha = 0.18f)),
                     shadowElevation = 0.dp,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -525,7 +545,7 @@ private fun QuickActionsRail() {
                 Spacer(Modifier.height(5.dp))
                 Text(
                     text = action.label,
-                    color = Color.White.copy(alpha = 0.52f),
+                    color = Color(0xFF67756F),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -536,88 +556,77 @@ private fun QuickActionsRail() {
 }
 
 @Composable
-private fun WakeDock(
+private fun PremiumBottomDock(
     enabled: Boolean,
     inputState: InputState,
     inputStatus: String,
     voiceReady: Boolean,
     state: NikoVisualState,
+    onTools: () -> Unit,
 ) {
     val ready = enabled && inputState == InputState.READY
-    val accent = if (ready) stateAccent(state) else Color(0xFF69757E)
-    val title = when {
-        !enabled -> "LEO EN PAUSA"
-        inputState == InputState.PREPARING -> "PREPARANDO MICRÓFONO"
-        inputState != InputState.READY -> "ESCUCHA NO DISPONIBLE"
-        else -> "ESCUCHA AMBIENTAL ACTIVA"
+    val accent = if (ready) stateAccent(state) else Color(0xFF87938F)
+    val status = when {
+        !enabled -> "En pausa"
+        inputState == InputState.PREPARING -> "Preparando"
+        inputState != InputState.READY -> "No disponible"
+        state == NikoVisualState.LISTENING -> "Escuchando"
+        state == NikoVisualState.THINKING -> "Pensando"
+        state == NikoVisualState.SPEAKING -> "Hablando"
+        else -> if (voiceReady) "Decí “Leo”" else "Listo"
     }
     val detail = when {
-        inputStatus.isNotBlank() && !ready -> inputStatus.take(74)
-        ready && voiceReady -> "Decí “Leo” · no necesitás tocar la pantalla"
-        ready -> "Decí “Leo” · respuesta disponible en pantalla"
-        else -> "Revisá Ajustes para completar la preparación"
+        inputStatus.isNotBlank() && !ready -> inputStatus.take(64)
+        ready -> "Podés hablarme sin tocar la pantalla"
+        else -> "Revisá Ajustes si necesitás activar la escucha"
     }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = Color(0xFF080D15).copy(alpha = 0.92f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.075f)),
-        shadowElevation = 8.dp,
+        shape = RoundedCornerShape(28.dp),
+        color = Color.White.copy(alpha = 0.97f),
+        border = BorderStroke(1.dp, Color(0xFFE0E8E4)),
+        shadowElevation = 10.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(37.dp)
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(accent.copy(alpha = 0.72f), accent.copy(alpha = 0.15f)),
-                        ),
-                        shape = CircleShape,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Mic,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.90f),
-                    modifier = Modifier.size(19.dp),
-                )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Rounded.Home, contentDescription = "Inicio", tint = Color(0xFF8A9691), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.height(3.dp))
+                Text("Inicio", color = Color(0xFF7A8782), fontSize = 9.sp)
             }
 
-            Spacer(Modifier.size(11.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = detail,
-                    color = Color.White.copy(alpha = 0.38f),
-                    fontSize = 9.5.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Canvas(Modifier.size(22.dp)) {
-                val center = Offset(size.width / 2f, size.height / 2f)
-                repeat(3) { index ->
-                    val radius = size.minDimension * (0.12f + index * 0.12f)
-                    drawCircle(
-                        color = accent.copy(alpha = if (ready) 0.54f - index * 0.13f else 0.16f),
-                        radius = radius,
-                        center = center,
-                    )
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Surface(
+                    modifier = Modifier.size(52.dp),
+                    shape = CircleShape,
+                    color = accent.copy(alpha = if (ready) 0.14f else 0.08f),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.Mic,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
+                Spacer(Modifier.height(4.dp))
+                Text(status, color = Color(0xFF33413C), fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold)
+                Text(detail, color = Color(0xFF89958F), fontSize = 8.dp.value.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+
+            Column(
+                modifier = Modifier.clickable(onClick = onTools).padding(horizontal = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(Icons.Rounded.Apps, contentDescription = "Herramientas", tint = Color(0xFF65736E), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.height(3.dp))
+                Text("Herramientas", color = Color(0xFF65736E), fontSize = 9.sp)
             }
         }
     }
