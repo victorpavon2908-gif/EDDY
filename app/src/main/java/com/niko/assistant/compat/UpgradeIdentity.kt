@@ -37,6 +37,8 @@ object UpgradeIdentity {
 
     const val ACTION_REFRESH_BUBBLE = "com.eddy.assistant.action.REFRESH_BUBBLE"
 
+    const val ACTION_RESET_BUBBLE = "com.eddy.assistant.action.RESET_BUBBLE"
+
     fun assistantService(context: Context): Intent = Intent().setClassName(context, "com.eddy.assistant.background.EddyAssistantService")
     fun wakeActivity(context: Context): Intent = Intent().setClassName(context, "com.eddy.assistant.EddyWakeActivity")
     fun proactiveReceiver(context: Context): Intent = Intent().setClassName(context, "com.eddy.assistant.proactive.EddyProactiveReceiver")
