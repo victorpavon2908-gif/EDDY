@@ -42,6 +42,17 @@ class LocalBrainTest {
         assertTrue(brain.understand("no te conviertas en cámara") is AssistantCommand.Unknown)
     }
 
+    @Test fun unknownTransformationBecomesAGeneratedToolRequest() {
+        assertEquals(
+            AssistantCommand.GenerateTool("contador de vueltas para correr"),
+            brain.understand("Leo, conviértete en un contador de vueltas para correr"),
+        )
+        assertEquals(
+            AssistantCommand.GenerateTool("tablero para estudiar ingles"),
+            brain.understand("Leo, quiero que seas un tablero para estudiar inglés"),
+        )
+    }
+
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.BACK), brain.understand("Leo, volvé atrás"))
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.HOME), brain.understand("andá a la pantalla de inicio"))
