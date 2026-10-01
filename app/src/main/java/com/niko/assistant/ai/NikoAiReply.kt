@@ -7,4 +7,9 @@ data class NikoAiReply(
     val webUsed: Boolean,
     val sources: List<NikoWebSource>,
     val evidence: String = "",
+    /**
+     * Evidencia textual recuperada de las páginas. No se muestra directamente al usuario:
+     * sirve para que el sintetizador formule una respuesta propia sin inventar datos.
+     */
+    val researchContext: String = "",
 )
