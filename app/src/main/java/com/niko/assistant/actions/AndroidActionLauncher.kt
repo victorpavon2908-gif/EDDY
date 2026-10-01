@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.niko.assistant.LeoApplication
 import com.niko.assistant.R
+import com.niko.assistant.diagnostics.LeoCrashRecorder
 
 /** Android may silently reject background starts. Offer a real notification action in that case. */
 internal object AndroidActionLauncher {
@@ -33,5 +34,8 @@ internal object AndroidActionLauncher {
             manager.notify(2301, notification)
             ActionResult(true, "Tocá la notificación de LEO para abrirla. Android requiere ese toque cuando estoy en segundo plano.")
         }
-    } catch (_: Exception) { ActionResult(false, failure) }
+    } catch (error: Exception) {
+        LeoCrashRecorder.recordHandled("AndroidActionLauncher.launch", error)
+        ActionResult(false, failure)
+    }
 }
