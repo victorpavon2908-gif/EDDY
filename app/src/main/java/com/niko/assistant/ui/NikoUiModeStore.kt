@@ -10,6 +10,7 @@ enum class NikoUiMode(val id: String, val title: String) {
     ASSISTANT("assistant", "LEO"),
     VOICE_DIAGNOSTICS("voice_diagnostics", "Diagnóstico de voz"),
     TOOLBOX("toolbox", "Transformaciones"),
+    GENERATED("generated", "Herramienta"),
     CAMERA("camera", "Cámara"),
     VIDEO("video", "Grabadora de video"),
     AUDIO_RECORDER("audio_recorder", "Grabadora de audio"),
@@ -43,6 +44,7 @@ object NikoUiModeStore {
             text in setOf("leo", "niko", "inicio", "principal", "pantalla principal", "asistente") -> NikoUiMode.ASSISTANT
             (text.contains("diagnostico") || text.contains("prueba")) && (text.contains("voz") || text.contains("escucha") || text.contains("microfono") || text.contains("wake")) -> NikoUiMode.VOICE_DIAGNOSTICS
             text in setOf("transformaciones", "herramientas") -> NikoUiMode.TOOLBOX
+            text in setOf("generada", "herramienta generada", "herramienta personalizada") -> NikoUiMode.GENERATED
             text in setOf("camara", "camera") -> NikoUiMode.CAMERA
             text in setOf("video", "grabadora de video") -> NikoUiMode.VIDEO
             text in setOf("grabadora", "grabadora de audio", "grabador de audio") -> NikoUiMode.AUDIO_RECORDER
