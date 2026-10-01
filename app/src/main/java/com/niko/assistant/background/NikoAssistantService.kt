@@ -413,12 +413,16 @@ open class NikoAssistantService : Service() {
             }},
             onStatus = { status -> serviceScope.launch {
                 if (!destroyed && epoch == localVoiceEpoch) {
-                    NikoRuntimeState.setInputStatus(applicationContext, status)
+                    if (status.startsWith("Micrófono listo") || status.startsWith("Te escucho")) {
+                        NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, status)
+                    } else {
+                        NikoRuntimeState.setInputStatus(applicationContext, status)
+                    }
                 }
             }},
             onError = { error -> serviceScope.launch {
                 if (!destroyed && epoch == localVoiceEpoch) {
-                    NikoRuntimeState.setInputStatus(applicationContext, error)
+                    NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.ERROR, error)
                 }
             }},
         )
@@ -437,10 +441,10 @@ open class NikoAssistantService : Service() {
         isListening = false
         NikoRuntimeState.setInput(
             applicationContext,
-            NikoRuntimeState.InputState.READY,
-            "Micrófono listo · modo compatible · decí LEO",
+            NikoRuntimeState.InputState.PREPARING,
+            "Abriendo micrófono con el servicio de voz de Android…",
         )
-        NikoRuntimeState.setResponse(applicationContext, "Decí LEO para hablar conmigo.")
+        NikoRuntimeState.setResponse(applicationContext, "Preparando el micrófono de LEO…")
         updateVisualState()
         prewarmAdaptiveLearning()
         return true
