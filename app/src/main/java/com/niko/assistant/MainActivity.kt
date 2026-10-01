@@ -3,7 +3,6 @@ package com.niko.assistant
 import com.niko.assistant.compat.UpgradeIdentity
 
 import android.Manifest
-import android.app.NotificationManager
 import android.content.Intent
 import android.content.Context
 import android.content.SharedPreferences
@@ -13,17 +12,14 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.DisposableEffect
@@ -65,16 +61,12 @@ class MainActivity : ComponentActivity() {
     }
     private lateinit var permissionLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var overlayLauncher: ActivityResultLauncher<Intent>
-    private lateinit var fullScreenLauncher: ActivityResultLauncher<Intent>
-    private lateinit var batteryLauncher: ActivityResultLauncher<Intent>
     private lateinit var firstRunSetup: LeoFirstRunSetup
     private var setupJob: Job? = null
     private var frozenBrainJob: Job? = null
     private lateinit var frozenBrainManager: LeoFrozenBrainManager
     private val setupState = mutableStateOf(LeoFirstRunState())
     private var overlayPromptedThisSession = false
-    private var fullScreenPromptedThisSession = false
-    private var batteryPromptedThisSession = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,10 +89,6 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refreshLockScreenSetupStatus() }
-        fullScreenLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            refreshLockScreenSetupStatus()
-        }
         overlayLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (Settings.canDrawOverlays(this) && canRunLeo()) sendServiceAction(NikoAssistantService.ACTION_REFRESH_BUBBLE)
         }
@@ -137,7 +125,6 @@ class MainActivity : ComponentActivity() {
         } else if (hasMicrophonePermission()) {
             beginInitialSetupOrStart()
         }
-        refreshLockScreenSetupStatus()
     }
 
     override fun onStop() {
@@ -216,16 +203,6 @@ class MainActivity : ComponentActivity() {
         if (overlayPromptedThisSession) return
         overlayPromptedThisSession = true
         overlayLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-    }
-
-    private fun maybeRequestFullScreenIntentPermission() = Unit
-
-    private fun maybeRequestBatteryOptimizationExemption() = Unit
-
-    private fun refreshLockScreenSetupStatus() {
-        // Estos permisos mejoran el funcionamiento con la pantalla apagada, pero NO
-        // bloquean el micrófono ni deben reemplazar el mensaje principal de LEO.
-        if (!firstRunSetup.isReady()) return
     }
 
     private fun ensureFrozenBrain() {
