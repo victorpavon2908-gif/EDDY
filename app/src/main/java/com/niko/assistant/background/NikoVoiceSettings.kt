@@ -14,7 +14,23 @@ object NikoVoiceSettings {
     fun enabled(context: Context): Boolean =
         userEnabled(context) && LeoFirstRunSetup.isMarkedReady(context)
 
-    fun userEnabled(context: Context): Boolean = prefs(context).getBoolean("assistant_enabled", true)
+    fun userEnabled(context: Context): Boolean = prefs(context).getBoolean("assistant_enabled", false)
+
+    /**
+     * Protección de arranque: después de una actualización que pueda afectar el motor
+     * nativo de voz, LEO arranca con la escucha desactivada una sola vez. Esto evita
+     * que un fallo JNI/ONNX del servicio de voz impida abrir toda la aplicación.
+     */
+    fun ensureCrashSafeBoot(context: Context): Boolean {
+        val preferences = prefs(context)
+        val applied = preferences.getInt(KEY_SAFE_BOOT_VERSION, 0)
+        if (applied >= SAFE_BOOT_VERSION) return false
+        preferences.edit()
+            .putBoolean("assistant_enabled", false)
+            .putInt(KEY_SAFE_BOOT_VERSION, SAFE_BOOT_VERSION)
+            .apply()
+        return true
+    }
 
     fun setEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("assistant_enabled", enabled).apply()
@@ -22,4 +38,7 @@ object NikoVoiceSettings {
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(UpgradeIdentity.controlPreferences, Context.MODE_PRIVATE)
+
+    private const val KEY_SAFE_BOOT_VERSION = "voice_safe_boot_version"
+    private const val SAFE_BOOT_VERSION = 1
 }
