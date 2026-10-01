@@ -98,6 +98,7 @@ import com.niko.assistant.voice.LeoPlatformVoiceEngine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 open class NikoAssistantService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -681,7 +682,16 @@ open class NikoAssistantService : Service() {
         updateVisualState()
         commandJob = serviceScope.launch {
             try {
-                handleCommand(text)
+                val completed = withTimeoutOrNull(COMMAND_EXECUTION_TIMEOUT_MS) {
+                    handleCommand(text)
+                    true
+                } == true
+                if (!completed && epoch == turnEpoch && !destroyed) {
+                    progressiveSpeech?.cancel()
+                    progressiveSpeech = null
+                    LeoRealtimeTurnBus.interruptSpeech()
+                    speakResponse("La orden tardó demasiado. Ya liberé el procesamiento; decime de nuevo qué querés hacer.")
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -712,6 +722,14 @@ open class NikoAssistantService : Service() {
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
+
+        // Ruta inmediata para acciones claras del teléfono. No toca el motor de escucha.
+        // Antes estas órdenes esperaban memoria/IA/planificador aunque LocalBrain ya sabía
+        // exactamente qué hacer, por eso la UI podía quedarse en "Procesando tu petición…".
+        if (executeDeterministicLocalAction(text, correctionAlias)) return
+
+        // Memoria y conversación quedan después de las acciones directas para que nunca
+        // bloqueen linterna, apps, volumen, cámara, alarmas, herramientas, etc.
         withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
         RobotMotion.parse(text)?.let { motion ->
             learnIntent(text, LearnedIntent.ACTION, correctionAlias)
@@ -877,6 +895,56 @@ open class NikoAssistantService : Service() {
         val direct = executeDirectCommand(command) ?: "Listo."
         speakResponse(direct)
         withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
+    }
+
+    private suspend fun executeDeterministicLocalAction(
+        text: String,
+        correctionAlias: String?,
+    ): Boolean {
+        val commands = brain.understandMany(text)
+        if (commands.isEmpty() || commands.any { it is AssistantCommand.Unknown || it is AssistantCommand.SearchWeb }) {
+            return false
+        }
+
+        val responses = mutableListOf<String>()
+        for (command in commands) {
+            when (command) {
+                AssistantCommand.ClearMemory -> {
+                    clearLocalMemory()
+                    responses += "Borré mi memoria local."
+                }
+                AssistantCommand.MemorySummary -> {
+                    responses += withContext(Dispatchers.IO) { memory.describeLearnedPatterns() }
+                }
+                else -> {
+                    val result = executeDirectCommand(command)
+                    if (!result.isNullOrBlank()) responses += result
+                }
+            }
+        }
+
+        if (responses.isEmpty()) return false
+
+        rememberCorrectedAction(correctionAlias, commands)
+        learnIntent(
+            text,
+            if (commands.all { it == AssistantCommand.Greeting }) LearnedIntent.CONVERSATION else LearnedIntent.ACTION,
+            correctionAlias,
+        )
+
+        // Persistencia en segundo plano: la acción ya ocurrió y no depende de la base.
+        serviceScope.launch(Dispatchers.IO) {
+            runCatching {
+                commands.forEach { command ->
+                    memory.rememberCommand(command)
+                    memory.rememberCompletedCommand(command, responses.joinToString(" "))
+                }
+                memory.rememberUserTurn(text)
+            }
+        }
+
+        speakResponse(responses.joinToString(" "))
+        return true
     }
 
     private suspend fun predictIntent(text: String): OnlineIntentNetwork.Prediction? = withContext(Dispatchers.IO) {
@@ -1172,6 +1240,7 @@ open class NikoAssistantService : Service() {
     private fun releaseCpuWakeLock() { cpuWakeLock?.let { if (it.isHeld) runCatching { it.release() } }; cpuWakeLock = null }
 
     companion object {
+        private const val COMMAND_EXECUTION_TIMEOUT_MS = 25_000L
         private const val CHANNEL_ID = UpgradeIdentity.assistantChannel
         private const val WAKE_CHANNEL_ID = UpgradeIdentity.wakeChannel
         private const val NOTIFICATION_ID = 2001
