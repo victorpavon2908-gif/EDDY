@@ -8,11 +8,16 @@ class LocalBrain {
     fun understand(input: String): AssistantCommand = understandSingle(input)
 
     fun understandMany(input: String): List<AssistantCommand> {
-        val cleaned = cleanConversationalInput(input.trim())
-        if (cleaned.isBlank()) return listOf(AssistantCommand.Unknown(input.trim()))
-        val whole = understandSingle(cleaned)
+        val raw = input.trim()
+        if (raw.isBlank()) return listOf(AssistantCommand.Unknown(raw))
+
+        // Do not strip conversational prefixes before the first parse. Phrases such as
+        // "quiero que seas una cámara" carry their transformation intent in that prefix.
+        val whole = understandSingle(raw)
+        val cleaned = cleanConversationalInput(raw)
         if (whole is AssistantCommand.SearchWeb || isNegationOrExplanation(normalize(cleaned))) return listOf(whole)
-        val pieces = splitActionClauses(cleaned)
+
+        val pieces = splitActionClauses(raw)
         if (pieces.size <= 1) return listOf(whole)
         val parsed = pieces.map(::understandSingle)
         val knownCount = parsed.count { it !is AssistantCommand.Unknown }
@@ -126,7 +131,7 @@ class LocalBrain {
         if (protectedMessage) return listOf(value)
         return value
             .split(Regex("(?i)\\s*(?:,?\\s+(?:y\\s+despu[eé]s|despu[eé]s|luego|adem[aá]s|y\\s+luego|y))\\s+(?=(?:abre|abr[ií]|entra|enciende|encend[eé]|prende|apaga|llama|marca|pon|reproduce|sube|baja|activa|desactiva|busca|manda|env[ií]a|escribe|pon[eé]|quiero|necesito|haceme|hazme)\\b)"))
-            .map { cleanConversationalInput(it).trim() }
+            .map(String::trim)
             .filter { it.isNotBlank() }
     }
 
