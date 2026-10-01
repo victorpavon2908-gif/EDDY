@@ -728,9 +728,8 @@ open class NikoAssistantService : Service() {
         // exactamente qué hacer, por eso la UI podía quedarse en "Procesando tu petición…".
         if (executeDeterministicLocalAction(text, correctionAlias)) return
 
-        // Memoria y conversación quedan después de las acciones directas para que nunca
-        // bloqueen linterna, apps, volumen, cámara, alarmas, herramientas, etc.
-        withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
+        // Animaciones y cálculos también son 100% locales: deben responder antes de abrir
+        // memoria, red o cualquier componente pesado.
         RobotMotion.parse(text)?.let { motion ->
             learnIntent(text, LearnedIntent.ACTION, correctionAlias)
             RobotMotionBus.perform(motion)
@@ -742,6 +741,14 @@ open class NikoAssistantService : Service() {
             })
             return
         }
+        NikoMathEngine.solve(text)?.let {
+            learnIntent(text, LearnedIntent.ACTION, correctionAlias)
+            speakResponse("El resultado es $it.")
+            return
+        }
+
+        // Memoria y conversación quedan después de todas las acciones inmediatas.
+        withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
         // Tool transformations are local and must not become web research requests.
         val directTool = com.niko.assistant.brain.LocalBrain().understandMany(text).singleOrNull()
         if (directTool is AssistantCommand.OpenAppByName &&
@@ -778,7 +785,6 @@ open class NikoAssistantService : Service() {
             learnIntent(text, LearnedIntent.MEMORY, correctionAlias)
             speakResponse(it); return
         }
-        NikoMathEngine.solve(text)?.let { learnIntent(text, LearnedIntent.ACTION, correctionAlias); speakResponse("El resultado es $it."); return }
         val learnedCommands = if (learningEnabled) withContext(Dispatchers.IO) {
             runCatching { learnedActionStore.resolve(text) }.getOrNull()
         }?.let(semanticActions::parseDsl)?.takeIf { it.isNotEmpty() } else null
