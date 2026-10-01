@@ -136,6 +136,7 @@ open class NikoAssistantService : Service() {
 
     private var destroyed = false
     private var foregroundReady = false
+    @Volatile private var voiceRequested = false
     private var localVoiceStarting = false
     private var localVoiceEpoch = 0
     private var isTranscribing = false
@@ -237,20 +238,27 @@ open class NikoAssistantService : Service() {
         registerScreenStateReceiver()
         NikoRuntimeState.setRunning(applicationContext, true)
         NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.PREPARING, "Preparando activación por voz…")
-        NikoRuntimeState.setResponse(applicationContext, "Estoy preparando la escucha local. Cuando esté lista, decí LEO.")
-        ensureVoiceListening()
+        NikoRuntimeState.setResponse(applicationContext, "LEO está listo para activar el micrófono.")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> NikoVoiceSettings.setEnabled(this, true)
-            ACTION_STOP -> { NikoVoiceSettings.setEnabled(this, false); stopSelf(); return START_NOT_STICKY }
+            ACTION_START -> {
+                voiceRequested = true
+                NikoVoiceSettings.setEnabled(this, true)
+            }
+            ACTION_STOP -> {
+                voiceRequested = false
+                NikoVoiceSettings.setEnabled(this, false)
+                stopSelf()
+                return START_NOT_STICKY
+            }
             ACTION_SHOW_BUBBLE -> showBubble()
             ACTION_HIDE_BUBBLE -> hideBubble()
             ACTION_REFRESH_BUBBLE -> { hideBubble(); showBubble() }
         }
         if (!foregroundReady) { stopSelf(); return START_NOT_STICKY }
-        if (intent?.action != ACTION_START && !NikoVoiceSettings.enabled(this)) {
+        if (!voiceRequested && intent?.action != ACTION_START) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -287,10 +295,10 @@ open class NikoAssistantService : Service() {
 
     /** One owner for preparation, native startup and recovery. No Android recognition sessions. */
     private fun ensureVoiceListening(initialDelay: Long = 0L) {
-        if (CaptureGate.held || destroyed || !foregroundReady || localVoiceActive || recoveryJob?.isActive == true || !NikoVoiceSettings.enabled(this)) return
+        if (CaptureGate.held || destroyed || !foregroundReady || localVoiceActive || recoveryJob?.isActive == true || !voiceRequested) return
         recoveryJob = serviceScope.launch {
             if (initialDelay > 0) delay(initialDelay)
-            while (!CaptureGate.held && !destroyed && NikoVoiceSettings.enabled(this@NikoAssistantService)) {
+            while (!CaptureGate.held && !destroyed && voiceRequested) {
                 if (!hasMicrophonePermission()) {
                     inputUnavailable("Concedé permiso de micrófono en los ajustes de Android y volvé a abrir LEO.")
                     return@launch
