@@ -102,20 +102,29 @@ import kotlinx.coroutines.withContext
 open class NikoAssistantService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private lateinit var brain: LocalBrain
-    private lateinit var semanticActions: NikoSemanticActionResolver
-    private lateinit var executor: ActionExecutor
-    private lateinit var smartHome: LocalSmartHomeClient
-    private lateinit var memory: NikoMemory
-    private lateinit var webClient: NikoAiClient
-    private lateinit var fallbackConversation: NikoFallbackConversation
-    private lateinit var proactiveScheduler: NikoProactiveScheduler
-    private lateinit var modelManager: NikoModelManager
-    private lateinit var deviceProfile: NikoDeviceProfile
-    private lateinit var ownerVoice: NikoVoiceProfile
-    private lateinit var localLlm: NikoLocalLlm
-    private lateinit var uiAutomation: NikoUiAutomationAgent
-    private lateinit var codeAgent: NikoCodeAgent
+    // El servicio de micrófono debe llegar a startForeground() antes de construir
+    // componentes pesados. Todo lo demás se crea únicamente cuando una orden lo necesita.
+    private val brain by lazy(LazyThreadSafetyMode.NONE) { LocalBrain() }
+    private val executor by lazy(LazyThreadSafetyMode.NONE) { ActionExecutor(applicationContext) }
+    private val smartHome by lazy(LazyThreadSafetyMode.NONE) { LocalSmartHomeClient(applicationContext) }
+    private val memory by lazy(LazyThreadSafetyMode.NONE) { NikoMemory(applicationContext) }
+    private val webClient by lazy(LazyThreadSafetyMode.NONE) { NikoAiClient(applicationContext) }
+    private val fallbackConversation by lazy(LazyThreadSafetyMode.NONE) { NikoFallbackConversation() }
+    private val proactiveScheduler by lazy(LazyThreadSafetyMode.NONE) { NikoProactiveScheduler(applicationContext, memory) }
+    private val modelManager by lazy(LazyThreadSafetyMode.NONE) { NikoModelManager(applicationContext) }
+    private val deviceProfile by lazy(LazyThreadSafetyMode.NONE) { NikoDeviceProfile.detect(applicationContext) }
+    private val ownerVoice by lazy(LazyThreadSafetyMode.NONE) { NikoVoiceProfile(applicationContext) }
+
+    private val localLlmDelegate = lazy(LazyThreadSafetyMode.NONE) {
+        NikoLocalLlm(applicationContext, modelManager)
+    }
+    private val localLlm: NikoLocalLlm get() = localLlmDelegate.value
+
+    private val uiAutomation by lazy(LazyThreadSafetyMode.NONE) { NikoUiAutomationAgent(localLlm) }
+    private val semanticActions by lazy(LazyThreadSafetyMode.NONE) {
+        NikoSemanticActionResolver(brain) { prompt -> localLlm.completeStructured(prompt) }
+    }
+    private val codeAgent by lazy(LazyThreadSafetyMode.NONE) { NikoCodeAgent(applicationContext) }
     private val adaptiveStore by lazy {
         AdaptiveIntentStore(File(filesDir, "adaptive_learning")) {
             runCatching { assets.open(LeoIntentTrainingCorpus.ASSET_NAME).use { it.readBytes() } }.getOrNull()
@@ -133,8 +142,41 @@ open class NikoAssistantService : Service() {
     private var localVoice: NikoLocalVoiceEngine? = null
     private var platformVoice: LeoPlatformVoiceEngine? = null
     private var localVoiceActive = false
-    private lateinit var platformTts: NikoTextToSpeech
-    private lateinit var neuralTts: NikoNeuralTextToSpeech
+    private val platformTtsDelegate = lazy(LazyThreadSafetyMode.NONE) {
+        NikoTextToSpeech(
+            context = applicationContext,
+            onReady = { ready ->
+                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) {
+                    NikoRuntimeState.setVoiceReady(applicationContext, ready)
+                }
+            },
+            onVoiceSelected = { description ->
+                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) {
+                    NikoRuntimeState.setVoiceStatus(applicationContext, description)
+                }
+            },
+            onSpeakingChanged = ::onSpeakingChanged,
+        )
+    }
+    private val platformTts: NikoTextToSpeech get() = platformTtsDelegate.value
+
+    private val neuralTtsDelegate = lazy(LazyThreadSafetyMode.NONE) {
+        NikoNeuralTextToSpeech(
+            models = modelManager,
+            profile = deviceProfile,
+            onSpeakingChanged = ::onSpeakingChanged,
+            canUseFallback = { platformTts.isReady },
+            onFailure = { text, audioStarted -> serviceScope.launch {
+                if (!destroyed) {
+                    speechOutput.neuralFailed()
+                    NikoRuntimeState.setVoiceStatus(applicationContext, "La voz local se interrumpió. ${platformTts.voiceDescription}")
+                    if (audioStarted || !platformTts.speak(text, replyProsody)) onSpeakingChanged(false)
+                    NikoRuntimeState.setVoiceReady(applicationContext, platformTts.isReady)
+                }
+            } },
+        )
+    }
+    private val neuralTts: NikoNeuralTextToSpeech get() = neuralTtsDelegate.value
 
     private var destroyed = false
     private var foregroundReady = false
@@ -175,46 +217,6 @@ open class NikoAssistantService : Service() {
     override fun onCreate() {
         super.onCreate()
         LeoRealtimeTurnBus.registerTurnInterrupter(turnInterrupter)
-        brain = LocalBrain()
-        executor = ActionExecutor(applicationContext)
-        smartHome = LocalSmartHomeClient(applicationContext)
-        memory = NikoMemory(applicationContext)
-        webClient = NikoAiClient(applicationContext)
-        fallbackConversation = NikoFallbackConversation()
-        proactiveScheduler = NikoProactiveScheduler(applicationContext, memory)
-        modelManager = NikoModelManager(applicationContext)
-        deviceProfile = NikoDeviceProfile.detect(applicationContext)
-        ownerVoice = NikoVoiceProfile(applicationContext)
-        localLlm = NikoLocalLlm(applicationContext, modelManager)
-        uiAutomation = NikoUiAutomationAgent(localLlm)
-        semanticActions = NikoSemanticActionResolver(brain) { prompt -> localLlm.completeStructured(prompt) }
-        codeAgent = NikoCodeAgent(applicationContext)
-
-        platformTts = NikoTextToSpeech(
-            context = applicationContext,
-            onReady = { ready ->
-                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) NikoRuntimeState.setVoiceReady(applicationContext, ready)
-            },
-            onVoiceSelected = { description ->
-                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) NikoRuntimeState.setVoiceStatus(applicationContext, description)
-            },
-            onSpeakingChanged = ::onSpeakingChanged,
-        )
-        neuralTts = NikoNeuralTextToSpeech(
-            models = modelManager,
-            profile = deviceProfile,
-            onSpeakingChanged = ::onSpeakingChanged,
-            canUseFallback = { platformTts.isReady },
-            onFailure = { text, audioStarted -> serviceScope.launch {
-                if (!destroyed) {
-                    speechOutput.neuralFailed()
-                    NikoRuntimeState.setVoiceStatus(applicationContext, "La voz local se interrumpió. ${platformTts.voiceDescription}")
-                    if (audioStarted || !platformTts.speak(text, replyProsody)) onSpeakingChanged(false)
-                    NikoRuntimeState.setVoiceReady(applicationContext, platformTts.isReady)
-                }
-            } },
-        )
-
         if (!hasMicrophonePermission()) {
             NikoRuntimeState.setResponse(applicationContext, "Abrí LEO y concedé el permiso de micrófono.")
             stopSelf()
@@ -286,9 +288,9 @@ open class NikoAssistantService : Service() {
         hideBubble()
         unregisterScreenStateReceiver()
         stopActiveVoice()
-        neuralTts.shutdown()
-        platformTts.shutdown()
-        localLlm.release()
+        if (neuralTtsDelegate.isInitialized()) neuralTts.shutdown()
+        if (platformTtsDelegate.isInitialized()) platformTts.shutdown()
+        if (localLlmDelegate.isInitialized()) localLlm.release()
         releaseCpuWakeLock()
         serviceScope.cancel()
         NikoRuntimeState.reset(applicationContext)
