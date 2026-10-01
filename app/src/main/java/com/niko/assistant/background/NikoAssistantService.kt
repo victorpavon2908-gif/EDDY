@@ -263,7 +263,7 @@ open class NikoAssistantService : Service() {
             return START_NOT_STICKY
         }
         ensureVoiceListening()
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
