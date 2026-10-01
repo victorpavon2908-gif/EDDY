@@ -61,6 +61,7 @@ internal fun leoModeAccent(mode: NikoUiMode): Color = when (mode) {
     NikoUiMode.CONVERTER -> Color(0xFFFF8D62)
     NikoUiMode.VOICE_DIAGNOSTICS -> Color(0xFF77F2C3)
     NikoUiMode.TOOLBOX -> Color(0xFF8C7CFF)
+    NikoUiMode.GENERATED -> Color(0xFF4C9F8E)
 }
 
 internal fun leoModeDescription(mode: NikoUiMode): String = when (mode) {
@@ -77,6 +78,7 @@ internal fun leoModeDescription(mode: NikoUiMode): String = when (mode) {
     NikoUiMode.CONVERTER -> "CONVERSIÓN"
     NikoUiMode.VOICE_DIAGNOSTICS -> "DIAGNÓSTICO"
     NikoUiMode.TOOLBOX -> "POLIMORFISMO"
+    NikoUiMode.GENERATED -> "FORMA GENERADA"
 }
 
 @Composable
