@@ -66,7 +66,8 @@ class NikoSemanticActionResolver(
 
     private companion object {
         val COMPOUND_SPLIT = Regex(
-            "(?Ui)\\s*(?:,|;|\\by\\s+(?:luego\\s+)?|\\bdespu[eé]s\\b|\\bluego\\b)\\s*(?=(?:busc[aá]|buscar|naveg[aá]|navegar|toc[aá]|toca|presion[aá]|presiona|seleccion[aá]|selecciona|escrib[ií]|escribe|desliz[aá]|desliza|sub[ií]|sube|baj[aá]|baja|entr[aá]|entra|and[aá]|anda)\\b)",
+            "\\s*(?:,|;|\\by\\s+(?:luego\\s+)?|\\bdespu[eé]s\\b|\\bluego\\b)\\s*(?=(?:busc[aá]|buscar|naveg[aá]|navegar|toc[aá]|toca|presion[aá]|presiona|seleccion[aá]|selecciona|escrib[ií]|escribe|desliz[aá]|desliza|sub[ií]|sube|baj[aá]|baja|entr[aá]|entra|and[aá]|anda)\\b)",
+            RegexOption.IGNORE_CASE,
         )
     }
 }
