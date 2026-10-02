@@ -119,6 +119,9 @@ private fun GeneratedNumberInput(
             if (component.initial == 0.0) "" else component.initial.toString(),
         )
     }
+    LaunchedEffect(component.id) {
+        if (component.initial != 0.0) numericState[component.id] = component.initial
+    }
     OutlinedTextField(
         value = value,
         onValueChange = { next ->
