@@ -47,6 +47,14 @@ private data class ArcadeObstacle(
 @Composable
 internal fun GeneratedMiniGame(component: GeneratedToolComponent) {
     val kind = component.text.lowercase().ifBlank { component.label.lowercase() }
+    when (resolveGeneratedGameKind(kind)) {
+        GeneratedGameKind.FALLING_BLOCKS -> {
+            GeneratedFallingBlocksGame(component)
+            return
+        }
+        GeneratedGameKind.ARCADE_LANES -> Unit
+    }
+
     val vehicle = when {
         "moto" in kind || "motorcycle" in kind -> "MOTO"
         "carro" in kind || "auto" in kind || "car" in kind -> "AUTO"
