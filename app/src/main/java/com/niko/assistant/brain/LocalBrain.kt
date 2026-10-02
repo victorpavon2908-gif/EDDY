@@ -126,7 +126,7 @@ class LocalBrain {
         val target = dynamicToolRequest(text) ?: return AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
         val native = when (target) {
             "camara", "camera", "camara fotografica" -> "NIKO_TOOL_CAMERA"
-            "video", "grabadora de video", "camara de video" -> "NIKO_TOOL_VIDEO"
+            "video", "grabadora de video", "grabador de video", "gravador de video", "camara de video" -> "NIKO_TOOL_VIDEO"
             "grabadora", "grabador", "grabadora de audio", "grabador de audio" -> "NIKO_TOOL_AUDIO"
             "musica", "reproductor", "reproductor de musica" -> "NIKO_TOOL_MUSIC"
             "calculadora", "calculator" -> "NIKO_TOOL_CALCULATOR"
@@ -160,12 +160,14 @@ class LocalBrain {
 
         val prefixes = listOf(
             "convertite en", "conviertete en", "conviertete a", "convertite a",
-            "convertirte en", "convertir en", "transformate en", "transformate a",
+            "convertirte en", "convertir en", "te conviertes en", "te convertis en",
+            "transformate en", "transformate a", "te transformas en",
             "transformate como", "transformarte en", "transformar en", "volvete",
             "hazte", "hacete", "ponte en modo", "ponete en modo", "ponte como",
             "ponete como", "cambia a modo", "cambiate a", "cambia tu pantalla a",
             "pasa a modo", "pasate a", "quiero que seas", "quiero que te conviertas",
             "quiero que te transformes", "quiero verte como", "quiero que te vuelvas",
+            "seas una", "seas un", "se una", "se un",
             "quiero una", "quiero un", "abre", "abri",
             "actua como", "funciona como", "comportate como",
         )
