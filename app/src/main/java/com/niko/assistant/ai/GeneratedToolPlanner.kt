@@ -73,6 +73,11 @@ internal class GeneratedToolPlanner(context: Context) {
               Solo admite +, -, *, / y paréntesis. unit define la unidad mostrada.
             - game: minijuego interactivo. En text describí el tipo o tema, por ejemplo "moto en carretera",
               "carro", "nave espacial", "runner". El motor lo convierte en una experiencia jugable local.
+            - randomizer: selector aleatorio; items contiene las opciones.
+            - dice: dado; max define el número de caras entre 2 y 100.
+            - flashcards: tarjetas de estudio; cada item usa "Frente|Reverso".
+            - quiz: preguntas de repaso; cada item usa "Pregunta|Respuesta".
+            - drawing_pad: pizarra táctil para dibujar o tomar trazos.
             - action_button: botón para una capacidad nativa ya permitida. action solo puede ser:
               camera, video, audio_recorder, music, calculator, notes, flashlight_on, flashlight_off,
               wifi, bluetooth, internet, location, maps, web_search, share_text o vibrate.
@@ -80,8 +85,8 @@ internal class GeneratedToolPlanner(context: Context) {
 
             Podés crear controles de producción, inventarios, gastos, presupuestos, ventas, estudio, ejercicios,
             hábitos, proyectos, rutinas, formularios, encuestas, marcadores, tableros, seguimiento de metas,
-            listas, registros, diarios, agendas, control de calidad, mantenimiento, cocina, viajes, juegos simples
-            y cualquier experiencia que pueda expresarse con estos componentes.
+            listas, registros, diarios, agendas, control de calidad, mantenimiento, cocina, viajes, juegos simples,
+            pizarras, sorteos, dados, flashcards, quiz y cualquier experiencia que pueda expresarse con estos componentes.
 
             Regla principal: intentá materializar siempre la petición. Si no existe una capacidad exacta,
             construí la aproximación funcional más cercana con los componentes disponibles, en vez de devolver
@@ -246,6 +251,21 @@ internal class GeneratedToolPlanner(context: Context) {
                 component("avance", "progress", "Avance", max = 100.0, unit = "%"),
                 component("grafico", "bar_chart", "Distribución", items = listOf("A=0", "B=0", "C=0")),
                 component("detalle", "table", "Detalle", items = listOf("Concepto|Valor")),
+            )
+            listOf("pizarra", "dibujar", "dibujo", "lienzo", "canvas", "bosquejo").any(normalized::contains) -> listOf(
+                component("pizarra", "drawing_pad", "Pizarra", text = "Dibujá con el dedo y borrá cuando quieras."),
+            )
+            listOf("dado", "dados", "dice").any(normalized::contains) -> listOf(
+                component("dado", "dice", "Dado", max = 6.0),
+            )
+            listOf("sorteo", "azar", "ruleta", "elegir al azar", "random").any(normalized::contains) -> listOf(
+                component("sorteo", "randomizer", "Sorteo", items = listOf("Opción 1", "Opción 2", "Opción 3")),
+            )
+            listOf("flashcard", "flashcards", "tarjetas de estudio", "tarjetas para estudiar", "vocabulario").any(normalized::contains) -> listOf(
+                component("tarjetas", "flashcards", "Tarjetas", items = listOf("Concepto|Respuesta")),
+            )
+            listOf("quiz", "preguntas", "trivia", "repaso").any(normalized::contains) -> listOf(
+                component("quiz", "quiz", "Quiz", items = listOf("Pregunta|Respuesta")),
             )
             listOf("calculadora", "calculo", "cálculo", "formula", "fórmula").any(normalized::contains) -> listOf(
                 component("dato1", "number_input", "Dato 1"),
