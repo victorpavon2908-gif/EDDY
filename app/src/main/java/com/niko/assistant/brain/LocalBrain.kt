@@ -127,7 +127,7 @@ class LocalBrain {
         val native = when (target) {
             "camara", "camera", "camara fotografica" -> "NIKO_TOOL_CAMERA"
             "video", "grabadora de video", "grabador de video", "gravador de video", "camara de video" -> "NIKO_TOOL_VIDEO"
-            "grabadora", "grabador", "grabadora de audio", "grabador de audio" -> "NIKO_TOOL_AUDIO"
+            "grabadora", "grabador", "gravador", "grabadora de audio", "grabador de audio", "gravador de audio" -> "NIKO_TOOL_AUDIO"
             "musica", "reproductor", "reproductor de musica" -> "NIKO_TOOL_MUSIC"
             "calculadora", "calculator" -> "NIKO_TOOL_CALCULATOR"
             "cronometro" -> "NIKO_TOOL_STOPWATCH"
@@ -165,8 +165,10 @@ class LocalBrain {
             "transformate como", "transformarte en", "transformar en", "volvete",
             "hazte", "hacete", "ponte en modo", "ponete en modo", "ponte como",
             "ponete como", "cambia a modo", "cambiate a", "cambia tu pantalla a",
-            "pasa a modo", "pasate a", "quiero que seas", "quiero que te conviertas",
-            "quiero que te transformes", "quiero verte como", "quiero que te vuelvas",
+            "pasa a modo", "pasate a", "quiero que seas",
+            "quiero que te conviertas en", "quiero que te conviertas",
+            "quiero que te transformes en", "quiero que te transformes",
+            "quiero verte como", "quiero que te vuelvas",
             "seas una", "seas un", "se una", "se un",
             "quiero una", "quiero un", "abre", "abri",
             "actua como", "funciona como", "comportate como",
@@ -175,7 +177,7 @@ class LocalBrain {
         var target = if (prefix != null) normalized.substringAfter(prefix) else normalized
         target = target
             .trim()
-            .replace(Regex("""^(?:(?:un|una|el|la|modo|de)\s+)+"""), "")
+            .replace(Regex("""^(?:(?:un|una|el|la|modo|de|en|a|como)\s+)+"""), "")
             .replace(Regex("""\s+(?:por favor|porfa)$"""), "")
             .trim()
         return target.takeIf { it.length in 3..180 }
