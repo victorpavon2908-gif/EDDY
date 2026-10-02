@@ -61,6 +61,23 @@ class GeneratedToolSpecTest {
         assertEquals("juego de moto en carretera", spec.components.single().text)
     }
 
+    @Test fun acceptsGeneratedAppBuildingBlocks() {
+        val spec = GeneratedToolSpec.parse(
+            """
+            {
+              "title":"App social",
+              "components":[
+                {"id":"tabs","type":"tabs","label":"Secciones","items":["Inicio","Explorar","Perfil"]},
+                {"id":"feed","type":"feed","label":"Publicaciones","items":["LEO|Hola"]},
+                {"id":"chat","type":"chat","label":"Chat"},
+                {"id":"galeria","type":"gallery","label":"Galería"}
+              ]
+            }
+            """.trimIndent(),
+        )!!
+        assertEquals(listOf("tabs", "feed", "chat", "gallery"), spec.components.map { it.type })
+    }
+
     @Test fun acceptsGeneratedNavigationComponents() {
         val spec = GeneratedToolSpec.parse(
             """
