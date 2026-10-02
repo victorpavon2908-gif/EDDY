@@ -69,6 +69,7 @@ internal fun GeneratedAdvancedComponent(
         "formula" -> FormulaBlock(component, numericState)
         "game" -> GeneratedMiniGame(component)
         "randomizer", "dice", "flashcards", "quiz", "drawing_pad" -> GeneratedCreativeComponent(component)
+        "navigation" -> NavigationBlock(component)
         "action_button" -> ActionButtonBlock(component)
     }
 }
@@ -430,6 +431,60 @@ private fun FormulaBlock(
             if (result == null && component.text.isNotBlank()) {
                 Text(
                     "Completá los datos necesarios para calcularlo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavigationBlock(component: GeneratedToolComponent) {
+    val context = LocalContext.current
+    val executor = remember { ActionExecutor(context.applicationContext) }
+    var destination by rememberSaveable(component.id + "_destination") {
+        mutableStateOf(component.payload.ifBlank { component.text })
+    }
+    var status by rememberSaveable(component.id + "_status") { mutableStateOf("") }
+
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                component.label.ifBlank { "Navegación" },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            OutlinedTextField(
+                value = destination,
+                onValueChange = { destination = it.take(180) },
+                label = { Text("Destino") },
+                placeholder = { Text("Escribí un lugar o dirección") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { status = executor.openMaps(destination).spokenMessage },
+                    modifier = Modifier.weight(1f),
+                    enabled = destination.isNotBlank(),
+                ) {
+                    Text("VER MAPA")
+                }
+                Button(
+                    onClick = { status = executor.navigateTo(destination).spokenMessage },
+                    modifier = Modifier.weight(1f),
+                    enabled = destination.isNotBlank(),
+                ) {
+                    Text("NAVEGAR")
+                }
+            }
+            if (status.isNotBlank()) {
+                Text(
+                    status,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
