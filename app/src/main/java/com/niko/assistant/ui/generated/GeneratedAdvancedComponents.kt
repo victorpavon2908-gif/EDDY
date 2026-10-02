@@ -70,6 +70,8 @@ internal fun GeneratedAdvancedComponent(
         "game" -> GeneratedMiniGame(component)
         "randomizer", "dice", "flashcards", "quiz", "drawing_pad" -> GeneratedCreativeComponent(component)
         "navigation" -> NavigationBlock(component)
+        "search_box", "tabs", "feed", "chat", "calendar", "kanban", "gallery", "profile", "browser" ->
+            GeneratedAppComponent(component)
         "action_button" -> ActionButtonBlock(component)
     }
 }
