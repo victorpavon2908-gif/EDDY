@@ -29,7 +29,8 @@ internal data class GeneratedToolSpec(
             "counter", "toggle", "slider", "progress", "rating",
             "checklist", "multi_choice", "single_choice", "list",
             "timer", "countdown", "calculator", "metric", "goal",
-            "scoreboard", "key_value", "table", "bar_chart", "formula", "game", "action_button",
+            "scoreboard", "key_value", "table", "bar_chart", "formula", "game",
+            "randomizer", "dice", "flashcards", "quiz", "drawing_pad", "action_button",
         )
         private val allowedActions = setOf(
             "camera", "video", "audio_recorder", "music", "calculator", "notes",
@@ -142,6 +143,11 @@ internal data class GeneratedToolSpec(
             "bar_chart" -> "Gráfico"
             "formula" -> "Resultado"
             "game" -> "Juego"
+            "randomizer" -> "Sorteo"
+            "dice" -> "Dado"
+            "flashcards" -> "Tarjetas"
+            "quiz" -> "Quiz"
+            "drawing_pad" -> "Pizarra"
             "action_button" -> "Acción"
             else -> "Herramienta"
         }
