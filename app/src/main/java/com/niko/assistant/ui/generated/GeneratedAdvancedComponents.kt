@@ -67,6 +67,7 @@ internal fun GeneratedAdvancedComponent(
         "table" -> TableBlock(component)
         "bar_chart" -> BarChartBlock(component)
         "formula" -> FormulaBlock(component, numericState)
+        "game" -> GeneratedMiniGame(component)
         "action_button" -> ActionButtonBlock(component)
     }
 }
