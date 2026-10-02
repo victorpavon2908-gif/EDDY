@@ -94,6 +94,17 @@ class LocalBrainTest {
         )
     }
 
+    @Test fun navigationAppRequestsBecomeGeneratedNavigationExperiences() {
+        assertEquals(
+            AssistantCommand.GenerateTool("waze"),
+            brain.understand("Leo, conviértete en un Waze"),
+        )
+        assertEquals(
+            AssistantCommand.GenerateTool("navegador gps"),
+            brain.understand("Leo, quiero que seas un navegador GPS"),
+        )
+    }
+
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.BACK), brain.understand("Leo, volvé atrás"))
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.HOME), brain.understand("andá a la pantalla de inicio"))
