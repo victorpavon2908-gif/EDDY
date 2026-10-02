@@ -141,6 +141,22 @@ class LocalBrain {
     }
 
     private fun dynamicToolRequest(text: String): String? {
+        val normalized = text.trim()
+
+        val builderPatterns = listOf(
+            Regex("""^(?:creame|crea|disename|diseñame|armame|quiero|necesito)\s+(?:una?\s+)?(herramienta|panel|tablero|control)\b\s*(.*)$"""),
+        )
+        builderPatterns.forEach { pattern ->
+            val match = pattern.find(normalized) ?: return@forEach
+            val kind = match.groupValues[1]
+            val rest = match.groupValues[2]
+                .trim()
+                .replace(Regex("""^(?:para|de)\s+"""), "")
+                .trim()
+            val target = if (kind == "herramienta") rest else listOf(kind, rest).filter { it.isNotBlank() }.joinToString(" ")
+            return target.takeIf { it.length in 3..180 }
+        }
+
         val prefixes = listOf(
             "convertite en", "conviertete en", "conviertete a", "convertite a",
             "convertirte en", "convertir en", "transformate en", "transformate a",
@@ -151,17 +167,13 @@ class LocalBrain {
             "quiero que te transformes", "quiero verte como", "quiero que te vuelvas",
             "quiero una", "quiero un", "abre", "abri",
             "actua como", "funciona como", "comportate como",
-            "creame una herramienta", "crea una herramienta", "disename una herramienta",
-            "quiero una herramienta", "necesito una herramienta",
-            "creame un panel", "crea un panel", "armame un panel", "quiero un panel", "necesito un panel",
-            "creame un tablero", "crea un tablero", "armame un tablero", "quiero un tablero", "necesito un tablero",
-            "armame un control", "creame un control", "quiero un control", "necesito un control",
         )
-        val prefix = prefixes.firstOrNull { text.contains(it) }
-        var target = if (prefix != null) text.substringAfter(prefix) else text
+        val prefix = prefixes.firstOrNull { normalized.contains(it) }
+        var target = if (prefix != null) normalized.substringAfter(prefix) else normalized
         target = target
-            .replace(Regex("^(?:(?:un|una|el|la|modo|de)\\s+)+"), "")
-            .replace(Regex("\\s+(?:por favor|porfa)$"), "")
+            .trim()
+            .replace(Regex("""^(?:(?:un|una|el|la|modo|de)\s+)+"""), "")
+            .replace(Regex("""\s+(?:por favor|porfa)$"""), "")
             .trim()
         return target.takeIf { it.length in 3..180 }
     }
