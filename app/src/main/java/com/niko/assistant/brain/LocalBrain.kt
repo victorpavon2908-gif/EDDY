@@ -119,20 +119,25 @@ class LocalBrain {
         if (containsAny(text, "transformaciones", "tus herramientas")) {
             return AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
         }
-        return when {
-            text.contains("video") -> AssistantCommand.OpenAppByName("NIKO_TOOL_VIDEO")
-            text.contains("grabador") || text.contains("gravador") -> AssistantCommand.OpenAppByName("NIKO_TOOL_AUDIO")
-            text.contains("camara") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA")
-            text.contains("musica") || text.contains("reproductor") -> AssistantCommand.OpenAppByName("NIKO_TOOL_MUSIC")
-            text.contains("calculadora") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CALCULATOR")
-            text.contains("cronometro") -> AssistantCommand.OpenAppByName("NIKO_TOOL_STOPWATCH")
-            text.contains("temporizador") || text.contains("cuenta regresiva") -> AssistantCommand.OpenAppByName("NIKO_TOOL_TIMER")
-            text.contains("reloj") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CLOCK")
-            text.contains("nota") || text.contains("bloc") -> AssistantCommand.OpenAppByName("NIKO_TOOL_NOTES")
-            text.contains("conversor") || text.contains("convertidor") || text.contains("unidades") -> AssistantCommand.OpenAppByName("NIKO_TOOL_CONVERTER")
-            else -> dynamicToolRequest(text)?.let(AssistantCommand::GenerateTool)
-                ?: AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
+
+        // A native tool is selected only when the requested form is essentially that tool.
+        // Compound requests such as "un control de inventario con cámara" must remain
+        // generative instead of collapsing to the plain camera screen.
+        val target = dynamicToolRequest(text) ?: return AssistantCommand.OpenAppByName("NIKO_TOOLBOX")
+        val native = when (target) {
+            "camara", "camera", "camara fotografica" -> "NIKO_TOOL_CAMERA"
+            "video", "grabadora de video", "camara de video" -> "NIKO_TOOL_VIDEO"
+            "grabadora", "grabador", "grabadora de audio", "grabador de audio" -> "NIKO_TOOL_AUDIO"
+            "musica", "reproductor", "reproductor de musica" -> "NIKO_TOOL_MUSIC"
+            "calculadora", "calculator" -> "NIKO_TOOL_CALCULATOR"
+            "cronometro" -> "NIKO_TOOL_STOPWATCH"
+            "temporizador", "cuenta regresiva" -> "NIKO_TOOL_TIMER"
+            "reloj", "reloj digital" -> "NIKO_TOOL_CLOCK"
+            "notas", "nota", "bloc de notas" -> "NIKO_TOOL_NOTES"
+            "conversor", "convertidor", "conversor de unidades", "convertidor de unidades" -> "NIKO_TOOL_CONVERTER"
+            else -> null
         }
+        return native?.let(AssistantCommand::OpenAppByName) ?: AssistantCommand.GenerateTool(target)
     }
 
     private fun dynamicToolRequest(text: String): String? {
@@ -144,6 +149,7 @@ class LocalBrain {
             "ponete como", "cambia a modo", "cambiate a", "cambia tu pantalla a",
             "pasa a modo", "pasate a", "quiero que seas", "quiero que te conviertas",
             "quiero que te transformes", "quiero verte como", "quiero que te vuelvas",
+            "quiero una", "quiero un", "abre", "abri",
             "actua como", "funciona como", "comportate como",
             "creame una herramienta", "crea una herramienta", "disename una herramienta",
             "quiero una herramienta", "necesito una herramienta",
@@ -154,7 +160,7 @@ class LocalBrain {
         val prefix = prefixes.firstOrNull { text.contains(it) }
         var target = if (prefix != null) text.substringAfter(prefix) else text
         target = target
-            .replace(Regex("^(?:un|una|el|la|modo|de)\\s+"), "")
+            .replace(Regex("^(?:(?:un|una|el|la|modo|de)\\s+)+"), "")
             .replace(Regex("\\s+(?:por favor|porfa)$"), "")
             .trim()
         return target.takeIf { it.length in 3..180 }
