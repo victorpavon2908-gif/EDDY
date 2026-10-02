@@ -149,7 +149,7 @@ internal class GeneratedToolPlanner(context: Context) {
 
         val components = when {
             listOf("produccion", "producción", "eficiencia", "piezas", "operario", "calidad").any(normalized::contains) -> listOf(
-                component("meta", "goal", "Meta de producción", max = 1000.0, step = 10.0, unit = "uds"),
+                component("meta", "number_input", "Meta de producción", max = 1000000.0, unit = "uds"),
                 component("buenas", "counter", "Piezas buenas"),
                 component("defectos", "counter", "Defectos"),
                 component("eficiencia", "formula", "Eficiencia", text = "(buenas/meta)*100", unit = "%"),
