@@ -79,6 +79,15 @@ internal class GeneratedToolPlanner(context: Context) {
             - flashcards: tarjetas de estudio; cada item usa "Frente|Reverso".
             - quiz: preguntas de repaso; cada item usa "Pregunta|Respuesta".
             - drawing_pad: pizarra táctil para dibujar o tomar trazos.
+            - search_box: búsqueda local dentro de items.
+            - tabs: navegación entre secciones; items contiene los nombres de pestañas.
+            - feed: publicaciones; cada item usa "Autor|Contenido".
+            - chat: conversación local editable; items contiene mensajes iniciales.
+            - calendar: calendario interactivo simple.
+            - kanban: tablero de tareas; cada item usa "Pendiente|Tarea", "En curso|Tarea" o "Hecho|Tarea".
+            - gallery: cuadrícula visual de elementos.
+            - profile: tarjeta de perfil; text es descripción e items son datos adicionales.
+            - browser: caja de búsqueda web que abre el navegador del teléfono.
             - navigation: consola de navegación con destino editable y botones para ver mapa o iniciar ruta.
               text/payload pueden sugerir un destino inicial, pero dejalos vacíos si el usuario no indicó destino.
             - action_button: botón para una capacidad nativa ya permitida. action solo puede ser:
@@ -89,13 +98,17 @@ internal class GeneratedToolPlanner(context: Context) {
             Podés crear controles de producción, inventarios, gastos, presupuestos, ventas, estudio, ejercicios,
             hábitos, proyectos, rutinas, formularios, encuestas, marcadores, tableros, seguimiento de metas,
             listas, registros, diarios, agendas, control de calidad, mantenimiento, cocina, viajes, juegos simples,
-            pizarras, sorteos, dados, flashcards, quiz, navegadores tipo GPS/Waze y cualquier experiencia que pueda expresarse con estos componentes.
+            pizarras, sorteos, dados, flashcards, quiz, navegadores tipo GPS/Waze, redes sociales simples,
+            chats, calendarios, galerías, navegadores, gestores de proyectos, tiendas, feeds y cualquier experiencia
+            que pueda expresarse con estos componentes.
 
             Regla principal: intentá materializar siempre la petición. Si no existe una capacidad exacta,
             construí la aproximación funcional más cercana con los componentes disponibles, en vez de devolver
-            una lista de limitaciones. Si pide un juego, incluí un componente game. Si pide un navegador, GPS,
-            Waze, rutas o destinos, incluí navigation. Si pide una capacidad del teléfono dentro de otra herramienta,
-            combiná action_button con los demás componentes.
+            una lista de limitaciones. Si pide un juego concreto, incluí game y preservá en text el nombre y género
+            del juego para que el router local seleccione el motor jugable más cercano. Si pide una app conocida,
+            recreá su función principal con tabs/feed/chat/gallery/search_box/browser/navigation/kanban/etc.; no
+            finjas que es la app oficial. Si pide un navegador, GPS, Waze, rutas o destinos, incluí navigation.
+            Si pide una capacidad del teléfono dentro de otra herramienta, combiná action_button con los demás componentes.
 
             Usá entre 1 y 16 componentes; solo llegá a 20 si la petición realmente lo exige.
             IDs únicos en minúscula con letras, números y guion bajo. Máximo 12 opciones por selector/lista precargada.
@@ -213,7 +226,11 @@ internal class GeneratedToolPlanner(context: Context) {
                 component("progreso", "goal", "Cumplimiento", max = 100.0, step = 10.0, unit = "%"),
                 component("nota", "text_input", "Nota del día"),
             )
-            listOf("juego", "moto", "motocicleta", "carrera", "arcade", "nave", "runner").any(normalized::contains) -> listOf(
+            listOf(
+                "juego", "moto", "motocicleta", "carrera", "arcade", "nave", "runner",
+                "tetris", "tetrix", "tettrix", "snake", "serpiente", "pong", "ping pong",
+                "memoria", "billar", "pool", "plataforma", "plataformas", "shooter", "disparo", "disparos",
+            ).any(normalized::contains) -> listOf(
                 component(
                     "juego",
                     "game",
@@ -222,6 +239,12 @@ internal class GeneratedToolPlanner(context: Context) {
                         normalized.contains("nave") -> "Juego de nave"
                         normalized.contains("carro") || normalized.contains("auto") -> "Carrera"
                         listOf("tetris", "tetrix", "tettrix").any(normalized::contains) -> "Bloques"
+                        normalized.contains("snake") || normalized.contains("serpiente") -> "Snake"
+                        normalized.contains("pong") || normalized.contains("ping pong") -> "Pong"
+                        normalized.contains("memoria") -> "Memoria"
+                        normalized.contains("billar") || normalized.contains("pool") -> "Billar"
+                        normalized.contains("plataforma") -> "Plataformas"
+                        normalized.contains("shooter") || normalized.contains("disparo") -> "Objetivos"
                         else -> "Minijuego"
                     },
                     text = request.take(160),
@@ -237,6 +260,41 @@ internal class GeneratedToolPlanner(context: Context) {
                 component("valoracion", "rating", "Valoración"),
                 component("opcion", "single_choice", "Selección", items = listOf("Excelente", "Buena", "Regular", "Mala")),
                 component("comentario", "text_input", "Comentario"),
+            )
+            listOf("instagram", "facebook", "tiktok", "red social", "social").any(normalized::contains) -> listOf(
+                component("secciones", "tabs", "Secciones", items = listOf("Inicio", "Explorar", "Perfil")),
+                component("perfil", "profile", "Mi perfil", text = "Perfil generado por LEO"),
+                component("feed", "feed", "Publicaciones"),
+                component("galeria", "gallery", "Contenido"),
+            )
+            listOf("whatsapp", "telegram", "messenger", "chat", "mensajeria", "mensajería").any(normalized::contains) -> listOf(
+                component("secciones", "tabs", "Secciones", items = listOf("Chats", "Contactos")),
+                component("buscar", "search_box", "Buscar contacto"),
+                component("chat", "chat", "Conversación"),
+            )
+            listOf("trello", "kanban", "proyecto", "proyectos").any(normalized::contains) -> listOf(
+                component("tablero", "kanban", "Proyecto"),
+            )
+            listOf("calendario", "calendar").any(normalized::contains) -> listOf(
+                component("calendario", "calendar", "Calendario"),
+                component("eventos", "list", "Eventos"),
+            )
+            listOf("galeria", "galería", "fotos", "photos").any(normalized::contains) -> listOf(
+                component("galeria", "gallery", "Galería"),
+            )
+            listOf("chrome", "browser", "navegador web").any(normalized::contains) -> listOf(
+                component("web", "browser", "Navegador"),
+            )
+            listOf("gmail", "correo", "email").any(normalized::contains) -> listOf(
+                component("buscar", "search_box", "Buscar correo"),
+                component("bandeja", "list", "Bandeja de entrada"),
+                component("redactar", "text_input", "Redactar"),
+            )
+            listOf("tienda", "marketplace", "ecommerce", "e-commerce", "catalogo", "catálogo").any(normalized::contains) -> listOf(
+                component("buscar", "search_box", "Buscar producto"),
+                component("catalogo", "gallery", "Catálogo"),
+                component("carrito", "list", "Carrito"),
+                component("total", "currency_input", "Total", unit = "C$"),
             )
             listOf("waze", "gps", "navegador", "navegacion", "navegación", "ruta", "rutas", "destino", "mapa").any(normalized::contains) -> listOf(
                 component(
