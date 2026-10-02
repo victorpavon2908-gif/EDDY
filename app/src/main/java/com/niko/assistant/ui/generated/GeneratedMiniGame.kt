@@ -52,6 +52,30 @@ internal fun GeneratedMiniGame(component: GeneratedToolComponent) {
             GeneratedFallingBlocksGame(component)
             return
         }
+        GeneratedGameKind.SNAKE -> {
+            GeneratedSnakeGame(component)
+            return
+        }
+        GeneratedGameKind.PADDLE -> {
+            GeneratedPaddleGame(component)
+            return
+        }
+        GeneratedGameKind.MEMORY -> {
+            GeneratedMemoryGame(component)
+            return
+        }
+        GeneratedGameKind.BILLIARDS -> {
+            GeneratedBilliardsGame(component)
+            return
+        }
+        GeneratedGameKind.PLATFORMER -> {
+            GeneratedPlatformGame(component)
+            return
+        }
+        GeneratedGameKind.TARGET_TAP -> {
+            GeneratedTargetGame(component)
+            return
+        }
         GeneratedGameKind.ARCADE_LANES -> Unit
     }
 
