@@ -50,6 +50,13 @@ Dentro de cada carpeta, guardar las capturas/videos/logs con nombres que incluya
 
 `2026-09-29_intento_01.png`
 
+## Auditoría automatizada actual
+
+La auditoría de software ejecutada sobre la versión Android actual está documentada en
+[AUDITORIA_CALIDAD_2026-10-02.md](AUDITORIA_CALIDAD_2026-10-02.md). Incluye los resultados reales
+del workflow Android, reportes de pruebas, Lint, artefacto descargable y complemento web. Las
+mediciones físicas M01–M10 siguen separadas y no se rellenan sin evidencia del teléfono.
+
 ## Estado actual
 
 La infraestructura de medición está preparada. Los campos permanecen como **PENDIENTE** hasta que las pruebas se ejecuten físicamente y se adjunte evidencia real.
