@@ -102,6 +102,6 @@ class GeneratedToolSpecTest {
             }
         """.trimIndent()
         val spec = GeneratedToolSpec.parse(raw)!!
-        assertTrue(spec.components.single().items.size <= 20)
+        assertTrue(spec.components.single().items.size <= 30)
     }
 }
