@@ -78,6 +78,8 @@ internal class GeneratedToolPlanner(context: Context) {
             - flashcards: tarjetas de estudio; cada item usa "Frente|Reverso".
             - quiz: preguntas de repaso; cada item usa "Pregunta|Respuesta".
             - drawing_pad: pizarra táctil para dibujar o tomar trazos.
+            - navigation: consola de navegación con destino editable y botones para ver mapa o iniciar ruta.
+              text/payload pueden sugerir un destino inicial, pero dejalos vacíos si el usuario no indicó destino.
             - action_button: botón para una capacidad nativa ya permitida. action solo puede ser:
               camera, video, audio_recorder, music, calculator, notes, flashlight_on, flashlight_off,
               wifi, bluetooth, internet, location, maps, web_search, share_text o vibrate.
@@ -86,12 +88,13 @@ internal class GeneratedToolPlanner(context: Context) {
             Podés crear controles de producción, inventarios, gastos, presupuestos, ventas, estudio, ejercicios,
             hábitos, proyectos, rutinas, formularios, encuestas, marcadores, tableros, seguimiento de metas,
             listas, registros, diarios, agendas, control de calidad, mantenimiento, cocina, viajes, juegos simples,
-            pizarras, sorteos, dados, flashcards, quiz y cualquier experiencia que pueda expresarse con estos componentes.
+            pizarras, sorteos, dados, flashcards, quiz, navegadores tipo GPS/Waze y cualquier experiencia que pueda expresarse con estos componentes.
 
             Regla principal: intentá materializar siempre la petición. Si no existe una capacidad exacta,
             construí la aproximación funcional más cercana con los componentes disponibles, en vez de devolver
-            una lista de limitaciones. Si pide un juego, incluí un componente game. Si pide una capacidad del
-            teléfono dentro de otra herramienta, combiná action_button con los demás componentes.
+            una lista de limitaciones. Si pide un juego, incluí un componente game. Si pide un navegador, GPS,
+            Waze, rutas o destinos, incluí navigation. Si pide una capacidad del teléfono dentro de otra herramienta,
+            combiná action_button con los demás componentes.
 
             Usá entre 1 y 16 componentes; solo llegá a 20 si la petición realmente lo exige.
             IDs únicos en minúscula con letras, números y guion bajo. Máximo 12 opciones por selector/lista precargada.
@@ -232,6 +235,16 @@ internal class GeneratedToolPlanner(context: Context) {
                 component("valoracion", "rating", "Valoración"),
                 component("opcion", "single_choice", "Selección", items = listOf("Excelente", "Buena", "Regular", "Mala")),
                 component("comentario", "text_input", "Comentario"),
+            )
+            listOf("waze", "gps", "navegador", "navegacion", "navegación", "ruta", "rutas", "destino", "mapa").any(normalized::contains) -> listOf(
+                component(
+                    "navegacion",
+                    "navigation",
+                    "Navegación",
+                    text = "",
+                    payload = "",
+                ),
+                component("favoritos", "list", "Destinos guardados"),
             )
             listOf("viaje", "itinerario", "agenda", "evento", "cita").any(normalized::contains) -> listOf(
                 component("fecha", "date_input", "Fecha"),
