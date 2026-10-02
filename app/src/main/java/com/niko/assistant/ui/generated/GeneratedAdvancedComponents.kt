@@ -103,6 +103,9 @@ private fun NumericField(
     var value by rememberSaveable(component.id) {
         mutableStateOf(if (component.initial == component.min && component.initial == 0.0) "" else compactNumber(component.initial))
     }
+    LaunchedEffect(component.id) {
+        if (component.initial != 0.0) numericState[component.id] = component.initial
+    }
     OutlinedTextField(
         value = value,
         onValueChange = { next ->
