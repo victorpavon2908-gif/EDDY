@@ -76,6 +76,7 @@ internal fun GeneratedToolScreen(onHome: () -> Unit) {
                 "timer" -> GeneratedTimer(component)
                 "calculator" -> GeneratedCalculator(component)
                 "metric" -> GeneratedMetric(component)
+                else -> GeneratedAdvancedComponent(component)
             }
         }
     }
