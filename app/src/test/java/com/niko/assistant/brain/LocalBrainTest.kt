@@ -113,6 +113,19 @@ class LocalBrainTest {
         )
     }
 
+    @Test fun arbitraryAppAndGameNamesBecomeGeneratedForms() {
+        val cases = mapOf(
+            "Leo, conviértete en un juego de billar" to "juego de billar",
+            "Leo, conviértete en Instagram" to "instagram",
+            "Leo, quiero que seas una app tipo Trello" to "app tipo trello",
+            "Leo, transformate en un juego de Snake" to "juego de snake",
+            "Leo, hacete un juego de Pong" to "juego de pong",
+        )
+        cases.forEach { (phrase, request) ->
+            assertEquals(phrase, AssistantCommand.GenerateTool(request), brain.understand(phrase))
+        }
+    }
+
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.BACK), brain.understand("Leo, volvé atrás"))
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.HOME), brain.understand("andá a la pantalla de inicio"))
