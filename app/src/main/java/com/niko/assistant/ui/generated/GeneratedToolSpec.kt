@@ -29,7 +29,12 @@ internal data class GeneratedToolSpec(
             "counter", "toggle", "slider", "progress", "rating",
             "checklist", "multi_choice", "single_choice", "list",
             "timer", "countdown", "calculator", "metric", "goal",
-            "scoreboard", "key_value", "table", "bar_chart",
+            "scoreboard", "key_value", "table", "bar_chart", "action_button",
+        )
+        private val allowedActions = setOf(
+            "camera", "video", "audio_recorder", "music", "calculator", "notes",
+            "flashlight_on", "flashlight_off", "wifi", "bluetooth", "internet", "location",
+            "maps", "web_search", "share_text", "vibrate",
         )
         private val idPattern = Regex("[a-z][a-z0-9_]{0,31}")
 
@@ -73,6 +78,10 @@ internal data class GeneratedToolSpec(
                     val initial = node.optDouble("initial", min)
                         .takeIf { it.isFinite() }?.coerceIn(min, max) ?: min
                     val unit = node.optString("unit").trim().take(24)
+                    val requestedAction = node.optString("action").trim().lowercase()
+                    val action = requestedAction.takeIf { it in allowedActions }.orEmpty()
+                    val payload = node.optString("payload").trim().take(240)
+                    if (type == "action_button") require(action.isNotBlank())
 
                     val itemsJson = node.optJSONArray("items")
                     val items = if (itemsJson == null) emptyList() else buildList {
@@ -93,6 +102,8 @@ internal data class GeneratedToolSpec(
                             max = max,
                             step = step,
                             unit = unit,
+                            action = action,
+                            payload = payload,
                             items = items,
                         ),
                     )
@@ -129,6 +140,7 @@ internal data class GeneratedToolSpec(
             "key_value" -> "Datos"
             "table" -> "Tabla"
             "bar_chart" -> "Gráfico"
+            "action_button" -> "Acción"
             else -> "Herramienta"
         }
     }
@@ -144,6 +156,8 @@ internal data class GeneratedToolComponent(
     val max: Double = 100.0,
     val step: Double = 1.0,
     val unit: String = "",
+    val action: String = "",
+    val payload: String = "",
     val items: List<String> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject()
@@ -156,5 +170,7 @@ internal data class GeneratedToolComponent(
         .put("max", max)
         .put("step", step)
         .put("unit", unit)
+        .put("action", action)
+        .put("payload", payload)
         .put("items", JSONArray(items))
 }
