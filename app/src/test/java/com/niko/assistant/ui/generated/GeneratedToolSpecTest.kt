@@ -25,6 +25,27 @@ class GeneratedToolSpecTest {
         assertEquals(3.0, spec.components.first().initial, 0.0)
     }
 
+    @Test fun parsesAdvancedAdaptiveComponents() {
+        val spec = GeneratedToolSpec.parse(
+            """
+            {
+              "title":"Dashboard de producción",
+              "components":[
+                {"id":"meta","type":"goal","label":"Meta","initial":250,"min":0,"max":1000,"step":10,"unit":"uds"},
+                {"id":"estado","type":"single_choice","label":"Estado","items":["Bien","Atención","Crítico"]},
+                {"id":"grafico","type":"bar_chart","label":"Por línea","items":["L1=92","L2=88","L3=95"]},
+                {"id":"tabla","type":"table","label":"Detalle","items":["Línea|Eficiencia","L1|92%"]}
+              ]
+            }
+            """.trimIndent(),
+        )!!
+        assertEquals(4, spec.components.size)
+        assertEquals("goal", spec.components[0].type)
+        assertEquals(1000.0, spec.components[0].max, 0.0)
+        assertEquals("uds", spec.components[0].unit)
+        assertEquals("bar_chart", spec.components[2].type)
+    }
+
     @Test fun rejectsExecutableOrUnknownComponentTypes() {
         assertNull(
             GeneratedToolSpec.parse(
