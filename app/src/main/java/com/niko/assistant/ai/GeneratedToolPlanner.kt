@@ -69,6 +69,8 @@ internal class GeneratedToolPlanner(context: Context) {
             - key_value: ficha de datos; items usa "Campo=Valor".
             - table: tabla simple; cada item es una fila y usa "|" entre columnas.
             - bar_chart: gráfico de barras; items usa "Etiqueta=Valor".
+            - formula: resultado calculado; text contiene una fórmula con IDs numéricos, por ejemplo "(buenas/meta)*100".
+              Solo admite +, -, *, / y paréntesis. unit define la unidad mostrada.
             - action_button: botón para una capacidad nativa ya permitida. action solo puede ser:
               camera, video, audio_recorder, music, calculator, notes, flashlight_on, flashlight_off,
               wifi, bluetooth, internet, location, maps, web_search, share_text o vibrate.
@@ -150,7 +152,7 @@ internal class GeneratedToolPlanner(context: Context) {
                 component("meta", "goal", "Meta de producción", max = 1000.0, step = 10.0, unit = "uds"),
                 component("buenas", "counter", "Piezas buenas"),
                 component("defectos", "counter", "Defectos"),
-                component("eficiencia", "percentage_input", "Eficiencia"),
+                component("eficiencia", "formula", "Eficiencia", text = "(buenas/meta)*100", unit = "%"),
                 component("observaciones", "list", "Observaciones"),
             )
             listOf("inventario", "stock", "almacen", "almacén", "existencia").any(normalized::contains) -> listOf(
@@ -227,7 +229,8 @@ internal class GeneratedToolPlanner(context: Context) {
             listOf("calculadora", "calculo", "cálculo", "formula", "fórmula").any(normalized::contains) -> listOf(
                 component("dato1", "number_input", "Dato 1"),
                 component("dato2", "number_input", "Dato 2"),
-                component("calculo", "calculator", "Cálculo"),
+                component("resultado", "formula", "Resultado", text = "dato1+dato2"),
+                component("calculo", "calculator", "Cálculo libre"),
             )
             else -> listOf(
                 component("principal", "text_input", "Dato principal"),
