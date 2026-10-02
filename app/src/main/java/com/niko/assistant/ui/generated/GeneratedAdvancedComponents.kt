@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,26 +43,30 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun GeneratedAdvancedComponent(component: GeneratedToolComponent) {
+internal fun GeneratedAdvancedComponent(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
     when (component.type) {
         "section" -> SectionBlock(component)
         "divider" -> HorizontalDivider()
         "spacer" -> Spacer(Modifier.height(component.initial.coerceIn(4.0, 48.0).dp))
-        "currency_input" -> NumericField(component, suffix = component.unit.ifBlank { "C$" })
-        "percentage_input" -> NumericField(component, suffix = "%")
+        "currency_input" -> NumericField(component, numericState, suffix = component.unit.ifBlank { "C$" })
+        "percentage_input" -> NumericField(component, numericState, suffix = "%")
         "date_input" -> SimpleField(component, placeholder = "DD/MM/AAAA")
         "time_input" -> SimpleField(component, placeholder = "HH:MM")
-        "slider" -> SliderBlock(component)
+        "slider" -> SliderBlock(component, numericState)
         "progress" -> ProgressBlock(component)
-        "rating" -> RatingBlock(component)
+        "rating" -> RatingBlock(component, numericState)
         "multi_choice" -> MultiChoiceBlock(component)
         "single_choice" -> SingleChoiceBlock(component)
         "countdown" -> CountdownBlock(component)
-        "goal" -> GoalBlock(component)
-        "scoreboard" -> ScoreboardBlock(component)
+        "goal" -> GoalBlock(component, numericState)
+        "scoreboard" -> ScoreboardBlock(component, numericState)
         "key_value" -> KeyValueBlock(component)
         "table" -> TableBlock(component)
         "bar_chart" -> BarChartBlock(component)
+        "formula" -> FormulaBlock(component, numericState)
         "action_button" -> ActionButtonBlock(component)
     }
 }
@@ -90,7 +95,11 @@ private fun SimpleField(component: GeneratedToolComponent, placeholder: String) 
 }
 
 @Composable
-private fun NumericField(component: GeneratedToolComponent, suffix: String) {
+private fun NumericField(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+    suffix: String,
+) {
     var value by rememberSaveable(component.id) {
         mutableStateOf(if (component.initial == component.min && component.initial == 0.0) "" else compactNumber(component.initial))
     }
@@ -98,6 +107,9 @@ private fun NumericField(component: GeneratedToolComponent, suffix: String) {
         value = value,
         onValueChange = { next ->
             value = next.filter { it.isDigit() || it in ".,-" }.take(32)
+            value.replace(',', '.').toDoubleOrNull()?.takeIf(Double::isFinite)?.let {
+                numericState[component.id] = it.coerceIn(component.min, component.max)
+            }
         },
         label = { Text(component.label) },
         supportingText = {
@@ -109,8 +121,12 @@ private fun NumericField(component: GeneratedToolComponent, suffix: String) {
 }
 
 @Composable
-private fun SliderBlock(component: GeneratedToolComponent) {
+private fun SliderBlock(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
     var value by rememberSaveable(component.id) { mutableStateOf(component.initial.toFloat()) }
+    LaunchedEffect(value) { numericState[component.id] = value.toDouble() }
     val range = component.min.toFloat()..component.max.toFloat()
     val interval = (component.max - component.min).coerceAtLeast(1.0)
     val steps = ((interval / component.step).roundToInt() - 1).coerceIn(0, 100)
@@ -150,8 +166,12 @@ private fun ProgressBlock(component: GeneratedToolComponent) {
 }
 
 @Composable
-private fun RatingBlock(component: GeneratedToolComponent) {
+private fun RatingBlock(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
     var rating by rememberSaveable(component.id) { mutableStateOf(component.initial.roundToInt().coerceIn(0, 5)) }
+    LaunchedEffect(rating) { numericState[component.id] = rating.toDouble() }
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(component.label, fontWeight = FontWeight.SemiBold)
@@ -251,8 +271,12 @@ private fun CountdownBlock(component: GeneratedToolComponent) {
 }
 
 @Composable
-private fun GoalBlock(component: GeneratedToolComponent) {
+private fun GoalBlock(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
     var current by rememberSaveable(component.id) { mutableStateOf(component.initial.coerceIn(component.min, component.max)) }
+    LaunchedEffect(current) { numericState[component.id] = current }
     val fraction = ((current - component.min) / (component.max - component.min).coerceAtLeast(0.0001)).toFloat()
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -271,11 +295,18 @@ private fun GoalBlock(component: GeneratedToolComponent) {
 }
 
 @Composable
-private fun ScoreboardBlock(component: GeneratedToolComponent) {
+private fun ScoreboardBlock(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
     val leftName = component.items.getOrNull(0).orEmpty().ifBlank { "Equipo A" }
     val rightName = component.items.getOrNull(1).orEmpty().ifBlank { "Equipo B" }
     var left by rememberSaveable(component.id + "_left") { mutableLongStateOf(component.initial.toLong()) }
     var right by rememberSaveable(component.id + "_right") { mutableLongStateOf(0L) }
+    LaunchedEffect(left, right) {
+        numericState[component.id + "_left"] = left.toDouble()
+        numericState[component.id + "_right"] = right.toDouble()
+    }
 
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -372,6 +403,31 @@ private fun BarChartBlock(component: GeneratedToolComponent) {
             }
             if (parsed.isEmpty()) {
                 Text("Sin datos para graficar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FormulaBlock(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
+    val result = GeneratedFormulaEngine.evaluate(component.text, numericState)
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(component.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                result?.let(::compactNumber)?.plus(component.unitWithSpace()) ?: "—",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            if (result == null && component.text.isNotBlank()) {
+                Text(
+                    "Completá los datos necesarios para calcularlo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
