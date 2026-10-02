@@ -61,6 +61,20 @@ class GeneratedToolSpecTest {
         assertEquals("juego de moto en carretera", spec.components.single().text)
     }
 
+    @Test fun acceptsGeneratedNavigationComponents() {
+        val spec = GeneratedToolSpec.parse(
+            """
+            {
+              "title":"Navegador",
+              "components":[
+                {"id":"ruta","type":"navigation","label":"Ir a un destino"}
+              ]
+            }
+            """.trimIndent(),
+        )!!
+        assertEquals("navigation", spec.components.single().type)
+    }
+
     @Test fun acceptsOnlyWhitelistedNativeActions() {
         val valid = GeneratedToolSpec.parse(
             """
