@@ -11,28 +11,75 @@ internal class GeneratedToolPlanner(context: Context) {
     private val appContext = context.applicationContext
 
     suspend fun generate(request: String): GeneratedToolSpec {
-        val prompt = request.trim().take(180)
+        val prompt = request.trim().take(500)
         if (prompt.isBlank()) return fallback("Herramienta personalizada")
 
         val apiKey = NikoAiSettings.apiKey(appContext)
         if (apiKey.isBlank()) return fallback(prompt)
 
         val system = """
-            Diseñá una herramienta móvil simple para LEO a partir de la petición del usuario.
-            No generés Kotlin, Java, JavaScript, comandos, URLs ni código ejecutable.
-            Devolvé SOLO un objeto JSON válido con:
+            Sos el diseñador de interfaces polimórficas de LEO. Convertí la petición del usuario en una herramienta
+            móvil útil, coherente y compacta. Elegí y combiná los componentes necesarios; no copies una plantilla
+            genérica si la petición necesita otra estructura.
+
+            Devolvé SOLO JSON válido:
             {
               "title":"...",
               "subtitle":"...",
               "components":[
-                {"id":"...", "type":"...", "label":"...", "text":"...", "initial":0, "items":[]}
+                {
+                  "id":"...",
+                  "type":"...",
+                  "label":"...",
+                  "text":"...",
+                  "initial":0,
+                  "min":0,
+                  "max":100,
+                  "step":1,
+                  "unit":"",
+                  "items":[]
+                }
               ]
             }
-            Tipos permitidos: text, text_input, number_input, counter, toggle, checklist, list, timer, calculator, metric.
-            Máximo 10 componentes. IDs en minúscula con letras, números y guion bajo.
-            Usá componentes realmente útiles para la petición. Texto breve y natural en español.
-            Para listas/checklists podés precargar hasta 8 items. Para contadores usá initial.
-            No incluyás acciones del sistema, permisos, acceso a archivos, red, shell, procesos ni Android APIs.
+
+            Componentes disponibles:
+            - text: explicación o instrucción corta.
+            - section: encabezado visual de una sección.
+            - divider / spacer: organización visual.
+            - text_input: texto libre.
+            - number_input: cantidades generales.
+            - currency_input: dinero; unit puede ser C$, $, €, etc.
+            - percentage_input: porcentaje.
+            - date_input / time_input: fecha u hora.
+            - counter: conteos, piezas, vueltas, repeticiones.
+            - toggle: estado sí/no.
+            - slider: valor ajustable entre min y max.
+            - progress: indicador de progreso usando initial, min y max.
+            - rating: valoración de 1 a 5.
+            - checklist: lista editable de tareas.
+            - multi_choice: varias opciones seleccionables.
+            - single_choice: una opción entre varias.
+            - list: registro editable de elementos.
+            - timer: cronómetro ascendente.
+            - countdown: cuenta regresiva; initial es segundos.
+            - calculator: calculadora segura.
+            - metric: KPI o dato destacado; text puede contener el valor mostrado.
+            - goal: meta editable; initial es avance, max es objetivo, step es incremento.
+            - scoreboard: marcador para dos participantes; items contiene sus nombres.
+            - key_value: ficha de datos; items usa "Campo=Valor".
+            - table: tabla simple; cada item es una fila y usa "|" entre columnas.
+            - bar_chart: gráfico de barras; items usa "Etiqueta=Valor".
+
+            Podés crear controles de producción, inventarios, gastos, presupuestos, ventas, estudio, ejercicios,
+            hábitos, proyectos, rutinas, formularios, encuestas, marcadores, tableros, seguimiento de metas,
+            listas, registros, diarios, agendas, control de calidad, mantenimiento, cocina, viajes y cualquier
+            herramienta que pueda expresarse con estos componentes.
+
+            Usá entre 1 y 16 componentes; solo llegá a 20 si la petición realmente lo exige.
+            IDs únicos en minúscula con letras, números y guion bajo. Máximo 12 opciones por selector/lista precargada.
+            Usá min/max/step/unit cuando aporten valor. Los textos deben ser breves y naturales en español.
+            No generés Kotlin, Java, JavaScript, HTML, shell, URLs, comandos, permisos, acceso a archivos,
+            procesos ni llamadas directas a Android. La salida describe interfaz y estado, no código ejecutable.
         """.trimIndent()
 
         val base = JSONObject()
@@ -66,26 +113,109 @@ internal class GeneratedToolPlanner(context: Context) {
             .take(48)
             .ifBlank { "Herramienta personalizada" }
 
+        fun component(
+            id: String,
+            type: String,
+            label: String,
+            text: String = "",
+            initial: Double = 0.0,
+            min: Double = 0.0,
+            max: Double = 100.0,
+            step: Double = 1.0,
+            unit: String = "",
+            items: List<String> = emptyList(),
+        ) = GeneratedToolComponent(id, type, label, text, initial, min, max, step, unit, items)
+
         val components = when {
-            listOf("vuelta", "repeticion", "repetición", "serie", "conteo").any(normalized::contains) -> listOf(
-                GeneratedToolComponent("contador", "counter", "Contador"),
-                GeneratedToolComponent("tiempo", "timer", "Tiempo"),
+            listOf("produccion", "producción", "eficiencia", "piezas", "operario", "calidad").any(normalized::contains) -> listOf(
+                component("meta", "goal", "Meta de producción", max = 1000.0, step = 10.0, unit = "uds"),
+                component("buenas", "counter", "Piezas buenas"),
+                component("defectos", "counter", "Defectos"),
+                component("eficiencia", "percentage_input", "Eficiencia"),
+                component("observaciones", "list", "Observaciones"),
             )
-            listOf("gasto", "presupuesto", "dinero", "compra").any(normalized::contains) -> listOf(
-                GeneratedToolComponent("monto", "number_input", "Monto"),
-                GeneratedToolComponent("descripcion", "text_input", "Descripción"),
-                GeneratedToolComponent("movimientos", "list", "Movimientos"),
-                GeneratedToolComponent("total", "calculator", "Cálculo"),
+            listOf("inventario", "stock", "almacen", "almacén", "existencia").any(normalized::contains) -> listOf(
+                component("producto", "text_input", "Producto"),
+                component("cantidad", "number_input", "Cantidad"),
+                component("minimo", "number_input", "Stock mínimo"),
+                component("estado", "single_choice", "Estado", items = listOf("Disponible", "Bajo", "Agotado")),
+                component("movimientos", "table", "Movimientos", items = listOf("Producto|Cantidad|Tipo")),
             )
-            listOf("estudio", "tareas", "pendiente", "checklist").any(normalized::contains) -> listOf(
-                GeneratedToolComponent("objetivo", "text_input", "Objetivo"),
-                GeneratedToolComponent("pasos", "checklist", "Pasos"),
-                GeneratedToolComponent("sesion", "timer", "Sesión"),
+            listOf("gasto", "presupuesto", "dinero", "finanza", "ahorro", "compra").any(normalized::contains) -> listOf(
+                component("presupuesto", "goal", "Presupuesto", max = 10000.0, step = 100.0, unit = "C$"),
+                component("monto", "currency_input", "Monto", unit = "C$"),
+                component("categoria", "single_choice", "Categoría", items = listOf("Comida", "Transporte", "Servicios", "Otros")),
+                component("descripcion", "text_input", "Descripción"),
+                component("movimientos", "list", "Movimientos"),
+                component("calculo", "calculator", "Cálculo rápido"),
+            )
+            listOf("venta", "cliente", "pedido", "comision", "comisión").any(normalized::contains) -> listOf(
+                component("cliente", "text_input", "Cliente"),
+                component("monto", "currency_input", "Monto", unit = "C$"),
+                component("estado", "single_choice", "Estado", items = listOf("Pendiente", "Confirmado", "Entregado")),
+                component("ventas", "table", "Registro", items = listOf("Cliente|Monto|Estado")),
+                component("meta", "goal", "Meta de ventas", max = 10000.0, step = 100.0, unit = "C$"),
+            )
+            listOf("vuelta", "repeticion", "repetición", "serie", "entrenamiento", "ejercicio", "gym").any(normalized::contains) -> listOf(
+                component("contador", "counter", "Repeticiones"),
+                component("series", "counter", "Series"),
+                component("tiempo", "timer", "Tiempo"),
+                component("descanso", "countdown", "Descanso", initial = 60.0, max = 3600.0, unit = "s"),
+                component("esfuerzo", "rating", "Esfuerzo"),
+            )
+            listOf("estudio", "tarea", "pendiente", "examen", "curso", "aprender").any(normalized::contains) -> listOf(
+                component("objetivo", "text_input", "Objetivo"),
+                component("pasos", "checklist", "Pendientes"),
+                component("sesion", "countdown", "Sesión de enfoque", initial = 1500.0, max = 7200.0, unit = "s"),
+                component("progreso", "goal", "Progreso", max = 100.0, step = 5.0, unit = "%"),
+                component("dominio", "rating", "Qué tan claro quedó"),
+            )
+            listOf("habito", "hábito", "rutina", "diario").any(normalized::contains) -> listOf(
+                component("habitos", "checklist", "Hábitos de hoy"),
+                component("racha", "counter", "Racha"),
+                component("progreso", "goal", "Cumplimiento", max = 100.0, step = 10.0, unit = "%"),
+                component("nota", "text_input", "Nota del día"),
+            )
+            listOf("partido", "marcador", "puntos", "juego", "competencia").any(normalized::contains) -> listOf(
+                component("marcador", "scoreboard", "Marcador", items = listOf("Equipo A", "Equipo B")),
+                component("tiempo", "timer", "Tiempo de juego"),
+                component("eventos", "list", "Eventos"),
+            )
+            listOf("encuesta", "evaluacion", "evaluación", "opinion", "opinión", "formulario").any(normalized::contains) -> listOf(
+                component("valoracion", "rating", "Valoración"),
+                component("opcion", "single_choice", "Selección", items = listOf("Excelente", "Buena", "Regular", "Mala")),
+                component("comentario", "text_input", "Comentario"),
+            )
+            listOf("viaje", "itinerario", "agenda", "evento", "cita").any(normalized::contains) -> listOf(
+                component("fecha", "date_input", "Fecha"),
+                component("hora", "time_input", "Hora"),
+                component("plan", "checklist", "Plan"),
+                component("lugares", "list", "Lugares o actividades"),
+                component("presupuesto", "currency_input", "Presupuesto", unit = "C$"),
+            )
+            listOf("cocina", "receta", "hornear", "cocinar").any(normalized::contains) -> listOf(
+                component("ingredientes", "checklist", "Ingredientes"),
+                component("pasos", "list", "Pasos"),
+                component("temporizador", "countdown", "Temporizador", initial = 600.0, max = 14400.0, unit = "s"),
+                component("porciones", "counter", "Porciones", initial = 1.0),
+            )
+            listOf("dashboard", "tablero", "indicador", "kpi", "reporte", "grafico", "gráfico").any(normalized::contains) -> listOf(
+                component("kpi", "metric", "Indicador principal", text = "0"),
+                component("avance", "progress", "Avance", max = 100.0, unit = "%"),
+                component("grafico", "bar_chart", "Distribución", items = listOf("A=0", "B=0", "C=0")),
+                component("detalle", "table", "Detalle", items = listOf("Concepto|Valor")),
+            )
+            listOf("calculadora", "calculo", "cálculo", "formula", "fórmula").any(normalized::contains) -> listOf(
+                component("dato1", "number_input", "Dato 1"),
+                component("dato2", "number_input", "Dato 2"),
+                component("calculo", "calculator", "Cálculo"),
             )
             else -> listOf(
-                GeneratedToolComponent("nota", "text_input", "Dato principal"),
-                GeneratedToolComponent("lista", "list", "Elementos"),
-                GeneratedToolComponent("contador", "counter", "Contador"),
+                component("principal", "text_input", "Dato principal"),
+                component("opciones", "list", "Elementos"),
+                component("estado", "toggle", "Activo"),
+                component("progreso", "slider", "Nivel", max = 100.0, step = 5.0, unit = "%"),
+                component("contador", "counter", "Contador"),
             )
         }
         return GeneratedToolSpec(
@@ -93,5 +223,4 @@ internal class GeneratedToolPlanner(context: Context) {
             subtitle = "Creada por LEO para esta petición",
             components = components,
         )
-    }
-}
+    }}
