@@ -46,6 +46,21 @@ class GeneratedToolSpecTest {
         assertEquals("bar_chart", spec.components[2].type)
     }
 
+    @Test fun acceptsPlayableGameComponents() {
+        val spec = GeneratedToolSpec.parse(
+            """
+            {
+              "title":"Carrera de moto",
+              "components":[
+                {"id":"juego","type":"game","label":"Moto","text":"juego de moto en carretera"}
+              ]
+            }
+            """.trimIndent(),
+        )!!
+        assertEquals("game", spec.components.single().type)
+        assertEquals("juego de moto en carretera", spec.components.single().text)
+    }
+
     @Test fun acceptsOnlyWhitelistedNativeActions() {
         val valid = GeneratedToolSpec.parse(
             """
