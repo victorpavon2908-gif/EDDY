@@ -22,6 +22,22 @@ class GeneratedGameRouterTest {
         )
     }
 
+    @Test fun routesCommonGameFamiliesToDedicatedEngines() {
+        val cases = mapOf(
+            "juego de snake" to GeneratedGameKind.SNAKE,
+            "serpiente clásica" to GeneratedGameKind.SNAKE,
+            "pong de dos paletas" to GeneratedGameKind.PADDLE,
+            "juego de memoria con cartas" to GeneratedGameKind.MEMORY,
+            "billar bola 8" to GeneratedGameKind.BILLIARDS,
+            "juego de plataformas tipo mario" to GeneratedGameKind.PLATFORMER,
+            "shooter de blancos" to GeneratedGameKind.TARGET_TAP,
+            "juego de moto" to GeneratedGameKind.ARCADE_LANES,
+        )
+        cases.forEach { (request, expected) ->
+            assertEquals(request, expected, resolveGeneratedGameKind(request))
+        }
+    }
+
     @Test fun completedRowsAreRemoved() {
         val board = List(18) { row ->
             if (row == 17) List(10) { true } else List(10) { false }
