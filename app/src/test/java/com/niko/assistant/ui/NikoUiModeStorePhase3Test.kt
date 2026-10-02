@@ -17,6 +17,7 @@ class NikoUiModeStorePhase3Test {
             "bloc de notas" to NikoUiMode.NOTES,
             "conversor de unidades" to NikoUiMode.CONVERTER,
             "herramientas" to NikoUiMode.TOOLBOX,
+            "herramienta generada" to NikoUiMode.GENERATED,
             "pantalla principal" to NikoUiMode.ASSISTANT,
         )
         cases.forEach { (spoken, expected) ->
