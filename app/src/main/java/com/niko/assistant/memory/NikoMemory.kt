@@ -365,6 +365,7 @@ class NikoMemory(context: Context) {
     private fun commandDescription(command: AssistantCommand): String = when (command) {
         is AssistantCommand.OpenApp -> "abrir ${command.app.displayName}"
         is AssistantCommand.OpenAppByName -> "abrir la aplicación ${command.name}"
+        is AssistantCommand.GenerateTool -> "crear una herramienta para ${command.request.take(80)}"
         AssistantCommand.OpenCamera -> "abrir la cámara"
         is AssistantCommand.Dial -> "abrir una llamada al número solicitado"
         is AssistantCommand.ComposeMessage -> "preparar un mensaje"
@@ -396,6 +397,7 @@ class NikoMemory(context: Context) {
     private fun commandKey(command: AssistantCommand): String? = when (command) {
         is AssistantCommand.OpenApp -> "app_${command.app.name}"
         is AssistantCommand.OpenAppByName -> "app_dynamic"
+        is AssistantCommand.GenerateTool -> "generated_tool"
         AssistantCommand.OpenCamera -> "camera"
         AssistantCommand.TellTime -> "time"
         AssistantCommand.Greeting -> "greeting"
