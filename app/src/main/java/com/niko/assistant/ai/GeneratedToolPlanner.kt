@@ -71,6 +71,8 @@ internal class GeneratedToolPlanner(context: Context) {
             - bar_chart: gráfico de barras; items usa "Etiqueta=Valor".
             - formula: resultado calculado; text contiene una fórmula con IDs numéricos, por ejemplo "(buenas/meta)*100".
               Solo admite +, -, *, / y paréntesis. unit define la unidad mostrada.
+            - game: minijuego interactivo. En text describí el tipo o tema, por ejemplo "moto en carretera",
+              "carro", "nave espacial", "runner". El motor lo convierte en una experiencia jugable local.
             - action_button: botón para una capacidad nativa ya permitida. action solo puede ser:
               camera, video, audio_recorder, music, calculator, notes, flashlight_on, flashlight_off,
               wifi, bluetooth, internet, location, maps, web_search, share_text o vibrate.
@@ -78,8 +80,13 @@ internal class GeneratedToolPlanner(context: Context) {
 
             Podés crear controles de producción, inventarios, gastos, presupuestos, ventas, estudio, ejercicios,
             hábitos, proyectos, rutinas, formularios, encuestas, marcadores, tableros, seguimiento de metas,
-            listas, registros, diarios, agendas, control de calidad, mantenimiento, cocina, viajes y cualquier
-            herramienta que pueda expresarse con estos componentes.
+            listas, registros, diarios, agendas, control de calidad, mantenimiento, cocina, viajes, juegos simples
+            y cualquier experiencia que pueda expresarse con estos componentes.
+
+            Regla principal: intentá materializar siempre la petición. Si no existe una capacidad exacta,
+            construí la aproximación funcional más cercana con los componentes disponibles, en vez de devolver
+            una lista de limitaciones. Si pide un juego, incluí un componente game. Si pide una capacidad del
+            teléfono dentro de otra herramienta, combiná action_button con los demás componentes.
 
             Usá entre 1 y 16 componentes; solo llegá a 20 si la petición realmente lo exige.
             IDs únicos en minúscula con letras, números y guion bajo. Máximo 12 opciones por selector/lista precargada.
@@ -197,7 +204,21 @@ internal class GeneratedToolPlanner(context: Context) {
                 component("progreso", "goal", "Cumplimiento", max = 100.0, step = 10.0, unit = "%"),
                 component("nota", "text_input", "Nota del día"),
             )
-            listOf("partido", "marcador", "puntos", "juego", "competencia").any(normalized::contains) -> listOf(
+            listOf("juego", "moto", "motocicleta", "carrera", "arcade", "nave", "runner").any(normalized::contains) -> listOf(
+                component(
+                    "juego",
+                    "game",
+                    when {
+                        normalized.contains("moto") || normalized.contains("motocicleta") -> "Carrera de moto"
+                        normalized.contains("nave") -> "Juego de nave"
+                        normalized.contains("carro") || normalized.contains("auto") -> "Carrera"
+                        else -> "Minijuego"
+                    },
+                    text = request.take(160),
+                ),
+                component("puntuacion", "metric", "Objetivo", text = "Superá tu récord"),
+            )
+            listOf("partido", "marcador", "puntos", "competencia").any(normalized::contains) -> listOf(
                 component("marcador", "scoreboard", "Marcador", items = listOf("Equipo A", "Equipo B")),
                 component("tiempo", "timer", "Tiempo de juego"),
                 component("eventos", "list", "Eventos"),
