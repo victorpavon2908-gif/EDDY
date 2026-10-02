@@ -46,6 +46,33 @@ class GeneratedToolSpecTest {
         assertEquals("bar_chart", spec.components[2].type)
     }
 
+    @Test fun acceptsOnlyWhitelistedNativeActions() {
+        val valid = GeneratedToolSpec.parse(
+            """
+            {
+              "title":"Panel de viaje",
+              "components":[
+                {"id":"mapa","type":"action_button","label":"Abrir mapa","action":"maps","payload":"Jinotepe"}
+              ]
+            }
+            """.trimIndent(),
+        )
+        assertEquals("maps", valid!!.components.single().action)
+
+        assertNull(
+            GeneratedToolSpec.parse(
+                """
+                {
+                  "title":"No permitido",
+                  "components":[
+                    {"id":"x","type":"action_button","label":"Ejecutar","action":"arbitrary_code"}
+                  ]
+                }
+                """.trimIndent(),
+            ),
+        )
+    }
+
     @Test fun rejectsExecutableOrUnknownComponentTypes() {
         assertNull(
             GeneratedToolSpec.parse(
