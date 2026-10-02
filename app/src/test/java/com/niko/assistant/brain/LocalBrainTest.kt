@@ -68,6 +68,21 @@ class LocalBrainTest {
         )
     }
 
+    @Test fun compoundTransformationsStayGenerativeInsteadOfCollapsingToNativeTools() {
+        assertEquals(
+            AssistantCommand.GenerateTool("control de inventario con camara"),
+            brain.understand("Leo, conviértete en un control de inventario con cámara"),
+        )
+        assertEquals(
+            AssistantCommand.GenerateTool("tablero de gastos con calculadora"),
+            brain.understand("Leo, transformate en un tablero de gastos con calculadora"),
+        )
+        assertEquals(
+            AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA"),
+            brain.understand("Leo, conviértete en cámara"),
+        )
+    }
+
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.BACK), brain.understand("Leo, volvé atrás"))
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.HOME), brain.understand("andá a la pantalla de inicio"))
