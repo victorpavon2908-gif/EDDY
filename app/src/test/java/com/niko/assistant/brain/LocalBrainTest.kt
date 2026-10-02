@@ -92,6 +92,14 @@ class LocalBrainTest {
             AssistantCommand.GenerateTool("juego de nave espacial"),
             brain.understand("Leo, quiero que seas un juego de nave espacial"),
         )
+        assertEquals(
+            AssistantCommand.GenerateTool("juego de tettrix"),
+            brain.understand("Leo, conviértete en un juego de tettrix"),
+        )
+        assertEquals(
+            AssistantCommand.GenerateTool("tetris"),
+            brain.understand("Leo, transformate en Tetris"),
+        )
     }
 
     @Test fun navigationAppRequestsBecomeGeneratedNavigationExperiences() {
