@@ -53,6 +53,21 @@ class LocalBrainTest {
         )
     }
 
+    @Test fun createsGeneratedToolsFromBroaderNaturalRequests() {
+        assertEquals(
+            AssistantCommand.GenerateTool("control de inventario para mi bodega"),
+            brain.understand("Leo, creame un control de inventario para mi bodega"),
+        )
+        assertEquals(
+            AssistantCommand.GenerateTool("ventas del mes"),
+            brain.understand("Leo, armame un tablero de ventas del mes"),
+        )
+        assertEquals(
+            AssistantCommand.GenerateTool("seguimiento de habitos diarios"),
+            brain.understand("Leo, necesito una herramienta para seguimiento de hábitos diarios"),
+        )
+    }
+
     @Test fun controlsAndroidNavigationWithNaturalNicaraguanWording() {
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.BACK), brain.understand("Leo, volvé atrás"))
         assertEquals(AssistantCommand.NavigateDevice(DeviceDestination.HOME), brain.understand("andá a la pantalla de inicio"))
