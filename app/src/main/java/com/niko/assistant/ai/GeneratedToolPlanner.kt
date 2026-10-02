@@ -69,6 +69,10 @@ internal class GeneratedToolPlanner(context: Context) {
             - key_value: ficha de datos; items usa "Campo=Valor".
             - table: tabla simple; cada item es una fila y usa "|" entre columnas.
             - bar_chart: gráfico de barras; items usa "Etiqueta=Valor".
+            - action_button: botón para una capacidad nativa ya permitida. action solo puede ser:
+              camera, video, audio_recorder, music, calculator, notes, flashlight_on, flashlight_off,
+              wifi, bluetooth, internet, location, maps, web_search, share_text o vibrate.
+              Para maps, web_search y share_text usá payload con el texto necesario.
 
             Podés crear controles de producción, inventarios, gastos, presupuestos, ventas, estudio, ejercicios,
             hábitos, proyectos, rutinas, formularios, encuestas, marcadores, tableros, seguimiento de metas,
@@ -123,8 +127,23 @@ internal class GeneratedToolPlanner(context: Context) {
             max: Double = 100.0,
             step: Double = 1.0,
             unit: String = "",
+            action: String = "",
+            payload: String = "",
             items: List<String> = emptyList(),
-        ) = GeneratedToolComponent(id, type, label, text, initial, min, max, step, unit, items)
+        ) = GeneratedToolComponent(
+            id = id,
+            type = type,
+            label = label,
+            text = text,
+            initial = initial,
+            min = min,
+            max = max,
+            step = step,
+            unit = unit,
+            action = action,
+            payload = payload,
+            items = items,
+        )
 
         val components = when {
             listOf("produccion", "producción", "eficiencia", "piezas", "operario", "calidad").any(normalized::contains) -> listOf(
@@ -218,9 +237,27 @@ internal class GeneratedToolPlanner(context: Context) {
                 component("contador", "counter", "Contador"),
             )
         }
+        val expanded = components.toMutableList().apply {
+            if (normalized.contains("camara") || normalized.contains("cámara")) {
+                add(component("abrir_camara", "action_button", "Abrir cámara", action = "camera"))
+            }
+            if (normalized.contains("video")) {
+                add(component("abrir_video", "action_button", "Abrir video", action = "video"))
+            }
+            if (normalized.contains("linterna") || normalized.contains("flash")) {
+                add(component("linterna", "action_button", "Encender linterna", action = "flashlight_on"))
+            }
+            if (normalized.contains("mapa") || normalized.contains("ubicacion") || normalized.contains("ubicación")) {
+                add(component("mapas", "action_button", "Abrir mapas", action = "maps", payload = request.take(160)))
+            }
+            if (normalized.contains("internet") || normalized.contains("buscar web")) {
+                add(component("buscar", "action_button", "Buscar en Internet", action = "web_search", payload = request.take(160)))
+            }
+        }.distinctBy { it.id }.take(20)
+
         return GeneratedToolSpec(
             title = title,
             subtitle = "Creada por LEO para esta petición",
-            components = components,
+            components = expanded,
         )
     }}
