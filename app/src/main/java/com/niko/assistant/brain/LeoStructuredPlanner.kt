@@ -340,6 +340,7 @@ class LeoStructuredPlanner(
 
     private fun capabilityFor(command: AssistantCommand): String = when (command) {
         is AssistantCommand.OpenApp, is AssistantCommand.OpenAppByName -> "OPEN_APP"
+        is AssistantCommand.GenerateTool -> "GENERATE_TOOL"
         AssistantCommand.OpenCamera -> "CAMERA"
         AssistantCommand.TellTime -> "TIME"
         AssistantCommand.BatteryStatus -> "BATTERY"
