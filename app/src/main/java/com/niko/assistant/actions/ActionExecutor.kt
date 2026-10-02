@@ -284,6 +284,26 @@ class ActionExecutor(private val context: Context) {
         return launch(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(query)}")), "Buscando $query en el mapa.", "No pude abrir mapas ni el navegador.")
     }
 
+    fun navigateTo(query: String): ActionResult {
+        val destination = query.trim().take(180)
+        if (destination.isBlank()) return ActionResult(false, "Decime a dónde querés ir.")
+        val native = launch(
+            Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${Uri.encode(destination)}")),
+            "Listo, preparando la ruta a $destination.",
+            "",
+            false,
+        )
+        if (native.success) return native
+        return launch(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${Uri.encode(destination)}"),
+            ),
+            "Preparando la ruta a $destination.",
+            "No pude abrir una aplicación de navegación.",
+        )
+    }
+
     private fun launch(intent: Intent, successMessage: String, failureMessage: String, returnFailureImmediately: Boolean = true): ActionResult {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return AndroidActionLauncher.launch(context, intent, successMessage, if (returnFailureImmediately) failureMessage else "")
