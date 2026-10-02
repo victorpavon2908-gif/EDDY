@@ -149,11 +149,12 @@ class LocalBrain {
         builderPatterns.forEach { pattern ->
             val match = pattern.find(normalized) ?: return@forEach
             val kind = match.groupValues[1]
-            val rest = match.groupValues[2]
-                .trim()
-                .replace(Regex("""^(?:para|de)\s+"""), "")
-                .trim()
-            val target = if (kind == "herramienta") rest else listOf(kind, rest).filter { it.isNotBlank() }.joinToString(" ")
+            val rawRest = match.groupValues[2].trim()
+            val target = if (kind == "herramienta") {
+                rawRest.replace(Regex("""^(?:para|de)\s+"""), "").trim()
+            } else {
+                listOf(kind, rawRest).filter { it.isNotBlank() }.joinToString(" ").trim()
+            }
             return target.takeIf { it.length in 3..180 }
         }
 
