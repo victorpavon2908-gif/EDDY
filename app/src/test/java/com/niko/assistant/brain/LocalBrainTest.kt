@@ -59,7 +59,7 @@ class LocalBrainTest {
             brain.understand("Leo, creame un control de inventario para mi bodega"),
         )
         assertEquals(
-            AssistantCommand.GenerateTool("ventas del mes"),
+            AssistantCommand.GenerateTool("tablero de ventas del mes"),
             brain.understand("Leo, armame un tablero de ventas del mes"),
         )
         assertEquals(
@@ -80,6 +80,17 @@ class LocalBrainTest {
         assertEquals(
             AssistantCommand.OpenAppByName("NIKO_TOOL_CAMERA"),
             brain.understand("Leo, conviértete en cámara"),
+        )
+    }
+
+    @Test fun gameRequestsBecomeGeneratedPlayableExperiences() {
+        assertEquals(
+            AssistantCommand.GenerateTool("juego de moto"),
+            brain.understand("Leo, conviértete en un juego de moto"),
+        )
+        assertEquals(
+            AssistantCommand.GenerateTool("juego de nave espacial"),
+            brain.understand("Leo, quiero que seas un juego de nave espacial"),
         )
     }
 
