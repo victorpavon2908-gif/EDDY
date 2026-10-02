@@ -72,7 +72,8 @@ internal class GeneratedToolPlanner(context: Context) {
             - formula: resultado calculado; text contiene una fórmula con IDs numéricos, por ejemplo "(buenas/meta)*100".
               Solo admite +, -, *, / y paréntesis. unit define la unidad mostrada.
             - game: minijuego interactivo. En text describí el tipo o tema, por ejemplo "moto en carretera",
-              "carro", "nave espacial", "runner". El motor lo convierte en una experiencia jugable local.
+              "carro", "nave espacial", "runner" o "bloques tipo tetris". El motor lo convierte en una experiencia
+              jugable local. Tratá "tetris", "tetrix" y "tettrix" como el mismo juego de bloques.
             - randomizer: selector aleatorio; items contiene las opciones.
             - dice: dado; max define el número de caras entre 2 y 100.
             - flashcards: tarjetas de estudio; cada item usa "Frente|Reverso".
@@ -220,6 +221,7 @@ internal class GeneratedToolPlanner(context: Context) {
                         normalized.contains("moto") || normalized.contains("motocicleta") -> "Carrera de moto"
                         normalized.contains("nave") -> "Juego de nave"
                         normalized.contains("carro") || normalized.contains("auto") -> "Carrera"
+                        listOf("tetris", "tetrix", "tettrix").any(normalized::contains) -> "Bloques"
                         else -> "Minijuego"
                     },
                     text = request.take(160),
