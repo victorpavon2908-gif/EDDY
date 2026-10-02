@@ -126,7 +126,7 @@ private fun GeneratedNumberInput(
         value = value,
         onValueChange = { next ->
             value = next.filter { it.isDigit() || it in ".-," }.take(32)
-            value.replace(',', '.').toDoubleOrNull()?.takeIf(Double::isFinite)?.let {
+            value.replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }?.let {
                 numericState[component.id] = it.coerceIn(component.min, component.max)
             }
         },
