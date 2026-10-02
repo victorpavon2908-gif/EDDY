@@ -50,7 +50,7 @@ internal fun GeneratedAdvancedComponent(
     when (component.type) {
         "section" -> SectionBlock(component)
         "divider" -> HorizontalDivider()
-        "spacer" -> Spacer(Modifier.height(component.initial.coerceIn(4.0, 48.0).dp))
+        "spacer" -> Spacer(Modifier.height(component.initial.coerceIn(4.0, 48.0).toFloat().dp))
         "currency_input" -> NumericField(component, numericState, suffix = component.unit.ifBlank { "C$" })
         "percentage_input" -> NumericField(component, numericState, suffix = "%")
         "date_input" -> SimpleField(component, placeholder = "DD/MM/AAAA")
@@ -110,7 +110,7 @@ private fun NumericField(
         value = value,
         onValueChange = { next ->
             value = next.filter { it.isDigit() || it in ".,-" }.take(32)
-            value.replace(',', '.').toDoubleOrNull()?.takeIf(Double::isFinite)?.let {
+            value.replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }?.let {
                 numericState[component.id] = it.coerceIn(component.min, component.max)
             }
         },
