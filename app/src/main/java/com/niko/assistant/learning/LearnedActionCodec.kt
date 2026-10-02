@@ -13,6 +13,7 @@ object LearnedActionCodec {
     private fun encode(command: AssistantCommand): String? = when (command) {
         is AssistantCommand.OpenApp -> safe("OPEN_APP", command.app.displayName, 80)
         is AssistantCommand.OpenAppByName -> safe("OPEN_APP", command.name, 80)
+        is AssistantCommand.GenerateTool -> null
         AssistantCommand.OpenCamera -> "CAMERA"
         AssistantCommand.TellTime -> "TIME"
         AssistantCommand.BatteryStatus -> "BATTERY"
