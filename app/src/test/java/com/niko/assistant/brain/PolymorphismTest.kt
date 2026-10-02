@@ -17,8 +17,11 @@ class PolymorphismTest {
         )
         cases.forEach { (phrase, tool) -> assertEquals(phrase, AssistantCommand.OpenAppByName(tool), brain.understand(phrase)) }
     }
-    @Test fun unsupportedFormsShowAnHonestCatalog() {
-        assertEquals(AssistantCommand.OpenAppByName("NIKO_TOOLBOX"), brain.understand("conviertete en una impresora"))
+    @Test fun unsupportedFormsBecomeGeneratedTools() {
+        assertEquals(
+            AssistantCommand.GenerateTool("impresora"),
+            brain.understand("conviertete en una impresora"),
+        )
     }
     @Test fun musicSearchHasItsOwnRoute() {
         assertEquals(AssistantCommand.OpenAppByName("LEO_MUSIC_QUERY:shakira"), brain.understand("Leo buscame musica de Shakira"))
