@@ -98,6 +98,11 @@ class LocalBrain {
             "quiero verte como", "quiero que te vuelvas", "quiero una", "quiero un",
             "seas una", "seas un", "se una", "se un", "sé una", "sé un",
             "actua como", "actuá como", "funciona como", "comportate como", "compórtate como",
+            "creame una herramienta", "crea una herramienta", "diseñame una herramienta", "disename una herramienta",
+            "quiero una herramienta", "necesito una herramienta",
+            "creame un panel", "crea un panel", "armame un panel", "quiero un panel", "necesito un panel",
+            "creame un tablero", "crea un tablero", "armame un tablero", "quiero un tablero", "necesito un tablero",
+            "armame un control", "creame un control", "quiero un control", "necesito un control",
             "modo camara", "modo de camara", "modo video", "modo de video",
             "modo grabadora", "modo de grabadora", "modo musica", "modo de musica", "modo reproductor",
             "abre grabadora", "abre la grabadora", "abre reproductor", "abre el reproductor",
@@ -140,6 +145,11 @@ class LocalBrain {
             "pasa a modo", "pasate a", "quiero que seas", "quiero que te conviertas",
             "quiero que te transformes", "quiero verte como", "quiero que te vuelvas",
             "actua como", "funciona como", "comportate como",
+            "creame una herramienta", "crea una herramienta", "disename una herramienta",
+            "quiero una herramienta", "necesito una herramienta",
+            "creame un panel", "crea un panel", "armame un panel", "quiero un panel", "necesito un panel",
+            "creame un tablero", "crea un tablero", "armame un tablero", "quiero un tablero", "necesito un tablero",
+            "armame un control", "creame un control", "quiero un control", "necesito un control",
         )
         val prefix = prefixes.firstOrNull { text.contains(it) }
         var target = if (prefix != null) text.substringAfter(prefix) else text
