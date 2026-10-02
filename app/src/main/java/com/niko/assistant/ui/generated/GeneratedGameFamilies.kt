@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -350,7 +351,19 @@ private data class PoolBall(
 
 @Composable
 internal fun GeneratedBilliardsGame(component: GeneratedToolComponent) {
-    val balls = remember(component.id) { mutableStateListOf<PoolBall>() }
+    val balls = remember(component.id) {
+        mutableStateListOf<PoolBall>().apply {
+            add(PoolBall(0.25f, 0.5f, cue = true))
+            listOf(
+                0.67f to 0.50f,
+                0.72f to 0.46f,
+                0.72f to 0.54f,
+                0.77f to 0.42f,
+                0.77f to 0.50f,
+                0.77f to 0.58f,
+            ).forEach { (x, y) -> add(PoolBall(x, y)) }
+        }
+    }
     var angle by rememberSaveable(component.id + "_angle") { mutableStateOf(0f) }
     var power by rememberSaveable(component.id + "_power") { mutableStateOf(0.6f) }
     var moving by rememberSaveable(component.id + "_moving") { mutableStateOf(false) }
@@ -372,7 +385,6 @@ internal fun GeneratedBilliardsGame(component: GeneratedToolComponent) {
         moving = false
     }
 
-    if (balls.isEmpty()) reset()
 
     LaunchedEffect(moving, component.id) {
         while (moving) {
