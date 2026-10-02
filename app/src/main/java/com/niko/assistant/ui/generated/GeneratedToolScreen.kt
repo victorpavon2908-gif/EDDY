@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +43,7 @@ import kotlinx.coroutines.delay
 internal fun GeneratedToolScreen(onHome: () -> Unit) {
     val context = LocalContext.current
     val spec = remember { GeneratedToolStore.read(context) }
+    val numericState = remember(spec?.toJson()) { mutableStateMapOf<String, Double>() }
 
     LeoToolSurface(
         mode = NikoUiMode.GENERATED,
@@ -68,15 +70,15 @@ internal fun GeneratedToolScreen(onHome: () -> Unit) {
             when (component.type) {
                 "text" -> GeneratedText(component)
                 "text_input" -> GeneratedTextInput(component)
-                "number_input" -> GeneratedNumberInput(component)
-                "counter" -> GeneratedCounter(component)
+                "number_input" -> GeneratedNumberInput(component, numericState)
+                "counter" -> GeneratedCounter(component, numericState)
                 "toggle" -> GeneratedToggle(component)
                 "checklist" -> GeneratedChecklist(component)
                 "list" -> GeneratedList(component)
                 "timer" -> GeneratedTimer(component)
                 "calculator" -> GeneratedCalculator(component)
                 "metric" -> GeneratedMetric(component)
-                else -> GeneratedAdvancedComponent(component)
+                else -> GeneratedAdvancedComponent(component, numericState)
             }
         }
     }
@@ -108,7 +110,10 @@ private fun GeneratedTextInput(component: GeneratedToolComponent) {
 }
 
 @Composable
-private fun GeneratedNumberInput(component: GeneratedToolComponent) {
+private fun GeneratedNumberInput(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
     var value by rememberSaveable(component.id) {
         mutableStateOf(
             if (component.initial == 0.0) "" else component.initial.toString(),
@@ -118,6 +123,9 @@ private fun GeneratedNumberInput(component: GeneratedToolComponent) {
         value = value,
         onValueChange = { next ->
             value = next.filter { it.isDigit() || it in ".-," }.take(32)
+            value.replace(',', '.').toDoubleOrNull()?.takeIf(Double::isFinite)?.let {
+                numericState[component.id] = it.coerceIn(component.min, component.max)
+            }
         },
         label = { Text(component.label) },
         modifier = Modifier.fillMaxWidth(),
@@ -126,8 +134,12 @@ private fun GeneratedNumberInput(component: GeneratedToolComponent) {
 }
 
 @Composable
-private fun GeneratedCounter(component: GeneratedToolComponent) {
+private fun GeneratedCounter(
+    component: GeneratedToolComponent,
+    numericState: SnapshotStateMap<String, Double>,
+) {
     var count by rememberSaveable(component.id) { mutableLongStateOf(component.initial.toLong()) }
+    LaunchedEffect(count) { numericState[component.id] = count.toDouble() }
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
         Column(
             Modifier.padding(18.dp),
