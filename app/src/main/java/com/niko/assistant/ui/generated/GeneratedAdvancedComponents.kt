@@ -31,8 +31,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.niko.assistant.actions.ActionExecutor
+import com.niko.assistant.brain.SupportedApp
+import com.niko.assistant.brain.SystemPanel
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -58,6 +62,7 @@ internal fun GeneratedAdvancedComponent(component: GeneratedToolComponent) {
         "key_value" -> KeyValueBlock(component)
         "table" -> TableBlock(component)
         "bar_chart" -> BarChartBlock(component)
+        "action_button" -> ActionButtonBlock(component)
     }
 }
 
@@ -368,6 +373,50 @@ private fun BarChartBlock(component: GeneratedToolComponent) {
             if (parsed.isEmpty()) {
                 Text("Sin datos para graficar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+}
+
+@Composable
+private fun ActionButtonBlock(component: GeneratedToolComponent) {
+    val context = LocalContext.current
+    val executor = remember { ActionExecutor(context.applicationContext) }
+    var status by rememberSaveable(component.id + "_status") { mutableStateOf("") }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Button(
+            onClick = {
+                val result = when (component.action) {
+                    "camera" -> executor.openCamera()
+                    "video" -> executor.openAppByName("NIKO_TOOL_VIDEO")
+                    "audio_recorder" -> executor.openAppByName("NIKO_TOOL_AUDIO")
+                    "music" -> executor.openAppByName("NIKO_TOOL_MUSIC")
+                    "calculator" -> executor.openAppByName("NIKO_TOOL_CALCULATOR")
+                    "notes" -> executor.openAppByName("NIKO_TOOL_NOTES")
+                    "flashlight_on" -> executor.setTorch(true)
+                    "flashlight_off" -> executor.setTorch(false)
+                    "wifi" -> executor.openSystemPanel(SystemPanel.WIFI)
+                    "bluetooth" -> executor.openSystemPanel(SystemPanel.BLUETOOTH)
+                    "internet" -> executor.openSystemPanel(SystemPanel.INTERNET)
+                    "location" -> executor.openSystemPanel(SystemPanel.LOCATION)
+                    "maps" -> if (component.payload.isBlank()) executor.openApp(SupportedApp.MAPS) else executor.openMaps(component.payload)
+                    "web_search" -> executor.searchWeb(component.payload)
+                    "share_text" -> executor.shareText(component.payload)
+                    "vibrate" -> executor.vibrate(350L)
+                    else -> null
+                }
+                status = result?.spokenMessage.orEmpty()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(component.label)
+        }
+        if (status.isNotBlank()) {
+            Text(
+                status,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
