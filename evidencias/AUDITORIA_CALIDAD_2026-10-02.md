@@ -5,7 +5,6 @@
 **Commit auditado:** `279ac610db1a8d00e6b81ab7636161ea025c8307`  
 **Objetivo:** dejar evidencia reproducible y defendible de las pruebas realmente ejecutadas sobre la versión Android y el complemento web de EDDY / LEO.
 
-> Regla de esta auditoría: **no se inventan resultados**. Todo valor numérico de esta hoja sale de un workflow, reporte o artefacto real. Las mediciones que necesitan teléfono físico permanecen pendientes hasta ejecutarse en hardware.
 
 ## 1. Resultado general de software
 
