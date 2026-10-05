@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import {
   NikoVisualState,
   InputState,
@@ -11,7 +11,10 @@ import {
 import { LocalBrain } from "./services/localBrain";
 import { voiceService } from "./services/voiceService";
 import { MemoryStore, AppSettings } from "./services/memoryStore";
-import { LeoRobot } from "./components/LeoRobot";
+const RobotPlaceholder = () => <img src="/leo_robot_poster.png" alt="LEO" className="h-full max-h-[360px] object-contain" />;
+const LeoRobot = lazy(() => import("./components/LeoRobot")
+  .then(module => ({ default: module.LeoRobot }))
+  .catch(() => ({ default: RobotPlaceholder })));
 import { NikoTopBar } from "./components/NikoTopBar";
 import { LiveStateBadge } from "./components/LiveStateBadge";
 import { ConversationGlass } from "./components/ConversationGlass";
@@ -459,13 +462,13 @@ export const App: React.FC = () => {
         {/* 2. Hero & 3D Robot stage */}
         <div className="flex-1 w-full flex flex-col items-center justify-center relative min-h-0 py-1">
           <div className="w-full h-full max-h-[360px] flex items-center justify-center relative">
-            <LeoRobot
+            <Suspense fallback={<RobotPlaceholder />}><LeoRobot
               visualState={visualState}
               requestedMotion={requestedMotion}
               onMotionDone={() => setRequestedMotion(null)}
               onTriggerMotion={triggerRobotMotion}
               enabled={settings.autoListening}
-            />
+            /></Suspense>
           </div>
 
           {/* Status Badge right below the robot */}

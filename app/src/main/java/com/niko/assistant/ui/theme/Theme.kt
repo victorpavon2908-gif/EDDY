@@ -13,37 +13,35 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// ── Deep-space dark palette ────────────────────────────────────────────────────
-// Designed to match the existing dark canvas (0xFF03050A) in NikoReferenceScreen
-// while providing proper Material 3 surface hierarchy and contrast ratios.
+// Pearl surfaces, deep forest accents and muted brass. High-contrast text on light surfaces.
 
-private val md_primary          = Color(0xFF00E5A0)   // vivid emerald — LEO brand
-private val md_onPrimary        = Color(0xFF00201A)
-private val md_primaryContainer = Color(0xFF003D2E)
-private val md_onPrimaryContainer = Color(0xFFAAFFDE)
+private val md_primary          = Color(0xFF176B57)   // vivid emerald — LEO brand
+private val md_onPrimary        = Color(0xFFFFFFFF)
+private val md_primaryContainer = Color(0xFFD6ECE2)
+private val md_onPrimaryContainer = Color(0xFF173E31)
 
-private val md_secondary        = Color(0xFF5BE8BD)
-private val md_onSecondary      = Color(0xFF00392B)
-private val md_secondaryContainer = Color(0xFF00513E)
-private val md_onSecondaryContainer = Color(0xFF7DFDD9)
+private val md_secondary        = Color(0xFF756238)
+private val md_onSecondary      = Color(0xFFFFFFFF)
+private val md_secondaryContainer = Color(0xFFEFE5CE)
+private val md_onSecondaryContainer = Color(0xFF493C20)
 
-private val md_tertiary         = Color(0xFF5CB8FF)
-private val md_onTertiary       = Color(0xFF003452)
-private val md_tertiaryContainer = Color(0xFF004B75)
-private val md_onTertiaryContainer = Color(0xFFCDE6FF)
+private val md_tertiary         = Color(0xFF436477)
+private val md_onTertiary       = Color(0xFFFFFFFF)
+private val md_tertiaryContainer = Color(0xFFDBE9F0)
+private val md_onTertiaryContainer = Color(0xFF233F4F)
 
-private val md_error            = Color(0xFFFF8096)
-private val md_onError          = Color(0xFF5F0021)
-private val md_errorContainer   = Color(0xFF890036)
-private val md_onErrorContainer = Color(0xFFFFD9DF)
+private val md_error            = Color(0xFFAB3047)
+private val md_onError          = Color(0xFFFFFFFF)
+private val md_errorContainer   = Color(0xFFFFDADF)
+private val md_onErrorContainer = Color(0xFF42131E)
 
-private val md_background       = Color(0xFFF6F8F7)
+private val md_background       = Color(0xFFF7F6F2)
 private val md_onBackground     = Color(0xFF18221F)
 
 private val md_surface          = Color(0xFFFFFFFF)
 private val md_onSurface        = Color(0xFF17201D)
-private val md_surfaceVariant   = Color(0xFFF0F4F2)
-private val md_onSurfaceVariant = Color(0xFF63716D)
+private val md_surfaceVariant   = Color(0xFFEEEFE8)
+private val md_onSurfaceVariant = Color(0xFF52625A)
 
 private val md_outline          = Color(0xFFCBD6D2)
 private val md_outlineVariant   = Color(0xFFE2E9E6)
@@ -130,8 +128,8 @@ private val NikoTypography = Typography(
     labelMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 10.sp,
-        lineHeight = 14.sp,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
         letterSpacing = 0.7.sp,
     ),
 )

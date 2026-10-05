@@ -69,6 +69,8 @@ import com.niko.assistant.localai.NikoModelProgress
 import com.niko.assistant.localai.NikoVoiceProfile
 import com.niko.assistant.memory.NikoMemory
 import com.niko.assistant.programming.NikoCodeAgent
+import com.niko.assistant.ui.NikoUiMode
+import com.niko.assistant.ui.NikoUiModeStore
 import com.niko.assistant.proactive.NikoProactiveScheduler
 import com.niko.assistant.smarthome.LocalSmartHomeClient
 import com.niko.assistant.voice.NikoLocalVoiceEngine
@@ -198,6 +200,9 @@ open class NikoAssistantService : Service() {
     private var recoveryJob: Job? = null
     private val voiceRecovery = VoiceRecoveryPolicy()
     private var initializationFailure: NikoLocalVoiceEngine.InitializationFailure? = null
+    private val companionInitiative = com.niko.assistant.proactive.CompanionInitiative()
+    private var initiativeJob: Job? = null
+    private var conversationWindowJob: Job? = null
     private var isListening = false
     private var isThinking = false
     private var isSpeaking = false
@@ -280,6 +285,29 @@ open class NikoAssistantService : Service() {
             return START_NOT_STICKY
         }
         ensureVoiceListening()
+        if (initiativeJob?.isActive != true) initiativeJob = serviceScope.launch {
+            while (!destroyed) {
+                delay(15_000L)
+                val foreground = com.niko.assistant.LeoApplication.foregroundActivity?.get()
+                val audio = getSystemService(android.media.AudioManager::class.java)
+                val available = foreground is MainActivity && localVoiceActive &&
+                    audio != null && audio.ringerMode == android.media.AudioManager.RINGER_MODE_NORMAL &&
+                    audio.mode == android.media.AudioManager.MODE_NORMAL && !audio.isMusicActive &&
+                    NikoUiModeStore.read(applicationContext) == NikoUiMode.ASSISTANT &&
+                    !isListening && !isThinking && !isSpeaking && !isTranscribing &&
+                    commandJob?.isActive != true && !CaptureGate.held &&
+                    !activeVoiceMicrophoneSilenced() && platformTts.isReady
+                val invitation = companionInitiative.invitation(SystemClock.elapsedRealtime(),
+                    NikoAiSettings.companionInitiative(applicationContext), available)
+                if (invitation != null) {
+                    try { speakResponse(invitation) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) {
+                        com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("CompanionInitiative", error)
+                    }
+                }
+            }
+        }
         return START_NOT_STICKY
     }
 
@@ -637,6 +665,7 @@ open class NikoAssistantService : Service() {
     /** Main-thread turn ownership; canceled jobs must never reset a newer command window. */
     private fun interruptCurrentTurn() {
         if (destroyed) return
+        conversationWindowJob?.cancel()
         ++turnEpoch
         RobotMotionBus.clear()
         LeoVoiceDiagnostics.cancelResponseTiming()
@@ -657,7 +686,10 @@ open class NikoAssistantService : Service() {
 
     private fun submitCommand(text: String) {
         if (destroyed) return
+        conversationWindowJob?.cancel()
+        companionInitiative.interacted(SystemClock.elapsedRealtime())
         VoiceControl.parse(text)?.let { control ->
+            companionInitiative.silence(SystemClock.elapsedRealtime())
             interruptCurrentTurn()
             LeoRealtimeTurnBus.interruptSpeech()
             cancelActiveVoiceConversation()
@@ -711,7 +743,12 @@ open class NikoAssistantService : Service() {
             } finally {
                 if (epoch == turnEpoch && !destroyed) {
                     isThinking = false
-                    if (!isSpeaking) finishTurn()
+                    if (!isSpeaking) {
+                        if (continueAfterSpeech && localVoiceActive) {
+                            scheduleConversationWindow()
+                            isListening = !activeVoiceMicrophoneSilenced()
+                        } else finishTurn()
+                    }
                     updateVisualState()
                 }
             }
@@ -724,6 +761,17 @@ open class NikoAssistantService : Service() {
     }
 
     private suspend fun handleCommand(rawText: String) {
+        val initiativeOrder = rawText.lowercase(java.util.Locale.ROOT).trim().trimEnd('.', '!', '?')
+            .replace("conversación", "conversacion").replace("espontánea", "espontanea")
+        when (initiativeOrder) {
+            "activa conversacion espontanea", "desactiva conversacion espontanea" -> {
+                val enabled = initiativeOrder.startsWith("activa ")
+                NikoAiSettings.setCompanionInitiative(applicationContext, enabled)
+                speakResponse(if (enabled) "De acuerdo. A veces iniciaré una charla cuando estés aquí y no estés ocupado."
+                    else "Listo. Voy a esperar a que vos me hablés.")
+                return
+            }
+        }
         val correctedText = InteractionCorrection.correctedText(rawText)
         val text = correctedText ?: rawText
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
@@ -1163,20 +1211,22 @@ open class NikoAssistantService : Service() {
     }
     private fun speakOnly(text: String, continueCommand: Boolean = false) {
         if (text.isBlank() || destroyed) return
-        continueAfterSpeech = continueCommand
+        conversationWindowJob?.cancel()
+        continueAfterSpeech = continueCommand || NikoAiSettings.companionInitiative(applicationContext)
 
         // Pausamos la escucha mientras LEO responde, pero no cargamos ningún runtime
         // neural nativo en esta ruta. La estabilidad del reconocimiento que ya funciona
         // queda intacta y la salida usa únicamente Android TTS.
-        if (localVoiceActive) setActiveVoiceSpeaking(true, continueCommand)
+        if (localVoiceActive) setActiveVoiceSpeaking(true, continueAfterSpeech)
 
         val systemReady = runCatching { platformTts.isReady }.getOrDefault(false)
         if (!systemReady) {
             isSpeaking = false
             NikoRuntimeState.setVoiceReady(applicationContext, false)
             NikoRuntimeState.setVoiceStatus(applicationContext, "Respuesta mostrada en pantalla · preparando voz del teléfono")
-            if (localVoiceActive) setActiveVoiceSpeaking(false, continueCommand)
-            if (continueCommand) {
+            if (localVoiceActive) setActiveVoiceSpeaking(false, continueAfterSpeech)
+            if (continueAfterSpeech) {
+                scheduleConversationWindow()
                 isListening = localVoiceActive && !activeVoiceMicrophoneSilenced()
             } else if (!isThinking) {
                 finishTurn()
@@ -1225,12 +1275,25 @@ open class NikoAssistantService : Service() {
                 speechTimeout?.cancel()
                 speechTimeout = null
                 if (continueAfterSpeech) {
+                    scheduleConversationWindow()
                     isListening = localVoiceActive && !activeVoiceMicrophoneSilenced()
                 } else if (!isThinking) finishTurn()
             }
             updateVisualState()
         }
     }
+    private fun scheduleConversationWindow() {
+        conversationWindowJob?.cancel()
+        conversationWindowJob = serviceScope.launch {
+            delay(12_000L)
+            if (!destroyed && !isSpeaking && !isThinking && !isTranscribing && commandJob?.isActive != true) {
+                cancelActiveVoiceConversation()
+                finishTurn()
+                updateVisualState()
+            }
+        }
+    }
+
     private fun updateVisualState() {
         NikoRuntimeState.setState(applicationContext, when { isSpeaking -> NikoRuntimeState.State.SPEAKING; isThinking || isTranscribing -> NikoRuntimeState.State.THINKING; isListening -> NikoRuntimeState.State.LISTENING; else -> NikoRuntimeState.State.IDLE })
     }

@@ -140,6 +140,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
     var model by remember { mutableStateOf(NikoAiSettings.model(context)) }
     var status by remember { mutableStateOf("Pegá aquí tu API key de GroqCloud. Se guarda solo en este teléfono.") }
     var testing by remember { mutableStateOf(false) }
+    var initiative by remember { mutableStateOf(NikoAiSettings.companionInitiative(context)) }
     var personality by remember { mutableStateOf(NikoAiSettings.personality(context)) }
     var localFirst by remember { mutableStateOf(NikoAiSettings.localFirst(context)) }
     var autoResearch by remember { mutableStateOf(NikoAiSettings.autoResearch(context)) }
@@ -205,6 +206,15 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             }
             Text("Decí LEO para empezar. Después de responder, Leo mantiene una ventana breve para que podás seguir hablando sin repetir su nombre. La detección sigue siendo local.", style = MaterialTheme.typography.bodySmall)
             Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
+
+            Text("CONVERSACIÓN ESPONTÁNEA", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Dejar que LEO inicie una charla", modifier = Modifier.weight(1f))
+                Switch(checked = initiative, onCheckedChange = {
+                    initiative = it; NikoAiSettings.setCompanionInitiative(context, it)
+                })
+            }
+            Text("Solo en la pantalla principal, con escucha activa y sin interrumpirte. Después de una respuesta tenés hasta 12 segundos para seguir sin repetir LEO. Máximo dos invitaciones sin respuesta, separadas por cinco minutos. Decí «desactiva conversación espontánea» para apagarlo.", style = MaterialTheme.typography.bodySmall)
 
             Text("BURBUJA FLOTANTE", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Si moviste la burbuja fuera de lugar, podés devolverla a su posición inicial.", style = MaterialTheme.typography.bodySmall)

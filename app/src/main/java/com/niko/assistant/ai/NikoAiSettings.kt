@@ -14,6 +14,10 @@ object NikoAiSettings {
     fun personality(context: Context): NikoPersonality = NikoPersonality.fromStored(
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("personality", null),
     )
+    fun companionInitiative(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("companion_initiative", false)
+    fun setCompanionInitiative(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("companion_initiative", enabled).apply()
+    }
     fun localFirst(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("local_first", true)
     fun autoResearch(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("auto_research", true)
     fun adaptiveLearning(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("adaptive_learning", true)

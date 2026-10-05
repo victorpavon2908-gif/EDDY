@@ -1,9 +1,18 @@
-# LEO · Android 0.13.1
+# LEO · Android 0.14.0
 
 Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
 La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad para auditoría](docs/IDENTIDAD_LEO.md).
 
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
+
+## Novedades 0.14.0
+
+- Diseño perla y verde oscuro, controles más legibles y respuesta completa seleccionable con todas sus fuentes.
+- Conversación espontánea opcional en Ajustes: LEO puede iniciar una charla y deja hasta 12 segundos para responder sin repetir su nombre.
+- Interpretación del contexto y síntesis web mejoradas; acepta respuestas breves con citas y valida estrictamente sus referencias.
+- El robot 3D del complemento web se carga por separado del inicio.
+
+Ver [alcance, pruebas y límites de esta revisión](docs/LEO_014_VALIDATION.md).
 
 ## Abrir y validar
 

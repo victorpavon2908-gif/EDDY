@@ -11,6 +11,14 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -97,10 +105,10 @@ internal fun NikoReferenceScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFFAFBFA),
-                        Color(0xFFF6F8F7),
+                        Color(0xFFFAF9F5),
+                        Color(0xFFF7F6F2),
                         Color(0xFFF2F6F4),
-                        Color(0xFFF8FAF9),
+                        Color(0xFFF9F8F4),
                     ),
                 ),
             ),
@@ -121,18 +129,18 @@ internal fun NikoReferenceScreen(
                 onSettings = { context.startActivity(Intent(context, AiSettingsActivity::class.java)) },
             )
 
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
                 Surface(
-                    modifier = Modifier.size(252.dp),
+                    modifier = Modifier.size(minOf(252.dp, maxWidth, (maxHeight - 34.dp).coerceAtLeast(0.dp))),
                     shape = CircleShape,
                     color = Color.White.copy(alpha = 0.96f),
                     border = BorderStroke(1.dp, accent.copy(alpha = 0.18f)),
-                    shadowElevation = 12.dp,
+                    shadowElevation = 3.dp,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Canvas(Modifier.fillMaxSize()) {
@@ -243,7 +251,7 @@ private fun NikoTopBar(
             Text(
                 text = "TU COMPAÑERO PERSONAL",
                 color = Color(0xFF71807B),
-                fontSize = 8.5.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.55.sp,
             )
@@ -251,7 +259,7 @@ private fun NikoTopBar(
 
         Surface(
             modifier = Modifier
-                .size(42.dp)
+                .size(48.dp)
                 .clickable(onClick = onSettings),
             shape = CircleShape,
             color = Color.White.copy(alpha = 0.96f),
@@ -295,7 +303,7 @@ private fun LiveStateBadge(
         shape = RoundedCornerShape(100.dp),
         color = Color.White.copy(alpha = 0.94f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
-        shadowElevation = 5.dp,
+        shadowElevation = 1.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
@@ -306,7 +314,7 @@ private fun LiveStateBadge(
             Text(
                 text = text,
                 color = Color(0xFF4E5D58),
-                fontSize = 9.5.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.9.sp,
             )
@@ -324,6 +332,7 @@ private fun ConversationGlass(
     sources: List<NikoWebSource>,
 ) {
     val uriHandler = LocalUriHandler.current
+    var showFullResponse by remember { mutableStateOf(false) }
     val accent = stateAccent(state)
     val label = when (state) {
         NikoVisualState.LISTENING -> "TE ESCUCHO"
@@ -345,7 +354,7 @@ private fun ConversationGlass(
         shape = RoundedCornerShape(26.dp),
         color = Color.White.copy(alpha = 0.96f),
         border = BorderStroke(1.dp, Color(0xFFE2E9E6)),
-        shadowElevation = 10.dp,
+        shadowElevation = 2.dp,
     ) {
         Column(modifier = Modifier.padding(horizontal = 17.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -374,7 +383,7 @@ private fun ConversationGlass(
                     Text(
                         text = label,
                         color = accent.copy(alpha = 0.90f),
-                        fontSize = 9.5.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.2.sp,
                     )
@@ -390,6 +399,9 @@ private fun ConversationGlass(
                 }
             }
 
+            if (responseText.isNotBlank() && state != NikoVisualState.LISTENING && state != NikoVisualState.THINKING) {
+                TextButton(onClick = { showFullResponse = true }) { Text("Leer respuesta completa") }
+            }
             Spacer(Modifier.height(10.dp))
             NeuralWaveform(
                 state = state,
@@ -427,13 +439,36 @@ private fun ConversationGlass(
                                 text = "${index + 1} · ${source.title}",
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                 color = Color(0xFF687670),
-                                fontSize = 9.5.sp,
+                                fontSize = 12.sp,
                                 maxLines = 1,
                             )
                         }
                     }
                 }
             }
+        }
+    }
+    if (showFullResponse) FullResponseSheet(responseText, sources) { showFullResponse = false }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FullResponseSheet(response: String, sources: List<NikoWebSource>, onDismiss: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()
+            .verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("LEO · Conversación", style = MaterialTheme.typography.titleLarge)
+            SelectionContainer { Text(response, style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface) }
+            if (sources.isNotEmpty()) Text("Fuentes consultadas", style = MaterialTheme.typography.titleMedium)
+            sources.forEachIndexed { index, source ->
+                TextButton(onClick = { runCatching { uriHandler.openUri(source.url) } }, modifier = Modifier.fillMaxWidth()) {
+                    Text("[${index + 1}] ${source.title}")
+                }
+            }
+            TextButton(onClick = onDismiss) { Text("Volver a LEO") }
         }
     }
 }
@@ -586,7 +621,7 @@ private fun PremiumBottomDock(
         shape = RoundedCornerShape(28.dp),
         color = Color.White.copy(alpha = 0.97f),
         border = BorderStroke(1.dp, Color(0xFFE0E8E4)),
-        shadowElevation = 10.dp,
+        shadowElevation = 2.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -616,7 +651,7 @@ private fun PremiumBottomDock(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                Text(status, color = Color(0xFF33413C), fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold)
+                Text(status, color = Color(0xFF33413C), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(detail, color = Color(0xFF89958F), fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
@@ -640,10 +675,10 @@ private data class QuickAction(
 )
 
 private fun stateAccent(state: NikoVisualState): Color = when (state) {
-    NikoVisualState.IDLE -> Color(0xFF3DAE9A)
-    NikoVisualState.LISTENING -> Color(0xFF24B784)
-    NikoVisualState.THINKING -> Color(0xFF766CC2)
-    NikoVisualState.SPEAKING -> Color(0xFFC9699E)
+    NikoVisualState.IDLE -> Color(0xFF176B57)
+    NikoVisualState.LISTENING -> Color(0xFF176B57)
+    NikoVisualState.THINKING -> Color(0xFF6B5792)
+    NikoVisualState.SPEAKING -> Color(0xFF916A34)
 }
 
 private fun mix(start: Color, end: Color, fraction: Float): Color {

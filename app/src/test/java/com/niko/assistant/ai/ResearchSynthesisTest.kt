@@ -45,4 +45,18 @@ class ResearchSynthesisTest {
         assertFalse(messages.getJSONObject(0).getString("content").contains("ABRÍ OUTLOOK"))
         assertTrue(messages.getJSONObject(1).getString("content").contains("ABRÍ OUTLOOK"))
     }
+
+    @Test fun acceptsConciseAnswerWithoutPaddingAndRejectsFractionalCitations() {
+        val raw = """{"resumen":[{"texto":"La evidencia disponible confirma el dato consultado.","fuentes":[1]}],"detalles":[]}"""
+        assertNotNull(ResearchSynthesis.apply(raw, original))
+        assertNull(ResearchSynthesis.apply(raw.replace("[1]", "[1.5]"), original))
+        assertNull(ResearchSynthesis.apply(raw.replace("[1]", "[\"1\"]"), original))
+    }
+    @Test fun dropsStatementsDisguisedAsFollowUpAndDuplicateClaims() {
+        val statement = "La evidencia disponible confirma el dato consultado."
+        val raw = """{"resumen":[{"texto":"$statement","fuentes":[1]}],"detalles":[{"texto":"$statement","fuentes":[1]}],"seguimiento":"El sueldo es de 9999 dolares"}"""
+        val result = ResearchSynthesis.apply(raw, original)!!
+        assertFalse(result.text.contains("9999"))
+        assertEquals(1, Regex(Regex.escape(statement)).findAll(result.text).count())
+    }
 }
