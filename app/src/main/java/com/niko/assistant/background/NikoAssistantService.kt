@@ -1284,6 +1284,7 @@ open class NikoAssistantService : Service() {
     }
     private fun scheduleConversationWindow() {
         conversationWindowJob?.cancel()
+        if (!isThinking) setActiveVoiceBusy(false)
         conversationWindowJob = serviceScope.launch {
             delay(12_000L)
             if (!destroyed && !isSpeaking && !isThinking && !isTranscribing && commandJob?.isActive != true) {
