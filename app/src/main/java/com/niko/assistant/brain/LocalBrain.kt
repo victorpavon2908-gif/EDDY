@@ -346,7 +346,7 @@ class LocalBrain {
         var total = hours * 3600 + minutes * 60 + seconds
         if (total == 0) total = (Regex("""\b(\d{1,4})\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return null) * 60
         if (total !in 1..86_400) return null
-        return AssistantCommand.SetTimer(total, "Temporizador creado por NIKO")
+        return AssistantCommand.SetTimer(total, "Temporizador creado por LEO")
     }
 
     private fun parseAlarm(text: String): AssistantCommand.SetAlarm? {
@@ -358,7 +358,7 @@ class LocalBrain {
         if ((meridiem == "pm" || text.contains("noche") || text.contains("tarde")) && hour in 1..11) hour += 12
         if ((meridiem == "am" || text.contains("manana") || text.contains("madrugada")) && hour == 12) hour = 0
         if (hour !in 0..23 || minute !in 0..59) return null
-        return AssistantCommand.SetAlarm(hour, minute, "Alarma creada por NIKO")
+        return AssistantCommand.SetAlarm(hour, minute, "Alarma creada por LEO")
     }
 
     private fun parseMaps(original: String): AssistantCommand.OpenMaps? {

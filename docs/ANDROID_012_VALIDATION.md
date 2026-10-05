@@ -10,7 +10,7 @@
 | `git diff --check` | Sin errores |
 | Gradle Android offline | Bloqueado: plugin Android 8.13.2 no disponible en caché |
 
-Las pruebas JVM cubren lógica del núcleo y audio; no ejecutan una interfaz Android ni el micrófono real. No se declara compilación Android o Lint aprobados desde este entorno. El workflow `EDDY Android tests and lint` ejecuta ambas comprobaciones en un entorno con SDK y dependencias, y adjunta informes.
+Las pruebas JVM cubren lógica del núcleo y audio; no ejecutan una interfaz Android ni el micrófono real. No se declara compilación Android o Lint aprobados desde este entorno. El workflow `LEO Android tests and lint` ejecuta ambas comprobaciones en un entorno con SDK y dependencias, y adjunta informes.
 
 ## Alcance
 

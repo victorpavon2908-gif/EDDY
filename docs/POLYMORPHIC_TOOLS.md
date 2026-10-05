@@ -1,4 +1,4 @@
-# Transformaciones multimedia — EDDY Android 0.13.0
+# Transformaciones multimedia — LEO Android 0.13.0
 
 LEO cambia su propia pantalla entre herramientas implementadas. No genera ni instala aplicaciones arbitrarias. Una transformación desconocida abre el catálogo disponible.
 
@@ -12,7 +12,7 @@ LEO cambia su propia pantalla entre herramientas implementadas. No genera ni ins
 - «LEO, buscame música de Shakira».
 - Botón **Transformarme** para elegir sin voz.
 
-El analizador también acepta Eddy como prefijo del texto. La palabra de activación acústica sigue siendo **LEO**. Las transformaciones reconocidas se ejecutan localmente, antes de la búsqueda web; no esperan una respuesta del modelo.
+Por compatibilidad, el analizador conserva alias de nombres antiguos como `Eddy`; no son nombres actuales del producto. La palabra de activación acústica sigue siendo **LEO**. Las transformaciones reconocidas se ejecutan localmente, antes de la búsqueda web; no esperan una respuesta del modelo.
 
 ## Cámara y grabación
 Cámara frontal/trasera, fotografía JPEG y video MP4 con audio mediante CameraX. Video HD con calidad alternativa según dispositivo. Audio AAC/M4A. Los botones inician y detienen la captura; entrar en la herramienta no inicia una grabación.

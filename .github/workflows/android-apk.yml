@@ -1,4 +1,4 @@
-name: NIKO requested APK
+name: LEO requested APK
 
 # APK delivery is explicit: Run workflow, or create this release request branch.
 # Ordinary commits and pull requests continue to run tests/lint only.
@@ -66,20 +66,20 @@ jobs:
           signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           "$signer" sign --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android \
-            --out delivery/Niko-0.7.0-arm64.apk "$apk"
-          "$signer" verify --verbose --print-certs delivery/Niko-0.7.0-arm64.apk \
+            --out delivery/LEO-0.7.0-arm64.apk "$apk"
+          "$signer" verify --verbose --print-certs delivery/LEO-0.7.0-arm64.apk \
             | tee "$RUNNER_TEMP/niko-signature.txt"
           actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/niko-signature.txt")
           test "$actual" = "$(cat "$RUNNER_TEMP/niko-signing-sha256")"
           cp "$RUNNER_TEMP/niko-signing-sha256" delivery/SIGNING_CERT_SHA256
           cd delivery
-          sha256sum Niko-0.7.0-arm64.apk > SHA256SUMS
+          sha256sum LEO-0.7.0-arm64.apk > SHA256SUMS
           git rev-parse HEAD > SOURCE_COMMIT
 
-      - name: Upload requested Niko APK
+      - name: Upload requested LEO APK
         uses: actions/upload-artifact@v4
         with:
-          name: Niko-0.7.0-arm64
+          name: LEO-0.7.0-arm64
           path: delivery/
           if-no-files-found: error
           retention-days: 14

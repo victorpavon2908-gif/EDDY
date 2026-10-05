@@ -1,6 +1,8 @@
-# EDDY · Android 0.13.1
+# LEO · Android 0.13.1
 
 Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
+La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad para auditoría](docs/IDENTIDAD_LEO.md).
+
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
 
 ## Abrir y validar
@@ -65,7 +67,7 @@ La revisión anterior `eae91c6` aprobó pruebas Android y Lint en GitHub (ejecuc
 
 ## Transformaciones multimedia 0.13.0
 
-Botón **Transformarme** y órdenes como «LEO, conviértete en una cámara» abren herramientas dentro de EDDY: cámara, video con audio, grabadora de audio y música, junto a la calculadora, cronómetro y demás utilidades existentes.
+Botón **Transformarme** y órdenes como «LEO, conviértete en una cámara» abren herramientas dentro de LEO: cámara, video con audio, grabadora de audio y música, junto a la calculadora, cronómetro y demás utilidades existentes.
 
 - Cámara frontal/trasera, captura y exportación de archivos privados.
 - Grabación con permisos, pausa exclusiva del micrófono del asistente y liberación al terminar.

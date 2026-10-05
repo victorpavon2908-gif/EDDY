@@ -1,4 +1,4 @@
-name: EDDY web companion tests
+name: LEO web companion tests
 on:
   push:
     branches: [main, leo-v2-staging]

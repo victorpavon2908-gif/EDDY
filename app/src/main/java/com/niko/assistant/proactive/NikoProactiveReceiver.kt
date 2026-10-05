@@ -29,16 +29,16 @@ open class NikoProactiveReceiver : BroadcastReceiver() {
         }
 
         val message = intent.getStringExtra(EXTRA_MESSAGE)?.takeIf { it.isNotBlank() }?.let(UpgradeIdentity::reminderText)
-            ?: "NIKO tiene una sugerencia para ti."
+            ?: "LEO tiene una sugerencia para ti."
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 4_201)
 
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Sugerencias de NIKO",
+            "Sugerencias de LEO",
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
-            description = "Avisos proactivos basados en tus patrones de uso de NIKO."
+            description = "Avisos proactivos basados en tus patrones de uso de LEO."
         }
         manager.createNotificationChannel(channel)
 
@@ -54,7 +54,7 @@ open class NikoProactiveReceiver : BroadcastReceiver() {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_niko_notification)
-            .setContentTitle("NIKO")
+            .setContentTitle("LEO")
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setContentIntent(pendingIntent)

@@ -1,6 +1,6 @@
-# Open-source UI references used by NIKO
+# Open-source UI references used by LEO
 
-NIKO's interface is original to this repository, but selected interaction and animation ideas were studied from open-source projects and then rewritten/adapted for Jetpack Compose.
+LEO's interface is original to this repository, but selected interaction and animation ideas were studied from open-source projects and then rewritten/adapted for Jetpack Compose.
 
 ## ai-assistant-android
 
@@ -8,7 +8,7 @@ NIKO's interface is original to this repository, but selected interaction and an
 - Relevant source: `app/src/main/java/com/app/assistant/ui/screen/HandsFreeBar.kt`
 - License: MIT
 - Copyright: Copyright (c) 2025 Sourav Anand
-- Use in NIKO: conceptual reference for state-driven organic blob motion, breathing, listening motion and speaking equalizer behavior. NIKO's implementation, layout, palette, particle system, neural core and monogram are custom.
+- Use in LEO: conceptual reference for state-driven organic blob motion, breathing, listening motion and speaking equalizer behavior. LEO's implementation, layout, palette, particle system, neural core and monogram are custom.
 
 MIT License notice:
 
@@ -20,4 +20,4 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 - Project: `canopas/compose-animations-examples`
 - License: Apache License 2.0
-- Use in earlier NIKO iterations: reference for staggered expanding-wave animation patterns. The current 0.9.4 neural-core renderer uses a custom implementation.
+- Use in earlier LEO iterations: reference for staggered expanding-wave animation patterns. The current 0.9.4 neural-core renderer uses a custom implementation.

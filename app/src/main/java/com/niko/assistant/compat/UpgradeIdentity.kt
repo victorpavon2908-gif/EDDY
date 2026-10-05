@@ -42,5 +42,5 @@ object UpgradeIdentity {
     fun assistantService(context: Context): Intent = Intent().setClassName(context, "com.eddy.assistant.background.EddyAssistantService")
     fun wakeActivity(context: Context): Intent = Intent().setClassName(context, "com.eddy.assistant.EddyWakeActivity")
     fun proactiveReceiver(context: Context): Intent = Intent().setClassName(context, "com.eddy.assistant.proactive.EddyProactiveReceiver")
-    fun reminderText(text: String): String = text.replace(Regex("(?i)\\beddy\\b"), "Niko")
+    fun reminderText(text: String): String = text.replace(Regex("(?i)\\b(?:eddy|niko)\\b"), "LEO")
 }

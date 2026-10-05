@@ -31,7 +31,7 @@ class LocalSmartHomeClient(private val context: Context) {
         if (baseUrl.isBlank() || token.isBlank()) {
             return@withContext ActionResult(
                 false,
-                "Primero configurá tu casa inteligente. Decime: NIKO, configura casa inteligente.",
+                "Primero configurá tu casa inteligente. Decime: LEO, configura casa inteligente.",
             )
         }
 

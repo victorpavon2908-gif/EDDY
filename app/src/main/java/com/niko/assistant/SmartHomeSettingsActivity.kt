@@ -62,7 +62,7 @@ class SmartHomeSettingsActivity : ComponentActivity() {
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "Conectá NIKO con Home Assistant usando la dirección local y un token de larga duración. Los datos quedan guardados solo en este teléfono.",
+                            text = "Conectá LEO con Home Assistant usando la dirección local y un token de larga duración. Los datos quedan guardados solo en este teléfono.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(Modifier.height(18.dp))
@@ -111,7 +111,7 @@ class SmartHomeSettingsActivity : ComponentActivity() {
 
                         if (saved) {
                             Spacer(Modifier.height(12.dp))
-                            Text("Listo. Ya podés decir: “NIKO, apagá la luz de la sala”.")
+                            Text("Listo. Ya podés decir: “LEO, apagá la luz de la sala”.")
                         }
                     }
                 }

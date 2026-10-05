@@ -21,6 +21,6 @@ El script de streaming requiere el JAR `org.json:json:20250517` y las librerías
 
 ## Comprobación en teléfono pendiente
 
-Con Groq configurado, pedir una explicación de varias frases y comprobar que EDDY empieza a hablar mientras el texto continúa. Interrumpir a mitad de frase y comprobar que no reaparece audio del turno anterior. Repetir sin red, con una caída a mitad de respuesta, sin clave, con órdenes locales y con una búsqueda que requiera fuentes. Comparar 20 turnos equivalentes y reportar mediana y percentil 95 de `Orden → primer texto` y `Orden → primer sonido`.
+Con Groq configurado, pedir una explicación de varias frases y comprobar que LEO empieza a hablar mientras el texto continúa. Interrumpir a mitad de frase y comprobar que no reaparece audio del turno anterior. Repetir sin red, con una caída a mitad de respuesta, sin clave, con órdenes locales y con una búsqueda que requiera fuentes. Comparar 20 turnos equivalentes y reportar mediana y percentil 95 de `Orden → primer texto` y `Orden → primer sonido`.
 
 Esas mediciones arrancan cuando el servicio acepta la orden ya transcrita; la latencia ASR se muestra por separado. No se promete un número de milisegundos ni equivalencia de velocidad/calidad con ChatGPT. El TTS neural de respaldo puede introducir pausas de síntesis entre frases; verificar ambas voces en dispositivo.

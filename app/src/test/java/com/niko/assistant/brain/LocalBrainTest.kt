@@ -233,7 +233,7 @@ class LocalBrainTest {
     @Test
     fun createsTimerInMinutes() {
         assertEquals(
-            AssistantCommand.SetTimer(180, "Temporizador creado por NIKO"),
+            AssistantCommand.SetTimer(180, "Temporizador creado por LEO"),
             brain.understand("pon un temporizador de 3 minutos"),
         )
     }

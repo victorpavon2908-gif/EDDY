@@ -203,7 +203,7 @@ class NikoMemory(context: Context) {
     }
 
     fun proactiveMessage(command: AssistantCommand): String? = when (command) {
-        is AssistantCommand.OpenApp -> "Sos de abrir ${command.app.displayName} a esta hora. NIKO está listo si lo ocupás."
+        is AssistantCommand.OpenApp -> "Sos de abrir ${command.app.displayName} a esta hora. LEO está listo si lo ocupás."
         AssistantCommand.OpenCamera -> "Sos de usar la cámara a esta hora. Aquí estoy por si la ocupás."
         is AssistantCommand.OpenMaps -> "Sos de consultar mapas a esta hora. Puedo ayudarte con una ruta cuando querás."
         else -> null

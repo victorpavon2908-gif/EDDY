@@ -1,6 +1,6 @@
 # Third-party UI references
 
-NIKO's premium assistant interface was redesigned after reviewing open-source Jetpack Compose projects. The NIKO implementation is adapted to its own runtime state model and is not a vendored copy of those projects.
+LEO's premium assistant interface was redesigned after reviewing open-source Jetpack Compose projects. The LEO implementation is adapted to its own runtime state model and is not a vendored copy of those projects.
 
 ## AI Assistant for Android
 
@@ -22,6 +22,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 Repository: `lincollincol/compose-audiowaveform`
 
-Reviewed as a design/API reference for centered rounded-spike waveforms in Jetpack Compose. NIKO keeps its own lightweight Canvas implementation and does not bundle that library.
+Reviewed as a design/API reference for centered rounded-spike waveforms in Jetpack Compose. LEO keeps its own lightweight Canvas implementation and does not bundle that library.
 
 License: Apache-2.0.

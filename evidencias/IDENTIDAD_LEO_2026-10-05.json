@@ -1,0 +1,349 @@
+{
+  "revision_base": "b20e0dd5f298de07f83fc17cccb2af12f187f4dd",
+  "comprobacion": "Comparación exacta de archivos protegidos contra git y comparación del analizador permitiendo solo dos etiquetas visibles.",
+  "archivos_protegidos": 68,
+  "resultado": "APROBADO",
+  "analizador_solo_etiquetas": true,
+  "archivos": [
+    {
+      "archivo": "app/build.gradle.kts",
+      "sha256": "76c092d67b6de670e5679609fa386e130e9d1de5e6af7370089dd551e5430ceb",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/AndroidManifest.xml",
+      "sha256": "490ac56fa98ecf1d12663a3b0601a92a0d66d21acd35a0ce08728221c0595458",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/AutonomousResearch.kt",
+      "sha256": "49504778a788a91305cad136284db58fba9ce1a23592f34d3b2cda925f9bc1de",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/ConversationContext.kt",
+      "sha256": "db91ec672099d6e3cc35dba19969802a688e834cdb20e36e11b1849f9bcdd0cc",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/ConversationCoordinator.kt",
+      "sha256": "252ce5da6119a633dd412ed82863773001fa16d863e9346c92776b7a4f9d3c28",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/GeneratedToolPlanner.kt",
+      "sha256": "6f7a2ab2477da3c8e785bc2c0e9431410b68b6af53b0a1e51994671a7bf6018e",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/GroqConversation.kt",
+      "sha256": "e67f4c43740c5ea564546b3bda030c06b7f5ba33665969bb2335c6513189bf1d",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/GroqGateway.kt",
+      "sha256": "7b9e7ab67437b24a7c471aa571a9df6183162a6fe010af843f0cd568a82fd858",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/GroqHttpClient.kt",
+      "sha256": "3342b2e3b043e0f6453c016d40c02e702fbe3b3d06f2111f4c5f1fb6aa420cd2",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/GroqProtocol.kt",
+      "sha256": "fde213babb2fbe8ecc1ed17031cd2e4b9a710f5f851fd9af981e114bdb0437d0",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/GroqSseReader.kt",
+      "sha256": "cffcb5767d91ddb9c7a921d11ceaa06bcffcf3b2394dee3824c7a548c4928318",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/GroqStreamTransport.kt",
+      "sha256": "d4b9c29e6b060fc31564a4560e23ec8afd8e006247c8667a92377ad7a6c9939b",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/LeoBrand.kt",
+      "sha256": "0e08094a6e642f1c6375d146a85040e5109a1299f25c5eae5e35d8abc4cdb9f8",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt",
+      "sha256": "6a0937690cfbe3a95c8d682f44c77ec5a2b3a5e13454aff94df9ef1215c7d6d2",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/LeoStructuredGroq.kt",
+      "sha256": "750aeb523462ceeacd923d51620949c4c3b389b03134f7ef2c957c97a759fcf8",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoActionPlanner.kt",
+      "sha256": "2711e5f50f754b6308bdc79174c00744396f559037d0b1eb2cd225e6a8889529",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoAiClient.kt",
+      "sha256": "bfe88b78bbd8b787cb8b5a75525e1baa4d2a7604960cc52b3fa69ed476e69db0",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt",
+      "sha256": "bfc717287511eb3ece134dbbec8107d57e6cb1002fa05445415400e8ebdd46e9",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoAiSettings.kt",
+      "sha256": "edcc2fe566491829e735113a350903eb8fc667ad04b1566115475d8ff0fadb54",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoBackendPrewarmer.kt",
+      "sha256": "8775c3a9a2a03c99393d4e15507dae793fcd0e6267452e3a2c465b72f38b0a45",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoFallbackConversation.kt",
+      "sha256": "3e2f57b8297acf2e1d018c8c6454807e4af9dea982bce60f6926fe6d9beae834",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoGroqClient.kt",
+      "sha256": "2158f9de5a3f9dcdf49968838014b599167e8f700ea058282188db3187943419",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoIdentity.kt",
+      "sha256": "07441adf57f54fe938bf6f9f741fd93f0399688ceccb927e7e81789c7a5d267a",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/NikoPersonality.kt",
+      "sha256": "ab23adecb9a0f1d10b7f3446f112bade97daa9161f55ff1b4c7e8bad5cd2fe91",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/ResearchQuality.kt",
+      "sha256": "9eb3007f49c296b79812a7bdb9d8e739687b2ce51d8d9c328b5bbe5fc361f217",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/ai/ResearchSynthesis.kt",
+      "sha256": "fb0946ef8c7fd100cb975ade2669599177091ed21ab1a9f24935c586d2ede9a7",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/background/NikoAssistantService.kt",
+      "sha256": "aab93bff83c1c50489dfdb1f0b056078528e44678486b9d4a38e9b88dccb19dd",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/background/NikoRuntimeState.kt",
+      "sha256": "35a336c216d2fa87a8e00711ee5333fb2c46e42f03a51e830fd390bd8d380ac0",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/background/NikoVoiceSettings.kt",
+      "sha256": "809b2757c5cb168b823960b4f44056d33e3b7851ac569ac36b2760395d267264",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/LeoBrainStorage.kt",
+      "sha256": "01e70b088100114e524289df80c4b43e51ec70af933779007dc49a9f7b05422e",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/LeoFrozenBrainManager.kt",
+      "sha256": "d2304e6e9c8383dfcf43a2d0eb5a508bc62d9180ad693bb17d80f3ef191d5c27",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/LeoFrozenKnowledgeStore.kt",
+      "sha256": "c92caea973ce907d3ecc9eedb710b7e5cefe736f6e9e4270404d84bd36dbd28e",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/LeoMicroGptAsset.kt",
+      "sha256": "fa99d6db9a679bd5c49179265dce86aa470567179597829f7ac1587211a3723f",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/LeoMicroGptCore.kt",
+      "sha256": "098848e5b4042cf8fa511af48f6bff6c8de937bdf838a0b7174397e6841e4a76",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/LeoMicroGptGate.kt",
+      "sha256": "92df37c4c514380025889027fb6a55cfb32d078c2eeaf90e34be23ffd38ef096",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/LocalConversationPrompt.kt",
+      "sha256": "5804388741c46fc8cd7d571ad0b34f97f73f167373d8eed65795f84aa3906598",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/NikoDeviceProfile.kt",
+      "sha256": "ef02db65644a5c7fa0d2c589ca840c7f8f6f7ef86134e405ff909c2933dcb47f",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/NikoLocalLlm.kt",
+      "sha256": "ef3a5bfb29b5c2335c6bd2ba5d10f6da2f74b1b9214430d7de2e24960ab4e8b2",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/NikoModelCatalog.kt",
+      "sha256": "82e1628d3d0ca90c7d9590aeb020420134c1bffb8c55674960fd2394d8eea9f2",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/NikoModelManager.kt",
+      "sha256": "3ef65733ed55dd4adb5f844e25af328cbee6436c1c65cd4c6fdde55dc2c56184",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/localai/NikoVoiceProfile.kt",
+      "sha256": "470e9b084ff613ad56f3d21fa78631910657d9eedaccb756307f50eaff0afe8e",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/FaithfulSpeechTranscriber.kt",
+      "sha256": "c5cc89c96e8f46cc013eb3b38f1aee5907a7a747376eba5e523810fa96fee918",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/FarFieldAudioEnhancer.kt",
+      "sha256": "51fff6346b9fa3ba51bf31e45ce1f7b37fb166c4dcc4dd2c9acb601bd84d1857",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/LeoPassiveWakeVerifier.kt",
+      "sha256": "eb2e9acaf45d41c05cb045a279747c0e4ec5469dd61647aa1919c25fb8774704",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/LeoPlatformVoiceEngine.kt",
+      "sha256": "68babefd0e923c5efe024a469775346aa81203eaef515a7091870049905e34c4",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/LeoRealtimeTurnBus.kt",
+      "sha256": "aae7ae472202b2a95184ee8956775bf3227caf12095ead9a42217a0f04214463",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/LeoVoiceDiagnostics.kt",
+      "sha256": "f0ffa03bd58eec032d9c25bc5ac7101ae2c4615376cab22f3b8130bdea4b3ff8",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/LeoVoiceMetrics.kt",
+      "sha256": "5b90d1e7ff7f3e4fef12cfb1f0bec9cd536ba263ec204a2f8d933d3bd6ecefa8",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/LeoVoiceTuning.kt",
+      "sha256": "644dfcfb786d8e1b612a0670a8e5aea13308d1f9d28a8b907d17ef111e7dec72",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/NikoEmotionEngine.kt",
+      "sha256": "e1b1c53c63a965d6c3b8431c8cce655a846a3f29f1349e0eabadf9bf7d23ab7c",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/NikoKeywordConfig.kt",
+      "sha256": "f24cae1cf04de420df37a85bf3f86ba15899787bbb8548e30313cbb32e33609d",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/NikoLocalVoiceEngine.kt",
+      "sha256": "be67cc53e0f04f17f7672cfa5b54e441fb073ca15a646e381f4abb0dea7ac33f",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/NikoNeuralTextToSpeech.kt",
+      "sha256": "9ffaa2aa5e058a916fada344a6981cb2074dbb518b71eb602274e92782ac2ecc",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/NikoTextToSpeech.kt",
+      "sha256": "0b0cba5ae72696693a586f375d9aab4866f4044e142460ab8c36f9e1d5c8a53b",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/OfflineVoiceSelector.kt",
+      "sha256": "b52ac65f70a6baa39e95a73ce932334fcda846fdf734f2c6f9d9e3bb773878dc",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/OwnerVoicePolicy.kt",
+      "sha256": "ce2618005fb6491c777467a0aa92d2ad437c55423757d7c1af6e48710925d2bb",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/PcmPreRoll.kt",
+      "sha256": "370fdf6f0e5d686ed14276021845cbd8b9ddf0ac07e400a8f1bd64fa2fedf9ab",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/ProgressiveSpeech.kt",
+      "sha256": "e26d554639be56cc56ecbaedd1b19806f04c56daf3b353e6db038a60660572f7",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/SpeechAudioFidelity.kt",
+      "sha256": "4130e7d599642b4cfe19bca07c3c7f0f59644b349a603f27246defe438d37a45",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/SpeechAudioHistory.kt",
+      "sha256": "a9e992831864151e296239e596c8a26226ef46fd37b56115dbcbf35fd80f62db",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/SpeechOutputPolicy.kt",
+      "sha256": "b4a2106e34b31b0b4529005a4f2ad82e92d0199af042f361a8197a4b1ee0bdff",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/SpeechProsody.kt",
+      "sha256": "8d32fcf45997867418dcad10b36c85dfd5bdafc75cac6961e702d4968bcd5f26",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/SpeechStartGate.kt",
+      "sha256": "6aecc6a9b7826b6e90274c66b19ddf525ba6e57b95142dfad660ed776a1d5ffb",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/TranscriptQuality.kt",
+      "sha256": "639c2b9a2baec7b8a3e38e06ca0b19d944fc12fe322f81db03c3c4ffa6ba0b90",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/VoiceControl.kt",
+      "sha256": "25973f0e53e41cb8ca2047a2d17a6e7c34ec2b8aef624cb131d7fed0db1617c7",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/VoiceRecoveryPolicy.kt",
+      "sha256": "8835316101f7f2ef2802f56b0bbecd87a78d907e638b82153947cea1ad5a2c15",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/WakeCommandWindow.kt",
+      "sha256": "cd314dcc36863c3682c80a3a489e359f91ed2e7dfb2f361c311b57cb5744c35d",
+      "sin_cambios": true
+    },
+    {
+      "archivo": "app/src/main/java/com/niko/assistant/voice/WakeWordGate.kt",
+      "sha256": "5806ca510a3a58f10760033874d24f3b803424f6e244ef17e91f99642859771f",
+      "sin_cambios": true
+    }
+  ]
+}

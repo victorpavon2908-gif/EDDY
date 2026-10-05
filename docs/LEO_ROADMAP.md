@@ -1,7 +1,7 @@
-# NIKO - arquitectura y hoja de ruta
+# LEO - arquitectura y hoja de ruta
 
 ## Objetivo
-NIKO debe ser la interfaz personal del teléfono: escuchar lenguaje natural, entender la intención, crear un plan de acciones, ejecutar ese plan y aprender localmente para depender cada vez menos de APIs.
+LEO debe ser la interfaz personal del teléfono: escuchar lenguaje natural, entender la intención, crear un plan de acciones, ejecutar ese plan y aprender localmente para depender cada vez menos de APIs.
 
 ## Flujo
 1. Voz / wake word.
@@ -21,9 +21,9 @@ NIKO debe ser la interfaz personal del teléfono: escuchar lenguaje natural, ent
 - NikoAccessibilityService registrado para control visual del dispositivo.
 
 ## Ejemplos
-- "NIKO, haceme el favor y prendeme la linterna" -> SET_TORCH(true)
-- "NIKO, entra a WhatsApp y prende la linterna" -> OPEN_APP(WhatsApp), SET_TORCH(true)
-- "NIKO, bajame el volumen y abre Spotify" -> VOLUME_DOWN, OPEN_APP(Spotify)
+- "LEO, haceme el favor y prendeme la linterna" -> SET_TORCH(true)
+- "LEO, entra a WhatsApp y prende la linterna" -> OPEN_APP(WhatsApp), SET_TORCH(true)
+- "LEO, bajame el volumen y abre Spotify" -> VOLUME_DOWN, OPEN_APP(Spotify)
 
 ## Próxima sesión: APIs
 La aplicación no debe quedar acoplada a un proveedor. Se implementará un gateway propio que reciba texto + memoria + capacidades y devuelva JSON validable, por ejemplo:
@@ -47,10 +47,10 @@ Prioridad de ejecución:
 2. Intent Android.
 3. AccessibilityService para click, texto, scroll, atrás, inicio, recientes y paneles.
 
-El usuario debe habilitar NIKO Device Control manualmente en Ajustes > Accesibilidad. Android seguirá exigiendo intervención humana para PIN/huella, permisos críticos, instalaciones protegidas y confirmaciones financieras.
+El usuario debe habilitar LEO Device Control manualmente en Ajustes > Accesibilidad. Android seguirá exigiendo intervención humana para PIN/huella, permisos críticos, instalaciones protegidas y confirmaciones financieras.
 
 ## Memoria
-NIKO consulta memoria local antes de consumir API. Se almacenan conversación reciente, preferencias, patrones y respuestas reutilizables. Información web debe caducar más rápido que conocimiento general.
+LEO consulta memoria local antes de consumir API. Se almacenan conversación reciente, preferencias, patrones y respuestas reutilizables. Información web debe caducar más rápido que conocimiento general.
 
 ## Principio de hardware
 Gama baja primero. El teléfono no debe cargar modelos grandes por defecto. La IA pesada se mueve al gateway/API y el dispositivo se concentra en voz, memoria, seguridad y ejecución.

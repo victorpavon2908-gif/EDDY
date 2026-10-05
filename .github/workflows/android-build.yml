@@ -1,4 +1,4 @@
-name: EDDY Android tests and lint
+name: LEO Android tests and lint
 on:
   push:
     branches: [main, leo-v2-staging]

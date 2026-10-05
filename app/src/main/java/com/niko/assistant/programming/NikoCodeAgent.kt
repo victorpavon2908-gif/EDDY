@@ -42,7 +42,7 @@ class NikoCodeAgent(context: Context) {
             CapabilityPlan(
                 capability = request.take(120),
                 strategy = Strategy.DECLARATIVE_SKILL,
-                explanation = "Puede construirse como skill declarativo dentro de NIKO sin reemplazar el APK.",
+                explanation = "Puede construirse como skill declarativo dentro de LEO sin reemplazar el APK.",
                 safeToActivateWithoutApkUpdate = true,
             )
         } else {

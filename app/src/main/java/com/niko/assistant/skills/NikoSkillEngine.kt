@@ -70,8 +70,8 @@ class NikoSkillEngine(context: Context) {
             val stored = readRegistry()
             val current = stored.map { skill ->
                 if (skill.learned) skill else when (skill.id) {
-                    "calculator" -> skill.copy(description = "Calculadora integrada de Niko")
-                    "stopwatch" -> skill.copy(description = "Cronómetro integrado de Niko")
+                    "calculator" -> skill.copy(description = "Calculadora integrada de LEO")
+                    "stopwatch" -> skill.copy(description = "Cronómetro integrado de LEO")
                     else -> skill
                 }
             }
@@ -80,8 +80,8 @@ class NikoSkillEngine(context: Context) {
         }
         writeRegistry(
             listOf(
-                Skill("calculator", "Calculadora", "calculator", description = "Calculadora integrada de NIKO"),
-                Skill("stopwatch", "Cronómetro", "stopwatch", description = "Cronómetro integrado de NIKO"),
+                Skill("calculator", "Calculadora", "calculator", description = "Calculadora integrada de LEO"),
+                Skill("stopwatch", "Cronómetro", "stopwatch", description = "Cronómetro integrado de LEO"),
                 Skill("timer", "Temporizador", "timer", description = "Temporizador por voz y sistema Android"),
                 Skill("programmer", "Programador experto", "programming", description = "Asistencia experta para diseño, código, depuración y arquitectura"),
             ),
