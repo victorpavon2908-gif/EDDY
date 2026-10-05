@@ -225,7 +225,7 @@ class LocalBrainTest {
     @Test
     fun createsEveningAlarm() {
         assertEquals(
-            AssistantCommand.SetAlarm(19, 30, "Alarma creada por NIKO"),
+            AssistantCommand.SetAlarm(19, 30, "Alarma creada por LEO"),
             brain.understand("pon una alarma a las 7:30 pm"),
         )
     }
