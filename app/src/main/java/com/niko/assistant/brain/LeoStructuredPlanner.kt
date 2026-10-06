@@ -85,8 +85,10 @@ class LeoStructuredPlanner(
         if (!looksLikeActionRequest(original)) return fallback(original, "sin intención de acción")
 
         val prompt = buildPrompt(input.copy(recentContext = input.recentContext.ifBlank { recentContext() }))
-        val raw = runCatching { structuredCompletion(prompt) }.getOrNull()
-            ?: return fallback(original, "Groq no disponible")
+        val raw = try { structuredCompletion(prompt) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { null }
+        if (raw == null) return fallback(original, "Groq no disponible")
 
         val semantic = parseDsl(raw)
         if (semantic.isEmpty()) return fallback(original, "plan semántico vacío o inválido")

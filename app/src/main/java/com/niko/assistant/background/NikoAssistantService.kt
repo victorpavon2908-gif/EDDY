@@ -143,6 +143,7 @@ open class NikoAssistantService : Service() {
     private val adaptiveLoading = AtomicBoolean(false)
     private val learningMutex = Mutex()
     private var lastTrainableUtterance: String? = null
+    private var lastCommandSucceeded = false
     private var replyProsody = SpeechProsody()
     private val speechOutput = SpeechOutputPolicy()
     private var localVoice: NikoLocalVoiceEngine? = null
@@ -193,14 +194,25 @@ open class NikoAssistantService : Service() {
     private var isTranscribing = false
     private var commandJob: Job? = null
     private var progressiveSpeech: ProgressiveSpeech? = null
-    private var turnEpoch = 0L
-    private val turnInterrupter: () -> Unit = { serviceScope.launch { interruptCurrentTurn() }; Unit }
+    private val agent = com.niko.assistant.agent.LeoAgentRuntime()
+    private val taskExecutor = com.niko.assistant.agent.LeoTaskExecutor()
+    private val skillRegistry by lazy {
+        com.niko.assistant.skills.LeoSkillRegistry().also {
+            com.niko.assistant.skills.LeoBuiltInSkills.install(it, ::dispatchDirectCommand)
+        }
+    }
+    private val turnEpoch: Long get() = agent.turns.current
+    private val turnInterrupter: () -> Unit = {
+        agent.turns.cancel() // Invalidate producer callbacks before posting to the main thread.
+        serviceScope.launch { interruptCurrentTurn() }; Unit
+    }
     private var speechTimeout: Job? = null
     private var continueAfterSpeech = false
     private var recoveryJob: Job? = null
     private val voiceRecovery = VoiceRecoveryPolicy()
     private var initializationFailure: NikoLocalVoiceEngine.InitializationFailure? = null
-    private val companionInitiative = com.niko.assistant.proactive.CompanionInitiative()
+    private val initiativeStore by lazy { com.niko.assistant.proactive.LeoInitiativeStore(applicationContext) }
+    private val companionInitiative by lazy { com.niko.assistant.proactive.LeoInitiativeEngine().apply { restore(initiativeStore.read()) } }
     private var initiativeJob: Job? = null
     private var conversationWindowJob: Job? = null
     private var isListening = false
@@ -297,10 +309,18 @@ open class NikoAssistantService : Service() {
                     !isListening && !isThinking && !isSpeaking && !isTranscribing &&
                     commandJob?.isActive != true && !CaptureGate.held &&
                     !activeVoiceMicrophoneSilenced() && platformTts.isReady
-                val invitation = companionInitiative.invitation(SystemClock.elapsedRealtime(),
-                    NikoAiSettings.companionInitiative(applicationContext), available)
+                val now = System.currentTimeMillis()
+                val calendar = java.util.Calendar.getInstance()
+                val enabled = NikoAiSettings.companionInitiative(applicationContext)
+                val candidates = if (enabled && available) withContext(Dispatchers.IO) { memory.initiativeCandidates(now) } else emptyList()
+                // Recheck after IO; a user may have started speaking while evidence was loading.
+                val stillAvailable = available && !isListening && !isThinking && !isSpeaking && !isTranscribing && commandJob?.isActive != true
+                val invitation = companionInitiative.decide(now,
+                    "${calendar.get(java.util.Calendar.YEAR)}-${calendar.get(java.util.Calendar.DAY_OF_YEAR)}",
+                    calendar.get(java.util.Calendar.HOUR_OF_DAY), enabled, stillAvailable, candidates)
+                initiativeStore.save(companionInitiative.state)
                 if (invitation != null) {
-                    try { speakResponse(invitation) }
+                    try { speakResponse(invitation.text) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (error: Exception) {
                         com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("CompanionInitiative", error)
@@ -317,7 +337,7 @@ open class NikoAssistantService : Service() {
         destroyed = true
         CaptureGate.pauseVoice = null
         CaptureGate.resumeVoice = null
-        ++turnEpoch
+        agent.interrupt()
         LeoRealtimeTurnBus.unregisterTurnInterrupter(turnInterrupter)
         LeoVoiceDiagnostics.cancelResponseTiming()
         progressiveSpeech?.cancel()
@@ -666,7 +686,7 @@ open class NikoAssistantService : Service() {
     private fun interruptCurrentTurn() {
         if (destroyed) return
         conversationWindowJob?.cancel()
-        ++turnEpoch
+        agent.interrupt()
         RobotMotionBus.clear()
         LeoVoiceDiagnostics.cancelResponseTiming()
         progressiveSpeech?.cancel()
@@ -687,9 +707,11 @@ open class NikoAssistantService : Service() {
     private fun submitCommand(text: String) {
         if (destroyed) return
         conversationWindowJob?.cancel()
-        companionInitiative.interacted(SystemClock.elapsedRealtime())
+        companionInitiative.interacted(System.currentTimeMillis(), com.niko.assistant.memory.MemoryLearning.key(text) in setOf("no", "mejor no", "ahora no"))
+        initiativeStore.save(companionInitiative.state)
         VoiceControl.parse(text)?.let { control ->
-            companionInitiative.silence(SystemClock.elapsedRealtime())
+            companionInitiative.silence(System.currentTimeMillis())
+            initiativeStore.save(companionInitiative.state)
             interruptCurrentTurn()
             LeoRealtimeTurnBus.interruptSpeech()
             cancelActiveVoiceConversation()
@@ -708,8 +730,12 @@ open class NikoAssistantService : Service() {
             updateVisualState()
             return
         }
-        if (isSpeaking || isThinking || commandJob?.isActive == true) return
-        val epoch = ++turnEpoch
+        if (isSpeaking || isThinking || commandJob?.isActive == true) {
+            interruptCurrentTurn()
+            LeoRealtimeTurnBus.interruptSpeech()
+        }
+        val turn = agent.begin(text)
+        val epoch = turn.generation
         LeoVoiceDiagnostics.recordResponseStarted()
         isListening = false
         isThinking = true
@@ -722,7 +748,7 @@ open class NikoAssistantService : Service() {
         commandJob = serviceScope.launch {
             try {
                 val completed = withTimeoutOrNull(COMMAND_EXECUTION_TIMEOUT_MS) {
-                    handleCommand(text)
+                    withContext(turn) { handleCommand(text) }
                     true
                 } == true
                 if (!completed && epoch == turnEpoch && !destroyed) {
@@ -761,6 +787,27 @@ open class NikoAssistantService : Service() {
     }
 
     private suspend fun handleCommand(rawText: String) {
+        agent.turns.checkpoint()
+        when (val confirmation = agent.confirmation(rawText)) {
+            is com.niko.assistant.agent.LeoAgentRuntime.ConfirmationReply.Approved -> {
+                if (confirmation.command == AssistantCommand.ClearMemory) {
+                    clearLocalMemory()
+                    agent.conversation.clear()
+                    initiativeStore.clear()
+                    companionInitiative.restore(com.niko.assistant.proactive.LeoInitiativeEngine.State())
+                    speakResponse("Borré mi memoria local.")
+                    return
+                }
+            }
+            com.niko.assistant.agent.LeoAgentRuntime.ConfirmationReply.Rejected -> {
+                speakResponse("De acuerdo. Conservé tu memoria.")
+                return
+            }
+            com.niko.assistant.agent.LeoAgentRuntime.ConfirmationReply.None -> Unit
+        }
+        // Persist user before assistant for every route; no detached history writer can reorder turns.
+        withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
+        agent.turns.checkpoint()
         val initiativeOrder = rawText.lowercase(java.util.Locale.ROOT).trim().trimEnd('.', '!', '?')
             .replace("conversación", "conversacion").replace("espontánea", "espontanea")
         when (initiativeOrder) {
@@ -811,7 +858,6 @@ open class NikoAssistantService : Service() {
         }
 
         // Memoria y conversación quedan después de todas las acciones inmediatas.
-        withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
         // Tool transformations are local and must not become web research requests.
         val directTool = com.niko.assistant.brain.LocalBrain().understandMany(text).singleOrNull()
         if (directTool is AssistantCommand.OpenAppByName &&
@@ -823,6 +869,11 @@ open class NikoAssistantService : Service() {
             rememberCorrectedAction(correctionAlias, listOf(AssistantCommand.SearchWeb(query)))
             learnIntent(text, LearnedIntent.SEARCH, correctionAlias)
             speakResearchResponse(query, researchReply(query))
+            return
+        }
+        if (NikoAiSettings.autoResearch(applicationContext) && AutonomousResearch.allowedFor(text) &&
+            agent.conversation.shouldResearchFollowUp(text)) {
+            speakResearchResponse(text, researchReply(text))
             return
         }
         val learningEnabled = NikoAiSettings.adaptiveLearning(applicationContext)
@@ -861,21 +912,23 @@ open class NikoAssistantService : Service() {
             )
             val responses = mutableListOf<String>()
             val sources = mutableListOf<NikoWebSource>()
-            for (command in commands) {
+            taskExecutor.run(text, commands) { command ->
+                agent.turns.checkpoint()
                 memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
                 if (command is AssistantCommand.SearchWeb) {
                     learnIntent(command.query, LearnedIntent.SEARCH)
                     val answer = researchReply(command.query, openBrowser = true)
                     responses.add(answer.text)
                     sources.addAll(answer.sources)
-                    continue
+                    return@run answer.text
                 }
                 val direct = executeDirectCommand(command)
                 if (!direct.isNullOrBlank()) {
                     responses.add(direct)
-                    withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
+                    if (lastCommandSucceeded) withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
                 }
                 delay(120L)
+                direct.orEmpty()
             }
             val answer = responses.joinToString(" ").ifBlank { "No entendí qué acciones querés que haga." }
             if (sources.isEmpty()) speakResponse(answer)
@@ -883,7 +936,7 @@ open class NikoAssistantService : Service() {
             return
         }
         val command = commands.firstOrNull() ?: AssistantCommand.Unknown(text)
-        if (command == AssistantCommand.ClearMemory) { clearLocalMemory(); speakResponse("De una. Borré mi memoria local. Empezamos de nuevo."); return }
+        if (command == AssistantCommand.ClearMemory) { speakResponse(requestMemoryDeletion()); return }
         memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
         if (command is AssistantCommand.SearchWeb) {
             learnIntent(text, LearnedIntent.SEARCH, correctionAlias)
@@ -899,7 +952,7 @@ open class NikoAssistantService : Service() {
                 learnIntent(text, LearnedIntent.MEMORY, correctionAlias); speakResponse(it); return
             }
             val prediction = predictIntent(text)
-            val remoteContext = withContext(Dispatchers.IO) { memory.contextForAi(false, text) }
+            val remoteContext = agent.conversation.context() + "\n" + withContext(Dispatchers.IO) { memory.contextForAi(false, text) }
             val history = memory.historyForAi(text)
             val streamedText = StringBuilder()
             var lastPreviewAt = 0L
@@ -910,12 +963,12 @@ open class NikoAssistantService : Service() {
                 learnedSearch = prediction?.let { it.reliable && it.intent == LearnedIntent.SEARCH } == true,
                 local = {
                     val context = withContext(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
-                    localLlm.reply(text, context)
+                    localLlm.reply(text, agent.conversation.context() + "\n" + context)
                 },
                 cloud = { requireSources ->
                     if (requireSources) researchReply(text)
                     else if (webClient.isConfigured) webClient.reply(text, remoteContext, false, history) { delta ->
-                        currentCoroutineContext().ensureActive()
+                        agent.turns.checkpoint()
                         if (!destroyed) {
                             val queue = progressiveSpeech ?: ProgressiveSpeech().also { progressiveSpeech = it }
                             if (delta.isNotBlank()) LeoVoiceDiagnostics.recordResponseText()
@@ -936,6 +989,7 @@ open class NikoAssistantService : Service() {
                     fallbackConversation.reply(text, memory, error)
                 } },
             )
+            agent.turns.checkpoint()
             val learnedLabel = if (answer.webUsed || WebQueryRouter.needsCurrentInformation(text) && AutonomousResearch.allowedFor(text)) {
                 LearnedIntent.SEARCH
             } else LearnedIntent.CONVERSATION
@@ -946,6 +1000,7 @@ open class NikoAssistantService : Service() {
             }
             if (progressiveSpeech != null) {
                 progressiveSpeech?.finish()
+                agent.conversation.reply(answer)
                 NikoRuntimeState.setAiResponse(applicationContext, answer.text, answer.webUsed, answer.sources)
                 if (!isSpeaking) playNextProgressivePhrase()
                 withContext(Dispatchers.IO) { memory.rememberAssistantTurn(answer.text) }
@@ -963,7 +1018,7 @@ open class NikoAssistantService : Service() {
         )
         val direct = executeDirectCommand(command) ?: "Listo."
         speakResponse(direct)
-        withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
+        if (lastCommandSucceeded) withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
     }
 
     private suspend fun executeDeterministicLocalAction(
@@ -978,18 +1033,21 @@ open class NikoAssistantService : Service() {
         }
 
         val responses = mutableListOf<String>()
+        val completedCommands = mutableListOf<Pair<AssistantCommand, String>>()
         for (command in commands) {
             when (command) {
                 AssistantCommand.ClearMemory -> {
-                    clearLocalMemory()
-                    responses += "Borré mi memoria local."
+                    responses += requestMemoryDeletion()
                 }
                 AssistantCommand.MemorySummary -> {
                     responses += withContext(Dispatchers.IO) { memory.describeLearnedPatterns() }
                 }
                 else -> {
                     val result = executeDirectCommand(command)
-                    if (!result.isNullOrBlank()) responses += result
+                    if (!result.isNullOrBlank()) {
+                        responses += result
+                        if (lastCommandSucceeded) completedCommands += command to result
+                    }
                 }
             }
         }
@@ -1003,16 +1061,14 @@ open class NikoAssistantService : Service() {
             correctionAlias,
         )
 
-        // Persistencia en segundo plano: la acción ya ocurrió y no depende de la base.
-        serviceScope.launch(Dispatchers.IO) {
-            runCatching {
-                commands.forEach { command ->
-                    memory.rememberCommand(command)
-                    memory.rememberCompletedCommand(command, responses.joinToString(" "))
-                }
-                memory.rememberUserTurn(text)
+        // Structured persistence finishes inside the owning turn, so a later clear cannot race it.
+        withContext(Dispatchers.IO) {
+            completedCommands.forEach { (command, result) ->
+                memory.rememberCommand(command)
+                memory.rememberCompletedCommand(command, result)
             }
         }
+        agent.turns.checkpoint()
 
         speakResponse(responses.joinToString(" "))
         return true
@@ -1123,6 +1179,7 @@ open class NikoAssistantService : Service() {
     private suspend fun createGeneratedTool(request: String): String {
         NikoRuntimeState.setResponse(applicationContext, "Diseñando una herramienta para vos…")
         val spec = withContext(Dispatchers.IO) { generatedToolPlanner.generate(request) }
+        agent.turns.checkpoint()
         GeneratedToolStore.save(applicationContext, spec)
         val opened = executor.openAppByName("herramienta generada")
         return if (opened.success) {
@@ -1132,40 +1189,63 @@ open class NikoAssistantService : Service() {
         }
     }
 
-    private suspend fun executeDirectCommand(command: AssistantCommand): String? = when (command) {
-        AssistantCommand.Greeting -> "Aquí estoy. Decime."
-        AssistantCommand.TellTime -> "Son las ${SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())}."
-        AssistantCommand.OpenCamera -> executor.openCamera().spokenMessage
-        AssistantCommand.MemorySummary -> withContext(Dispatchers.IO) { memory.describeLearnedPatterns() }
-        AssistantCommand.ClearMemory -> { clearLocalMemory(); "Borré mi memoria local." }
-        is AssistantCommand.OpenApp -> executor.openApp(command.app).spokenMessage
-        is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).spokenMessage
-        is AssistantCommand.GenerateTool -> createGeneratedTool(command.request)
-        is AssistantCommand.Dial -> executor.dial(command.number).spokenMessage
-        is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).spokenMessage
-        is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).spokenMessage
-        is AssistantCommand.PlaySpotify -> executor.playSpotify(command.query).spokenMessage
-        is AssistantCommand.SetAlarm -> executor.setAlarm(command.hour, command.minute, command.label).spokenMessage
-        is AssistantCommand.SetTimer -> executor.setTimer(command.seconds, command.label).spokenMessage
-        is AssistantCommand.OpenMaps -> executor.openMaps(command.query).spokenMessage
+    private fun requestMemoryDeletion(): String {
+        agent.requestConfirmation(AssistantCommand.ClearMemory)
+        return "Voy a borrar tu memoria local, incluidas preferencias y recuerdos. ¿Confirmás el borrado?"
+    }
+
+    private suspend fun executeDirectCommand(command: AssistantCommand): String? {
+        agent.turns.checkpoint()
+        lastCommandSucceeded = false
+        if (command == AssistantCommand.ClearMemory) return requestMemoryDeletion()
+        val skill = skillRegistry.select(command) ?: return null
+        agent.conversation.tool(skill.descriptor.name)
+        val result = skillRegistry.execute(command)
+        agent.turns.checkpoint()
+        lastCommandSucceeded = result?.success == true
+        return result?.message
+    }
+
+    private suspend fun dispatchDirectCommand(command: AssistantCommand): com.niko.assistant.skills.LeoSkillResult? = when (command) {
+        AssistantCommand.Greeting -> localResult("Aquí estoy. Decime.")
+        AssistantCommand.TellTime -> localResult("Son las ${SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())}.")
+        AssistantCommand.OpenCamera -> executor.openCamera().skillResult()
+        AssistantCommand.MemorySummary -> localResult(withContext(Dispatchers.IO) { memory.describeLearnedPatterns() })
+        AssistantCommand.ClearMemory -> null
+        is AssistantCommand.OpenApp -> executor.openApp(command.app).skillResult()
+        is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).skillResult()
+        is AssistantCommand.GenerateTool -> com.niko.assistant.skills.LeoSkillResult(createGeneratedTool(command.request), true)
+        is AssistantCommand.Dial -> executor.dial(command.number).skillResult()
+        is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).skillResult()
+        is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).skillResult()
+        is AssistantCommand.PlaySpotify -> executor.playSpotify(command.query).skillResult()
+        is AssistantCommand.SetAlarm -> executor.setAlarm(command.hour, command.minute, command.label).skillResult()
+        is AssistantCommand.SetTimer -> executor.setTimer(command.seconds, command.label).skillResult()
+        is AssistantCommand.OpenMaps -> executor.openMaps(command.query).skillResult()
         is AssistantCommand.SearchWeb -> null
-        is AssistantCommand.ShareText -> executor.shareText(command.text).spokenMessage
-        is AssistantCommand.SetTorch -> executor.setTorch(command.enabled).spokenMessage
-        is AssistantCommand.SetVolume -> executor.setVolume(command.percent).spokenMessage
-        is AssistantCommand.AdjustVolume -> executor.adjustVolume(command.direction).spokenMessage
-        is AssistantCommand.SetBrightness -> executor.setBrightness(command.percent).spokenMessage
-        is AssistantCommand.OpenSystemPanel -> executor.openSystemPanel(command.panel).spokenMessage
-        is AssistantCommand.NavigateDevice -> executor.navigateDevice(command.destination).spokenMessage
-        is AssistantCommand.AutomateUi -> uiAutomation.run(command.task).message
-        AssistantCommand.BatteryStatus -> executor.batteryStatus().spokenMessage
-        is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).spokenMessage
-        is AssistantCommand.SmartHomeControl -> smartHome.control(command.target, command.enabled).spokenMessage
-        AssistantCommand.OpenSmartHomeSettings -> executor.openSmartHomeSettings().spokenMessage
-        AssistantCommand.OpenAiSettings -> executor.openAiSettings().spokenMessage
+        is AssistantCommand.ShareText -> executor.shareText(command.text).skillResult()
+        is AssistantCommand.SetTorch -> executor.setTorch(command.enabled).skillResult()
+        is AssistantCommand.SetVolume -> executor.setVolume(command.percent).skillResult()
+        is AssistantCommand.AdjustVolume -> executor.adjustVolume(command.direction).skillResult()
+        is AssistantCommand.SetBrightness -> executor.setBrightness(command.percent).skillResult()
+        is AssistantCommand.OpenSystemPanel -> executor.openSystemPanel(command.panel).skillResult()
+        is AssistantCommand.NavigateDevice -> executor.navigateDevice(command.destination).skillResult()
+        is AssistantCommand.AutomateUi -> uiAutomation.run(command.task).let { com.niko.assistant.skills.LeoSkillResult(it.message, it.success) }
+        AssistantCommand.BatteryStatus -> executor.batteryStatus().skillResult()
+        is AssistantCommand.Vibrate -> executor.vibrate(command.milliseconds).skillResult()
+        is AssistantCommand.SmartHomeControl -> smartHome.controlAsync(command.target, command.enabled).let { com.niko.assistant.skills.LeoSkillResult(it.spokenMessage, it.success) }
+        AssistantCommand.OpenSmartHomeSettings -> executor.openSmartHomeSettings().skillResult()
+        AssistantCommand.OpenAiSettings -> executor.openAiSettings().skillResult()
         is AssistantCommand.Unknown -> null
     }
 
+    private fun localResult(message: String) = com.niko.assistant.skills.LeoSkillResult(message, true, verified = true)
+    private fun com.niko.assistant.actions.ActionResult.skillResult() =
+        com.niko.assistant.skills.LeoSkillResult(spokenMessage, success)
+
     private suspend fun researchReply(query: String, forceWeb: Boolean = true, openBrowser: Boolean = false): NikoAiReply {
+        agent.turns.checkpoint()
+        val contextualQuery = agent.conversation.researchQuery(query)
         fun unavailable(message: String) = NikoAiReply(message, false, emptyList())
         if (AutonomousResearch.offlineOnly(query)) return unavailable("Una búsqueda web necesita conexión. Puedo seguir con las funciones locales.")
         if (!webClient.isConfigured) {
@@ -1178,7 +1258,9 @@ open class NikoAssistantService : Service() {
         return try {
             val current = NikoRuntimeState.read(applicationContext).heardText
             val context = withContext(Dispatchers.IO) { memory.contextForAi(false, query) }
-            val reply = webClient.reply(query, context, forceWeb, memory.historyForAi(current))
+            val reply = webClient.reply(contextualQuery, context, forceWeb, memory.historyForAi(current))
+            agent.turns.checkpoint()
+            if (reply != null) agent.conversation.researched(contextualQuery, reply)
             when {
                 reply == null -> unavailable(webClient.lastError ?: "No pude consultar Internet. Volvé a intentarlo.")
                 forceWeb && !reply.webUsed -> reply
@@ -1188,8 +1270,9 @@ open class NikoAssistantService : Service() {
     }
 
     private suspend fun speakResearchResponse(question: String, reply: NikoAiReply) {
-        currentCoroutineContext().ensureActive()
+        agent.turns.checkpoint()
         LeoVoiceDiagnostics.recordResponseText()
+        agent.conversation.reply(reply)
         val finalText = reply.text
         val evidenceNote = if (reply.webUsed) AutonomousResearch.evidenceNote(reply.sources.map { it.url }) else ""
         val displayed = if (evidenceNote.isBlank()) finalText else "$finalText\n\n$evidenceNote"
@@ -1203,8 +1286,9 @@ open class NikoAssistantService : Service() {
     }
 
     private suspend fun speakResponse(text: String) {
-        currentCoroutineContext().ensureActive()
+        agent.turns.checkpoint()
         LeoVoiceDiagnostics.recordResponseText()
+        agent.conversation.reply(NikoAiReply(text, false, emptyList()))
         NikoRuntimeState.setResponse(applicationContext, text)
         speakOnly(text)
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }

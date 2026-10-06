@@ -95,3 +95,8 @@ Ver [funcionamiento, límites y comprobaciones en teléfono](docs/POLYMORPHIC_TO
 - El fin de una frase de LEO no restaura el volumen por encima de la reducción solicitada por Android.
 
 Pruebas de regresión para cancelación de conexión bloqueada, búsquedas superpuestas, salida de pantalla y selección de archivos. Son correcciones verificables de código; aún no hay mediciones de latencia, FPS o batería en teléfono.
+
+
+## Ingeniería del agente LEO (2026-10-06)
+
+Arquitectura y límites comprobables: [LEO_ARCHITECTURE](docs/LEO_ARCHITECTURE.md), [validación](docs/LEO_VALIDATION.md) y [matriz de evidencia](docs/LEO_EVALUATION.md). La nueva coordinación preserva los motores existentes; no implica full-duplex principal, autonomía abierta o superioridad comercial comprobada.

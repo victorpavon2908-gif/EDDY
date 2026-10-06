@@ -37,6 +37,7 @@ internal object ResearchSynthesis {
                 })).toString())))
 
     fun apply(raw: String, original: NikoAiReply): NikoAiReply? = runCatching {
+        require(original.webUsed && original.sources.isNotEmpty() && original.sources.distinctBy { it.url }.size == original.sources.size)
         val json = JSONObject(raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim())
         fun section(name: String, max: Int, minimum: Int = 1): List<String> {
             val array = json.getJSONArray(name)

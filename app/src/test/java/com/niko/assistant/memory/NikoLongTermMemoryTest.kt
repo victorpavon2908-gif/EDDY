@@ -25,6 +25,24 @@ class NikoLongTermMemoryTest {
         memory.clearAll()
     }
 
+    @Test fun explicitCorrectionRemovesContradictorySemanticAndNoteContext() {
+        memory.rememberUserTurn("Recordá que me gusta el café")
+        memory.learnExplicitly("Recordá que me gusta el café")
+        memory.rememberUserTurn("Ya no tomo café")
+        val context = memory.contextForAi(false, "café")
+        assertTrue(context.contains("Ya no tomás café", ignoreCase = true))
+        assertFalse(context.contains("Te gusta el café", ignoreCase = true))
+        assertFalse(context.contains("me gusta el café", ignoreCase = true))
+    }
+
+    @Test fun changingCityRetiresOldEpisodeButKeepsCurrentFact() {
+        memory.rememberUserTurn("Vivo en Managua")
+        memory.rememberUserTurn("Vivo en León")
+        val context = memory.contextForAi(false, "dónde vivo")
+        assertTrue(context.contains("León"))
+        assertFalse(context.contains("Managua"))
+    }
+
     @Test
     fun stablePreferenceIsRecoveredForRelatedQuestion() {
         memory.rememberUserTurn("Me gusta el café bien fuerte.")

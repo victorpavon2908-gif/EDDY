@@ -1,6 +1,8 @@
 package com.niko.assistant.devicecontrol
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Visual automation agent for LEO.
@@ -38,6 +40,7 @@ class NikoUiAutomationAgent private constructor(
     )
 
     suspend fun run(task: String): Result {
+        currentCoroutineContext().ensureActive()
         val request = task.trim().take(600)
         if (request.isBlank()) return Result(false, "No recibí una tarea para la aplicación.", 0)
         val safety = NikoUiTaskPolicy.evaluate(request)
@@ -55,7 +58,9 @@ class NikoUiAutomationAgent private constructor(
         var consecutiveFailures = 0
         var lastStepOnSameScreen: String? = null
 
+        val visited = mutableSetOf<String>()
         for (index in 0 until MAX_ITERATIONS) {
+            currentCoroutineContext().ensureActive()
             if (snapshot.nodeCount == 0) {
                 return Result(false, "No pude leer controles de ${snapshot.packageName.ifBlank { "la aplicación" }}.", index + 1)
             }
@@ -66,12 +71,13 @@ class NikoUiAutomationAgent private constructor(
                 history = history.joinToString("\n"),
             )
 
+            currentCoroutineContext().ensureActive()
             when (step) {
                 is LeoUiStep.Done -> return Result(true, step.message.ifBlank { "Listo." }, index + 1)
                 is LeoUiStep.Abort -> return Result(false, step.reason.ifBlank { "Detuve la automatización de forma segura." }, index + 1)
                 is LeoUiStep.Do -> {
                     val stepKey = "${snapshot.packageName}|${snapshot.signature}|${step.describe()}"
-                    if (stepKey == lastStepOnSameScreen) {
+                    if (stepKey == lastStepOnSameScreen || !visited.add(stepKey)) {
                         return Result(
                             false,
                             "La pantalla no avanzó con ese paso. Me detuve para no tocar controles al azar.",

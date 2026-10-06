@@ -7,6 +7,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NikoUiAutomationAgentTest {
+    @Test fun plannerCancellationNeverBecomesAnAbortOrClick() = runBlocking {
+        val planner = LeoUiStepPlanner { throw kotlinx.coroutines.CancellationException("interrupted") }
+        val session = FakeSession(listOf(settingsSnapshot(1, "node_1", "Batería")))
+        try {
+            agent(planner, session).run("navegá hasta batería")
+            org.junit.Assert.fail("Cancellation must propagate")
+        } catch (_: kotlinx.coroutines.CancellationException) { }
+        assertTrue(session.performed.isEmpty())
+    }
+
     @Test fun directClickStaysLocalAndNeverCallsPlanner() = runBlocking {
         var plannerCalls = 0
         val planner = LeoUiStepPlanner { plannerCalls++; "ABORT|no debería llamarse" }

@@ -10,6 +10,13 @@ class EddyTransformerEmbedderTest {
 
     private val embedder = EddyTransformerEmbedder.INSTANCE
 
+    @Test fun callerCannotPoisonSharedEmbeddingCache() {
+        val baseline = embedder.encode("caché protegida")
+        val mutable = embedder.encode("caché protegida")
+        mutable.fill(999f)
+        org.junit.Assert.assertArrayEquals(baseline, embedder.encode("caché protegida"), 0f)
+    }
+
     @Test
     fun producesL2NormalizedVectorsOfConfiguredDimension() {
         val vector = embedder.encode("Recordar mi canción favorita en Spotify")

@@ -20,7 +20,7 @@ class NikoLongTermMemory(
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val embedder: EddyTransformerEmbedder = EddyTransformerEmbedder.INSTANCE,
 ) {
-    enum class Kind { CORE, EPISODIC, PROCEDURAL }
+    enum class Kind { CORE, EPISODIC, SEMANTIC, PROCEDURAL, PROJECT, RELATIONSHIP, PREFERENCE }
 
     data class Hit(
         val key: String,
@@ -34,12 +34,23 @@ class NikoLongTermMemory(
         if (clean.length < 3 || containsSecret(clean)) return
 
         val facts = MemoryLearning.facts(clean)
+        if (facts.isNotEmpty()) archive.supersedeNotes(clean)
+        val candidates = archive.semanticCandidates(500, nowMillis())
+        val oldFacts = candidates.filter { it.key.startsWith("core:") }.associate { item ->
+            item.key.removePrefix("core:") to item.text.substringAfter(factLabel(item.key.removePrefix("core:")) + " ", "")
+        }
+        val removed = MemoryRevision.removedKeys(oldFacts, facts)
+        archive.retireSemanticMemories(candidates.filter { item ->
+            item.key.removePrefix("core:") in removed ||
+                (item.kind == Kind.EPISODIC.name && MemoryRevision.supersedes(item.text, clean)) ||
+                (item.key.startsWith("core:note:") && MemoryRevision.supersedes(item.text, clean))
+        }.map { it.key }, nowMillis())
         facts.forEach { (key, value) ->
             val normalizedValue = normalize(value)
             if (normalizedValue.isBlank()) return@forEach
             archive.upsertSemanticMemory(
                 key = "core:$key",
-                kind = Kind.CORE.name,
+                kind = if (key in setOf("likes", "dislikes", "prefers", "drinks", "no_longer_drinks")) Kind.PREFERENCE.name else Kind.CORE.name,
                 text = "${factLabel(key)} $value".take(MAX_MEMORY_CHARS),
                 normalized = normalize("${factLabel(key)} $value"),
                 confidence = 1.0f,
@@ -109,7 +120,8 @@ class NikoLongTermMemory(
             val kind = runCatching { Kind.valueOf(item.kind) }.getOrDefault(Kind.EPISODIC)
             val score = if (normalizedQuery.isBlank()) {
                 when (kind) {
-                    Kind.CORE -> 0.82
+                    Kind.CORE, Kind.PREFERENCE -> 0.82
+                    Kind.PROJECT, Kind.RELATIONSHIP, Kind.SEMANTIC -> 0.55
                     Kind.PROCEDURAL -> 0.48
                     Kind.EPISODIC -> recency(item.updatedAt, now) * 0.42
                 }
@@ -126,7 +138,8 @@ class NikoLongTermMemory(
                     else -> 0.0
                 }
                 val kindBoost = when (kind) {
-                    Kind.CORE -> 0.10
+                    Kind.CORE, Kind.PREFERENCE -> 0.10
+                    Kind.PROJECT, Kind.RELATIONSHIP, Kind.SEMANTIC -> 0.06
                     Kind.PROCEDURAL -> 0.06
                     Kind.EPISODIC -> 0.0
                 }
@@ -139,7 +152,7 @@ class NikoLongTermMemory(
                     0.06 * item.confidence.coerceIn(0f, 1f) +
                     exactBoost + kindBoost + accessBoost
             }
-            val threshold = if (kind == Kind.CORE) 0.16 else 0.22
+            val threshold = if (kind in setOf(Kind.CORE, Kind.PREFERENCE)) 0.16 else 0.22
             if (score < threshold) null else Hit(item.key, kind, item.text, score)
         }.sortedByDescending(Hit::score).take(limit.coerceIn(1, 12))
 
@@ -199,6 +212,8 @@ class NikoLongTermMemory(
         "lives" -> "Vivís en"
         "work" -> "Trabajás en/como"
         "studies" -> "Estudiás"
+        "drinks" -> "Tomás"
+        "no_longer_drinks" -> "Ya no tomás"
         else -> key
     }
 

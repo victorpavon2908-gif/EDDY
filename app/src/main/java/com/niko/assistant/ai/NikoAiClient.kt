@@ -1,10 +1,9 @@
 package com.niko.assistant.ai
 
 import android.content.Context
+import kotlinx.coroutines.ensureActive
 import com.niko.assistant.brain.WebQueryRouter
 import com.niko.assistant.learning.NikoKnowledgeStore
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 
 /**
  * Compatibility facade used by the assistant service.
@@ -32,7 +31,7 @@ class NikoAiClient(
 
     val lastError: String? get() = nativeLastError ?: groq.lastError
 
-    private fun conciseWebAnswer(reply: NikoAiReply, subject: String): NikoAiReply {
+    private fun conciseWebAnswer(reply: NikoAiReply, @Suppress("UNUSED_PARAMETER") subject: String): NikoAiReply {
         if (!reply.webUsed || reply.text.isBlank()) return reply
         var text = reply.text.trim()
         text = text
@@ -41,23 +40,6 @@ class NikoAiClient(
             .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
 
-        val hasClosingQuestion = Regex("\\?\\s*(?:\\[\\d+\\]\\s*)*$").containsMatchIn(text)
-        if (!hasClosingQuestion) {
-            val normalized = subject.lowercase()
-            val followUp = when {
-                listOf("empleo", "empleos", "trabajo", "vacante", "vacantes").any(normalized::contains) ->
-                    "¿Querés que te busque las vacantes más recientes y te las ordene por ciudad o área?"
-                listOf("bitcoin", "btc", "cripto").any(normalized::contains) ->
-                    "¿Querés que te investigue también qué está moviendo el precio hoy?"
-                listOf("precio", "cuesta", "cotizacion", "cotización").any(normalized::contains) ->
-                    "¿Querés que te compare también el precio actual con otras opciones?"
-                listOf("noticia", "noticias", "hoy", "reciente").any(normalized::contains) ->
-                    "¿Querés que te investigue también qué cambió más recientemente sobre este tema?"
-                else ->
-                    "¿Querés que te investigue también lo más reciente sobre este tema?"
-            }
-            text = "$text $followUp".trim()
-        }
         return reply.copy(text = text.ifBlank { reply.text.trim() })
     }
 
@@ -75,18 +57,13 @@ class NikoAiClient(
 
         if (forceWeb) {
             val subject = WebQueryRouter.explicitQuery(message) ?: message
-            val (native, compound) = if (groq.isConfigured) {
-                coroutineScope {
-                    val nativeTask = async { LeoNativeWebSearch.search(subject) }
-                    // Search receives only the requested subject: personal memory and
-                    // dialogue history must never leak into provider search queries.
-                    val compoundTask = async { groq.reply(subject, "", useWeb = true, history = emptyList()) }
-                    nativeTask.await() to compoundTask.await()
-                }
-            } else {
-                LeoNativeWebSearch.search(subject) to null
-            }
-            val validatedCompound = compound?.takeIf { it.webUsed && it.sources.isNotEmpty() }
+            // Native retrieval is authoritative. Compound remains a fallback rather than a
+            // duplicate concurrent investigation that delays an already usable native answer.
+            val native = LeoNativeWebSearch.search(subject)
+            val compound = if (!native.webUsed && groq.isConfigured) {
+                groq.reply(subject, "", useWeb = true, history = emptyList())
+            } else null
+            val validatedCompound = compound?.takeIf(ResearchCitationPolicy::accepts)
 
             // La búsqueda nativa recupera y valida las fuentes; después, cuando Groq está
             // disponible, siempre intentamos convertir esos hallazgos en una respuesta
@@ -103,6 +80,7 @@ class NikoAiClient(
             }
             val finalReply = conciseWebAnswer(researched, subject)
             nativeLastError = if (finalReply.webUsed) null else finalReply.text
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
             if (finalReply.webUsed && finalReply.sources.isNotEmpty()) {
                 runCatching { knowledge.learn(subject, finalReply) }
             }

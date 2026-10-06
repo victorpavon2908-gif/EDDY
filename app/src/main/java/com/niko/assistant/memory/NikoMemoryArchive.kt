@@ -94,6 +94,7 @@ class NikoMemoryArchive private constructor(context: Context) :
     }
 
     fun rememberNote(text: String) {
+        writableDatabase.delete("metadata", "key=?", arrayOf("superseded_note:" + MemoryLearning.key(text)))
         writableDatabase.insertWithOnConflict("notes", null, ContentValues().apply {
             put("key", MemoryLearning.key(text))
             put("text", text)
@@ -115,9 +116,18 @@ class NikoMemoryArchive private constructor(context: Context) :
     ).use { if (it.moveToFirst()) it.getString(0) else null }
 
     fun recentNotes(limit: Int = 20): List<String> = readableDatabase.rawQuery(
-        "SELECT text FROM notes ORDER BY timestamp DESC, rowid DESC LIMIT ?",
+        "SELECT text FROM notes WHERE NOT EXISTS (SELECT 1 FROM metadata WHERE metadata.key='superseded_note:' || notes.key) ORDER BY timestamp DESC, rowid DESC LIMIT ?",
         arrayOf(limit.coerceIn(1, 40).toString()),
     ).use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }.asReversed() }
+
+    /** Preserve contradicted notes in storage but remove them from current factual prompts. */
+    fun supersedeNotes(currentStatement: String) {
+        recentNotes(40).filter { MemoryRevision.supersedes(it, currentStatement) }.forEach { note ->
+            writableDatabase.insertWithOnConflict("metadata", null, ContentValues().apply {
+                put("key", "superseded_note:" + MemoryLearning.key(note))
+            }, SQLiteDatabase.CONFLICT_IGNORE)
+        }
+    }
 
     fun lessonCount(): Long = readableDatabase.rawQuery("SELECT COUNT(*) FROM lessons", null).use {
         it.moveToFirst()
@@ -162,6 +172,18 @@ class NikoMemoryArchive private constructor(context: Context) :
             },
             SQLiteDatabase.CONFLICT_REPLACE,
         ).also { check(it != -1L) }
+    }
+
+    /** Keep the original record for audit until normal expiry pruning; do not change the schema. */
+    @Synchronized
+    fun retireSemanticMemories(keys: List<String>, now: Long) {
+        if (keys.isEmpty()) return
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            keys.forEach { key -> db.execSQL("UPDATE semantic_memory SET expires_at=? WHERE key=?", arrayOf(now.coerceAtLeast(1L), key)) }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
     }
 
     @Synchronized
@@ -221,6 +243,7 @@ class NikoMemoryArchive private constructor(context: Context) :
         db.beginTransaction()
         try {
             listOf("turns", "notes", "lessons", "semantic_memory", "legacy_backup").forEach { db.delete(it, null, null) }
+            db.delete("metadata", "key LIKE ?", arrayOf("superseded_note:%"))
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

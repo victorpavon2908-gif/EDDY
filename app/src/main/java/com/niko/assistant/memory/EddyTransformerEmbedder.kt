@@ -9,7 +9,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Motor de Embeddings y Atención basado en la arquitectura Transformer (Vaswani et al.).
+ * Codificador determinístico de características con atención, sin pesos semánticos entrenados.
+ * Su similitud es heurística; no demuestra comprensión semántica de lenguaje abierto.
  *
  * Implementa:
  * - Tokenización contextual y Positional Encoding sinusoidal
@@ -53,7 +54,7 @@ class EddyTransformerEmbedder private constructor(
         val clean = normalizeText(text)
         if (clean.isBlank()) return FloatArray(dim)
 
-        cache[clean]?.let { return it }
+        cache[clean]?.let { return it.copyOf() }
 
         val tokens = tokenize(clean).take(maxSeqLen)
         if (tokens.isEmpty()) return FloatArray(dim)
@@ -68,10 +69,15 @@ class EddyTransformerEmbedder private constructor(
             FloatArray(dim) { i -> tokenVec[i] + 0.12f * posVec[i] }
         }
 
+        // Project each token once, not for every query/head. Same arithmetic, less CPU.
+        val queries = Array(seqLen) { linear(x[it], queryWeights, dim, dim) }
+        val keys = Array(seqLen) { linear(x[it], keyWeights, dim, dim) }
+        val values = Array(seqLen) { linear(x[it], valueWeights, dim, dim) }
+
         // 2. Multi-Head Self-Attention
         val attended = Array(seqLen) { FloatArray(dim) }
         for (i in 0 until seqLen) {
-            val q = linear(x[i], queryWeights, dim, dim)
+            val q = queries[i]
             val headOutputs = FloatArray(dim)
 
             for (h in 0 until heads) {
@@ -80,7 +86,7 @@ class EddyTransformerEmbedder private constructor(
                 var maxScore = Float.NEGATIVE_INFINITY
 
                 for (j in 0 until seqLen) {
-                    val k = linear(x[j], keyWeights, dim, dim)
+                    val k = keys[j]
                     var dot = 0f
                     for (d in 0 until headDim) {
                         dot += q[hOffset + d] * k[hOffset + d]
@@ -102,7 +108,7 @@ class EddyTransformerEmbedder private constructor(
 
                 // Ponderación de Values
                 for (j in 0 until seqLen) {
-                    val v = linear(x[j], valueWeights, dim, dim)
+                    val v = values[j]
                     val alpha = (expWeights[j] / sumExp).toFloat()
                     for (d in 0 until headDim) {
                         headOutputs[hOffset + d] += alpha * v[hOffset + d]
@@ -139,7 +145,7 @@ class EddyTransformerEmbedder private constructor(
         // 4. L2 Normalization
         val result = l2Normalize(pooled)
         cache[clean] = result
-        return result
+        return result.copyOf()
     }
 
     /**

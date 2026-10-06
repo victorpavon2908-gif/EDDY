@@ -29,6 +29,7 @@ object MemoryLearning {
             "name" to "(?:me llamo|mi nombre es)", "likes" to "me gusta(?:n)?",
             "dislikes" to "no me gusta(?:n)?", "prefers" to "prefiero", "lives" to "vivo en",
             "work" to "trabajo (?:en|como)", "studies" to "estudio",
+            "drinks" to "tomo", "no_longer_drinks" to "ya no tomo",
         )
         return patterns.mapNotNull { (key, prefix) ->
             Regex("(?i)^$prefix\\s+([^,.!?]{1,120})(?:[,.!].*)?$").matchEntire(text)

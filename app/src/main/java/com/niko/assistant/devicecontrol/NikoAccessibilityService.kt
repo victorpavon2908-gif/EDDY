@@ -166,9 +166,15 @@ open class NikoAccessibilityService : AccessibilityService() {
         if (query.isBlank()) return false
         val root = rootInActiveWindow ?: return false
         return try {
-            val success = root.findAccessibilityNodeInfosByText(query).orEmpty().any { node ->
-                !node.isPassword && !isHighRiskNode(node) && clickNodeOrParent(node)
-            }
+            val found = root.findAccessibilityNodeInfosByText(query).orEmpty()
+            val success = try {
+                val candidates = found.filter { node ->
+                    !node.isPassword && !isHighRiskNode(node) && node.isVisibleToUser && node.isEnabled &&
+                        (node.text?.toString()?.trim()?.equals(query, ignoreCase = true) == true ||
+                            node.contentDescription?.toString()?.trim()?.equals(query, ignoreCase = true) == true)
+                }
+                candidates.singleOrNull()?.let(::clickNodeOrParent) ?: false
+            } finally { found.forEach { node -> runCatching { node.recycle() } } }
             if (success) uiRevision.incrementAndGet()
             success
         } finally {

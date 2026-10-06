@@ -84,21 +84,14 @@ class NikoLocalLlm(
             // an unsupported/new family falls through to the normal cloud/fallback route.
             val conversationalFamily = LeoMicroGptGate.classify(message)
             if (conversationalFamily != null) {
-                // Build a context-enriched prompt for MicroGPT using memory and conversation history.
-                val enrichedMessage = buildString {
-                    if (memoryContext.isNotBlank()) {
-                        append("[Contexto del usuario: ")
-                        append(memoryContext.take(300))
-                        append("] ")
-                    }
-                    if (evidence.isNotBlank()) {
-                        append("[Contexto previo: ")
-                        append(evidence.take(400))
-                        append("] ")
-                    }
-                    append(message)
-                }
-                microGpt.reply(enrichedMessage)?.let { generated -> return@withContext generated }
+                if (com.niko.assistant.agent.ConversationManager.isReference(message) ||
+                    conversationalFamily in setOf(
+                        LeoMicroGptGate.Family.SIMPLE, LeoMicroGptGate.Family.DETAIL,
+                        LeoMicroGptGate.Family.SHORT, LeoMicroGptGate.Family.CLEARER,
+                        LeoMicroGptGate.Family.CONTINUE, LeoMicroGptGate.Family.CORRECTION,
+                    )) return@withContext null
+                // The checkpoint is trained on short raw utterances, not arbitrary memory prefixes.
+                microGpt.reply(message)?.let { generated -> return@withContext generated }
                 lastError = localModelError()
                 return@withContext null
             }

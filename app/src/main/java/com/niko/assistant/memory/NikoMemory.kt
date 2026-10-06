@@ -209,6 +209,20 @@ class NikoMemory(context: Context) {
         else -> null
     }
 
+    /** Evidence comes from counted commands, never inferred calendar events or invented projects. */
+    fun initiativeCandidates(now: Long): List<com.niko.assistant.proactive.LeoInitiativeEngine.Candidate> {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        return actionCandidates().mapNotNull { (key, label) ->
+            val total = prefs.getInt("command_$key", 0)
+            val atHour = prefs.getInt("command_${key}_hour_$hour", 0)
+            if (total < 3 || atHour < 2) null else com.niko.assistant.proactive.LeoInitiativeEngine.Candidate(
+                id = "habit:$key", text = "Me has pedido $label varias veces a esta hora. ¿Lo necesitás ahora?",
+                reason = "historial local: $total solicitudes, $atHour a la hora $hour",
+                priority = 40, relevance = 0.8, expiresAt = now + 60 * 60_000L,
+            )
+        }
+    }
+
     fun clearAll() {
         cancelProactiveSchedules()
         archive.clearMemory()
@@ -315,22 +329,12 @@ class NikoMemory(context: Context) {
         if (updates.isEmpty()) return
         val editor = prefs.edit()
         updates.forEach { (key, value) -> editor.putString("fact_$key", value) }
-        // A correction such as "no me gusta el café" must not retain the opposite memory.
-        updates["dislikes"]?.let { dislike ->
-            if (MemoryLearning.key(prefs.getString("fact_likes", "").orEmpty()) == MemoryLearning.key(dislike)) {
-                editor.remove("fact_likes")
-            }
-        }
-        updates["likes"]?.let { like ->
-            if (MemoryLearning.key(prefs.getString("fact_dislikes", "").orEmpty()) == MemoryLearning.key(like)) {
-                editor.remove("fact_dislikes")
-            }
-        }
+        MemoryRevision.removedKeys(learnedFacts(), updates).forEach { editor.remove("fact_$it") }
         editor.apply()
     }
 
     private fun learnedFacts(): Map<String, String> {
-        val keys = listOf("name", "likes", "dislikes", "prefers", "lives", "work", "studies")
+        val keys = listOf("name", "likes", "dislikes", "prefers", "lives", "work", "studies", "drinks", "no_longer_drinks")
         return buildMap {
             keys.forEach { key ->
                 prefs.getString("fact_$key", null)?.takeIf { it.isNotBlank() }?.let { put(key, it) }
@@ -346,6 +350,8 @@ class NikoMemory(context: Context) {
         "lives" -> "vivís en"
         "work" -> "trabajás en/como"
         "studies" -> "estudiás"
+        "drinks" -> "tomás"
+        "no_longer_drinks" -> "ya no tomás"
         else -> key
     }
 

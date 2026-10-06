@@ -76,7 +76,9 @@ class LeoUiStepPlanner(
         if (snapshot.nodeCount <= 0 || snapshot.tree.isBlank()) {
             return LeoUiStep.Abort("No pude leer controles de la pantalla actual.")
         }
-        val raw = runCatching { structuredCompletion(prompt(task, snapshot, history)) }.getOrNull()
+        val raw = try { structuredCompletion(prompt(task, snapshot, history)) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { null }
         if (raw.isNullOrBlank()) {
             lastError = "No pude decidir el próximo paso de forma segura."
             return LeoUiStep.Abort(lastError.orEmpty())
