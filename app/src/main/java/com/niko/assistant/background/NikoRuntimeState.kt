@@ -344,7 +344,7 @@ object NikoRuntimeState {
 
     private fun encodeSources(sources: List<NikoWebSource>): String {
         val array = JSONArray()
-        sources.take(8).forEach { source ->
+        sources.take(64).forEach { source ->
             array.put(
                 JSONObject()
                     .put("title", source.title)

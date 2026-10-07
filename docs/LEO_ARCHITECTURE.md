@@ -26,7 +26,7 @@ El servicio conserva preparación del micrófono, overlays, ciclo de vida Androi
 | SmartHome.control usa runBlocking | Servicio utiliza controlAsync existente |
 | Embeddings recalculaban K/V dentro de cada cabeza y token | Proyecciones precalculadas; caché protegida de mutación externa |
 | NikoActionPlanner / NikoBackendPrewarmer sin consumidores productivos encontrados | Conservados como compatibilidad; no contados como capacidades |
-| NikoVisualContext.capture no se conecta a conversación en la base | Visión conversacional pendiente; Accessibility sí usa snapshots reales |
+| NikoVisualContext.capture no se conecta a conversación en la base | Conectado ahora a peticiones explícitas de pantalla; Accessibility aporta texto, no píxeles |
 | Neural TTS tiene construcción lazy pero ruta normal habla por Android TTS | No se atribuye síntesis neural a la ruta activa |
 | ResearchQuality existe pero NikoAiClient seleccionaba por su propia política | No se cuenta el archivo como orquestación activa |
 
@@ -40,3 +40,6 @@ Inventario trazable de todos los archivos versionados de la base: `evidencias/le
 ## Evidencia y límites
 
 Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AUTOMATIZADAMENTE PROBADO solo para los casos ejecutados en [LEO_VALIDATION.md](LEO_VALIDATION.md). Toda propiedad del teléfono permanece **PENDIENTE DE VALIDACIÓN FÍSICA**. Los contratos o tipos sin ruta productiva se indican como PLANIFICADO.
+
+
+Actualización: LeoVisionContext conecta peticiones explícitas de pantalla con observaciones reales de Accessibility, con caducidad. Sin entrada accesible no afirma visión. Offline describe etiquetas; Groq puede interpretar el texto observado, sin herramientas web. Cámara, imágenes y OCR de documentos siguen pendientes. Memoria y observaciones cloud se adjuntan como datos de usuario no confiables, nunca dentro del rol system.

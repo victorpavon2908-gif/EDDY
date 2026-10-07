@@ -46,6 +46,14 @@ class NikoAiClient(
     /** Keeps the settings-screen Groq test meaningful; native search itself needs no setup. */
     suspend fun healthCheck(): Boolean = groq.testConnection()
 
+    /** Screen data never goes to web search. No observation means no vision claim. */
+    suspend fun describeObservation(message: String, observation: com.niko.assistant.devicecontrol.LeoVisionContext): String {
+        if (!observation.usableAt(System.currentTimeMillis())) return "La observación ya no está disponible. Pedime mirar la pantalla de nuevo."
+        if (!groq.isConfigured || AutonomousResearch.offlineOnly(message)) return observation.offlineDescription()
+        return groq.reply(message, observation.asUntrustedData(), useWeb = false)?.text
+            ?: observation.offlineDescription()
+    }
+
     suspend fun reply(
         message: String,
         memoryContext: String,

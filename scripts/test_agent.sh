@@ -10,6 +10,7 @@ leo_sources=(
  app/src/main/java/com/niko/assistant/brain/AssistantCommand.kt
  app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt
  app/src/main/java/com/niko/assistant/ai/ResearchCitationPolicy.kt
+ app/src/main/java/com/niko/assistant/devicecontrol/LeoVisionContext.kt
  app/src/main/java/com/niko/assistant/memory/EddyTransformerEmbedder.kt
  app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt
  app/src/main/java/com/niko/assistant/memory/MemoryRevision.kt
@@ -17,7 +18,7 @@ leo_sources=(
  app/src/main/java/com/niko/assistant/skills/LeoSkill.kt
  app/src/main/java/com/niko/assistant/agent/*.kt
 )
-leo_tests=(agent/LeoAgentRuntime proactive/LeoInitiativeEngine memory/MemoryRevision skills/LeoSkillRegistry ai/ResearchCitationPolicy memory/EddyTransformerEmbedder)
+leo_tests=(agent/LeoAgentRuntime proactive/LeoInitiativeEngine memory/MemoryRevision skills/LeoSkillRegistry ai/ResearchCitationPolicy memory/EddyTransformerEmbedder devicecontrol/LeoVisionContext)
 leo_classes=()
 for unit in "${leo_tests[@]}"; do
  leo_sources+=("app/src/test/java/com/niko/assistant/${unit}Test.kt")

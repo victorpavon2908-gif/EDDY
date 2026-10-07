@@ -14,3 +14,6 @@ PLANIFICADO: planificador abierto de objetivos, resolución semántica robusta e
 ## Evidencia y límites
 
 Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AUTOMATIZADAMENTE PROBADO solo para los casos ejecutados en [LEO_VALIDATION.md](LEO_VALIDATION.md). Toda propiedad del teléfono permanece **PENDIENTE DE VALIDACIÓN FÍSICA**. Los contratos o tipos sin ruta productiva se indican como PLANIFICADO.
+
+
+Actualización: LeoVisionContext conecta peticiones explícitas de pantalla con observaciones reales de Accessibility, con caducidad. Sin entrada accesible no afirma visión. Offline describe etiquetas; Groq puede interpretar el texto observado, sin herramientas web. Cámara, imágenes y OCR de documentos siguen pendientes. Memoria y observaciones cloud se adjuntan como datos de usuario no confiables, nunca dentro del rol system.

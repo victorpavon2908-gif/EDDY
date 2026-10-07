@@ -825,6 +825,17 @@ open class NikoAssistantService : Service() {
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
 
+        if (com.niko.assistant.devicecontrol.LeoVisionContext.isExplicitScreenRequest(text)) {
+            agent.conversation.tool("screen_accessibility")
+            val capture = withContext(Dispatchers.IO) { com.niko.assistant.devicecontrol.NikoVisualContext.capture() }
+            agent.turns.checkpoint()
+            val observation = capture.observation
+            val answer = if (observation == null) capture.problem ?: "No recibí una observación de pantalla."
+                else webClient.describeObservation(text, observation)
+            speakResponse(answer)
+            return
+        }
+
         // Ruta inmediata para acciones claras del teléfono. No toca el motor de escucha.
         // Antes estas órdenes esperaban memoria/IA/planificador aunque LocalBrain ya sabía
         // exactamente qué hacer, por eso la UI podía quedarse en "Procesando tu petición…".
@@ -852,7 +863,7 @@ open class NikoAssistantService : Service() {
         val generatedTool = brain.understandMany(text).singleOrNull() as? AssistantCommand.GenerateTool
         if (generatedTool != null) {
             learnIntent(text, LearnedIntent.ACTION, correctionAlias)
-            val response = createGeneratedTool(generatedTool.request)
+            val response = executeDirectCommand(generatedTool) ?: "No pude crear la herramienta."
             speakResponse(response)
             return
         }
@@ -911,7 +922,7 @@ open class NikoAssistantService : Service() {
                 correctionAlias,
             )
             val responses = mutableListOf<String>()
-            val sources = mutableListOf<NikoWebSource>()
+            val stepReplies = mutableListOf<NikoAiReply>()
             taskExecutor.run(text, commands) { command ->
                 agent.turns.checkpoint()
                 memory.rememberCommand(command); proactiveScheduler.maybeSchedule(command)
@@ -919,20 +930,22 @@ open class NikoAssistantService : Service() {
                     learnIntent(command.query, LearnedIntent.SEARCH)
                     val answer = researchReply(command.query, openBrowser = true)
                     responses.add(answer.text)
-                    sources.addAll(answer.sources)
+                    stepReplies.add(answer)
                     return@run answer.text
                 }
                 val direct = executeDirectCommand(command)
                 if (!direct.isNullOrBlank()) {
                     responses.add(direct)
+                    stepReplies.add(NikoAiReply(direct, false, emptyList()))
                     if (lastCommandSucceeded) withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
                 }
                 delay(120L)
                 direct.orEmpty()
             }
             val answer = responses.joinToString(" ").ifBlank { "No entendí qué acciones querés que haga." }
-            if (sources.isEmpty()) speakResponse(answer)
-            else speakResearchResponse(text, NikoAiReply(answer, true, sources.distinctBy { it.url }.take(8)))
+            val combined = com.niko.assistant.ai.ResearchCitationPolicy.combine(stepReplies)
+            if (!combined.webUsed) speakResponse(answer)
+            else speakResearchResponse(text, combined)
             return
         }
         val command = commands.firstOrNull() ?: AssistantCommand.Unknown(text)
@@ -945,7 +958,7 @@ open class NikoAssistantService : Service() {
         if (command is AssistantCommand.Unknown) {
             if (NikoUiTaskPolicy.looksLikeExplicitUiTask(text)) {
                 learnIntent(text, LearnedIntent.ACTION, correctionAlias)
-                speakResponse(uiAutomation.run(text).message)
+                speakResponse(executeDirectCommand(AssistantCommand.AutomateUi(text)) ?: "No pude iniciar la automatización.")
                 return
             }
             withContext(Dispatchers.IO) { memory.personalReply(text) }?.let {

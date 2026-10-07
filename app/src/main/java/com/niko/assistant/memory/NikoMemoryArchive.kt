@@ -181,7 +181,7 @@ class NikoMemoryArchive private constructor(context: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            keys.forEach { key -> db.execSQL("UPDATE semantic_memory SET expires_at=? WHERE key=?", arrayOf(now.coerceAtLeast(1L), key)) }
+            keys.forEach { key -> db.execSQL("UPDATE semantic_memory SET expires_at=? WHERE key=?", arrayOf<Any>(now.coerceAtLeast(1L), key)) }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
     }

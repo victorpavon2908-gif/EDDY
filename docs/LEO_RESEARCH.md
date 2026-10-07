@@ -19,3 +19,5 @@ La validación implementada demuestra pertenencia de referencias y disponibilida
 ## Evidencia y límites
 
 Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AUTOMATIZADAMENTE PROBADO solo para los casos ejecutados en [LEO_VALIDATION.md](LEO_VALIDATION.md). Toda propiedad del teléfono permanece **PENDIENTE DE VALIDACIÓN FÍSICA**. Los contratos o tipos sin ruta productiva se indican como PLANIFICADO.
+
+Al combinar varias búsquedas, los índices de citas se reasignan por URL y el estado visible conserva hasta 64 fuentes. Esto evita que el [1] de una segunda consulta apunte a la primera fuente de otra investigación. Una referencia inválida se señala explícitamente.

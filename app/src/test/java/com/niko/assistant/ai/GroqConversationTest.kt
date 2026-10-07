@@ -8,12 +8,13 @@ class GroqConversationTest {
         val history = listOf(ConversationTurn("user", "Me llamo Manuel"), ConversationTurn("model", "Lo recordaré"), ConversationTurn("user", "Qué recordás"))
         val payload = GroqConversation.payload("Qué recordás", "te gusta el café", history, false)
         val messages = payload.getJSONArray("messages")
-        assertEquals(4, messages.length())
+        assertEquals(5, messages.length())
         assertEquals("system", messages.getJSONObject(0).getString("role"))
-        assertTrue(messages.getJSONObject(0).getString("content").contains("te gusta el café"))
+        assertFalse(messages.getJSONObject(0).getString("content").contains("te gusta el café"))
+        assertTrue(messages.getJSONObject(1).getString("content").contains("te gusta el café"))
         assertEquals("user", messages.getJSONObject(1).getString("role"))
-        assertEquals("assistant", messages.getJSONObject(2).getString("role"))
-        assertEquals("Qué recordás", messages.getJSONObject(3).getString("content"))
+        assertEquals("assistant", messages.getJSONObject(3).getString("role"))
+        assertEquals("Qué recordás", messages.getJSONObject(4).getString("content"))
         assertFalse(payload.has("contents"))
     }
 

@@ -14,6 +14,7 @@ object NikoVisualContext {
     data class Capture(
         val evidence: String = "",
         val problem: String? = null,
+        val observation: LeoVisionContext? = null,
     ) {
         val available: Boolean get() = problem == null && evidence.isNotBlank()
     }
@@ -60,7 +61,10 @@ object NikoVisualContext {
             )
         }
 
+        val observation = LeoVisionContext(System.currentTimeMillis(), snapshot.packageName,
+            snapshot.snapshotId, snapshot.uiRevision, snapshot.tree.take(MAX_TREE_CHARS), snapshot.nodeCount)
         return Capture(
+            observation = observation,
             evidence = buildString {
                 appendLine("CONTEXTO VISUAL LOCAL DE LA PANTALLA ACTUAL")
                 appendLine("Aplicación visible: ${snapshot.packageName.ifBlank { "desconocida" }}")
