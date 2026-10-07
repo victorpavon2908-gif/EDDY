@@ -226,6 +226,7 @@ class NikoMemory(context: Context) {
     fun clearAll() {
         cancelProactiveSchedules()
         archive.clearMemory()
+        com.niko.assistant.memory.embedding.LeoSemanticMemory.get(appContext).release()
         prefs.edit().clear().apply()
     }
 

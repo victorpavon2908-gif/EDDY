@@ -1,0 +1,15 @@
+LEO semantic memory
+
+Model: sentence-transformers/distiluse-base-multilingual-cased-v2
+Revision: bfe45d0732ca50787611c0fe107ba278c7f3f889
+Authors: Nils Reimers and Iryna Gurevych / Sentence Transformers
+Source: https://huggingface.co/sentence-transformers/distiluse-base-multilingual-cased-v2
+License: Apache License 2.0 (distiluse-Apache-2.0.txt).
+LEO uses upstream INT8 ONNX weights, vocabulary and the trained Dense layer.
+No claim of original training or endorsement. Weights are downloaded separately.
+
+ONNX Runtime Java bridge 1.22.0
+Copyright (c) Microsoft Corporation
+Source: https://github.com/microsoft/onnxruntime
+License: MIT (onnxruntime-MIT.txt).
+Native ONNX runtime is provided by the existing Sherpa dependency.

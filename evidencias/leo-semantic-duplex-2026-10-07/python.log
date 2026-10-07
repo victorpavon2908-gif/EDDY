@@ -1,0 +1,14 @@
+test_charger (test_battery.BatteryTests.test_charger) ... ok
+test_invalid_scale (test_battery.BatteryTests.test_invalid_scale) ... ok
+test_missing_level (test_battery.BatteryTests.test_missing_level) ... ok
+test_real_reading (test_battery.BatteryTests.test_real_reading) ... ok
+test_simulation (test_battery.BatteryTests.test_simulation) ... ok
+test_capture_does_not_certify_physical_success (test_device_evidence.EvidenceCollectorTest.test_capture_does_not_certify_physical_success) ... ok
+test_never_overwrites_evidence (test_device_evidence.EvidenceCollectorTest.test_never_overwrites_evidence) ... ok
+test_permission_denial_is_not_success (test_device_evidence.EvidenceCollectorTest.test_permission_denial_is_not_success) ... ok
+test_timeout_preserves_error_evidence (test_device_evidence.EvidenceCollectorTest.test_timeout_preserves_error_evidence) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.009s
+
+OK

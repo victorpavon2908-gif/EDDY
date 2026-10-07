@@ -51,3 +51,11 @@ Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AU
 Total local: 258 pruebas; no sumar este número a Android CI porque hay casos compartidos. Logs y hashes: [manifiesto](../evidencias/leo-agent-2026-10-06/validation.json). `source_base_commit` más los hashes identifican las fuentes realmente utilizadas, incluidos ajustes posteriores a la base. El manifiesto separa el error inicial de compilación y su corrección.
 
 La integración Android en `40b7c00` pasó `testDebugUnitTest` y `lintDebug` en el [workflow 37633714241](https://github.com/victorpavon2908-gif/EDDY/actions/runs/37633714241); el [workflow web 37633714431](https://github.com/victorpavon2908-gif/EDDY/actions/runs/37633714431) pasó. El commit de entrega vuelve a ejecutar ambos workflows por incluir el ajuste final de cambio de tema. Consultar Actions sobre ese SHA; no convertir un run pendiente en aprobado. No se ejecutaron workflows manuales de APK o publicación del cerebro congelado.
+
+
+## Iteración 2026-10-07: embeddings, reconocedor principal e interfaz
+
+- `evidencias/leo-semantic-duplex-2026-10-07/semantic-jvm.log`: 7 tests reales, incluyendo seis contrastes de paráfrasis en español con pesos DistilUSE INT8 verificados.
+- `voice-jvm.log`: 90 tests de políticas/audio. `agent-jvm.log`: 53 tests. `python.log`: 9 tests.
+- Android local bloqueado al resolver el plugin AGP 8.13.2; no se registra como aprobado. El resultado integrado se obtiene del workflow de GitHub de esta revisión.
+- [Rutas, reproducción y protocolo físico](LEO_SEMANTIC_DUPLEX.md). La nueva interfaz no tiene captura validada en teléfono. Dúplex acústico, RAM, batería, temperatura y Bluetooth: **PENDIENTE DE VALIDACIÓN FÍSICA**.

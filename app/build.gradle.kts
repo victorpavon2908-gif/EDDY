@@ -25,7 +25,7 @@ val sherpaVersion = "1.13.7"
 // package only the Java bridge from ORT 1.22 (the C API is backwards compatible).
 // Do not use pickFirst: selecting two different native runtimes is order-dependent.
 val ortJavaBridge by configurations.creating
- dependencies.add(ortJavaBridge.name, "com.microsoft.onnxruntime:onnxruntime-android:1.22.0@aar")
+dependencies.add(ortJavaBridge.name, "com.microsoft.onnxruntime:onnxruntime-android:1.22.0@aar")
 val prepareOrtJava by tasks.registering(Sync::class) {
     from({ zipTree(ortJavaBridge.singleFile) })
     include("classes.jar", "jni/**/libonnxruntime4j_jni.so")

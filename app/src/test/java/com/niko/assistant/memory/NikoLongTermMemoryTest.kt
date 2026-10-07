@@ -25,6 +25,25 @@ class NikoLongTermMemoryTest {
         memory.clearAll()
     }
 
+    @Test fun trainedRetrievalUsesExistingArchiveAndOriginalSpanishText() {
+        val modelPath = System.getenv("LEO_EMBEDDING_MODELS")
+        org.junit.Assume.assumeTrue("Real model must be prepared", modelPath != null)
+        val archive = NikoMemoryArchive.get(RuntimeEnvironment.getApplication())
+        com.niko.assistant.memory.embedding.LeoSemanticEncoder(java.io.File(requireNotNull(modelPath))).use { encoder ->
+            var received = emptyList<String>()
+            val semantic = NikoLongTermMemory(archive, semanticBatch = { texts ->
+                received = texts
+                texts.map(encoder::encode)
+            })
+            semantic.rememberExplicitNote("El coche está averiado y necesita un mecánico")
+            semantic.rememberExplicitNote("La receta de pastel lleva harina")
+            val hits = semantic.retrieve("Necesito reparar mi automóvil")
+            org.junit.Assert.assertEquals("El coche está averiado y necesita un mecánico", hits.first().text)
+            org.junit.Assert.assertEquals("Necesito reparar mi automóvil", received.first())
+            assertTrue(received.any { it.contains("mecánico") })
+        }
+    }
+
     @Test fun explicitCorrectionRemovesContradictorySemanticAndNoteContext() {
         memory.rememberUserTurn("Recordá que me gusta el café")
         memory.learnExplicitly("Recordá que me gusta el café")

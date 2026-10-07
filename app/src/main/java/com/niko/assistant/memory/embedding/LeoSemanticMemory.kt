@@ -29,7 +29,7 @@ class LeoSemanticMemory private constructor(context: Context) {
         File(root, it.name).length() == it.bytes
     }
 
-    suspend fun install(progress: (Long, Long) -> Unit = {}) = withContext(Dispatchers.IO) {
+    suspend fun install(progress: (Long, Long) -> Unit = { _, _ -> }) = withContext(Dispatchers.IO) {
         installMutex.withLock {
             if (!LeoEmbeddingModel.verify(root)) {
                 val staging = File(root.parentFile, root.name + ".installing")
@@ -88,7 +88,7 @@ class LeoSemanticMemory private constructor(context: Context) {
         return try {
             val active = encoder ?: LeoSemanticEncoder(root).also { encoder = it }
             texts.map(active::encode).also {
-                status = "Memoria semántica local · DistilUSE INT8 · 512 dimensiones"
+                status = "Memoria semántica preparada · funciona sin conexión"
                 lastUsed = System.nanoTime()
                 idleRelease?.cancel()
                 idleRelease = maintenance.launch {
