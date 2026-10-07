@@ -29,7 +29,7 @@ class NikoMemory(context: Context) {
             )
         }
     }
-    private val longTerm by lazy { NikoLongTermMemory(archive) }
+    private val longTerm by lazy { NikoLongTermMemory(archive, semanticBatch = com.niko.assistant.memory.embedding.LeoSemanticMemory.get(appContext)::encodeTrained) }
 
     fun rememberUtterance(text: String) = rememberUserTurn(text)
 

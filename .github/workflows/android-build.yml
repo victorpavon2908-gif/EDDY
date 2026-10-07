@@ -30,6 +30,8 @@ jobs:
       - run: python scripts/validate_leo_microgpt_assets.py
       - name: Prepare native wake detector regression
         run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/niko-kws-native" --github-env "$GITHUB_ENV"
+      - name: Prepare trained semantic model regression
+        run: python scripts/prepare_semantic_test.py --destination "$RUNNER_TEMP/leo-semantic" --github-env "$GITHUB_ENV"
       - name: Native Kotlin tests and Android lint (no APK)
         run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
       - name: Test reports

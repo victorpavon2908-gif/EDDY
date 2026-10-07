@@ -4,7 +4,11 @@ IMPLEMENTADO: token de turno en CoroutineContext; validación al publicar texto,
 
 Se conservan KWS, ASR, VAD, pre-roll, fidelidad de audio, selección de voz y perfiles. Android TTS mantiene su propio prefijo de utterance y época de notificaciones. GroqHttpClient conserva desconexión/cancelación de red y backpressure del streaming.
 
-**No hay full-duplex verificado en el reconocedor principal de Android:** pausa durante procesamiento/habla. El motor nativo sí contiene barge-in por KWS, pero su detección física no está probada aquí. La nueva protección de turnos resuelve coordinación una vez recibido el evento, no inventa detección de voz donde el motor no escucha.
+El reconocedor principal `LeoPlatformVoiceEngine` ahora **mantiene sesiones de escucha durante pensamiento y TTS**. Los parciales válidos “LEO”, “LEO pará”, controles de parada o “no, eso no” interrumpen el productor y el reproductor mediante `LeoRealtimeTurnBus.interruptTurn()`. Un wake solo conserva la ventana de la próxima orden; el resultado final conserva una orden en la misma frase.
+
+Cada sesión posee un listener y generación propios. Los callbacks tardíos, duplicados o posteriores a `stop()` no pueden publicar una orden. Al finalizar una reproducción no interrumpida se cancela su sesión de reconocimiento antes de abrir la siguiente. El TTS publica una referencia textual con propietario y una cola de 800 ms; las coincidencias completas por palabras se rechazan como posible eco. Esto NO es cancelación acústica de eco: una frase igual a lo que LEO acaba de decir puede ser suprimida incluso si la dijo el usuario; eco transcrito de forma distinta puede escapar. La interrupción libre sin wake solo acepta controles acotados.
+
+**PENDIENTE DE VALIDACIÓN FÍSICA:** dúplex acústico real en HONOR NIC-LX3, altavoz/Bluetooth, retardo de parciales, falsos positivos y continuidad entre sesiones. La API Android no garantiza reconocimiento continuo ni simultaneidad efectiva en todos los proveedores. No se modifica el motor nativo avanzado ni su KWS. Las pruebas de callbacks no demuestran que un proveedor OEM entregue audio mientras reproduce TTS.
 
 Métricas existentes: recordWake, recordTranscript, recordResponseStarted, recordResponseText, recordSpeechRequested y recordSpeechStarted. El evento Android onStart de TTS es un callback del motor, NO medición acústica de sonido audible. El tiempo request→first text tampoco equivale al primer token interno de razonamiento.
 

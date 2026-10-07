@@ -102,25 +102,15 @@ internal fun NikoReferenceScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFFAF9F5),
-                        Color(0xFFF7F6F2),
-                        Color(0xFFF2F6F4),
-                        Color(0xFFF9F8F4),
-                    ),
-                ),
-            ),
+            .background(Color(0xFFF4F1EB)),
     ) {
-        RobotBackdrop(accent)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 6.dp),
+                .padding(horizontal = 24.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             NikoTopBar(
@@ -136,17 +126,17 @@ internal fun NikoReferenceScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Surface(
-                    modifier = Modifier.size(minOf(252.dp, maxWidth, (maxHeight - 34.dp).coerceAtLeast(0.dp))),
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.96f),
-                    border = BorderStroke(1.dp, accent.copy(alpha = 0.18f)),
-                    shadowElevation = 3.dp,
+                    modifier = Modifier.fillMaxWidth().height(minOf(260.dp, (maxHeight - 46.dp).coerceAtLeast(0.dp))),
+                    shape = RoundedCornerShape(28.dp),
+                    color = Color(0xFF192B27),
+                    border = BorderStroke(1.dp, Color(0xFF3D5147)),
+                    shadowElevation = 0.dp,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Canvas(Modifier.fillMaxSize()) {
                             drawCircle(
                                 brush = Brush.radialGradient(
-                                    listOf(accent.copy(alpha = 0.13f), Color.Transparent),
+                                    listOf(Color(0xFFB7C8B2).copy(alpha = 0.16f), Color.Transparent),
                                 ),
                                 radius = size.minDimension * 0.48f,
                             )
@@ -154,7 +144,7 @@ internal fun NikoReferenceScreen(
                         NikoHero(
                             state = displayState,
                             enabled = autoListeningEnabled,
-                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                            modifier = Modifier.size(220.dp).padding(12.dp),
                         )
                     }
                 }
@@ -198,30 +188,6 @@ internal fun NikoReferenceScreen(
 }
 
 @Composable
-private fun RobotBackdrop(accent: Color) {
-    Canvas(Modifier.fillMaxSize()) {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(accent.copy(alpha = 0.10f), Color.Transparent),
-                center = Offset(size.width * 0.52f, size.height * 0.28f),
-                radius = size.width * 0.86f,
-            ),
-            radius = size.width * 0.86f,
-            center = Offset(size.width * 0.52f, size.height * 0.28f),
-        )
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0xFF9EDFCB).copy(alpha = 0.08f), Color.Transparent),
-                center = Offset(size.width * 0.10f, size.height * 0.78f),
-                radius = size.width * 0.72f,
-            ),
-            radius = size.width * 0.72f,
-            center = Offset(size.width * 0.10f, size.height * 0.78f),
-        )
-    }
-}
-
-@Composable
 private fun NikoTopBar(
     state: NikoVisualState,
     autoListeningEnabled: Boolean,
@@ -239,9 +205,9 @@ private fun NikoTopBar(
                 Text(
                     text = "LEO",
                     color = Color(0xFF1A2421),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.3.sp,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 5.sp,
                 )
                 Spacer(Modifier.size(7.dp))
                 Canvas(Modifier.size(8.dp)) {
@@ -249,11 +215,11 @@ private fun NikoTopBar(
                 }
             }
             Text(
-                text = "TU COMPAÑERO PERSONAL",
-                color = Color(0xFF71807B),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.55.sp,
+                text = "ASISTENTE PERSONAL",
+                color = Color(0xFF59665F),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Normal,
+                letterSpacing = 1.2.sp,
             )
         }
 
@@ -294,8 +260,8 @@ private fun LiveStateBadge(
         webSearching -> "BUSCANDO EN INTERNET"
         state == NikoVisualState.LISTENING -> "ESCUCHANDO"
         state == NikoVisualState.THINKING -> "PENSANDO"
-        state == NikoVisualState.SPEAKING -> "HABLANDO"
-        else -> "LISTO PARA VOS"
+        state == NikoVisualState.SPEAKING -> "Respondiendo"
+        else -> "Decime, te escucho"
     }
 
     Surface(
@@ -354,9 +320,9 @@ private fun ConversationGlass(
         shape = RoundedCornerShape(26.dp),
         color = Color.White.copy(alpha = 0.96f),
         border = BorderStroke(1.dp, Color(0xFFE2E9E6)),
-        shadowElevation = 2.dp,
+        shadowElevation = 0.dp,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 17.dp, vertical = 14.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -391,8 +357,9 @@ private fun ConversationGlass(
                     Text(
                         text = message,
                         color = Color(0xFF1C2623),
-                        fontSize = 15.5.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 18.sp,
+                        lineHeight = 25.sp,
+                        fontWeight = FontWeight.Normal,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -402,8 +369,7 @@ private fun ConversationGlass(
             if (responseText.isNotBlank() && state != NikoVisualState.LISTENING && state != NikoVisualState.THINKING) {
                 TextButton(onClick = { showFullResponse = true }) { Text("Leer respuesta completa") }
             }
-            Spacer(Modifier.height(10.dp))
-            NeuralWaveform(
+            if (state != NikoVisualState.IDLE) NeuralWaveform(
                 state = state,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -414,8 +380,8 @@ private fun ConversationGlass(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = "VOS · $heardText",
-                    color = Color(0xFF788680),
-                    fontSize = 10.sp,
+                    color = Color(0xFF56675F),
+                    fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -508,7 +474,7 @@ private fun NeuralWaveform(state: NikoVisualState, modifier: Modifier = Modifier
                 NikoVisualState.SPEAKING -> 0.83f
             }
             val height = size.height * (0.10f + harmonic * envelope * amount)
-            val tint = mix(accent, Color(0xFF7D73FF), index / (bars - 1f))
+            val tint = accent
             drawRoundRect(
                 color = tint.copy(alpha = if (state == NikoVisualState.IDLE) 0.22f else 0.68f),
                 topLeft = Offset(index * slot + slot * 0.34f, centerY - height / 2f),
@@ -524,7 +490,7 @@ private fun QuickActionsRail() {
     val context = LocalContext.current
     var torchOn by remember { mutableStateOf(false) }
     val actions = listOf(
-        QuickAction("Linterna", Icons.Rounded.FlashlightOn, Color(0xFF3DA9A1)) {
+        QuickAction("Linterna", Icons.Rounded.FlashlightOn, Color(0xFF345849)) {
             runCatching {
                 val manager = context.getSystemService(CameraManager::class.java)
                 val cameraId = manager.cameraIdList.firstOrNull { id ->
@@ -534,17 +500,17 @@ private fun QuickActionsRail() {
                 manager.setTorchMode(cameraId, torchOn)
             }
         },
-        QuickAction("YouTube", Icons.Rounded.SmartDisplay, Color(0xFFD96A72)) {
+        QuickAction("YouTube", Icons.Rounded.SmartDisplay, Color(0xFF345849)) {
             val launch = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
             if (launch != null) context.startActivity(launch)
             else runCatching {
                 context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://youtube.com")))
             }
         },
-        QuickAction("WhatsApp", Icons.Rounded.Chat, Color(0xFF3FA86E)) {
+        QuickAction("WhatsApp", Icons.Rounded.Chat, Color(0xFF345849)) {
             context.packageManager.getLaunchIntentForPackage("com.whatsapp")?.let(context::startActivity)
         },
-        QuickAction("Alarmas", Icons.Rounded.Alarm, Color(0xFF7D75BF)) {
+        QuickAction("Alarmas", Icons.Rounded.Alarm, Color(0xFF345849)) {
             runCatching { context.startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS)) }
         },
     )
@@ -581,7 +547,7 @@ private fun QuickActionsRail() {
                 Text(
                     text = action.label,
                     color = Color(0xFF67756F),
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                 )
@@ -621,7 +587,7 @@ private fun PremiumBottomDock(
         shape = RoundedCornerShape(28.dp),
         color = Color.White.copy(alpha = 0.97f),
         border = BorderStroke(1.dp, Color(0xFFE0E8E4)),
-        shadowElevation = 2.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -631,7 +597,7 @@ private fun PremiumBottomDock(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Rounded.Home, contentDescription = "Inicio", tint = Color(0xFF8A9691), modifier = Modifier.size(20.dp))
                 Spacer(Modifier.height(3.dp))
-                Text("Inicio", color = Color(0xFF7A8782), fontSize = 9.sp)
+                Text("Inicio", color = Color(0xFF7A8782), fontSize = 11.sp)
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
@@ -652,16 +618,16 @@ private fun PremiumBottomDock(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(status, color = Color(0xFF33413C), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text(detail, color = Color(0xFF89958F), fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(detail, color = Color(0xFF52635A), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             Column(
-                modifier = Modifier.clickable(onClick = onTools).padding(horizontal = 4.dp),
+                modifier = Modifier.clickable(onClick = onTools).padding(horizontal = 8.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(Icons.Rounded.Apps, contentDescription = "Herramientas", tint = Color(0xFF65736E), modifier = Modifier.size(20.dp))
                 Spacer(Modifier.height(3.dp))
-                Text("Herramientas", color = Color(0xFF65736E), fontSize = 9.sp)
+                Text("Herramientas", color = Color(0xFF65736E), fontSize = 11.sp)
             }
         }
     }
@@ -679,14 +645,4 @@ private fun stateAccent(state: NikoVisualState): Color = when (state) {
     NikoVisualState.LISTENING -> Color(0xFF176B57)
     NikoVisualState.THINKING -> Color(0xFF6B5792)
     NikoVisualState.SPEAKING -> Color(0xFF916A34)
-}
-
-private fun mix(start: Color, end: Color, fraction: Float): Color {
-    val t = fraction.coerceIn(0f, 1f)
-    return Color(
-        red = start.red + (end.red - start.red) * t,
-        green = start.green + (end.green - start.green) * t,
-        blue = start.blue + (end.blue - start.blue) * t,
-        alpha = start.alpha + (end.alpha - start.alpha) * t,
-    )
 }

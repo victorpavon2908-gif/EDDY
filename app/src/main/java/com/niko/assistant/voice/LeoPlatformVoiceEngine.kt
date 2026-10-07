@@ -14,13 +14,8 @@ import android.speech.SpeechRecognizer
 import androidx.core.content.ContextCompat
 import java.util.Locale
 
-/**
- * Capa de compatibilidad para teléfonos donde el runtime nativo KWS/ONNX no puede abrirse
- * de forma estable. Usa el reconocedor de voz provisto por Android y pide modo offline
- * cuando el proveedor lo soporta.
- *
- * No reemplaza el motor nativo para siempre: es una ruta segura para que LEO pueda escuchar
- * y ejecutar órdenes sin dejar la aplicación inutilizable por un fallo JNI.
+/** Android's primary recognizer. Listening stays active during thinking and TTS.
+ * Text-level echo rejection is conservative; acoustic duplex depends on the OEM provider.
  */
 class LeoPlatformVoiceEngine(
     context: Context,
@@ -38,6 +33,9 @@ class LeoPlatformVoiceEngine(
     private var recognizer: SpeechRecognizer? = null
     private var running = false
     private var speaking = false
+    private var busy = false
+    private var sessionOpen = false
+    private var interruptedGeneration = -1
     private var awaitingCommand = false
     private var continueAfterSpeech = false
     private var restartAttempt = 0
@@ -67,9 +65,7 @@ class LeoPlatformVoiceEngine(
         }
         return runCatching {
             recognizer?.destroy()
-            recognizer = SpeechRecognizer.createSpeechRecognizer(appContext).also {
-                it.setRecognitionListener(this)
-            }
+            recognizer = null
             running = true
             restartAttempt = 0
             awaitingCommand = false
@@ -89,6 +85,8 @@ class LeoPlatformVoiceEngine(
         destroyed = true
         running = false
         awaitingCommand = false
+        sessionOpen = false
+        ++listenGeneration
         main.removeCallbacksAndMessages(null)
         main.post {
             runCatching { recognizer?.cancel() }
@@ -104,8 +102,8 @@ class LeoPlatformVoiceEngine(
     }
 
     fun setAssistantBusy(value: Boolean) {
-        if (value) pauseForAssistant()
-        else if (!speaking && running) startListening(160L)
+        busy = value
+        if (running) startListening(80L)
     }
 
     fun cancelConversation() {
@@ -121,10 +119,16 @@ class LeoPlatformVoiceEngine(
         speaking = value
         continueAfterSpeech = continueCommand
         if (value) {
-            pauseForAssistant()
+            startListening(0L)
             onState(State.SPEAKING)
         } else if (running) {
-            awaitingCommand = continueAfterSpeech
+            val interrupted = interruptedGeneration == listenGeneration
+            if (!interrupted && sessionOpen) {
+                sessionOpen = false
+                ++listenGeneration
+                runCatching { recognizer?.cancel() }
+            }
+            awaitingCommand = continueAfterSpeech || interrupted
             onState(if (awaitingCommand) State.ACTIVE else State.PASSIVE)
             startListening(220L)
         }
@@ -139,21 +143,25 @@ class LeoPlatformVoiceEngine(
         }
     }
 
-    private fun pauseForAssistant() {
-        main.post {
-            runCatching { recognizer?.cancel() }
-        }
-    }
-
     private fun startListening(delayMs: Long) {
-        if (!running || destroyed || speaking) return
+        if (!running || destroyed || sessionOpen) return
         main.removeCallbacks(startRunnable)
         main.postDelayed(startRunnable, delayMs)
     }
 
     private val startRunnable = Runnable {
-        if (!running || destroyed || speaking) return@Runnable
-        val sr = recognizer ?: return@Runnable
+        if (!running || destroyed || sessionOpen) return@Runnable
+        // A recognizer per session prevents late callbacks from a cancelled Binder session
+        // being dispatched to the next session's listener.
+        val generation = ++listenGeneration
+        runCatching { recognizer?.destroy() }
+        val sr = runCatching {
+            SpeechRecognizer.createSpeechRecognizer(appContext).also {
+                it.setRecognitionListener(sessionListener(generation))
+            }
+        }.getOrElse { scheduleRecovery(); return@Runnable }
+        recognizer = sr
+        sessionOpen = true
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, preferredLanguage())
@@ -166,11 +174,12 @@ class LeoPlatformVoiceEngine(
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (awaitingCommand) 900L else 650L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 550L)
         }
-        val generation = ++listenGeneration
         runCatching { sr.startListening(intent) }
             .onSuccess {
                 main.postDelayed({
-                    if (!running || destroyed || speaking || readyGeneration >= generation) return@postDelayed
+                    if (!running || destroyed || generation != listenGeneration || !sessionOpen || readyGeneration >= generation) return@postDelayed
+                    sessionOpen = false
+                    ++listenGeneration
                     runCatching { sr.cancel() }
                     consecutiveReadyTimeouts++
                     if (consecutiveReadyTimeouts >= MAX_READY_TIMEOUTS) {
@@ -183,6 +192,7 @@ class LeoPlatformVoiceEngine(
                 }, READY_TIMEOUT_MS)
             }
             .onFailure {
+                sessionOpen = false
                 onError("El servicio de voz de Android no pudo abrir el micrófono.")
                 scheduleRecovery()
             }
@@ -193,7 +203,7 @@ class LeoPlatformVoiceEngine(
         consecutiveReadyTimeouts = 0
         restartAttempt = 0
         onStatus(if (awaitingCommand) "Te escucho…" else "Micrófono listo · decí LEO")
-        onState(if (awaitingCommand) State.ACTIVE else State.PASSIVE)
+        onState(if (speaking) State.SPEAKING else if (awaitingCommand) State.ACTIVE else State.PASSIVE)
     }
 
     override fun onBeginningOfSpeech() {
@@ -208,7 +218,8 @@ class LeoPlatformVoiceEngine(
     }
 
     override fun onError(error: Int) {
-        if (!running || destroyed || speaking) return
+        if (!running || destroyed) return
+        sessionOpen = false
 
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
             running = false
@@ -246,16 +257,26 @@ class LeoPlatformVoiceEngine(
 
     override fun onResults(results: Bundle?) {
         if (!running || destroyed) return
+        sessionOpen = false
         val phrases = recognitionPhrases(results)
+        val first = phrases.firstOrNull().orEmpty()
+        if (speaking || busy) {
+            if (!acceptInterruption(first)) { startListening(90L); return }
+        }
+        if (LeoDuplexPolicy.isEcho(first, LeoRealtimeTurnBus.spokenReference())) {
+            startListening(90L)
+            return
+        }
 
-        if (awaitingCommand) {
-            val command = phrases.firstOrNull().orEmpty().trim()
+        if (awaitingCommand || interruptedGeneration == listenGeneration) {
+            val command = (extractWakeCommand(first) ?: first).trim()
             awaitingCommand = false
             if (command.isNotBlank()) {
                 onState(State.PROCESSING)
                 onCommand(command)
             } else {
-                onState(State.PASSIVE)
+                awaitingCommand = true
+                onState(State.ACTIVE)
                 startListening(120L)
             }
             return
@@ -283,7 +304,13 @@ class LeoPlatformVoiceEngine(
     }
 
     override fun onPartialResults(partialResults: Bundle?) {
-        if (!running || destroyed || speaking || awaitingCommand) return
+        if (!running || destroyed) return
+        val first = recognitionPhrases(partialResults).firstOrNull().orEmpty()
+        if (speaking || busy) {
+            if (acceptInterruption(first)) onStatus("Te escucho…")
+            return
+        }
+        if (awaitingCommand || LeoDuplexPolicy.isEcho(first, LeoRealtimeTurnBus.spokenReference())) return
         val wake = recognitionPhrases(partialResults)
             .asSequence()
             .mapNotNull(::extractWakeCommand)
@@ -298,6 +325,35 @@ class LeoPlatformVoiceEngine(
     }
     override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
+    private fun acceptInterruption(text: String): Boolean {
+        if (interruptedGeneration == listenGeneration) return true
+        if (!LeoDuplexPolicy.canInterrupt(text, LeoRealtimeTurnBus.spokenReference())) return false
+        interruptedGeneration = listenGeneration
+        speaking = false
+        busy = false
+        awaitingCommand = true
+        continueAfterSpeech = true
+        LeoRealtimeTurnBus.interruptTurn()
+        notifyWakeForCurrentSession()
+        onState(State.ACTIVE)
+        return true
+    }
+
+    private fun sessionListener(generation: Int): RecognitionListener = object : RecognitionListener {
+        private fun current(block: () -> Unit) {
+            if (running && !destroyed && sessionOpen && generation == listenGeneration) block()
+        }
+        override fun onReadyForSpeech(params: Bundle?) = current { this@LeoPlatformVoiceEngine.onReadyForSpeech(params) }
+        override fun onBeginningOfSpeech() = current { this@LeoPlatformVoiceEngine.onBeginningOfSpeech() }
+        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onEndOfSpeech() = current { this@LeoPlatformVoiceEngine.onEndOfSpeech() }
+        override fun onError(error: Int) = current { this@LeoPlatformVoiceEngine.onError(error) }
+        override fun onResults(results: Bundle?) = current { this@LeoPlatformVoiceEngine.onResults(results) }
+        override fun onPartialResults(results: Bundle?) = current { this@LeoPlatformVoiceEngine.onPartialResults(results) }
+        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+    }
+
     private fun notifyWakeForCurrentSession() {
         if (wakeNotifiedGeneration == listenGeneration) return
         wakeNotifiedGeneration = listenGeneration
@@ -310,7 +366,7 @@ class LeoPlatformVoiceEngine(
             .filter(String::isNotBlank)
 
     private fun scheduleRecovery() {
-        if (!running || destroyed || speaking) return
+        if (!running || destroyed) return
         val delayMs = when (restartAttempt.coerceAtMost(5)) {
             0 -> 180L
             1 -> 300L

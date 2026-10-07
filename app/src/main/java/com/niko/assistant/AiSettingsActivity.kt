@@ -145,6 +145,9 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
     var localFirst by remember { mutableStateOf(NikoAiSettings.localFirst(context)) }
     var autoResearch by remember { mutableStateOf(NikoAiSettings.autoResearch(context)) }
     var learning by remember { mutableStateOf(NikoAiSettings.adaptiveLearning(context)) }
+    val semanticMemory = remember { com.niko.assistant.memory.embedding.LeoSemanticMemory.get(context) }
+    var semanticStatus by remember { mutableStateOf(semanticMemory.status) }
+    var preparingSemantic by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
     var modelStatus by remember { mutableStateOf("La conversación y la voz local se preparan una vez con conexión.") }
     val modelManager = remember { NikoModelManager(context) }
@@ -296,6 +299,22 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             OutlinedButton(onClick = { prepareModel(conversationModel) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN LOCAL") }
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }
             Text(modelStatus, style = MaterialTheme.typography.bodySmall)
+            Text("Memoria semántica", style = MaterialTheme.typography.titleMedium)
+            Text("Modelo multilingüe entrenado · descarga única de 138 MB. Tus recuerdos se procesan en el teléfono.", style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = {
+                preparingSemantic = true
+                scope.launch {
+                    try {
+                        semanticMemory.install { downloaded, total ->
+                            scope.launch { semanticStatus = "Preparando memoria: ${downloaded / 1_000_000} / ${total / 1_000_000} MB" }
+                        }
+                        semanticStatus = semanticMemory.status
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
+                    } catch (error: Exception) { semanticStatus = "No se completó: ${error.message}. Podés reintentar." }
+                    finally { preparingSemantic = false }
+                }
+            }, enabled = !preparingSemantic) { Text(if (preparingSemantic) "PREPARANDO…" else "PREPARAR MEMORIA SEMÁNTICA") }
+            Text(semanticStatus, style = MaterialTheme.typography.bodySmall)
             Text(outputVoiceStatus, style = MaterialTheme.typography.bodySmall)
             Text("GROQCLOUD", style = MaterialTheme.typography.headlineMedium)
             Text(

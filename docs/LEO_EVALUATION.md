@@ -5,14 +5,14 @@ Escala de madurez de evidencia: 0 = ausencia comprobada; 1 = ruta real inspeccio
 | Área | Puntaje /4 | Qué funciona / evidencia | Qué falta / limita el puntaje | Siguiente mejora |
 |---|---|---|---|---|
 | Conversación | 2 | LeoAgentRuntimeTest: tema, referencias y caducidad | Resolución semántica abierta y persistencia de estado | Corpus de diálogos largos en español |
-| Memoria | 2 | MemoryRevisionTest, pruebas existentes de archivo/recuperación | Encoder no entrenado, revisión conservadora y ventana acotada | Índice semántico entrenado y consolidación |
+| Memoria | 2 | MemoryRevisionTest, pruebas existentes de archivo/recuperación | DistilUSE probado en seis contrastes; falta índice persistente y corpus amplio | Recuperación end-to-end en teléfono y consolidación |
 | Proactividad | 2 | LeoInitiativeEngineTest: evidencia, silencio, rechazo, límites | Solo hábitos contados; no proyectos/calendario integrados | Candidatos de proyectos con consentimiento |
 | Razonamiento | 1 | Rutas híbridas inspeccionadas; no benchmark de razonamiento | Modelo cloud/local no evaluado en tareas abiertas | Benchmark fijo con respuestas verificables |
 | Investigación web | 2 | ResearchCitationPolicyTest y regresiones de recuperación/síntesis | Pertenencia de citas no prueba veracidad ni corroboración | Evaluación humana de afirmaciones y fuentes primarias |
 | Acciones | 2 | ActionExecutorTest y skills tipados | Aceptación Android no demuestra efecto físico | Verificación por herramienta en dispositivo |
 | Automatización | 2 | NikoUiAutomationAgentTest, DSL, cancelación y límites | DONE es afirmación del planificador; política léxica | Verificador de objetivo independiente |
 | Offline | 2 | MicroGPT/assets, routing y fallback en suites existentes | No demuestra conversación abierta offline ni todos los proveedores ASR | Pruebas sin red en HONOR |
-| Voz | 2 | 85 tests JVM de políticas/audio y streaming | Reconocedor principal pausa al hablar; falta ensayo acústico | Validar motores por separado antes de ampliar dúplex |
+| Voz | 2 | 90 tests JVM de políticas/audio; callbacks dúplex en CI | Reconocedor principal escucha durante TTS; falta ensayo acústico | Medir eco e interrupciones en HONOR |
 | Latencia | N/E | Instrumentación existente; sin medición física nueva | Callbacks no equivalen a primer audio audible | Capturar hitos monotónicos y video externo |
 | Personalización | 2 | Preferencias/revisiones y aprendizaje adaptativo probado en suites | No evaluación longitudinal con usuario | Corpus de correcciones persistentes |
 | Polimorfismo | 2 | Tests existentes de GeneratedToolSpec/router/fórmulas | No equivale a generar cualquier app ni juego | Pruebas por familia y estado guardado |

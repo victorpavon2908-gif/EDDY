@@ -19,6 +19,7 @@ class NikoLongTermMemory(
     private val archive: NikoMemoryArchive,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val embedder: EddyTransformerEmbedder = EddyTransformerEmbedder.INSTANCE,
+    private val semanticBatch: (List<String>) -> List<FloatArray>? = { null },
 ) {
     enum class Kind { CORE, EPISODIC, SEMANTIC, PROCEDURAL, PROJECT, RELATIONSHIP, PREFERENCE }
 
@@ -112,11 +113,14 @@ class NikoLongTermMemory(
         val normalizedQuery = normalize(query)
         val queryTokens = tokens(normalizedQuery)
         val queryTrigrams = trigrams(normalizedQuery)
-        val queryEmbedding = if (normalizedQuery.isNotBlank()) embedder.encode(normalizedQuery) else FloatArray(0)
         val candidates = archive.semanticCandidates(MAX_CANDIDATES, now)
         if (candidates.isEmpty()) return emptyList()
 
-        val ranked = candidates.mapNotNull { item ->
+        // Preserve accents/case for the trained cased tokenizer; lexical ranking stays compatible.
+        val trained = if (normalizedQuery.isBlank()) null else semanticBatch(listOf(query) + candidates.map { it.text })
+            ?.takeIf { vectors -> vectors.size == candidates.size + 1 && vectors.all { it.size == 512 && it.all(Float::isFinite) } }
+        val queryEmbedding = trained?.first() ?: embedder.encode(normalizedQuery)
+        val ranked = candidates.mapIndexedNotNull { index, item ->
             val kind = runCatching { Kind.valueOf(item.kind) }.getOrDefault(Kind.EPISODIC)
             val score = if (normalizedQuery.isBlank()) {
                 when (kind) {
@@ -129,7 +133,7 @@ class NikoLongTermMemory(
                 val memoryTokens = tokens(item.normalized)
                 val tokenScore = jaccard(queryTokens, memoryTokens)
                 val trigramScore = jaccard(queryTrigrams, trigrams(item.normalized))
-                val memEmbedding = embedder.encode(item.normalized)
+                val memEmbedding = trained?.get(index + 1) ?: embedder.encode(item.normalized)
                 val transformerScore = embedder.cosineSimilarity(queryEmbedding, memEmbedding)
 
                 val exactBoost = when {
@@ -145,9 +149,9 @@ class NikoLongTermMemory(
                 }
                 val accessBoost = (ln(1.0 + item.accessCount.toDouble()) / 12.0).coerceAtMost(0.08)
 
-                0.35 * transformerScore +
-                    0.30 * tokenScore +
-                    0.15 * trigramScore +
+                (if (trained != null) 0.60 else 0.35) * transformerScore +
+                    (if (trained != null) 0.15 else 0.30) * tokenScore +
+                    (if (trained != null) 0.05 else 0.15) * trigramScore +
                     0.06 * recency(item.updatedAt, now) +
                     0.06 * item.confidence.coerceIn(0f, 1f) +
                     exactBoost + kindBoost + accessBoost

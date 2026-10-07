@@ -1312,9 +1312,7 @@ open class NikoAssistantService : Service() {
         conversationWindowJob?.cancel()
         continueAfterSpeech = continueCommand || NikoAiSettings.companionInitiative(applicationContext)
 
-        // Pausamos la escucha mientras LEO responde, pero no cargamos ningún runtime
-        // neural nativo en esta ruta. La estabilidad del reconocimiento que ya funciona
-        // queda intacta y la salida usa únicamente Android TTS.
+        // Keep the primary recognizer listening for guarded interruptions during TTS.
         if (localVoiceActive) setActiveVoiceSpeaking(true, continueAfterSpeech)
 
         val systemReady = runCatching { platformTts.isReady }.getOrDefault(false)

@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.sp
 
 // Pearl surfaces, deep forest accents and muted brass. High-contrast text on light surfaces.
 
-private val md_primary          = Color(0xFF176B57)   // vivid emerald — LEO brand
+private val md_primary          = Color(0xFF264E3D)   // vivid emerald — LEO brand
 private val md_onPrimary        = Color(0xFFFFFFFF)
 private val md_primaryContainer = Color(0xFFD6ECE2)
 private val md_onPrimaryContainer = Color(0xFF173E31)
@@ -35,7 +35,7 @@ private val md_onError          = Color(0xFFFFFFFF)
 private val md_errorContainer   = Color(0xFFFFDADF)
 private val md_onErrorContainer = Color(0xFF42131E)
 
-private val md_background       = Color(0xFFF7F6F2)
+private val md_background       = Color(0xFFF4F1EB)
 private val md_onBackground     = Color(0xFF18221F)
 
 private val md_surface          = Color(0xFFFFFFFF)
@@ -109,14 +109,14 @@ private val NikoTypography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 21.sp,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 19.sp,
+        fontSize = 14.sp,
+        lineHeight = 21.sp,
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,

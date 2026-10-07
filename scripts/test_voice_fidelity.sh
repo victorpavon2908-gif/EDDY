@@ -29,6 +29,7 @@ leo_units=(
     voice/WakeWordGate
     voice/LeoPassiveWakeVerifier
     voice/PcmPreRoll
+    voice/LeoDuplexPolicy
     voice/VoiceControl
     devicecontrol/NikoDirectUiAction
     devicecontrol/NikoUiTaskPolicy

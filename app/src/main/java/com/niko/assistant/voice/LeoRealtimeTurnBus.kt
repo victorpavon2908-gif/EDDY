@@ -18,6 +18,27 @@ object LeoRealtimeTurnBus {
     val liveTranscript: StateFlow<String> = _liveTranscript.asStateFlow()
     private var transcriptGeneration = 0L
 
+    private var speechOwner: String? = null
+    private var speechReference = ""
+    private var speechEndedAt = 0L
+
+    @Synchronized fun beginSpeechReference(owner: String, text: String) {
+        speechOwner = owner
+        speechReference = text
+        speechEndedAt = 0L
+    }
+
+    @Synchronized fun endSpeechReference(owner: String?) {
+        if (owner != null && owner == speechOwner) {
+            speechOwner = null
+            speechEndedAt = System.nanoTime()
+        }
+    }
+
+    /** Keep a short tail for recognizer results arriving after playback ends. */
+    @Synchronized fun spokenReference(): String =
+        if (speechOwner != null || (speechEndedAt != 0L && System.nanoTime() - speechEndedAt < 800_000_000L)) speechReference else ""
+
     private val speechStoppers = CopyOnWriteArraySet<() -> Unit>()
     private val turnInterrupters = CopyOnWriteArraySet<() -> Unit>()
 

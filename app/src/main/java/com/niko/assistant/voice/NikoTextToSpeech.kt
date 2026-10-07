@@ -110,11 +110,13 @@ class NikoTextToSpeech(
     }
 
     private fun notifySpeaking(value: Boolean) {
+        if (!value) LeoRealtimeTurnBus.endSpeechReference(currentPrefix)
         val epoch = notificationEpoch
         mainHandler.post { if (epoch == notificationEpoch) onSpeakingChanged(value) }
     }
 
     private fun notifyFailure() {
+        LeoRealtimeTurnBus.endSpeechReference(currentPrefix)
         ready = false
         val epoch = notificationEpoch
         mainHandler.post { if (epoch == notificationEpoch) { onReady(false); onSpeakingChanged(false) } }
@@ -134,6 +136,7 @@ class NikoTextToSpeech(
         // immediately, so the user hears Leo sooner without clipping the full reply.
         val chunks = SpeechProsody.fastStartChunks(spoken, firstLimit = firstLimit, nextLimit = nextLimit)
         val id = "leo_reply_${System.nanoTime()}"
+        LeoRealtimeTurnBus.beginSpeechReference(id, spoken)
         currentPrefix = id
         currentUtterance = "${id}_${chunks.lastIndex}"
         LeoVoiceDiagnostics.recordSpeechRequested("Android TTS")
@@ -157,6 +160,7 @@ class NikoTextToSpeech(
 
     fun stop() {
         ++notificationEpoch
+        LeoRealtimeTurnBus.endSpeechReference(currentPrefix)
         currentPrefix = null
         currentUtterance = null
         LeoVoiceDiagnostics.recordSpeechCancelled()
@@ -168,6 +172,7 @@ class NikoTextToSpeech(
         LeoRealtimeTurnBus.unregisterSpeechStopper(realtimeStopper)
         ++notificationEpoch
         ready = false
+        LeoRealtimeTurnBus.endSpeechReference(currentPrefix)
         currentPrefix = null
         currentUtterance = null
         LeoVoiceDiagnostics.recordSpeechCancelled()
