@@ -1189,17 +1189,18 @@ open class NikoAssistantService : Service() {
         ).any(value::contains)
     }
 
-    private suspend fun createGeneratedTool(request: String): String {
+    private suspend fun createGeneratedTool(request: String): com.niko.assistant.skills.LeoSkillResult {
         NikoRuntimeState.setResponse(applicationContext, "Diseñando una herramienta para vos…")
         val spec = withContext(Dispatchers.IO) { generatedToolPlanner.generate(request) }
         agent.turns.checkpoint()
         GeneratedToolStore.save(applicationContext, spec)
         val opened = executor.openAppByName("herramienta generada")
-        return if (opened.success) {
+        val message = if (opened.success) {
             "Listo. Me convertí en ${spec.title.lowercase(Locale.forLanguageTag("es-NI"))}."
         } else {
             "Creé ${spec.title}, pero Android no me dejó abrirla ahora mismo."
         }
+        return com.niko.assistant.skills.LeoSkillResult(message, opened.success)
     }
 
     private fun requestMemoryDeletion(): String {
@@ -1227,7 +1228,7 @@ open class NikoAssistantService : Service() {
         AssistantCommand.ClearMemory -> null
         is AssistantCommand.OpenApp -> executor.openApp(command.app).skillResult()
         is AssistantCommand.OpenAppByName -> executor.openAppByName(command.name).skillResult()
-        is AssistantCommand.GenerateTool -> com.niko.assistant.skills.LeoSkillResult(createGeneratedTool(command.request), true)
+        is AssistantCommand.GenerateTool -> createGeneratedTool(command.request)
         is AssistantCommand.Dial -> executor.dial(command.number).skillResult()
         is AssistantCommand.ComposeMessage -> executor.composeMessage(command.number, command.message).skillResult()
         is AssistantCommand.WhatsAppMessage -> executor.whatsappMessage(command.number, command.message).skillResult()

@@ -28,8 +28,11 @@ class ConversationManager(private val now: () -> Long = System::currentTimeMilli
 
     fun begin(text: String, taskId: Long) {
         val key = MemoryLearning.key(text)
+        val reference = isReference(text)
+        if (!reference) { publicResearchTopic = ""; researchAt = 0L }
         state = state.copy(
-            topic = if (isReference(text)) state.topic else text.take(240),
+            pendingQuestion = if (reference) state.pendingQuestion else null,
+            topic = if (reference) state.topic else text.take(240),
             userText = text.take(2_000), taskId = taskId, interaction = "THINKING",
             detail = when {
                 key.contains("paso a paso") || key.contains("mas detalle") -> "detailed"

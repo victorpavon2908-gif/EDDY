@@ -17,7 +17,7 @@ Escala de madurez de evidencia: 0 = ausencia comprobada; 1 = ruta real inspeccio
 | Personalización | 2 | Preferencias/revisiones y aprendizaje adaptativo probado en suites | No evaluación longitudinal con usuario | Corpus de correcciones persistentes |
 | Polimorfismo | 2 | Tests existentes de GeneratedToolSpec/router/fórmulas | No equivale a generar cualquier app ni juego | Pruebas por familia y estado guardado |
 | Seguridad | 2 | Confirmación acotada, registry, política UI y citas | Faltan red team, autorización granular y verificación independiente | Auditoría de privilegios y prompt injection |
-| Estabilidad | 2 | Suites locales; Android CI por comprobar sobre entrega | Sin soak físico, CPU/temperatura ni prueba HONOR | Sesiones largas y recuperación de llamadas |
+| Estabilidad | 2 | Suites locales; Android tests/Lint aprobados en 40b7c00; comprobar también SHA de entrega | Sin soak físico, CPU/temperatura ni prueba HONOR | Sesiones largas y recuperación de llamadas |
 | Privacidad | 1 | Consultas públicas separadas del historial; manifest sin backup | Contexto personal puede ir a Groq; no auditoría completa/cifrado | Controles granulares y evaluación de egress |
 
 Los puntajes 2 que dependen de integración Android requieren workflow Android verde en el SHA publicado. Si está bloqueado o falla, esa área conserva solo la evidencia JVM explícitamente registrada y no certifica integración. Resultados: [LEO_VALIDATION.md](LEO_VALIDATION.md).

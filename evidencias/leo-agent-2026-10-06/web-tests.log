@@ -1,0 +1,49 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leo-assistant@0.11.0 test
+> node --import tsx --test tests/*.test.*
+
+✔ math: 2 + 3 (1.854793ms)
+✔ math: 2.5 + 1.2 (0.335315ms)
+✔ math: 2,5 + 1,2 (0.226391ms)
+✔ math: 10 dividido por 2 (0.157807ms)
+✔ math: 3 multiplicado por 4 (0.167422ms)
+✔ math: 20 por ciento de 150 (0.07951ms)
+✔ math: 20% de 150 (0.061974ms)
+✔ math: raíz cuadrada de 81 (0.31937ms)
+✔ math: (2 + 3) * 4 (0.146821ms)
+✔ math: 2 elevado a 3 (0.227563ms)
+✔ math: cuánto es 7 menos 2 (0.189405ms)
+✔ math: 1 / 0 (0.145018ms)
+✔ math: hola 123 (0.101603ms)
+✔ math: raíz de 9 + 2 (0.110646ms)
+✔ routing: Leo, pará (0.494655ms)
+✔ routing: Leo, qué hora es (0.309556ms)
+✔ routing: abre calculadora (0.231839ms)
+✔ routing: cómo está la batería (0.096155ms)
+✔ routing: apaga la linterna (0.104287ms)
+✔ routing: hola (0.227672ms)
+✔ routing: 2 + 3 (0.135584ms)
+✔ routing: Leo, baila (0.073501ms)
+✔ routing: no bailes (0.156876ms)
+✔ routing: Leonardo da Vinci (0.058719ms)
+✔ wake word does not truncate Leonardo (0.120151ms)
+✔ CSV: quoted commas, escaped quotes, multiline, BOM and CRLF (1.539768ms)
+✔ CSV rejects malformed rows and unterminated quotes (0.463728ms)
+✔ M01 uses TP and FN, warns until 100 trials (0.821957ms)
+✔ M02 divides total false positives by total observation hours (0.25269ms)
+✔ M03/M04/M05 report medians including zero and decimals (0.387684ms)
+✔ M06 and M07 use exact categorical values (0.222525ms)
+✔ M08/M09 retain duration and normalize battery drain (1.145064ms)
+✔ M10 counts incidents, zero is a real observation (0.199921ms)
+✔ Missing evidence cannot certify a measurement (0.329506ms)
+✔ Reject duplicates, invalid values, durations and statuses (0.379571ms)
+✔ Pending records do not become zero-valued results (0.180432ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 336.238695

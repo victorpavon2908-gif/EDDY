@@ -72,6 +72,11 @@ class LeoAgentRuntimeTest {
         val manager = ConversationManager { 100L }; research(manager)
         assertEquals("precio del café", manager.researchQuery("precio del café"))
     }
+    @Test fun topicSwitchInvalidatesOldResearchForSubsequentPronouns() {
+        val manager = ConversationManager { 100L }; research(manager)
+        manager.begin("Trabajemos en mi reporte de producción", 2)
+        assertEquals("¿Y la clasificación?", manager.researchQuery("¿Y la clasificación?"))
+    }
     @Test fun staleTopicDoesNotBecomeSearchQuery() {
         var now = 0L; val manager = ConversationManager { now }; research(manager); now = 901_000L
         assertEquals("¿Y Microsoft?", manager.researchQuery("¿Y Microsoft?"))
