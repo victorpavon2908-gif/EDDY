@@ -1,5 +1,7 @@
 # LEO: recuperación, síntesis y procedencia
 
+> Actualización 2026-10-10: Groq retirado por petición del propietario. La ruta productiva y las capacidades afectadas se detallan en [LEO_WEB_FIRST.md](LEO_WEB_FIRST.md); las referencias al proveedor más abajo describen la arquitectura anterior.
+
 Ruta productiva: NikoAiClient → LeoNativeWebSearch → consultas complementarias RSS/HTML → deduplicación y diversidad → lectura/extracción → resumen local → ResearchSynthesis opcional con Groq. Compound queda como fallback cuando la búsqueda nativa no obtiene evidencia, evitando una segunda investigación simultánea innecesaria.
 
 IMPLEMENTADO: síntesis estructurada solo con fuentes recuperadas; índices locales, sin URLs generadas ni índices fuera de rango. ResearchCitationPolicy rechaza resultados cloud sin citas numeradas, con referencias fuera de rango o enlaces ajenos a fuentes del proveedor. Un resultado descartado no sustituye la respuesta nativa. Ya no se añade una pregunta de seguimiento prefabricada a cada respuesta web.

@@ -128,7 +128,7 @@ open class NikoAssistantService : Service() {
 
     private val uiAutomation by lazy(LazyThreadSafetyMode.NONE) { NikoUiAutomationAgent(localLlm) }
     private val semanticActions by lazy(LazyThreadSafetyMode.NONE) {
-        NikoSemanticActionResolver(brain) { prompt -> localLlm.completeStructured(prompt) }
+        NikoSemanticActionResolver(brain)
     }
     private val codeAgent by lazy(LazyThreadSafetyMode.NONE) { NikoCodeAgent(applicationContext) }
     private val adaptiveStore by lazy {
@@ -238,6 +238,7 @@ open class NikoAssistantService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        NikoAiSettings.retireCloudCredentials(applicationContext)
         LeoRealtimeTurnBus.registerTurnInterrupter(turnInterrupter)
         if (!hasMicrophonePermission()) {
             NikoRuntimeState.setResponse(applicationContext, "Abrí LEO y concedé el permiso de micrófono.")
@@ -965,10 +966,6 @@ open class NikoAssistantService : Service() {
                 learnIntent(text, LearnedIntent.MEMORY, correctionAlias); speakResponse(it); return
             }
             val prediction = predictIntent(text)
-            val remoteContext = agent.conversation.context() + "\n" + kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(false, text) }
-            val history = memory.historyForAi(text)
-            val streamedText = StringBuilder()
-            var lastPreviewAt = 0L
             val answer = ConversationCoordinator.reply(
                 message = text,
                 localFirst = NikoAiSettings.localFirst(applicationContext),
@@ -978,25 +975,7 @@ open class NikoAssistantService : Service() {
                     val context = kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
                     localLlm.reply(text, agent.conversation.context() + "\n" + context)
                 },
-                cloud = { requireSources ->
-                    if (requireSources) researchReply(text)
-                    else if (webClient.isConfigured) webClient.reply(text, remoteContext, false, history) { delta ->
-                        agent.turns.checkpoint()
-                        if (!destroyed) {
-                            val queue = progressiveSpeech ?: ProgressiveSpeech().also { progressiveSpeech = it }
-                            if (delta.isNotBlank()) LeoVoiceDiagnostics.recordResponseText()
-                            streamedText.append(delta)
-                            val now = SystemClock.elapsedRealtime()
-                            if (lastPreviewAt == 0L || now - lastPreviewAt >= 80L) {
-                                NikoRuntimeState.previewResponse(streamedText.toString())
-                                lastPreviewAt = now
-                            }
-                            queue.append(delta)
-                            if (!isSpeaking) playNextProgressivePhrase()
-                        }
-                    }
-                    else null
-                },
+                cloud = { requireSources -> if (requireSources) researchReply(text) else null },
                 fallback = { withContext(Dispatchers.IO) {
                     val error = if (AutonomousResearch.offlineOnly(text)) localLlm.lastError else webClient.lastError ?: localLlm.lastError
                     fallbackConversation.reply(text, memory, error)
@@ -1011,13 +990,7 @@ open class NikoAssistantService : Service() {
                 val plan = codeAgent.analyze(text)
                 codeAgent.registerNativeProposal(plan.capability, "${plan.strategy}: ${plan.explanation}", answer.text, com.niko.assistant.BuildConfig.VERSION_NAME)
             }
-            if (progressiveSpeech != null) {
-                progressiveSpeech?.finish()
-                agent.conversation.reply(answer)
-                NikoRuntimeState.setAiResponse(applicationContext, answer.text, answer.webUsed, answer.sources)
-                if (!isSpeaking) playNextProgressivePhrase()
-                withContext(Dispatchers.IO) { memory.rememberAssistantTurn(answer.text) }
-            } else speakResearchResponse(text, answer)
+            speakResearchResponse(text, answer)
             return
         }
         learnIntent(
@@ -1262,17 +1235,11 @@ open class NikoAssistantService : Service() {
         val contextualQuery = agent.conversation.researchQuery(query)
         fun unavailable(message: String) = NikoAiReply(message, false, emptyList())
         if (AutonomousResearch.offlineOnly(query)) return unavailable("Una búsqueda web necesita conexión. Puedo seguir con las funciones locales.")
-        if (!webClient.isConfigured) {
-            val browser = if (openBrowser) " ${executor.searchWeb(query).spokenMessage}" else ""
-            return unavailable("Para verificar información web, configurá GroqCloud en Ajustes.$browser")
-        }
         val researchEpoch = turnEpoch
         NikoRuntimeState.setSearching(applicationContext, true)
         NikoRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         return try {
-            val current = NikoRuntimeState.read(applicationContext).heardText
-            val context = kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(false, query) }
-            val reply = webClient.reply(contextualQuery, context, forceWeb, memory.historyForAi(current))
+            val reply = webClient.reply(contextualQuery, "", forceWeb)
             agent.turns.checkpoint()
             if (reply != null) agent.conversation.researched(contextualQuery, reply)
             when {

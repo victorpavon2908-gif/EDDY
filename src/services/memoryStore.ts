@@ -12,7 +12,6 @@ export interface AppSettings {
   voicePitch: number;
   voiceRate: number;
   personality: "BALANCED" | "CONCISE" | "TECHNICAL";
-  groqApiKey: string;
   localFirst: boolean;
   autoResearch: boolean;
   ownerVoiceOnly: boolean;
@@ -25,7 +24,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   voicePitch: 1.0,
   voiceRate: 1.05,
   personality: "BALANCED",
-  groqApiKey: "",
   localFirst: true,
   autoResearch: true,
   ownerVoiceOnly: false,
@@ -44,7 +42,12 @@ export class MemoryStore {
   public static getSettings(): AppSettings {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+      const stored = raw ? JSON.parse(raw) : {};
+      if ("groqApiKey" in stored) {
+        delete stored.groqApiKey;
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(stored));
+      }
+      return { ...DEFAULT_SETTINGS, ...stored };
     } catch {
       return DEFAULT_SETTINGS;
     }

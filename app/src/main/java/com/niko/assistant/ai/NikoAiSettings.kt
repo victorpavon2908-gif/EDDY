@@ -9,7 +9,6 @@ object NikoAiSettings {
     private const val PREFS = UpgradeIdentity.aiPreferences
     private const val KEY_GROQ_API_KEY = "groq_api_key"
     private const val KEY_GROQ_MODEL = "groq_model"
-    const val DEFAULT_MODEL = GroqProtocol.DEFAULT_MODEL
 
     fun personality(context: Context): NikoPersonality = NikoPersonality.fromStored(
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("personality", null),
@@ -27,34 +26,9 @@ object NikoAiSettings {
             .putBoolean("auto_research", autoResearch).putBoolean("adaptive_learning", learning).apply()
     }
 
-    fun apiKey(context: Context): String {
-        return context
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_GROQ_API_KEY, "")
-            .orEmpty()
-            .trim()
-    }
-
-    fun model(context: Context): String = context
-        .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        .getString(KEY_GROQ_MODEL, DEFAULT_MODEL)
-        .orEmpty()
-        .trim()
-        .ifBlank { DEFAULT_MODEL }
-
-    fun saveGroq(context: Context, apiKey: String, model: String = DEFAULT_MODEL) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_GROQ_API_KEY, apiKey.trim())
-            .putString(KEY_GROQ_MODEL, model.trim().ifBlank { DEFAULT_MODEL })
-            .apply()
-    }
-
-    fun clearGroq(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY_GROQ_API_KEY)
-            .remove(KEY_GROQ_MODEL)
-            .apply()
+    /** Retire only provider credentials; preferences and all memory keep their existing identity. */
+    fun retireCloudCredentials(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove(KEY_GROQ_API_KEY).remove(KEY_GROQ_MODEL).apply()
     }
 }

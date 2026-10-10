@@ -10,12 +10,12 @@ leo_units=(GroqSseReader GroqStreaming GroqHttpStreaming GroqGateway GroqProtoco
 leo_sources=(app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt)
 leo_tests=()
 for unit in "${leo_units[@]}"; do
-    if [[ "$unit" != GroqStreaming && "$unit" != GroqHttpStreaming ]]; then leo_sources+=("app/src/main/java/com/niko/assistant/ai/$unit.kt"); fi
+    if [[ "$unit" != GroqStreaming && "$unit" != GroqHttpStreaming ]]; then leo_sources+=("app/src/test/java/com/niko/assistant/ai/$unit.kt"); fi
     leo_sources+=("app/src/test/java/com/niko/assistant/ai/${unit}Test.kt")
     leo_tests+=("com.niko.assistant.ai.${unit}Test")
 done
 for unit in GroqStreamTransport GroqHttpClient NikoAiReply ConversationContext NikoPersonality NikoIdentity LeoBrand; do
-    leo_sources+=("app/src/main/java/com/niko/assistant/ai/$unit.kt")
+    if [[ "$unit" == Groq* ]]; then leo_sources+=("app/src/test/java/com/niko/assistant/ai/$unit.kt"); else leo_sources+=("app/src/main/java/com/niko/assistant/ai/$unit.kt"); fi
 done
 java -cp "$leo_kotlin_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
     -no-stdlib -no-reflect -jvm-target 17 -classpath "$leo_classpath" \

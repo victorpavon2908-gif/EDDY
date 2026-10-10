@@ -1,0 +1,17 @@
+QUERY: Cómo ordenar listas en Python
+WEB_USED: false
+No pude obtener fuentes útiles sobre como ordenar listas python. Puede fallar la conexión o el buscador; no voy a darte páginas ajenas al tema.
+QUERY: Cómo preparar arroz blanco
+WEB_USED: false
+No pude obtener fuentes útiles sobre como preparar arroz blanco. Puede fallar la conexión o el buscador; no voy a darte páginas ajenas al tema.
+Exception in thread "main" java.lang.IllegalStateException: 2 searches returned no usable evidence
+	at ProbeKt$main$1.invokeSuspend(Probe.kt:20)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:106)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:284)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:85)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:59)
+	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:38)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+	at ProbeKt.main(Probe.kt:3)

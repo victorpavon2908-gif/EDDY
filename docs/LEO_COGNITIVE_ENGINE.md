@@ -1,5 +1,7 @@
 # LEO: núcleo cognitivo y estado de trabajo
 
+> Actualización 2026-10-10: Groq retirado por petición del propietario. La ruta productiva y las capacidades afectadas se detallan en [LEO_WEB_FIRST.md](LEO_WEB_FIRST.md); las referencias al proveedor más abajo describen la arquitectura anterior.
+
 IMPLEMENTADO: `LeoAgentRuntime` es instanciado por NikoAssistantService, no es una demo separada. Coordina TurnController, ConversationManager y confirmación de borrado de memoria. LeoSkillRegistry y LeoTaskExecutor son utilizados por las rutas de acciones.
 
 ConversationState incluye tema, entidades explícitas de consulta, intención, id de tarea/turno, texto del usuario, pregunta pendiente, resultado reciente, fuentes, última herramienta, detalle, tono y estado de interacción. Tamaños acotados. Tono natural fijo; extracción de entidades conservadora, no una ontología.

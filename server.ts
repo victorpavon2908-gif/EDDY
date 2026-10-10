@@ -33,7 +33,6 @@ app.get("/api/health", (_req: Request, res: Response) => {
     app: "LEO Assistant",
     version: "0.11.0",
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-    groqConfigured: Boolean(process.env.GROQ_API_KEY),
   });
 });
 
@@ -324,14 +323,13 @@ Citá las fuentes de información con números de referencia [1], [2], etc. seg�
   });
 });
 
-// AI Chat / Synthesis endpoint (Gemini or Groq fallback)
+// Web companion synthesis (existing optional Gemini, no Groq provider)
 app.post("/api/chat", async (req: Request, res: Response) => {
   const {
     message,
     history = [],
     sources = [],
     personality = "BALANCED",
-    groqApiKey,
   } = req.body || {};
 
   if (!message) {
@@ -418,52 +416,13 @@ app.post("/api/chat", async (req: Request, res: Response) => {
     }
   }
 
-  // Try Groq if provided
-  const activeGroqKey = groqApiKey || process.env.GROQ_API_KEY;
-  if (activeGroqKey) {
-    try {
-      const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${activeGroqKey}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content: `${personalityInstruction} ${promptContext}`,
-            },
-            ...history.slice(-4).map((h: any) => ({
-              role: h.role === "user" ? "user" : "assistant",
-              content: h.text,
-            })),
-            { role: "user", content: message },
-          ],
-          temperature: 0.6,
-          max_tokens: 500,
-        }),
-      });
-      if (groqResp.ok) {
-        const groqData = (await groqResp.json()) as any;
-        const text = groqData.choices?.[0]?.message?.content;
-        if (text) {
-          return res.json({ reply: text, provider: "groq" });
-        }
-      }
-    } catch (err) {
-      console.error("Groq call failed:", err);
-    }
-  }
-
   // Smart local offline synthesis fallback
   let localReply = "";
   if (sources.length > 0) {
     const topSource = sources[0];
     localReply = `Según ${topSource.domain}, ${topSource.snippet.slice(0, 180)} [1]. Consulté ${sources.length} fuentes web.`;
   } else {
-    localReply = `Entendido. Estoy procesando "${message}". Puedes configurar tu clave de Gemini o Groq en Ajustes para expandir mi razonamiento en la nube.`;
+    localReply = `No tengo fuentes suficientes para responder esa pregunta. Probá una búsqueda más específica.`;
   }
 
   return res.json({ reply: localReply, provider: "local" });

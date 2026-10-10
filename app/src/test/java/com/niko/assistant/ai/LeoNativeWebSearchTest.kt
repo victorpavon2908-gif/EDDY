@@ -241,4 +241,48 @@ class LeoNativeWebSearchTest {
         assertTrue(text.contains("JavaScript"))
         assertTrue(LeoNativeWebSearch.extractReadableText("<p>Enable JavaScript to continue accessing this website and all of its content.</p>").isEmpty())
     }
+    @Test fun practicalStepsKeepOrderAndNeverBlendRecipes() {
+        val html = "<article><p>Cómo preparar arroz blanco con agua y una olla.</p><ol><li>Lavá el arroz con agua limpia.</li><li>Agregá el agua y cociná a fuego bajo.</li><li>Dejá reposar antes de servir.</li></ol></article>"
+        val steps = LeoNativeWebSearch.extractSteps(html)
+        assertEquals(3, steps.size)
+        val hit = LeoNativeWebSearch.Hit("Preparar arroz blanco", "https://food.example/arroz", "", articleText = LeoNativeWebSearch.extractReadableText(html), steps = steps)
+        val answer = LeoNativeWebSearch.practicalAnswer("Cómo preparar arroz blanco", listOf(hit, hit.copy(url = "https://other.example/arroz", steps = listOf("Añadí ingredientes de otra receta", "Cambiá todas las cantidades"))))!!
+        assertTrue(answer.indexOf("Lavá") < answer.indexOf("Agregá"))
+        assertFalse(answer.contains("otra receta"))
+        assertTrue(answer.contains("[1]"))
+        assertFalse(answer.contains("[2]"))
+    }
+
+    @Test fun codePreservesPythonIndentationEntitiesAndDoesNotClaimExecution() {
+        val html = "<article><p>Python permite ordenar listas con sorted.</p><pre><code>values = [3, 1, 2]\nfor n in sorted(values):\n    if n &lt; 3:\n        print(n)</code></pre></article>"
+        val code = LeoNativeWebSearch.extractCode(html)
+        assertTrue(code.contains("\n    if n < 3:\n        print(n)"))
+        val hit = LeoNativeWebSearch.Hit("Python ordenar listas", "https://docs.python.org/example", "", articleText = LeoNativeWebSearch.extractReadableText(html), code = code)
+        val answer = LeoNativeWebSearch.practicalAnswer("Cómo ordenar listas en Python", listOf(hit))!!
+        assertTrue(answer.contains(code))
+        assertTrue(answer.contains("No lo ejecuté"))
+        assertEquals("", LeoNativeWebSearch.extractCode("<pre>" + "x".repeat(1300) + "</pre>"))
+    }
+
+    @Test fun practicalNetworkPipelineReadsThePageBeforeGivingSteps() = runBlocking {
+        val reply = LeoNativeWebSearch.search("Cómo preparar arroz blanco") { url, _, _ ->
+            when {
+                "bing.com" in url -> LeoNativeWebSearch.Fetch("<rss><channel><item><title>Preparar arroz blanco</title><link>https://food.example/arroz</link><description>Preparar arroz blanco paso a paso.</description></item></channel></rss>", url)
+                "duckduckgo.com" in url -> null
+                else -> LeoNativeWebSearch.Fetch("<article><p>Preparar arroz blanco en una olla limpia.</p><ol><li>Lavá el arroz con agua limpia.</li><li>Cociná el arroz siguiendo las cantidades de la receta.</li></ol></article>", url)
+            }
+        }
+        assertTrue(reply.webUsed)
+        assertTrue(reply.text.contains("1. Lavá"))
+        assertEquals("https://food.example/arroz", reply.sources.single().url)
+    }
+
+    @Test fun snippetCannotBecomeARecipeOrExecutableCode() {
+        val snippet = LeoNativeWebSearch.Hit("Cómo preparar arroz blanco", "https://food.example/arroz", "Preparar arroz blanco con agua.", steps = listOf("Invented step one", "Invented step two"))
+        assertEquals(null, LeoNativeWebSearch.practicalAnswer("Cómo preparar arroz blanco", listOf(snippet)))
+        val queries = LeoNativeWebSearch.researchQueries("python listas", "Cómo ordenar listas en Python", false)
+        assertTrue(queries.any { "documentación oficial" in it })
+        assertEquals("cpp", LeoNativeWebSearch.subjectQuery("C++"))
+    }
+
 }

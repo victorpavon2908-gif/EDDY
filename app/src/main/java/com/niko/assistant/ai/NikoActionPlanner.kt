@@ -6,7 +6,7 @@ import android.content.Context
  * Compatibility wrapper kept for callers that still reference NikoActionPlanner.
  *
  * NIKO no longer sends planning requests to a Render/backend `/plan` endpoint.
- * Natural-language reasoning is handled by the direct GroqCloud client while the
+ * Knowledge questions use native web research while the
  * actual phone actions remain constrained by LocalBrain/ActionExecutor.
  */
 class NikoActionPlanner(@Suppress("UNUSED_PARAMETER") context: Context) {

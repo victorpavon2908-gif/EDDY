@@ -1,6 +1,5 @@
 package com.niko.assistant.devicecontrol
 
-import com.niko.assistant.ai.LeoStructuredGroq
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -11,12 +10,11 @@ interface LeoUiSession {
     suspend fun performDirect(action: NikoDirectUiAction): Boolean
 }
 
-/** Android implementation. Groq is only the structured one-step compiler; execution stays local. */
+/** Android implementation. Direct actions stay local; no remote model receives screen data. */
 class AndroidLeoUiSession(
     private val service: NikoAccessibilityService,
 ) : LeoUiSession {
-    private val structuredGroq = LeoStructuredGroq(service.applicationContext)
-    val planner = LeoUiStepPlanner(structuredGroq::complete)
+    val planner = LeoUiStepPlanner()
 
     override suspend fun snapshot(): LeoUiSnapshot = withContext(Dispatchers.Default) {
         service.snapshot()

@@ -6,7 +6,7 @@ import java.text.Normalizer
 import java.util.Locale
 
 /** Origin of a structured action decision. */
-enum class LeoPlanSource { LOCAL, LOCAL_SIMPLIFIED, CONTEXT, GROQ, FALLBACK }
+enum class LeoPlanSource { LOCAL, LOCAL_SIMPLIFIED, CONTEXT, MODEL, FALLBACK }
 
 /** Coarse safety level used before any command can reach ActionExecutor. */
 enum class LeoPlanRisk { NONE, LOW, MEDIUM, HIGH }
@@ -37,7 +37,7 @@ data class LeoPlanDecision(
 class LeoStructuredPlanner(
     private val brain: LocalBrain,
     private val nowMillis: () -> Long = System::currentTimeMillis,
-    private val structuredCompletion: suspend (String) -> String?,
+    private val structuredCompletion: (suspend (String) -> String?)? = null,
 ) {
     private var lastActionContext: String = ""
     private var lastActionAt: Long = 0L
@@ -85,10 +85,10 @@ class LeoStructuredPlanner(
         if (!looksLikeActionRequest(original)) return fallback(original, "sin intención de acción")
 
         val prompt = buildPrompt(input.copy(recentContext = input.recentContext.ifBlank { recentContext() }))
-        val raw = try { structuredCompletion(prompt) }
+        val raw = try { structuredCompletion?.invoke(prompt) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { null }
-        if (raw == null) return fallback(original, "Groq no disponible")
+        if (raw == null) return fallback(original, "compilador semántico no instalado")
 
         val semantic = parseDsl(raw)
         if (semantic.isEmpty()) return fallback(original, "plan semántico vacío o inválido")
@@ -103,7 +103,7 @@ class LeoStructuredPlanner(
         if (needsConfirmation) {
             return LeoPlanDecision(
                 commands = listOf(AssistantCommand.Unknown(original)),
-                source = LeoPlanSource.GROQ,
+                source = LeoPlanSource.MODEL,
                 confidence = confidence,
                 risk = risk,
                 requiresConfirmation = true,
@@ -114,7 +114,7 @@ class LeoStructuredPlanner(
         remember(semantic)
         return LeoPlanDecision(
             commands = semantic,
-            source = LeoPlanSource.GROQ,
+            source = LeoPlanSource.MODEL,
             confidence = confidence,
             risk = risk,
             requiresConfirmation = false,

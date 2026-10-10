@@ -339,7 +339,6 @@ export const App: React.FC = () => {
             message: text,
             sources: currentSources,
             personality: settings.personality,
-            groqApiKey: settings.groqApiKey,
           }),
         });
 

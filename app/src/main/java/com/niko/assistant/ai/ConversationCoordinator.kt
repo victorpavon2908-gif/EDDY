@@ -2,7 +2,7 @@ package com.niko.assistant.ai
 
 import com.niko.assistant.brain.WebQueryRouter
 
-/** One activated turn, at most one cloud call, with a genuinely offline route. */
+/** One activated turn: knowledge goes to research, conversation and private memory stay local. */
 object ConversationCoordinator {
     suspend fun reply(
         message: String,
@@ -16,7 +16,7 @@ object ConversationCoordinator {
         fun localReply(text: String) = NikoAiReply(text, false, emptyList())
         if (AutonomousResearch.offlineOnly(message)) return localReply(local() ?: fallback())
         val mayResearch = (autoResearch || WebQueryRouter.explicitQuery(message) != null) && AutonomousResearch.allowedFor(message)
-        if (mayResearch && (WebQueryRouter.needsCurrentInformation(message) || learnedSearch)) {
+        if (mayResearch) {
             return cloud(true) ?: localReply("No pude verificar ese dato en Internet. Las funciones locales siguen disponibles.")
         }
         if (localFirst) {

@@ -1,7 +1,6 @@
 package com.niko.assistant.ai
 
 import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -10,9 +9,7 @@ import kotlinx.coroutines.channels.trySendBlocking
 
 /** The key travels only in Authorization to the fixed Groq endpoint. */
 class GroqHttpClient(
-    private val openConnection: () -> HttpURLConnection = {
-        URL("https://api.groq.com/openai/v1/chat/completions").openConnection() as HttpURLConnection
-    },
+    private val openConnection: () -> HttpURLConnection,
 ) : GroqTransport, GroqStreamTransport {
     override suspend fun complete(apiKey: String, payload: JSONObject): GroqHttpResult = suspendCancellableCoroutine { continuation ->
         val connection = openConnection()

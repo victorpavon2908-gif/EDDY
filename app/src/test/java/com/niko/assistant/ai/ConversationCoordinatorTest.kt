@@ -56,4 +56,18 @@ class ConversationCoordinatorTest {
         assertEquals(1, calls)
         assertTrue(result.webUsed)
     }
+    @Test fun everydayAndCodingQuestionsSearchEvenWithConfidentLocalAnswer() = runBlocking {
+        for (question in listOf("Cómo preparar arroz", "Dame un ejemplo de código Python", "Explicame la gravedad")) {
+            var calls = 0
+            val reply = ConversationCoordinator.reply(question, true, true, false,
+                local = { error("Must research before using unverified knowledge") },
+                cloud = { requireSources -> calls++; assertTrue(requireSources); NikoAiReply("Respuesta con fuentes", true, emptyList()) },
+                fallback = { error("Unexpected fallback") })
+            assertTrue(reply.webUsed)
+            assertEquals(1, calls)
+        }
+        assertFalse(AutonomousResearch.allowedFor("Cómo estás"))
+        assertFalse(AutonomousResearch.allowedFor("Ayudame sin conexión"))
+    }
+
 }

@@ -1,5 +1,7 @@
 # LEO: seguridad de ejecución
 
+> Actualización 2026-10-10: Groq retirado por petición del propietario. La ruta productiva y las capacidades afectadas se detallan en [LEO_WEB_FIRST.md](LEO_WEB_FIRST.md); las referencias al proveedor más abajo describen la arquitectura anterior.
+
 Riesgos: READ_ONLY, LOW_RISK, USER_VISIBLE, SENSITIVE, IRREVERSIBLE. El registro no acepta autorización producida por el modelo. Confirmación de memoria exacta, ligada a AssistantCommand.ClearMemory, de un solo uso y con TTL. Un “sí” posterior a otra petición no autoriza el borrado anterior.
 
 Accessibility conserva DSL allow-list sobre node_id del snapshot actual, verificación de revisión, bloqueo de nodos sensibles y límites de iteraciones. Se añaden cancelación propagada, detección de ciclos pantalla+paso no solo consecutivos y clics directos por etiqueta exacta y única. No se habilitan coordenadas ni comandos arbitrarios.

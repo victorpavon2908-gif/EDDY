@@ -59,3 +59,7 @@ La integración Android en `40b7c00` pasó `testDebugUnitTest` y `lintDebug` en 
 - `voice-jvm.log`: 90 tests de políticas/audio. `agent-jvm.log`: 53 tests. `python.log`: 9 tests.
 - Android local bloqueado al resolver el plugin AGP 8.13.2; no se registra como aprobado. El resultado integrado se obtiene del workflow de GitHub de esta revisión.
 - [Rutas, reproducción y protocolo físico](LEO_SEMANTIC_DUPLEX.md). La nueva interfaz no tiene captura validada en teléfono. Dúplex acústico, RAM, batería, temperatura y Bluetooth: **PENDIENTE DE VALIDACIÓN FÍSICA**.
+
+## Iteración 2026-10-10: sin Groq
+
+Ver [LEO_WEB_FIRST.md](LEO_WEB_FIRST.md) y `evidencias/leo-web-first-2026-10-10/`. Los resultados integrados corresponden al workflow del SHA publicado, no a ejecuciones anteriores.

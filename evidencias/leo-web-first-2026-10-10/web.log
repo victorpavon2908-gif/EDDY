@@ -1,0 +1,54 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leo-assistant@0.11.0 test
+> node --import tsx --test tests/*.test.*
+
+✔ math: 2 + 3 (1.543683ms)
+✔ math: 2.5 + 1.2 (0.272453ms)
+✔ math: 2,5 + 1,2 (0.166446ms)
+✔ math: 10 dividido por 2 (1.384598ms)
+✔ math: 3 multiplicado por 4 (0.140568ms)
+✔ math: 20 por ciento de 150 (0.107138ms)
+✔ math: 20% de 150 (0.07447ms)
+✔ math: raíz cuadrada de 81 (0.312162ms)
+✔ math: (2 + 3) * 4 (0.156822ms)
+✔ math: 2 elevado a 3 (0.315407ms)
+✔ math: cuánto es 7 menos 2 (0.142821ms)
+✔ math: 1 / 0 (0.132075ms)
+✔ math: hola 123 (0.078096ms)
+✔ math: raíz de 9 + 2 (0.104024ms)
+✔ routing: Leo, pará (0.588461ms)
+✔ routing: Leo, qué hora es (0.279894ms)
+✔ routing: abre calculadora (0.145686ms)
+✔ routing: cómo está la batería (1.430666ms)
+✔ routing: apaga la linterna (0.078386ms)
+✔ routing: hola (0.29703ms)
+✔ routing: 2 + 3 (0.138034ms)
+✔ routing: Leo, baila (0.073178ms)
+✔ routing: no bailes (0.149321ms)
+✔ routing: Leonardo da Vinci (0.153838ms)
+✔ wake word does not truncate Leonardo (0.110874ms)
+✔ CSV: quoted commas, escaped quotes, multiline, BOM and CRLF (1.474481ms)
+✔ CSV rejects malformed rows and unterminated quotes (0.409245ms)
+✔ M01 uses TP and FN, warns until 100 trials (0.979909ms)
+✔ M02 divides total false positives by total observation hours (0.231413ms)
+✔ M03/M04/M05 report medians including zero and decimals (0.469034ms)
+✔ M06 and M07 use exact categorical values (0.255498ms)
+✔ M08/M09 retain duration and normalize battery drain (1.104734ms)
+✔ M10 counts incidents, zero is a real observation (0.218132ms)
+✔ Missing evidence cannot certify a measurement (0.28381ms)
+✔ Reject duplicates, invalid values, durations and statuses (0.347243ms)
+✔ Pending records do not become zero-valued results (0.212134ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 224.397227
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leo-assistant@0.11.0 lint
+> tsc --noEmit
+

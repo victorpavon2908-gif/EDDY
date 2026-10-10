@@ -19,12 +19,13 @@ import org.robolectric.annotation.Config
 class NikoUpgradeCompatibilityTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
 
-    @Test fun updateKeepsGroqPreferencesAndThePausedMicrophone() {
+    @Test fun retiringProviderKeepsPersonalityAndThePausedMicrophone() {
         context.getSharedPreferences("eddy_ai_settings", Context.MODE_PRIVATE).edit()
             .putString("groq_api_key", "existing-key").putString("personality", "DIRECT").commit()
         context.getSharedPreferences("eddy_control", Context.MODE_PRIVATE).edit()
             .putBoolean("assistant_enabled", false).commit()
-        assertEquals("existing-key", NikoAiSettings.apiKey(context))
+        NikoAiSettings.retireCloudCredentials(context)
+        assertFalse(context.getSharedPreferences("eddy_ai_settings", Context.MODE_PRIVATE).contains("groq_api_key"))
         assertEquals(NikoPersonality.DIRECT, NikoAiSettings.personality(context))
         assertFalse(NikoVoiceSettings.enabled(context))
     }

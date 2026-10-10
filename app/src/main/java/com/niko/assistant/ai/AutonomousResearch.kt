@@ -13,9 +13,12 @@ object AutonomousResearch {
         val text = MemoryLearning.key(message)
         if (Regex("\\b(?:sin (?:usar )?internet|no (?:busques|consultes|investigues)|no uses (?:internet|la web)|solo (?:local|sin conexion))\\b").containsMatchIn(text)) return false
         if (Regex("^no (?:quiero|necesito).*(?:busc|consult|investig)").containsMatchIn(text)) return false
+        if (offlineOnly(message)) return false
+        if (Regex("^(?:hola|buenos dias|buenas tardes|buenas noches|como estas|como te va|que tal|quien sos|quien eres|como te llamas|gracias)\\b").containsMatchIn(text)) return false
         if (WebQueryRouter.explicitQuery(message) != null) return true
         if (Regex("\\b(?:me siento|estoy (?:triste|feliz|cansado|cansada)|me llamo|mi nombre|mi familia|mi contrasena|mi clave)\\b").containsMatchIn(text)) return false
-        return WebQueryRouter.needsCurrentInformation(message) ||
+        return Regex("^(?:explicame|ensenname|ensename|ayudame|necesito ayuda|dame (?:un |una )?(?:ejemplo|receta|codigo|guia)|escribi (?:un |una )?(?:programa|codigo|funcion)|escribe (?:un |una )?(?:programa|codigo|funcion)|programa|implementa|depura|corrige (?:este |el )?codigo)\\b").containsMatchIn(text) ||
+            WebQueryRouter.needsCurrentInformation(message) ||
             Regex("^(?:que|quien|quienes|cuando|donde|cual|cuales|cuanto|cuantos|como|por que|es cierto|verifica|compar[aá]|recomienda|recomendame)\\b").containsMatchIn(text)
     }
 

@@ -14,7 +14,6 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({
   onSettingsChanged,
 }) => {
   const [settings, setSettings] = useState<AppSettings>(MemoryStore.getSettings());
-  const [groqKey, setGroqKey] = useState(settings.groqApiKey);
   const [savedMessage, setSavedMessage] = useState("");
   const [enrolling, setEnrolling] = useState(false);
   const [enrollSamples, setEnrollSamples] = useState(settings.ownerEnrolled ? 4 : 0);
@@ -24,7 +23,6 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({
   const handleSave = () => {
     const updated: Partial<AppSettings> = {
       ...settings,
-      groqApiKey: groqKey.trim(),
     };
     MemoryStore.saveSettings(updated);
     const full = MemoryStore.getSettings();
@@ -184,7 +182,7 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({
           {/* Section: AI Personality & Models */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-teal-400 tracking-wider uppercase flex items-center gap-2">
-              <Key className="w-4 h-4" /> Inteligencia & GroqCloud
+              <Key className="w-4 h-4" /> Inteligencia e investigación
             </h3>
 
             <div>
@@ -209,21 +207,7 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-white/70 mb-1">
-                Clave API de GroqCloud (Opcional)
-              </label>
-              <input
-                type="password"
-                value={groqKey}
-                onChange={(e) => setGroqKey(e.target.value)}
-                placeholder="gsk_..."
-                className="w-full bg-white/5 hover:bg-white/10 focus:bg-white/10 text-white text-xs rounded-xl px-3 py-2 border border-white/10 focus:outline-none focus:border-teal-400 font-mono"
-              />
-              <p className="text-[11px] text-white/40 mt-1">
-                Permite conectar con Llama-3.3-70b a alta velocidad. Queda guardada de forma segura en este dispositivo.
-              </p>
-            </div>
+            <p className="text-xs text-white/60">Investigación con fuentes; sin claves de proveedor.</p>
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
               <div>

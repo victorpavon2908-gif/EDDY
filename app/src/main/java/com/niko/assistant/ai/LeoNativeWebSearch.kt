@@ -36,6 +36,9 @@ object LeoNativeWebSearch {
         val rank: Int = 0,
         val articleText: String = "",
         val angle: Int = 0,
+        val steps: List<String> = emptyList(),
+        val code: String = "",
+
     )
 
     internal data class Fetch(val body: String, val finalUrl: String)
@@ -101,12 +104,15 @@ object LeoNativeWebSearch {
                     publisher = hostOf(page?.finalUrl ?: original.url),
                     rank = index,
                     articleText = usefulArticle,
+                    steps = if (usefulArticle.isNotBlank()) extractSteps(page?.body.orEmpty()) else emptyList(),
+                    code = if (usefulArticle.isNotBlank()) extractCode(page?.body.orEmpty()) else "",
+
                 )
             } }.awaitAll().filterNotNull().distinctBy(::hitKey)
         }
         if (enriched.isEmpty()) return@withContext noResults(subject)
         val cited = enriched.distinctBy { it.url }.take(MAX_SOURCES)
-        val summary = summarize(subject, cited, current)
+        val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current)
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         NikoAiReply(
@@ -132,7 +138,7 @@ object LeoNativeWebSearch {
 
     internal fun subjectQuery(query: String): String {
         val requested = WebQueryRouter.explicitQuery(query) ?: query
-        val normalized = normalize(requested)
+        val normalized = normalize(requested.replace("C++", "cpp", true).replace("C#", "csharp", true))
             .replace(Regex("^(?:informacion(?:es)?|datos|algo)\\s+(?:(?:sobre|acerca de|de|por)\\s+)?"), "")
         val tokens = normalized.split(' ').filter { it.length >= 2 && it !in QUERY_FILLERS }
         return tokens.joinToString(" ").trim().take(180).takeUnless { it in setOf("informacion", "datos", "algo") }.orEmpty()
@@ -142,6 +148,9 @@ object LeoNativeWebSearch {
     internal fun researchQueries(subject: String, original: String, current: Boolean): List<String> {
         val request = normalize(original)
         val intentFacet = when {
+            isCoding(original) -> "$subject documentación oficial ejemplo versión"
+            isPractical(original) -> "$subject instrucciones requisitos pasos"
+
             Regex("\\b(?:comparar|compara|comparacion|diferencia|diferencias|versus|vs)\\b").containsMatchIn(request) ->
                 "$subject comparacion diferencias ventajas limitaciones"
             Regex("\\b(?:por que|causa|causas|motivo|motivos)\\b").containsMatchIn(request) ->
@@ -153,7 +162,11 @@ object LeoNativeWebSearch {
             current -> "$subject cronologia ultimas actualizaciones"
             else -> "$subject contexto explicacion detallada"
         }
-        val primaryFacet = if (current) {
+        val primaryFacet = if (isCoding(original)) {
+            "$subject reference documentation example"
+        } else if (isPractical(original)) {
+            "$subject materiales ingredientes precauciones"
+        } else if (current) {
             "$subject comunicado datos recientes fuente oficial"
         } else {
             "$subject datos evidencia fuente primaria"
@@ -217,7 +230,8 @@ object LeoNativeWebSearch {
             host.contains(".gob.") || host.endsWith(".edu") || host.contains(".edu.")
         val titledAsPrimary = Regex("(?i)\\b(?:oficial|ministerio|universidad|instituto|organizacion|reporte|estudio)\\b")
             .containsMatchIn(hit.title)
-        return (if (institutional) 1.4 else 0.0) + (if (titledAsPrimary) 0.5 else 0.0) +
+        val technicalPrimary = host in setOf("developer.android.com", "docs.python.org", "kotlinlang.org", "developer.mozilla.org", "learn.microsoft.com", "docs.oracle.com", "nodejs.org", "go.dev", "doc.rust-lang.org")
+        return (if (technicalPrimary) 2.0 else 0.0) + (if (institutional) 1.4 else 0.0) + (if (titledAsPrimary) 0.5 else 0.0) +
             (if (hit.url.startsWith("https://")) 0.2 else 0.0)
     }
 
@@ -361,15 +375,65 @@ object LeoNativeWebSearch {
             if (key in DESCRIPTION_KEYS) attrs["content"]?.let(::htmlToText) else null
         }.filter { it.length >= 40 && !looksLikeBoilerplate(it) }.take(2).toList()
         val article = Regex("(?is)<(?:article|main)\\b[^>]*>(.*?)</(?:article|main)>").find(cleaned)?.groupValues?.get(1) ?: cleaned
-        val paragraphs = P_TAG.findAll(article)
+        val paragraphs = CONTENT_TAG.findAll(article)
             .map { htmlToText(it.groupValues[1]) }
-            .filter { it.length in 45..900 && !looksLikeBoilerplate(it) }
+            .filter { it.length in 12..900 && !looksLikeBoilerplate(it) }
             .take(MAX_PARAGRAPHS)
             .toList()
         return (metaDescriptions + paragraphs)
             .distinctBy { normalize(it).take(180) }
             .joinToString(" ")
             .take(MAX_ARTICLE_TEXT)
+    }
+
+    private fun isCoding(query: String): Boolean = Regex("\\b(?:codigo|programa|programacion|funcion|python|kotlin|javascript|typescript|java|sql|html|css|cpp|csharp|error|exception|api)\\b")
+        .containsMatchIn(normalize(query))
+
+    private fun isPractical(query: String): Boolean = Regex("\\b(?:como|pasos|receta|cocinar|preparar|hacer|instalar|reparar|configurar)\\b")
+        .containsMatchIn(normalize(query))
+
+    internal fun extractSteps(html: String): List<String> {
+        val clean = html.replace(SCRIPT_STYLE, " ").replace(COMMENTS, " ")
+        val article = Regex("(?is)<(?:article|main)\\b[^>]*>(.*?)</(?:article|main)>").find(clean)?.groupValues?.get(1) ?: clean
+        // One ordered list is one procedure: never blend incompatible recipes from different pages.
+        return Regex("(?is)<ol\\b[^>]*>(.*?)</ol>").findAll(article).map { list ->
+            Regex("(?is)<li\\b[^>]*>(.*?)</li>").findAll(list.groupValues[1])
+                .map { htmlToText(it.groupValues[1]) }.filter { it.length in 12..900 && !looksLikeBoilerplate(it) }.toList()
+        }.filter { it.size >= 2 }.maxByOrNull { it.size }.orEmpty()
+    }
+
+    internal fun extractCode(html: String): String {
+        val clean = html.replace(SCRIPT_STYLE, " ").replace(COMMENTS, " ")
+        return Regex("(?is)<pre\\b[^>]*>(.*?)</pre>").findAll(clean).map { block ->
+            // Decode per line so Python indentation and literal newlines remain intact.
+            block.groupValues[1].replace(Regex("<[^>]+>"), "")
+                .lineSequence().joinToString("\n") { line ->
+                    val indentation = line.takeWhile { it == ' ' || it == '\t' }
+                    indentation + decodeEntities(line.trimStart())
+                }.trim('\n', '\r')
+        }.firstOrNull { it.length in 10..1200 && it.split(Regex("\\s+")).size <= 95 && "```" !in it }.orEmpty()
+    }
+
+    internal fun practicalAnswer(query: String, hits: List<Hit>): String? {
+        if (!isPractical(query) && !isCoding(query)) return null
+        val usable = hits.withIndex().filter { isRelevantTo(query, it.value) && it.value.articleText.isNotBlank() }
+        if (isCoding(query)) {
+            val example = usable.firstOrNull { it.value.code.isNotBlank() }
+            if (example != null) return "Ejemplo de la documentación [${example.index + 1}]:\n\n```\n${example.value.code}\n```\n\nNo lo ejecuté; comprobá la versión, las dependencias y el resultado en tu entorno."
+        }
+        val procedure = usable.firstOrNull { it.value.steps.size >= 2 } ?: return null
+        var words = 0
+        val selected = procedure.value.steps.take(6).takeWhile { step ->
+            words += step.split(Regex("\\s+")).size
+            words <= 95
+        }
+        if (selected.size < 2) return null
+        return buildString {
+            append("Pasos de una misma guía [${procedure.index + 1}]:\n")
+            selected.forEachIndexed { index, step -> append("${index + 1}. $step\n") }
+            if (selected.size < procedure.value.steps.size) append("Es un extracto: revisá la guía completa antes de empezar. ")
+            append("Consultá en esa fuente los requisitos, cantidades y precauciones; no mezclé procedimientos de otras páginas.")
+        }.trim()
     }
 
     internal fun summarize(query: String, hits: List<Hit>, current: Boolean): String {
@@ -526,7 +590,7 @@ object LeoNativeWebSearch {
     private val SCRIPT_STYLE = Regex("<(script|style|noscript|svg)\\b[^>]*>.*?</\\1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val COMMENTS = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
     private val META_TAG = Regex("<meta\\b[^>]*>", RegexOption.IGNORE_CASE)
-    private val P_TAG = Regex("<p\\b[^>]*>(.*?)</p>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val CONTENT_TAG = Regex("<(?:p|li)\\b[^>]*>(.*?)</(?:p|li)>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val ATTR = Regex("([a-zA-Z_:][-a-zA-Z0-9_:.]*)\\s*=\\s*([\\\"'])(.*?)\\2", RegexOption.DOT_MATCHES_ALL)
     private val NUMERIC_ENTITY = Regex("&#(x?[0-9a-fA-F]+);")
     private val DESCRIPTION_KEYS = setOf("description", "og:description", "twitter:description")
@@ -535,7 +599,7 @@ object LeoNativeWebSearch {
         "enable javascript", "habilita javascript", "activa javascript", "newsletter",
     )
     private val QUERY_FILLERS = setOf(
-        "acerca", "tema", "tal", "cosa", "un", "una", "en", "al",
+        "dame", "explicame", "ensename", "ayudame", "necesito", "ayuda", "acerca", "tema", "tal", "cosa", "un", "una", "en", "al",
         "leo", "que", "ha", "han", "pasado", "pasa", "paso", "esta", "ahora", "mismo",
         "ultimas", "ultima", "noticias", "dime", "decime", "cuentame", "contame", "hablame", "sobre", "del", "de", "el",
         "la", "los", "las", "con", "por", "favor", "quiero", "saber", "busca", "buscame", "internet",

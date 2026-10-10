@@ -23,6 +23,7 @@ leo_sources=(
     app/src/main/java/com/niko/assistant/ai/NikoIdentity.kt
     app/src/main/java/com/niko/assistant/ai/NikoPersonality.kt
     app/src/main/java/com/niko/assistant/ai/ConversationContext.kt
+    app/src/main/java/com/niko/assistant/ai/ConversationCoordinator.kt
     app/src/main/java/com/niko/assistant/ai/AutonomousResearch.kt
     app/src/main/java/com/niko/assistant/ai/ResearchQuality.kt
     app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt
@@ -33,6 +34,7 @@ leo_sources=(
     app/src/main/java/com/niko/assistant/learning/LeoIntentTrainingCorpus.kt
     app/src/main/java/com/niko/assistant/learning/OnlineIntentNetwork.kt
     app/src/main/java/com/niko/assistant/localai/LocalConversationPrompt.kt
+    app/src/test/java/com/niko/assistant/ai/ConversationCoordinatorTest.kt
     app/src/test/java/com/niko/assistant/ai/NikoIdentityTest.kt
     app/src/test/java/com/niko/assistant/ai/ConversationContextTest.kt
     app/src/test/java/com/niko/assistant/ai/ResearchQualityTest.kt
@@ -50,6 +52,7 @@ java -cp "$leo_kotlin_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
     -no-stdlib -no-reflect -jvm-target 17 -classpath "$leo_classpath" \
     -d "$leo_test_dir/tests.jar" "${leo_sources[@]}"
 java -cp "$leo_test_dir/tests.jar:$leo_classpath" org.junit.runner.JUnitCore \
+    com.niko.assistant.ai.ConversationCoordinatorTest \
     com.niko.assistant.ai.NikoIdentityTest \
     com.niko.assistant.ai.ConversationContextTest \
     com.niko.assistant.ai.ResearchQualityTest \

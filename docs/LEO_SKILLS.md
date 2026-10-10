@@ -1,5 +1,7 @@
 # LEO: contrato de capacidades ejecutables
 
+> Actualización 2026-10-10: Groq retirado por petición del propietario. La ruta productiva y las capacidades afectadas se detallan en [LEO_WEB_FIRST.md](LEO_WEB_FIRST.md); las referencias al proveedor más abajo describen la arquitectura anterior.
+
 IMPLEMENTADO: LeoSkill declara descriptor (nombre, descripción, intents, parámetros, riesgo, permisos, cancelabilidad), disponibilidad, aceptación de AssistantCommand y execute. LeoSkillResult conserva mensaje, éxito informado por ejecutor y verificación separada (por defecto false).
 
 LeoSkillRegistry usa registro local explícito, rechaza ids duplicados y selección ambigua; no carga código del modelo. Las acciones sensibles o irreversibles no ejecutan a través del registro sin un adaptador específico de confirmación. Borrado de memoria tiene su protocolo separado y acotado.

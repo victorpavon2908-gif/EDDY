@@ -36,7 +36,7 @@ class NikoFallbackConversation {
                 memory.describeLearnedPatterns()
 
             else ->
-                "${connectionError ?: "Configurá GroqCloud en Ajustes o instalá el modelo de conversación local para ampliar mis respuestas."} Puedo seguir ayudándote con órdenes del teléfono y tu memoria personal."
+                "${connectionError ?: "Pedime una pregunta concreta para investigarla en Internet."} Puedo seguir ayudándote con órdenes del teléfono y tu memoria personal."
         }
     }
 

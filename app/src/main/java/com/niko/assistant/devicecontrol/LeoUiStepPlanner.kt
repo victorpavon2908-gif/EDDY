@@ -62,7 +62,7 @@ sealed interface LeoUiStep {
  * AccessibilityService. No coordinate is part of this DSL.
  */
 class LeoUiStepPlanner(
-    private val structuredCompletion: suspend (String) -> String?,
+    private val structuredCompletion: (suspend (String) -> String?)? = null,
 ) {
     @Volatile var lastError: String? = null
         private set
@@ -76,7 +76,7 @@ class LeoUiStepPlanner(
         if (snapshot.nodeCount <= 0 || snapshot.tree.isBlank()) {
             return LeoUiStep.Abort("No pude leer controles de la pantalla actual.")
         }
-        val raw = try { structuredCompletion(prompt(task, snapshot, history)) }
+        val raw = try { structuredCompletion?.invoke(prompt(task, snapshot, history)) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { null }
         if (raw.isNullOrBlank()) {

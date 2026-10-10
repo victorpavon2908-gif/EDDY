@@ -13,7 +13,7 @@ import com.niko.assistant.devicecontrol.NikoUiTaskPolicy
 class NikoSemanticActionResolver(
     private val brain: LocalBrain,
     nowMillis: () -> Long = System::currentTimeMillis,
-    structuredCompletion: suspend (String) -> String?,
+    structuredCompletion: (suspend (String) -> String?)? = null,
 ) {
     private val planner = LeoStructuredPlanner(brain, nowMillis, structuredCompletion)
 

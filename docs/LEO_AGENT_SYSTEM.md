@@ -1,5 +1,7 @@
 # LEO: ejecución de planes y evidencia por paso
 
+> Actualización 2026-10-10: Groq retirado por petición del propietario. La ruta productiva y las capacidades afectadas se detallan en [LEO_WEB_FIRST.md](LEO_WEB_FIRST.md); las referencias al proveedor más abajo describen la arquitectura anterior.
+
 IMPLEMENTADO: LeoTaskExecutor envuelve la ruta de múltiples comandos ya validados por los planificadores existentes. Guarda hasta 20 planes de máximo 8 pasos en la sesión. Cada paso mantiene índice, estado y texto devuelto. La cancelación se propaga y no ejecuta pasos restantes. Los fallos por excepción detienen el plan.
 
 Estados declarados: PLANNING, RUNNING, WAITING_USER, WAITING_TOOL, VERIFYING, COMPLETED, FAILED, CANCELLED. La ruta integrada usa PLANNING → WAITING_TOOL → VERIFYING y FAILED/CANCELLED cuando corresponde. No se marca COMPLETED solo porque una API acepta la solicitud. Un error comunicado como texto por un ejecutor existente requiere todavía evaluación específica del resultado.

@@ -30,7 +30,7 @@ class LeoStructuredPlannerTest {
         }
         val decision = planner.plan("Leo, haceme el favor de entrar a YouTube cuando podás")
         assertEquals(1, calls)
-        assertEquals(LeoPlanSource.GROQ, decision.source)
+        assertEquals(LeoPlanSource.MODEL, decision.source)
         assertEquals(listOf(AssistantCommand.OpenAppByName("YouTube")), decision.commands)
         assertTrue(decision.confidence >= 0.80)
     }
@@ -107,7 +107,7 @@ class LeoStructuredPlannerTest {
     fun sensitiveSemanticPlanIsMarkedAndNotExposedForExecution() = runBlocking {
         val planner = LeoStructuredPlanner(LocalBrain()) { "SMART_HOME|OFF|portón principal" }
         val decision = planner.plan("Leo, haceme el favor de desactivar el portón principal")
-        assertEquals(LeoPlanSource.GROQ, decision.source)
+        assertEquals(LeoPlanSource.MODEL, decision.source)
         assertEquals(LeoPlanRisk.HIGH, decision.risk)
         assertTrue(decision.requiresConfirmation)
         assertTrue(decision.commands.single() is AssistantCommand.Unknown)

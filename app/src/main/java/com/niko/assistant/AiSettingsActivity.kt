@@ -54,7 +54,6 @@ import com.niko.assistant.localai.NikoModelSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.niko.assistant.ai.NikoAiSettings
-import com.niko.assistant.ai.NikoGroqClient
 import com.niko.assistant.ui.theme.NikoTheme
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -80,7 +79,7 @@ class AiSettingsActivity : ComponentActivity() {
             IntentFilter(NikoRuntimeState.ACTION_RUNTIME_STATE),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
-        setContent { NikoTheme { GroqSettingsScreen(onClose = { finish() }, onVoiceEnabled = ::setVoiceEnabled) } }
+        setContent { NikoTheme { LeoSettingsScreen(onClose = { finish() }, onVoiceEnabled = ::setVoiceEnabled) } }
     }
 
     override fun onDestroy() {
@@ -111,7 +110,7 @@ class AiSettingsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> Unit) {
+private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val ownerVoice = remember { NikoVoiceProfile(context) }
@@ -136,10 +135,7 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             delay(500L)
         }
     }
-    var apiKey by remember { mutableStateOf(NikoAiSettings.apiKey(context)) }
-    var model by remember { mutableStateOf(NikoAiSettings.model(context)) }
-    var status by remember { mutableStateOf("Pegá aquí tu API key de GroqCloud. Se guarda solo en este teléfono.") }
-    var testing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { NikoAiSettings.retireCloudCredentials(context) }
     var initiative by remember { mutableStateOf(NikoAiSettings.companionInitiative(context)) }
     var personality by remember { mutableStateOf(NikoAiSettings.personality(context)) }
     var localFirst by remember { mutableStateOf(NikoAiSettings.localFirst(context)) }
@@ -316,56 +312,10 @@ private fun GroqSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) ->
             }, enabled = !preparingSemantic) { Text(if (preparingSemantic) "PREPARANDO…" else "PREPARAR MEMORIA SEMÁNTICA") }
             Text(semanticStatus, style = MaterialTheme.typography.bodySmall)
             Text(outputVoiceStatus, style = MaterialTheme.typography.bodySmall)
-            Text("GROQCLOUD", style = MaterialTheme.typography.headlineMedium)
-            Text(
-                "LEO usa GroqCloud para conversar y Groq Compound para consultar la web. La memoria y la voz local siguen en el teléfono.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API key de GroqCloud") },
-                placeholder = { Text("Pegá tu clave aquí") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-            )
-            OutlinedTextField(
-                value = model,
-                onValueChange = { model = it },
-                label = { Text("Modelo de conversación") },
-                placeholder = { Text(NikoAiSettings.DEFAULT_MODEL) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text("Las búsquedas se hacen directamente en la web y no necesitan una clave de Groq. Groq es opcional para conversar.", style = MaterialTheme.typography.bodySmall)
-            Text(status, style = MaterialTheme.typography.bodyMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = {
-                        NikoAiSettings.saveGroq(context, apiKey, model)
-                        status = "Guardado en el teléfono. Probando GroqCloud…"
-                        testing = true
-                        scope.launch {
-                            val client = NikoGroqClient(context)
-                            try {
-                                val ok = client.testConnection()
-                                status = if (ok) "Conectado con ${client.lastModelUsed}. LEO ya puede conversar." else client.lastError ?: "No pude conectar con GroqCloud."
-                            } finally { testing = false }
-                        }
-                    },
-                    enabled = !testing && apiKey.isNotBlank(),
-                    shape = RoundedCornerShape(18.dp),
-                ) { Text(if (testing) "PROBANDO" else "GUARDAR Y PROBAR") }
-                OutlinedButton(onClick = onClose) { Text("CERRAR") }
-            }
-            Text(
-                "Nota del prototipo: una clave guardada en una app cliente puede extraerse de un dispositivo comprometido. No publiques un APK con una clave preincluida.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("INVESTIGACIÓN WEB", style = MaterialTheme.typography.headlineMedium)
+            Text("LEO busca y lee fuentes públicas sin clave de API. Las preguntas de conocimiento consultan Internet; la memoria personal y las acciones siguen en el teléfono.", style = MaterialTheme.typography.bodyMedium)
+            Text("Las respuestas incluyen fuentes. Si falta evidencia, LEO lo indica. Los ejemplos de código no se ejecutan automáticamente.", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = onClose) { Text("CERRAR") }
         }
     }
 }
