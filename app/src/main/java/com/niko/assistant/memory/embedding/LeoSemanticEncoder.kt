@@ -1,8 +1,5 @@
 package com.niko.assistant.memory.embedding
 
-import ai.onnxruntime.OnnxTensor
-import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtSession
 import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
@@ -16,8 +13,7 @@ class LeoSemanticEncoder(directory: File) : Closeable {
     private val tokenizer: LeoWordPiece
     private val weights: FloatArray
     private val bias: FloatArray
-    private val environment = OrtEnvironment.getEnvironment()
-    private val session: OrtSession
+    private var session: Long = 0L
     private val cache = object : LinkedHashMap<String, FloatArray>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?): Boolean = size > 512
     }
@@ -43,40 +39,34 @@ class LeoSemanticEncoder(directory: File) : Closeable {
         }
         weights = tensor("linear.weight", listOf(512, 768))
         bias = tensor("linear.bias", listOf(512))
-        session = OrtSession.SessionOptions().use { options ->
-            options.setIntraOpNumThreads(2)
-            options.setInterOpNumThreads(1)
-            environment.createSession(File(directory, "model.onnx").absolutePath, options)
-        }
+        session = LeoOrtBridge.open(File(directory, "model.onnx").absolutePath)
+        check(session != 0L)
+
     }
 
     @Synchronized fun encode(text: String): FloatArray {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException("Semantic retrieval cancelled")
         val clean = text.trim().take(8_000)
         if (clean.isEmpty()) return FloatArray(512)
         cache[clean]?.let { return it.copyOf() }
         val ids = tokenizer.encode(clean)
-        val vector = OnnxTensor.createTensor(environment, arrayOf(ids)).use { input ->
-            OnnxTensor.createTensor(environment, arrayOf(LongArray(ids.size) { 1L })).use { mask ->
-                session.run(mapOf("input_ids" to input, "attention_mask" to mask)).use { result ->
-                    @Suppress("UNCHECKED_CAST")
-                    val hidden = (result.get("last_hidden_state").orElseThrow().value as Array<Array<FloatArray>>)[0]
-                    require(hidden.size == ids.size && hidden.all { it.size == 768 })
-                    val mean = FloatArray(768)
-                    for (token in hidden) for (i in mean.indices) mean[i] += token[i] / hidden.size
-                    val projected = FloatArray(512) { row ->
-                        var sum = bias[row]
-                        for (column in 0 until 768) sum += weights[row * 768 + column] * mean[column]
-                        tanh(sum)
-                    }
-                    val norm = sqrt(projected.sumOf { it.toDouble() * it }).toFloat()
-                    require(norm.isFinite() && norm > 0)
-                    FloatArray(512) { projected[it] / norm }
-                }
-            }
+        check(session != 0L) { "Encoder closed" }
+        val mean = LeoOrtBridge.meanEmbedding(session, ids)
+        require(mean.size == 768)
+        val projected = FloatArray(512) { row ->
+            var sum = bias[row]
+            for (column in 0 until 768) sum += weights[row * 768 + column] * mean[column]
+            tanh(sum)
         }
+        val norm = sqrt(projected.sumOf { it.toDouble() * it }).toFloat()
+        require(norm.isFinite() && norm > 0)
+        val vector = FloatArray(512) { projected[it] / norm }
         cache[clean] = vector
         return vector.copyOf()
     }
 
-    @Synchronized override fun close() { cache.clear(); session.close() }
+    @Synchronized override fun close() {
+        cache.clear()
+        if (session != 0L) { LeoOrtBridge.close(session); session = 0L }
+    }
 }

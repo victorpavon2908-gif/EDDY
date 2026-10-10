@@ -6,7 +6,7 @@ SEMANTIC_EVIDENCE | Ya no tomo café | related=0.8217157287688697 | unrelated=0.
 SEMANTIC_EVIDENCE | Debo entregar el trabajo mañana | related=0.4392609962624025 | unrelated=0.24224796270225873
 SEMANTIC_EVIDENCE | Me duele la cabeza | related=0.9010674521470136 | unrelated=0.25031793385786466
 .
-Time: 0.743
+Time: 0.575
 
 OK (7 tests)
 

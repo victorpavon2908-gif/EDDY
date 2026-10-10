@@ -24,6 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--destination', type=Path, required=True)
     parser.add_argument('--github-env', type=Path)
+    parser.add_argument('--jni-include', type=Path, help='JDK include directory when javac is not on PATH')
     args = parser.parse_args()
     root = args.destination.resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -42,13 +43,22 @@ def main():
     download('https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime/1.22.0/onnxruntime-1.22.0.jar', jar)
     native = Path(os.environ.get('NIKO_NATIVE_LIB_DIR', root / 'native'))
     native.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(jar) as archive:
-        for name in ('libonnxruntime4j_jni.so', 'libonnxruntime.so'):
-            # Preserve Sherpa's runtime when present, as production Android does.
-            target = native / name
-            if not target.exists():
-                with archive.open('ai/onnxruntime/native/linux-x64/' + name) as src, target.open('wb') as dst:
-                    shutil.copyfileobj(src, dst)
+    # Only a standalone Linux run needs a core; CI reuses Sherpa's actual core.
+    if not (native / 'libonnxruntime.so').exists():
+        with zipfile.ZipFile(jar) as archive:
+            with archive.open('ai/onnxruntime/native/linux-x64/libonnxruntime.so') as src, (native / 'libonnxruntime.so').open('wb') as dst:
+                shutil.copyfileobj(src, dst)
+    java_home = Path(os.environ['JAVA_HOME']) if os.environ.get('JAVA_HOME') else (Path(shutil.which('javac')).resolve().parents[1] if shutil.which('javac') else None)
+    jni_include = args.jni_include or (java_home / 'include' if java_home else None)
+    if not jni_include or not (jni_include / 'jni.h').is_file():
+        raise RuntimeError('JDK JNI headers required: install JDK 17 or supply --jni-include')
+    subprocess.run([
+        'c++', '-std=c++17', '-shared', '-fPIC', '-O2', '-Wl,-z,defs',
+        '-I' + str(jni_include), '-I' + str(jni_include / 'linux'),
+        '-I' + str(ROOT / 'app/src/main/cpp/include'),
+        str(ROOT / 'app/src/main/cpp/leo_semantic_jni.cpp'), '-ldl', '-pthread',
+        '-o', str(native / 'libleo_semantic_jni.so'),
+    ], check=True)
     settings = f'LEO_EMBEDDING_MODELS={root}\nLEO_ORT_NATIVE_DIR={native}\n'
     if args.github_env:
         with args.github_env.open('a') as out:

@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
-@RunWith(RobolectricTestRunner::class)
+@RunWith(com.niko.assistant.testsupport.LeoNativeMemoryTestRunner::class)
 class NikoLongTermMemoryTest {
     private lateinit var memory: NikoMemory
 

@@ -965,7 +965,7 @@ open class NikoAssistantService : Service() {
                 learnIntent(text, LearnedIntent.MEMORY, correctionAlias); speakResponse(it); return
             }
             val prediction = predictIntent(text)
-            val remoteContext = agent.conversation.context() + "\n" + withContext(Dispatchers.IO) { memory.contextForAi(false, text) }
+            val remoteContext = agent.conversation.context() + "\n" + kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(false, text) }
             val history = memory.historyForAi(text)
             val streamedText = StringBuilder()
             var lastPreviewAt = 0L
@@ -975,7 +975,7 @@ open class NikoAssistantService : Service() {
                 autoResearch = NikoAiSettings.autoResearch(applicationContext),
                 learnedSearch = prediction?.let { it.reliable && it.intent == LearnedIntent.SEARCH } == true,
                 local = {
-                    val context = withContext(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
+                    val context = kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
                     localLlm.reply(text, agent.conversation.context() + "\n" + context)
                 },
                 cloud = { requireSources ->
@@ -1271,7 +1271,7 @@ open class NikoAssistantService : Service() {
         NikoRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         return try {
             val current = NikoRuntimeState.read(applicationContext).heardText
-            val context = withContext(Dispatchers.IO) { memory.contextForAi(false, query) }
+            val context = kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(false, query) }
             val reply = webClient.reply(contextualQuery, context, forceWeb, memory.historyForAi(current))
             agent.turns.checkpoint()
             if (reply != null) agent.conversation.researched(contextualQuery, reply)

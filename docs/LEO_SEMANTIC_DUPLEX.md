@@ -4,8 +4,8 @@
 
 - Ajustes → **PREPARAR MEMORIA SEMÁNTICA** instala DistilUSE multilingüe INT8 (137.9 MB en disco). Primera instalación requiere Internet; después la inferencia funciona sin red. El estado informa si usa el modelo o el respaldo. No hay entrenamiento privado en el teléfono.
 - `NikoMemory` inyecta el encoder en `NikoLongTermMemory`: ruta de recuperación real, compatible con el archivo SQLite existente. No basta con añadir un archivo llamado “embeddings”.
-- Se preserva `libonnxruntime.so` de Sherpa 1.13.7 (runtime 1.27.1); de ONNX Runtime Android 1.22 solo se extraen `classes.jar` y `libonnxruntime4j_jni.so`. La API C es retrocompatible. No se usa `pickFirst` para decidir qué runtime cargar. La regresión CI comparte el runtime nativo preparado para Sherpa.
-- Reconocedor Android principal activo durante TTS/razonamiento, interrupción en parcial, final con orden, control de generación y rechazo textual de eco. Motor nativo avanzado conservado.
+- Se preserva `libonnxruntime.so` de Sherpa 1.13.7. `LeoOrtBridge` usa un adaptador C++ pequeño que obtiene la tabla oficial C API versión 22 mediante `OrtGetApiBase`. El puente Java precompilado se descartó: su dependencia ELF `VERS_1.22.0` no coincide con `VERS_1.27.1` del runtime existente, aun cuando la API C sí es retrocompatible. No hay un segundo runtime ni se usa `pickFirst`. CI compila el mismo adaptador para Linux y las ABI Android, sin generar APK. El runner comparte únicamente la clase JNI entre sandboxes para respetar la restricción de Java de una carga nativa por JVM.
+- Reconocedor Android principal activo durante TTS/razonamiento, interrupción en parcial, final con orden, control de generación y rechazo textual de eco. Motor nativo avanzado conservado. La recuperación de memoria usa `runInterruptible` y comprueba cancelación antes de cada inferencia: puede terminar la inferencia nativa ya iniciada, pero no sigue procesando el lote del turno cancelado.
 - Interfaz principal: fondo marfil, escenario verde oscuro, superficies planas, tipografía más grande, iconos coherentes, menor decoración y sin onda animada en reposo. Herramientas, fuentes, respuesta completa, accesos y ajustes siguen accesibles. No sustituye la UI por una imagen.
 
 ## AUTOMATIZADAMENTE PROBADO
@@ -42,4 +42,4 @@ En HONOR NIC-LX3, con una instalación de esta revisión:
 - Cancelación acústica con referencia de audio propia: Android SpeechRecognizer no expone PCM para implementarla aquí. El dúplex depende del proveedor y tiene pausas al renovar sesiones.
 - Capturas reales de la nueva UI y pruebas de autonomía/batería: requieren dispositivo o emulador; no se han inventado renders ni mediciones.
 
-Fuentes técnicas: [modelo y módulos](https://huggingface.co/sentence-transformers/distiluse-base-multilingual-cased-v2), [ONNX Java](https://onnxruntime.ai/docs/get-started/with-java.html), [API SpeechRecognizer](https://developer.android.com/reference/android/speech/SpeechRecognizer).
+Fuentes técnicas: [modelo y módulos](https://huggingface.co/sentence-transformers/distiluse-base-multilingual-cased-v2), [ONNX C API](https://onnxruntime.ai/docs/api/c/struct_ort_api_base.html), [API SpeechRecognizer](https://developer.android.com/reference/android/speech/SpeechRecognizer).

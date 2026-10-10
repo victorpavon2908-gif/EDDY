@@ -8,7 +8,8 @@ License: Apache License 2.0 (distiluse-Apache-2.0.txt).
 LEO uses upstream INT8 ONNX weights, vocabulary and the trained Dense layer.
 No claim of original training or endorsement. Weights are downloaded separately.
 
-ONNX Runtime Java bridge 1.22.0
+ONNX Runtime C API header 1.22.0
+The LEO JNI adapter is built from source and uses the existing Sherpa runtime.
 Copyright (c) Microsoft Corporation
 Source: https://github.com/microsoft/onnxruntime
 License: MIT (onnxruntime-MIT.txt).

@@ -31,6 +31,11 @@ class LeoSemanticEncoderTest {
             val copy = original.copyOf(); original.fill(0f)
             assertArrayEquals(copy, model.encode("La memoria sigue intacta"), 0f)
             assertArrayEquals(FloatArray(512), model.encode("  "), 0f)
+            Thread.currentThread().interrupt()
+            try {
+                assertThrows(InterruptedException::class.java) { model.encode("No continuar el turno anterior") }
+            } finally { Thread.interrupted() }
+            assertArrayEquals(copy, model.encode("La memoria sigue intacta"), 0f)
         }
     }
     @Test fun missingOrTamperedArtifactsAreNotLoaded() {

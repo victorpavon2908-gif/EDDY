@@ -21,21 +21,11 @@ fun configString(envName: String, propertyName: String, defaultValue: String = "
 
 val sherpaVersion = "1.13.7"
 
-// Sherpa already supplies libonnxruntime.so (1.27.1). Keep that tested binary;
-// package only the Java bridge from ORT 1.22 (the C API is backwards compatible).
-// Do not use pickFirst: selecting two different native runtimes is order-dependent.
-val ortJavaBridge by configurations.creating
-dependencies.add(ortJavaBridge.name, "com.microsoft.onnxruntime:onnxruntime-android:1.22.0@aar")
-val prepareOrtJava by tasks.registering(Sync::class) {
-    from({ zipTree(ortJavaBridge.singleFile) })
-    include("classes.jar", "jni/**/libonnxruntime4j_jni.so")
-    into(layout.buildDirectory.dir("leo-ort-java"))
-}
-
-
 android {
     namespace = "com.niko.assistant"
     compileSdk = 36
+    ndkVersion = "27.0.12077973"
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
     defaultConfig {
         applicationId = "com.eddy.assistant"
         // LEO 0.10.1 establece Android 12 (API 31) como base soportada oficial.
@@ -65,13 +55,15 @@ android {
     testOptions {
         unitTests.all {
             it.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
-            System.getenv("LEO_ORT_NATIVE_DIR")?.let { nativePath -> it.systemProperty("onnxruntime.native.path", nativePath) }
+            System.getenv("LEO_ORT_NATIVE_DIR")?.let { nativePath ->
+                it.systemProperty("java.library.path", nativePath)
+                it.environment("LD_LIBRARY_PATH", nativePath + ":" + (System.getenv("LD_LIBRARY_PATH") ?: ""))
+            }
             System.getenv("NIKO_NATIVE_LIB_DIR")?.let { nativeDirectory ->
                 it.systemProperty("java.library.path", nativeDirectory)
             }
         }
     }
-    sourceSets.getByName("main").jniLibs.srcDir(prepareOrtJava.map { it.destinationDir.resolve("jni") })
     packaging {
         jniLibs { useLegacyPackaging = true }
         resources {
@@ -95,7 +87,6 @@ dependencies {
     implementation(composeBom)
     androidTestImplementation(composeBom)
     implementation("k2-fsa:sherpa-onnx:$sherpaVersion@aar")
-    implementation(files(prepareOrtJava.map { it.destinationDir.resolve("classes.jar") }).builtBy(prepareOrtJava))
     // MediaPipe Tasks GenAI se retira del proceso principal: un SIGSEGV JNI no es recuperable
     // y LEO debe mantener voz/acciones/búsqueda estables en cualquier Android 12+.
     implementation("org.apache.commons:commons-compress:1.27.1")

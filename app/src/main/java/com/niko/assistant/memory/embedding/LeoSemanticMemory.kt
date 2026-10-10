@@ -22,7 +22,8 @@ class LeoSemanticMemory private constructor(context: Context) {
     private val maintenance = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     private var idleRelease: kotlinx.coroutines.Job? = null
     private var lastUsed = 0L
-    @Volatile var status: String = "Memoria por coincidencias · modelo semántico sin preparar"
+    @Volatile var status: String = if (installed()) "Memoria semántica instalada · se cargará al consultar recuerdos"
+        else "Memoria por coincidencias · modelo semántico sin preparar"
         private set
 
     fun installed(): Boolean = File(root, "ready").isFile && LeoEmbeddingModel.artifacts.all {
@@ -35,6 +36,8 @@ class LeoSemanticMemory private constructor(context: Context) {
                 val staging = File(root.parentFile, root.name + ".installing")
                 staging.mkdirs()
                 val total = LeoEmbeddingModel.artifacts.sumOf { it.bytes }
+                val remaining = LeoEmbeddingModel.artifacts.filterNot { it.valid(staging) }.sumOf { it.bytes }
+                require(staging.usableSpace >= remaining + 32L * 1024 * 1024) { "Falta espacio para preparar la memoria semántica" }
                 var completed = 0L
                 for (artifact in LeoEmbeddingModel.artifacts) {
                     currentCoroutineContext().ensureActive()
@@ -98,6 +101,8 @@ class LeoSemanticMemory private constructor(context: Context) {
                     }
                 }
             }
+        } catch (cancelled: InterruptedException) {
+            throw cancelled
         } catch (error: Exception) {
             encoder?.close(); encoder = null; unavailable = true
             status = "Memoria por coincidencias · no se pudo abrir el modelo semántico"
