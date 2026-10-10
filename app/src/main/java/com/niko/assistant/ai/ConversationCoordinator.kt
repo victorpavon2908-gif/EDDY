@@ -15,7 +15,8 @@ object ConversationCoordinator {
     ): NikoAiReply {
         fun localReply(text: String) = NikoAiReply(text, false, emptyList())
         if (AutonomousResearch.offlineOnly(message)) return localReply(local() ?: fallback())
-        val mayResearch = (autoResearch || WebQueryRouter.explicitQuery(message) != null) && AutonomousResearch.allowedFor(message)
+        val mayResearch = (autoResearch || WebQueryRouter.explicitQuery(message) != null) &&
+            (AutonomousResearch.allowedFor(message) || learnedSearch && AutonomousResearch.safeLearnedTopic(message))
         if (mayResearch) {
             return cloud(true) ?: localReply("No pude verificar ese dato en Internet. Las funciones locales siguen disponibles.")
         }

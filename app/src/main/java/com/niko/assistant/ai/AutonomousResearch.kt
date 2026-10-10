@@ -22,6 +22,14 @@ object AutonomousResearch {
             Regex("^(?:que|quien|quienes|cuando|donde|cual|cuales|cuanto|cuantos|como|por que|es cierto|verifica|compar[aá]|recomienda|recomendame)\\b").containsMatchIn(text)
     }
 
+    /** A learned search label can extend public-topic wording, never expose a personal utterance. */
+    fun safeLearnedTopic(message: String): Boolean {
+        val text = MemoryLearning.key(message)
+        if (offlineOnly(message) || !com.niko.assistant.learning.AdaptiveLearningPolicy.canPersistLiteral(message)) return false
+        if (Regex("\\b(?:mi|mis|me|mio|mia|nuestro|nuestra|nos|no)\\b").containsMatchIn(text)) return false
+        return Regex("^(?:quiero entender|necesito saber|dame datos de|quisiera conocer)\\s+.{3,}$").matches(text)
+    }
+
     fun uncertain(answer: String): Boolean {
         val text = MemoryLearning.key(answer)
         return text.isBlank() || Regex("\\b(?:no (?:lo )?se|no (?:tengo|dispongo de) (?:esa |la )?informacion|no puedo (?:confirmar|verificar|asegurar)|no estoy segur[oa]|necesito verificar|desconozco)\\b").containsMatchIn(text)

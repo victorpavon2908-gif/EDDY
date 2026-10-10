@@ -70,4 +70,18 @@ class ConversationCoordinatorTest {
         assertFalse(AutonomousResearch.allowedFor("Ayudame sin conexión"))
     }
 
+    @Test fun learnedClassifierChangesPublicTopicRoutingButCannotExposePrivateRequests() = runBlocking {
+        for (learned in listOf(false, true)) {
+            var researched = false
+            ConversationCoordinator.reply("Quiero entender circuitos eléctricos", true, true, learned,
+                local = { "Conversación local" },
+                cloud = { required -> researched = required; NikoAiReply("Investigación", true, emptyList()) },
+                fallback = { "fallback" })
+            assertEquals(learned, researched)
+        }
+        for (privateRequest in listOf("Quiero entender mi diagnóstico", "Necesito saber mi contraseña", "Quiero entender circuitos sin internet")) {
+            assertFalse(AutonomousResearch.safeLearnedTopic(privateRequest))
+        }
+    }
+
 }
