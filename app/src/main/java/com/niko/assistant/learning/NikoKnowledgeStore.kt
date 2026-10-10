@@ -39,17 +39,18 @@ class NikoKnowledgeStore(context: Context) {
     // knowledge too instead of leaving a hidden second memory behind.
     private val prefs = context.applicationContext.getSharedPreferences(UpgradeIdentity.memoryPreferences, Context.MODE_PRIVATE)
 
-    @Synchronized
-    fun learn(query: String, reply: NikoAiReply) {
+    fun learn(query: String, reply: NikoAiReply) = synchronized(LOCK) {
         val key = normalize(query)
         val answer = reply.text.trim()
         val urls = reply.sources.map { it.url.trim() }
             .filter { it.startsWith("https://") }
             .distinct()
             .take(MAX_SOURCES)
-        if (!reply.webUsed || key.length < 3 || answer.isBlank() || urls.isEmpty()) return
+        if (!reply.webUsed || key.length < 3 || answer.isBlank() || urls.isEmpty()) return@synchronized
 
-        val verified = AutonomousResearch.publisherCount(urls) >= 2
+        // Source diversity does not establish claim-level verification.
+        if (rejectedHashes().contains(answerHash(answer))) return@synchronized
+        val verified = false
         val entries = readEntries().toMutableList()
         entries.removeAll { it.key == key }
         entries += Entry(
@@ -68,10 +69,9 @@ class NikoKnowledgeStore(context: Context) {
      * Returns only knowledge that is still fresh enough for its topic and sufficiently
      * similar to the new question. Exact matches are preferred over fuzzy matches.
      */
-    @Synchronized
-    fun recall(query: String, nowMs: Long = System.currentTimeMillis()): Hit? {
+    fun recall(query: String, nowMs: Long = System.currentTimeMillis()): Hit? = synchronized(LOCK) {
         val key = normalize(query)
-        if (key.length < 3 || WebQueryRouter.needsCurrentInformation(query)) return null
+        if (key.length < 3 || WebQueryRouter.needsCurrentInformation(query)) return@synchronized null
 
         var changed = false
         val valid = readEntries().filter { entry ->
@@ -84,26 +84,43 @@ class NikoKnowledgeStore(context: Context) {
         if (changed) saveEntries(valid)
 
         val exact = valid.lastOrNull { it.key == key }
-        if (exact != null) return exact.toHit()
+        if (exact != null) return@synchronized exact.toHit()
 
         val best = valid.asSequence()
             .map { it to cosineLikeSimilarity(key, it.key) }
             .maxByOrNull { it.second }
-            ?: return null
+            ?: return@synchronized null
         val threshold = if (best.first.verified) VERIFIED_MATCH_THRESHOLD else SINGLE_SOURCE_MATCH_THRESHOLD
         val coverage = semanticCoverage(key, best.first.key)
-        return best.takeIf { it.second >= threshold && coverage >= MIN_SEMANTIC_COVERAGE }
+        return@synchronized best.takeIf { it.second >= threshold && coverage >= MIN_SEMANTIC_COVERAGE }
             ?.first
             ?.toHit()
     }
 
-    @Synchronized
-    fun clear() {
-        prefs.edit().remove(KEY_ENTRIES).apply()
+    /** Withdraw a rejected answer everywhere it was cached, even under a contextual query. */
+    fun reject(query: String, answer: String) = synchronized(LOCK) {
+        val key = normalize(query)
+        val rejected = (rejectedHashes() + answerHash(answer)).takeLast(128)
+        prefs.edit().putString("documental_rejections_v1", JSONArray(rejected).toString()).apply()
+        saveEntries(readEntries().filterNot { it.key == key || it.answer == answer.trim().take(MAX_ANSWER_CHARS) })
     }
 
-    @Synchronized
-    fun size(): Int = readEntries().size
+    fun clear() = synchronized(LOCK) {
+        prefs.edit().remove(KEY_ENTRIES).remove("documental_rejections_v1").apply()
+    }
+
+    fun size(): Int = synchronized(LOCK) { readEntries().size }
+
+    fun isRejected(answer: String): Boolean = synchronized(LOCK) { answerHash(answer) in rejectedHashes() }
+
+    private fun rejectedHashes(): List<String> = runCatching {
+        val array = JSONArray(prefs.getString("documental_rejections_v1", "[]"))
+        (0 until array.length()).map { array.getString(it) }
+    }.getOrDefault(emptyList())
+
+    private fun answerHash(answer: String): String = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(answer.trim().take(MAX_ANSWER_CHARS).toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
 
     private fun Entry.toHit() = Hit(
         answer = answer,
@@ -125,7 +142,7 @@ class NikoKnowledgeStore(context: Context) {
                     sources = List(sourceArray.length()) { sourceIndex -> sourceArray.optString(sourceIndex) }
                         .filter { it.startsWith("https://") }
                         .take(MAX_SOURCES),
-                    verified = item.optBoolean("verified", false),
+                    verified = false, // Legacy diversity flags must not be promoted to truth.
                     volatile = item.optBoolean("volatile", false),
                     learnedAt = item.optLong("learnedAt", 0L),
                 )
@@ -152,6 +169,7 @@ class NikoKnowledgeStore(context: Context) {
     }
 
     companion object {
+        private val LOCK = Any()
         private const val KEY_ENTRIES = "documental_knowledge_v1"
         private const val MAX_ENTRIES = 160
         private const val MAX_SOURCES = 6

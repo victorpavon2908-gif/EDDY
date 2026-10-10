@@ -19,3 +19,7 @@ Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AU
 
 
 Actualización: LeoVisionContext conecta peticiones explícitas de pantalla con observaciones reales de Accessibility, con caducidad. Sin entrada accesible no afirma visión. Offline describe etiquetas; Groq puede interpretar el texto observado, sin herramientas web. Cámara, imágenes y OCR de documentos siguen pendientes. Memoria y observaciones cloud se adjuntan como datos de usuario no confiables, nunca dentro del rol system.
+
+## Aprendizaje continuo (2026-10-10)
+
+Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenamiento candidato con ocho casos de control: [LEO_CONTINUOUS_LEARNING.md](LEO_CONTINUOUS_LEARNING.md). La generación/instalación autónoma de código nativo no se presenta como implementada.

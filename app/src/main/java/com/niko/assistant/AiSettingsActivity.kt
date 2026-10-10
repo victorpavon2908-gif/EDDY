@@ -290,7 +290,7 @@ private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> 
                 Text("Entrenamiento local continuo", modifier = Modifier.weight(1f))
                 Switch(checked = learning, onCheckedChange = { learning = it; saveBehavior() })
             }
-            Text("Entrena una red neuronal pequeña con interacciones clasificables y aprende comandos a partir de tus correcciones. Todo queda en el teléfono; no reentrena el modelo generativo completo. Decí borrar tu memoria para eliminar también ese aprendizaje.", style = MaterialTheme.typography.bodySmall)
+            Text("Cada actualización del clasificador se compara con ocho casos de regresión antes de guardarse. Decí «eso está mal», «eso me sirvió» o «qué aprendiste». Las respuestas web no se convierten automáticamente en hechos verificados. Borrar memoria elimina también este aprendizaje; no se reentrena el modelo generativo completo.", style = MaterialTheme.typography.bodySmall)
             Text(conversationLabel, style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { prepareModel(conversationModel) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN LOCAL") }
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }

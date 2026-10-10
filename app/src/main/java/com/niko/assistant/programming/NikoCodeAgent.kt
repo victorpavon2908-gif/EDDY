@@ -6,8 +6,7 @@ import com.niko.assistant.skills.NikoSkillEngine
 
 /**
  * Capa local que decide cómo ampliar NIKO cuando detecta una capacidad faltante.
- * La generación compleja puede venir del backend/LLM, pero la activación se registra
- * localmente y pasa por un ciclo de pruebas y rollback.
+ * Registra observaciones y propuestas; no compila ni activa código nativo por sí sola.
  */
 class NikoCodeAgent(context: Context) {
     private val skills = NikoSkillEngine(context)
@@ -60,6 +59,18 @@ class NikoCodeAgent(context: Context) {
 
     fun registerNativeProposal(capability: String, summary: String, candidateCode: String, currentVersion: String) =
         upgrades.propose(capability, summary, currentVersion, candidateCode)
+
+    /** A capability gap is an observation, never untested prose disguised as candidate code. */
+    fun registerImprovementObservation(request: String, explanation: String, observedAnswer: String, currentVersion: String) {
+        val capability = request.trim().take(120)
+        if (upgrades.history().any { it.capability == capability && it.state == NikoSelfUpgradeManager.State.PROPOSED }) return
+        val observation = org.json.JSONObject().put("kind", "CAPABILITY_OBSERVATION")
+            .put("request", request.take(600)).put("observedAnswer", observedAnswer.take(4000))
+            .put("implemented", false).put("testsExecuted", false)
+        upgrades.propose(capability, "Pendiente de implementación y pruebas: $explanation", currentVersion, observation.toString())
+    }
+
+    fun clearEvolutionHistory() = upgrades.clear()
 
     fun evolutionHistory() = upgrades.history()
 }

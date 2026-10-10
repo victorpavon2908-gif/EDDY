@@ -63,3 +63,7 @@ La integración Android en `40b7c00` pasó `testDebugUnitTest` y `lintDebug` en 
 ## Iteración 2026-10-10: sin Groq
 
 Ver [LEO_WEB_FIRST.md](LEO_WEB_FIRST.md) y `evidencias/leo-web-first-2026-10-10/`. Los resultados integrados corresponden al workflow del SHA publicado, no a ejecuciones anteriores.
+
+## Aprendizaje continuo (2026-10-10)
+
+Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenamiento candidato con ocho casos de control: [LEO_CONTINUOUS_LEARNING.md](LEO_CONTINUOUS_LEARNING.md). La generación/instalación autónoma de código nativo no se presenta como implementada.

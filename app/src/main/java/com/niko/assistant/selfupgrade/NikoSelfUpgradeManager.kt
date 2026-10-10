@@ -61,6 +61,12 @@ class NikoSelfUpgradeManager(context: Context) {
 
     fun rollback(id: String): Boolean = mutate(id) { it.copy(state = State.ROLLED_BACK) }
 
+    /** Explicit memory deletion also removes personal observations stored in proposal payloads. */
+    @Synchronized fun clear() {
+        root.listFiles().orEmpty().filter { it.name == "journal.json" || it.name.matches(Regex("evo-.*\\.candidate\\.txt")) }
+            .forEach { check(it.delete()) { "No pude eliminar el historial de evolución" } }
+    }
+
     fun history(): List<Evolution> = readAll().sortedByDescending { it.createdAt }
 
     fun latestStable(): Evolution? = history().firstOrNull { it.state == State.ACTIVATED }

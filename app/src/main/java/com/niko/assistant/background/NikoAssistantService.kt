@@ -112,6 +112,10 @@ open class NikoAssistantService : Service() {
     private val brain by lazy(LazyThreadSafetyMode.NONE) { LocalBrain() }
     private val executor by lazy(LazyThreadSafetyMode.NONE) { ActionExecutor(applicationContext) }
     private val smartHome by lazy(LazyThreadSafetyMode.NONE) { LocalSmartHomeClient(applicationContext) }
+    private val learningJournal by lazy { com.niko.assistant.learning.LeoLearningJournal(applicationContext) }
+    private val learnedKnowledge by lazy { com.niko.assistant.learning.NikoKnowledgeStore(applicationContext) }
+    private var learningQuestion: Pair<Long, String>? = null
+
     private val memory by lazy(LazyThreadSafetyMode.NONE) { NikoMemory(applicationContext) }
     private val webClient by lazy(LazyThreadSafetyMode.NONE) { NikoAiClient(applicationContext) }
     private val generatedToolPlanner by lazy(LazyThreadSafetyMode.NONE) { GeneratedToolPlanner(applicationContext) }
@@ -806,6 +810,31 @@ open class NikoAssistantService : Service() {
             }
             com.niko.assistant.agent.LeoAgentRuntime.ConfirmationReply.None -> Unit
         }
+        learningQuestion = null
+        if (NikoAiSettings.adaptiveLearning(applicationContext)) {
+            val assessment = com.niko.assistant.learning.LeoLearningJournal.assessment(rawText)
+            if (assessment != null) {
+                val previous = withContext(Dispatchers.IO) {
+                    learningMutex.withLock {
+                        learningJournal.feedback(assessment)?.also {
+                            if (!assessment) learnedKnowledge.reject(it.question, it.answer)
+                        }
+                    }
+                }
+                speakResponse(when {
+                    previous == null -> "No tengo una respuesta reciente para asociar esa valoración. Decime cuál querés corregir."
+                    assessment -> "Lo anoté como útil para vos."
+                    else -> "Retiré esa respuesta del conocimiento reutilizable. Decime qué dato hay que corregir."
+                })
+                return
+            }
+            if (com.niko.assistant.learning.LeoLearningJournal.isStatusRequest(rawText)) {
+                val stats = withContext(Dispatchers.IO) { learningJournal.stats() }
+                speakResponse("En mi registro reciente hay ${stats.interactions} interacciones: ${stats.useful} marcadas útiles y ${stats.rejected} rechazadas. Conservé ${stats.acceptedUpdates} actualizaciones del clasificador y descarté ${stats.rejectedUpdates}. Eso no mide la veracidad de mis respuestas.")
+                return
+            }
+            learningQuestion = turnEpoch to rawText
+        }
         // Persist user before assistant for every route; no detached history writer can reorder turns.
         withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
         agent.turns.checkpoint()
@@ -988,7 +1017,7 @@ open class NikoAssistantService : Service() {
             learnIntent(text, learnedLabel, correctionAlias)
             if (looksLikeCapabilityRequest(text)) {
                 val plan = codeAgent.analyze(text)
-                codeAgent.registerNativeProposal(plan.capability, "${plan.strategy}: ${plan.explanation}", answer.text, com.niko.assistant.BuildConfig.VERSION_NAME)
+                codeAgent.registerImprovementObservation(text, "${plan.strategy}: ${plan.explanation}", answer.text, com.niko.assistant.BuildConfig.VERSION_NAME)
             }
             speakResearchResponse(text, answer)
             return
@@ -1104,9 +1133,13 @@ open class NikoAssistantService : Service() {
                 if (epoch != learningEpoch) return@withLock
                 try {
                     val network = adaptiveNetwork ?: adaptiveStore.load().also { adaptiveNetwork = it }
-                    network.learn(text, intent)
-                    correctionAlias?.takeIf { it != text }?.let { network.learn(it, intent) }
-                    adaptiveStore.save(network)
+                    val examples = listOfNotNull(text to intent, correctionAlias?.takeIf { it != text }?.let { it to intent })
+                    val candidate = com.niko.assistant.learning.LeoAdaptiveTrainer.propose(network, examples)
+                    if (candidate.accepted) {
+                        adaptiveStore.save(candidate.network)
+                        adaptiveNetwork = candidate.network
+                    }
+                    learningJournal.recordTraining(candidate.accepted)
                 } catch (_: Exception) {
                     adaptiveUnavailable = true
                     NikoRuntimeState.setInputStatus(applicationContext, "No pude guardar el aprendizaje. Las órdenes siguen disponibles.")
@@ -1117,11 +1150,13 @@ open class NikoAssistantService : Service() {
 
     private suspend fun clearLocalMemory() {
         ++learningEpoch
+        learningQuestion = null
         withContext(Dispatchers.IO) {
             learningMutex.withLock {
                 memory.clearAll()
                 adaptiveStore.clear()
                 learnedActionStore.clear()
+                codeAgent.clearEvolutionHistory()
                 adaptiveNetwork = null
                 adaptiveUnavailable = false
                 lastTrainableUtterance = null
@@ -1236,18 +1271,38 @@ open class NikoAssistantService : Service() {
         fun unavailable(message: String) = NikoAiReply(message, false, emptyList())
         if (AutonomousResearch.offlineOnly(query)) return unavailable("Una búsqueda web necesita conexión. Puedo seguir con las funciones locales.")
         val researchEpoch = turnEpoch
+        val researchLearningEpoch = learningEpoch
         NikoRuntimeState.setSearching(applicationContext, true)
         NikoRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         return try {
             val reply = webClient.reply(contextualQuery, "", forceWeb)
             agent.turns.checkpoint()
-            if (reply != null) agent.conversation.researched(contextualQuery, reply)
+            if (reply != null) {
+                agent.conversation.researched(contextualQuery, reply)
+                withContext(Dispatchers.IO) {
+                    learningMutex.withLock {
+                        if (researchEpoch == turnEpoch && researchLearningEpoch == learningEpoch &&
+                            NikoAiSettings.adaptiveLearning(applicationContext)) learnedKnowledge.learn(contextualQuery, reply)
+                    }
+                }
+            }
             when {
                 reply == null -> unavailable(webClient.lastError ?: "No pude consultar Internet. Volvé a intentarlo.")
                 forceWeb && !reply.webUsed -> reply
                 else -> reply
             }
         } finally { if (researchEpoch == turnEpoch) NikoRuntimeState.setSearching(applicationContext, false) }
+    }
+
+    private suspend fun recordLearningReply(answer: String) {
+        val question = learningQuestion?.takeIf { it.first == turnEpoch } ?: return
+        val epoch = learningEpoch
+        if (!NikoAiSettings.adaptiveLearning(applicationContext)) return
+        withContext(Dispatchers.IO) {
+            learningMutex.withLock {
+                if (epoch == learningEpoch && question.first == turnEpoch) learningJournal.record(question.second, answer)
+            }
+        }
     }
 
     private suspend fun speakResearchResponse(question: String, reply: NikoAiReply) {
@@ -1263,6 +1318,7 @@ open class NikoAssistantService : Service() {
             .replace(Regex("\\s+"), " ")
             .trim()
         speakOnly(spokenText.ifBlank { finalText })
+        recordLearningReply(finalText)
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }
     }
 
@@ -1272,6 +1328,7 @@ open class NikoAssistantService : Service() {
         agent.conversation.reply(NikoAiReply(text, false, emptyList()))
         NikoRuntimeState.setResponse(applicationContext, text)
         speakOnly(text)
+        recordLearningReply(text)
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }
     }
     private fun speakOnly(text: String, continueCommand: Boolean = false) {

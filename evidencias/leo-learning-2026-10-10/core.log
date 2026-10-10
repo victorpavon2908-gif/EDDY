@@ -1,0 +1,7 @@
+JUnit version 4.13.2
+................................................ROUTING_EVIDENCE before={SEARCH=2, ACTION=2, MEMORY=2, CONVERSATION=2} after={SEARCH=2, ACTION=2, MEMORY=2, CONVERSATION=2} accepted=true
+..........
+Time: 1.488
+
+OK (58 tests)
+

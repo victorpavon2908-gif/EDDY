@@ -30,3 +30,7 @@ Borrado: requiere confirmación específica; elimina también el estado conversa
 ## Evidencia y límites
 
 Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AUTOMATIZADAMENTE PROBADO solo para los casos ejecutados en [LEO_VALIDATION.md](LEO_VALIDATION.md). Toda propiedad del teléfono permanece **PENDIENTE DE VALIDACIÓN FÍSICA**. Los contratos o tipos sin ruta productiva se indican como PLANIFICADO.
+
+## Aprendizaje continuo (2026-10-10)
+
+Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenamiento candidato con ocho casos de control: [LEO_CONTINUOUS_LEARNING.md](LEO_CONTINUOUS_LEARNING.md). La generación/instalación autónoma de código nativo no se presenta como implementada.

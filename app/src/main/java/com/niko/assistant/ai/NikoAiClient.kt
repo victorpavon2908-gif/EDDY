@@ -12,7 +12,8 @@ class NikoAiClient(
     @Suppress("UNUSED_PARAMETER") baseUrlOverride: String? = null,
     private val search: suspend (String) -> NikoAiReply = { LeoNativeWebSearch.search(it) },
 ) {
-    private val knowledge = NikoKnowledgeStore(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val knowledge = NikoKnowledgeStore(appContext)
     init { NikoAiSettings.retireCloudCredentials(context.applicationContext) }
     val isConfigured: Boolean get() = true
     @Volatile var lastError: String? = null
@@ -34,7 +35,8 @@ class NikoAiClient(
         val result = search(subject)
         currentCoroutineContext().ensureActive()
         lastError = result.text.takeUnless { result.webUsed }
-        if (result.webUsed && result.sources.isNotEmpty()) knowledge.learn(subject, result)
+        if (knowledge.isRejected(result.text)) return NikoAiReply(
+            "La búsqueda repitió una respuesta que marcaste como incorrecta. No la voy a reutilizar; necesitás otras fuentes o una corrección concreta.", false, emptyList())
         return result
     }
 }
