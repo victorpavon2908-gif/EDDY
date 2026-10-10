@@ -27,6 +27,7 @@ class LeoPlatformDuplexTest {
     private val commands = mutableListOf<String>()
     private var interrupts = 0
     private var stops = 0
+    private var fatalErrors = 0
     private val interrupt: () -> Unit = { interrupts++ }
     private val stop: () -> Unit = { stops++ }
     private fun idle(ms: Long = 250) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
@@ -42,7 +43,7 @@ class LeoPlatformDuplexTest {
         LeoRealtimeTurnBus.beginSpeechReference("test", "El reporte está casi listo")
         LeoRealtimeTurnBus.registerTurnInterrupter(interrupt)
         LeoRealtimeTurnBus.registerSpeechStopper(stop)
-        engine = LeoPlatformVoiceEngine(context, onWake = {}, onCommand = commands::add)
+        engine = LeoPlatformVoiceEngine(context, onWake = {}, onCommand = commands::add, onFatal = { fatalErrors++ })
         assertTrue(engine.start())
         idle()
         current().triggerOnReadyForSpeech(Bundle())
@@ -94,6 +95,12 @@ class LeoPlatformDuplexTest {
         current().triggerOnResults(phrase("mejor buscá otra cosa"))
         assertEquals(1, interrupts)
         assertEquals(listOf("mejor buscá otra cosa"), commands)
+    }
+    @Test fun missingReadinessFallsBackInsteadOfRestartingForever() {
+        current().triggerOnError(SpeechRecognizer.ERROR_NO_MATCH)
+        idle(14_000)
+        assertFalse(engine.isRunning)
+        assertEquals(1, fatalErrors)
     }
     @Test fun stopDiscardsLateResults() {
         val old = current()

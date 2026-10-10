@@ -43,3 +43,7 @@ En HONOR NIC-LX3, con una instalación de esta revisión:
 - Capturas reales de la nueva UI y pruebas de autonomía/batería: requieren dispositivo o emulador; no se han inventado renders ni mediciones.
 
 Fuentes técnicas: [modelo y módulos](https://huggingface.co/sentence-transformers/distiluse-base-multilingual-cased-v2), [ONNX C API](https://onnxruntime.ai/docs/api/c/struct_ort_api_base.html), [API SpeechRecognizer](https://developer.android.com/reference/android/speech/SpeechRecognizer).
+
+### Portabilidad de cuantización
+
+El export U8S8 `model_qint8_arm64.onnx` pasó los seis contrastes localmente, pero falló en el runner de GitHub (automóvil: relacionado 0.9173, no relacionado 0.9720). Se sustituye por el export U8U8 `model_quint8_avx2.onnx` de la misma revisión y pesos entrenados, con SHA-256 fijado. ONNX Runtime documenta saturación U8S8 en x86 sin VNNI y recomienda U8U8: https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html. El nombre del archivo identifica la receta de exportación; no contiene código AVX2. La elección es común a producción y pruebas, sin cambiar umbrales para ocultar fallos. Rendimiento ARM pendiente de validación física. Los paquetes anteriores se detectan por tamaño/hash y requieren preparar de nuevo el modelo; el archivo de recuerdos no se modifica.

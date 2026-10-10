@@ -159,7 +159,10 @@ class LeoPlatformVoiceEngine(
             SpeechRecognizer.createSpeechRecognizer(appContext).also {
                 it.setRecognitionListener(sessionListener(generation))
             }
-        }.getOrElse { scheduleRecovery(); return@Runnable }
+        }.getOrElse {
+            recoverOpeningFailure()
+            return@Runnable
+        }
         recognizer = sr
         sessionOpen = true
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -193,8 +196,7 @@ class LeoPlatformVoiceEngine(
             }
             .onFailure {
                 sessionOpen = false
-                onError("El servicio de voz de Android no pudo abrir el micrófono.")
-                scheduleRecovery()
+                recoverOpeningFailure()
             }
     }
 
@@ -364,6 +366,17 @@ class LeoPlatformVoiceEngine(
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             .map(String::trim)
             .filter(String::isNotBlank)
+
+    private fun recoverOpeningFailure() {
+        consecutiveReadyTimeouts++
+        if (consecutiveReadyTimeouts >= MAX_READY_TIMEOUTS) {
+            running = false
+            onFatal("Android no pudo abrir el reconocedor de voz.")
+        } else {
+            onError("El servicio de voz de Android no pudo abrir el micrófono.")
+            scheduleRecovery()
+        }
+    }
 
     private fun scheduleRecovery() {
         if (!running || destroyed) return

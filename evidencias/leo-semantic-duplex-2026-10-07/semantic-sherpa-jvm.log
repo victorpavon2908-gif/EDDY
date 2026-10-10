@@ -1,0 +1,12 @@
+JUnit version 4.13.2
+......SEMANTIC_EVIDENCE | Necesito reparar mi automóvil | related=0.644767213467432 | unrelated=0.11751683547185723
+SEMANTIC_EVIDENCE | ¿Dónde dejé las llaves? | related=0.7097639957023362 | unrelated=0.019751898431654504
+SEMANTIC_EVIDENCE | Tengo que terminar el informe de productividad | related=0.6312775630938484 | unrelated=0.0673190131100033
+SEMANTIC_EVIDENCE | Ya no tomo café | related=0.8218168595945009 | unrelated=0.1694622040973338
+SEMANTIC_EVIDENCE | Debo entregar el trabajo mañana | related=0.4398362422431153 | unrelated=0.24406649456537471
+SEMANTIC_EVIDENCE | Me duele la cabeza | related=0.8995828675374219 | unrelated=0.24993189893376622
+.
+Time: 0.572
+
+OK (7 tests)
+

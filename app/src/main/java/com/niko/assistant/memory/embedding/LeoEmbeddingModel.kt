@@ -15,8 +15,10 @@ object LeoEmbeddingModel {
             return file.isFile && file.length() == bytes && digest(file) == sha256
         }
     }
+    // U8U8 avoids U8S8 saturation on x86 CPUs without VNNI; also supported on ARM.
+    // The upstream filename describes the export recipe, not a native ISA requirement.
     val artifacts = listOf(
-        Artifact("onnx/model_qint8_arm64.onnx", "model.onnx", 135336307, "c78c64bb0446ceb7086d2de24c2f4297e7a909eb457b4f68e5fdb6ab19f285c0"),
+        Artifact("onnx/model_quint8_avx2.onnx", "model.onnx", 135377779, "6a5852e0da9ca0e4532274b6c5eed71f9938fa8ff15e8345c6873a1969093f80"),
         Artifact("vocab.txt", "vocab.txt", 995526, "fe0fda7c425b48c516fc8f160d594c8022a0808447475c1a7c6d6479763f310c"),
         Artifact("2_Dense/model.safetensors", "dense.safetensors", 1575104, "0a21b1ce908e772ebf09f93c20ca09524c32706e9918d9c0169a3f0663b191ed"),
     )
