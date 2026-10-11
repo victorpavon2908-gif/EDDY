@@ -16,3 +16,6 @@ Polimorfismo conservado: GeneratedToolSpec valida componentes/acciones permitido
 ## Evidencia y límites
 
 Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AUTOMATIZADAMENTE PROBADO solo para los casos ejecutados en [LEO_VALIDATION.md](LEO_VALIDATION.md). Toda propiedad del teléfono permanece **PENDIENTE DE VALIDACIÓN FÍSICA**. Los contratos o tipos sin ruta productiva se indican como PLANIFICADO.
+
+
+Actualización 2026-10-10: [Investigación y evolución controlada](LEO_RESEARCH_EVOLUTION.md) documenta lectura directa, profundidad extractiva, discrepancias, edición/versionado de herramientas y límites pendientes.

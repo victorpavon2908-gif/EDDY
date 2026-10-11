@@ -21,7 +21,7 @@ fun main(args: Array<String>) = runBlocking {
     require(args.isNotEmpty()) { "Supply a public question" }
     var failures = 0
     for (query in args) {
-        val reply = LeoNativeWebSearch.search(query)
+        val reply = LeoNativeWebSearch.search(query, diagnostic = { println("FETCH: host=${it.host} status=${it.status} bytes=${it.bytes} failure=${it.failure}") })
         println("QUERY: $query\nWEB_USED: ${reply.webUsed}\n${reply.text}")
         reply.sources.forEach { println("SOURCE: ${it.title} ${it.url}") }
         if (!reply.webUsed) failures++

@@ -1,0 +1,49 @@
+FETCH: host=docs.python.org status=200 bytes=0 failure=null
+FETCH: host=docs.python.org status=200 bytes=111008 failure=null
+QUERY: https://docs.python.org/3/tutorial/datastructures.html
+WEB_USED: true
+Ejemplo de la documentación [1]:
+
+```
+>>> fruits = ['orange', 'apple', 'pear', 'banana', 'kiwi', 'apple', 'banana']
+>>> fruits.count('apple')
+2
+>>> fruits.count('tangerine')
+0
+>>> fruits.index('banana')
+3
+>>> fruits.index('banana', 4) # Find next banana starting at position 4
+6
+>>> fruits.reverse()
+>>> fruits
+['banana', 'apple', 'kiwi', 'banana', 'pear', 'apple', 'orange']
+>>> fruits.append('grape')
+>>> fruits
+['banana', 'apple', 'kiwi', 'banana', 'pear', 'apple', 'orange', 'grape']
+>>> fruits.sort()
+>>> fruits
+['apple', 'apple', 'banana', 'banana', 'grape', 'kiwi', 'orange', 'pear']
+>>> fruits.pop()
+'pear'
+```
+
+No lo ejecuté; comprobá la versión, las dependencias y el resultado en tu entorno.
+SOURCE: [1] 5. Data Structures — Python 3.15.0 documentation https://docs.python.org/3/tutorial/datastructures.html
+FETCH: host=bing.com status=null bytes=0 failure=SocketTimeoutException
+FETCH: host=bing.com status=null bytes=0 failure=SocketTimeoutException
+FETCH: host=html.duckduckgo.com status=null bytes=0 failure=SocketTimeoutException
+FETCH: host=html.duckduckgo.com status=null bytes=0 failure=SocketTimeoutException
+QUERY: Cómo preparar arroz blanco
+WEB_USED: false
+No pude obtener fuentes útiles sobre como preparar arroz blanco. Puede fallar la conexión o el buscador; no voy a darte páginas ajenas al tema.
+Exception in thread "main" java.lang.IllegalStateException: 1 searches returned no usable evidence
+	at ProbeKt$main$1.invokeSuspend(Probe.kt:20)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:106)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:284)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:85)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:59)
+	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:38)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+	at ProbeKt.main(Probe.kt:3)

@@ -1200,11 +1200,15 @@ open class NikoAssistantService : Service() {
     private suspend fun createGeneratedTool(request: String): com.niko.assistant.skills.LeoSkillResult {
         NikoRuntimeState.setResponse(applicationContext, "Diseñando una herramienta para vos…")
         val spec = withContext(Dispatchers.IO) { generatedToolPlanner.generate(request) }
+            ?: return com.niko.assistant.skills.LeoSkillResult("No pude aplicar ese cambio. Necesito una herramienta existente y un componente compatible, como contador, temporizador, lista o calculadora.", false)
         agent.turns.checkpoint()
-        GeneratedToolStore.save(applicationContext, spec)
+        if (!GeneratedToolStore.save(applicationContext, spec)) {
+            return com.niko.assistant.skills.LeoSkillResult("No pude validar o guardar la herramienta nueva. Conservé la versión anterior.", false)
+        }
         val opened = executor.openAppByName("herramienta generada")
         val message = if (opened.success) {
-            "Listo. Me convertí en ${spec.title.lowercase(Locale.forLanguageTag("es-NI"))}."
+            if (com.niko.assistant.brain.GeneratedToolEdit.componentName(request) != null) "Actualicé ${spec.title}. Podés volver a la versión anterior desde la herramienta."
+            else "Listo. Me convertí en ${spec.title.lowercase(Locale.forLanguageTag("es-NI"))}."
         } else {
             "Creé ${spec.title}, pero Android no me dejó abrirla ahora mismo."
         }

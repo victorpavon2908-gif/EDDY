@@ -6,8 +6,31 @@ import com.niko.assistant.ui.generated.GeneratedToolSpec
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal class GeneratedToolPlanner(@Suppress("UNUSED_PARAMETER") context: Context) {
-    suspend fun generate(request: String): GeneratedToolSpec = fallback(request.trim().take(500))
+internal class GeneratedToolPlanner(context: Context) {
+    private val appContext = context.applicationContext
+    suspend fun generate(request: String): GeneratedToolSpec? {
+        val componentName = com.niko.assistant.brain.GeneratedToolEdit.componentName(request)
+            ?: return fallback(request.trim().take(500))
+        val current = com.niko.assistant.ui.generated.GeneratedToolStore.read(appContext) ?: return null
+        val primitives = mapOf(
+            "contador" to ("counter" to "Contador"),
+            "cronometro" to ("timer" to "Cronómetro"),
+            "temporizador" to ("countdown" to "Temporizador"),
+            "calculadora" to ("calculator" to "Calculadora"),
+            "lista" to ("list" to "Lista"),
+            "lista de pendientes" to ("checklist" to "Pendientes"),
+            "notas" to ("text_input" to "Notas"),
+            "tabla" to ("table" to "Tabla"),
+        )
+        val (type, label) = primitives[componentName] ?: return null
+        // Repeating an acknowledged request is idempotent.
+        if (current.components.any { it.type == type && it.label == label }) return current
+        if (current.components.size >= 20) return null
+        val id = (1..21).map { "added_${type}_$it" }.first { candidate -> current.components.none { it.id == candidate } }
+        val component = GeneratedToolComponent(id, type, label, initial = if (type == "countdown") 60.0 else 0.0,
+            max = if (type == "countdown") 7200.0 else 100.0)
+        return current.copy(components = current.components + component)
+    }
 
     private fun fallback(request: String): GeneratedToolSpec {
         val normalized = request.lowercase()

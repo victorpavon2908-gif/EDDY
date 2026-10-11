@@ -42,15 +42,16 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun GeneratedToolScreen(onHome: () -> Unit) {
     val context = LocalContext.current
-    val spec = remember { GeneratedToolStore.read(context) }
+    var spec by remember { mutableStateOf(GeneratedToolStore.read(context)) }
+    val activeSpec = spec
     val numericState = remember(spec?.toJson()) { mutableStateMapOf<String, Double>() }
 
     LeoToolSurface(
         mode = NikoUiMode.GENERATED,
-        title = spec?.title ?: "Herramienta generada",
+        title = activeSpec?.title ?: "Herramienta generada",
         onHome = onHome,
     ) {
-        if (spec == null) {
+        if (activeSpec == null) {
             Text(
                 "No hay una herramienta generada disponible. Pedile a LEO que se convierta en algo nuevo.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -58,27 +59,34 @@ internal fun GeneratedToolScreen(onHome: () -> Unit) {
             return@LeoToolSurface
         }
 
-        if (spec.subtitle.isNotBlank()) {
+        if (activeSpec.subtitle.isNotBlank()) {
             Text(
-                spec.subtitle,
+                activeSpec.subtitle,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        spec.components.forEach { component ->
-            when (component.type) {
-                "text" -> GeneratedText(component)
-                "text_input" -> GeneratedTextInput(component)
-                "number_input" -> GeneratedNumberInput(component, numericState)
-                "counter" -> GeneratedCounter(component, numericState)
-                "toggle" -> GeneratedToggle(component)
-                "checklist" -> GeneratedChecklist(component)
-                "list" -> GeneratedList(component)
-                "timer" -> GeneratedTimer(component)
-                "calculator" -> GeneratedCalculator(component)
-                "metric" -> GeneratedMetric(component)
-                else -> GeneratedAdvancedComponent(component, numericState)
+        if (GeneratedToolStore.canRollback(context)) {
+            androidx.compose.material3.TextButton(onClick = {
+                if (GeneratedToolStore.rollback(context)) spec = GeneratedToolStore.read(context)
+            }) { Text("Volver a la herramienta anterior") }
+        }
+        androidx.compose.runtime.key(activeSpec.toJson()) {
+            activeSpec.components.forEach { component ->
+                when (component.type) {
+                    "text" -> GeneratedText(component)
+                    "text_input" -> GeneratedTextInput(component)
+                    "number_input" -> GeneratedNumberInput(component, numericState)
+                    "counter" -> GeneratedCounter(component, numericState)
+                    "toggle" -> GeneratedToggle(component)
+                    "checklist" -> GeneratedChecklist(component)
+                    "list" -> GeneratedList(component)
+                    "timer" -> GeneratedTimer(component)
+                    "calculator" -> GeneratedCalculator(component)
+                    "metric" -> GeneratedMetric(component)
+                    else -> GeneratedAdvancedComponent(component, numericState)
+                }
             }
         }
     }

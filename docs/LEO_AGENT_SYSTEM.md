@@ -18,3 +18,6 @@ Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AU
 ## Aprendizaje continuo (2026-10-10)
 
 Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenamiento candidato con ocho casos de control: [LEO_CONTINUOUS_LEARNING.md](LEO_CONTINUOUS_LEARNING.md). La generación/instalación autónoma de código nativo no se presenta como implementada.
+
+
+Actualización 2026-10-10: [Investigación y evolución controlada](LEO_RESEARCH_EVOLUTION.md) documenta lectura directa, profundidad extractiva, discrepancias, edición/versionado de herramientas y límites pendientes.

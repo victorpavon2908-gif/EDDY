@@ -80,6 +80,7 @@ class LocalBrain {
     private fun isNegationOrExplanation(text: String): Boolean = Regex("^(?:no|nunca|jamas|tampoco|por que|explica|explicame|como (?:puedo|hago|funciona|se|abrir|borrar|apagar|prender|enviar|llamar|poner))\\b").containsMatchIn(text)
 
     private fun parseDynamicTool(text: String): AssistantCommand? {
+        if (GeneratedToolEdit.componentName(text) != null) return AssistantCommand.GenerateTool(text)
         if (
             containsAny(text, "vuelve a tu pantalla principal", "vuelve a la pantalla principal", "regresa a tu pantalla principal", "regresa a la pantalla principal", "vuelve a inicio", "regresa a inicio", "volver a niko", "regresar a niko")
         ) return AssistantCommand.OpenAppByName("NIKO_HOME")

@@ -365,4 +365,10 @@ class LocalBrainTest {
             brain.understand("NIKO olvida todo"),
         )
     }
+    @Test fun explicitGeneratedToolEditRoutesButNegationsAndQuestionsDoNot() {
+        val brain = LocalBrain()
+        org.junit.Assert.assertTrue(brain.understand("LEO, agregá un temporizador a la herramienta") is AssistantCommand.GenerateTool)
+        org.junit.Assert.assertTrue(brain.understand("No agregues un temporizador a la herramienta") is AssistantCommand.Unknown)
+        org.junit.Assert.assertTrue(brain.understand("Explicame cómo agregar un temporizador a la herramienta") is AssistantCommand.Unknown)
+    }
 }

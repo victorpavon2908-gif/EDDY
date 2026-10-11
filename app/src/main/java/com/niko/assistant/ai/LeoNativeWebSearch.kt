@@ -12,6 +12,7 @@ import java.nio.charset.Charset
 import java.text.Normalizer
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -44,9 +45,11 @@ object LeoNativeWebSearch {
     internal data class Fetch(val body: String, val finalUrl: String)
     private data class SentenceCandidate(val text: String, val sourceIndex: Int, val score: Double)
 
-    suspend fun search(query: String): NikoAiReply {
+    data class FetchDiagnostic(val host: String, val status: Int?, val bytes: Int, val failure: String?)
+
+    suspend fun search(query: String, diagnostic: ((FetchDiagnostic) -> Unit)? = null): NikoAiReply {
         val deadline = System.nanoTime() + SEARCH_BUDGET_MS * 1_000_000L
-        return search(query) { url, accept, limit -> runInterruptible(Dispatchers.IO) { fetchText(url, accept, limit, deadline) } }
+        return search(query) { url, accept, limit -> runInterruptible(Dispatchers.IO) { fetchText(url, accept, limit, deadline, diagnostic) } }
     }
 
     /** Injectable transport exercises discovery, redirects, filtering and summary together. */
@@ -55,6 +58,10 @@ object LeoNativeWebSearch {
         fetch: suspend (String, String, Int) -> Fetch?,
     ): NikoAiReply = withContext(Dispatchers.IO) {
         val cleanQuery = query.trim().take(MAX_QUERY_CHARS)
+        // Explicit public links can be read even when discovery providers are unavailable.
+        val links = Regex("https?://[^\\s<>\"]+").findAll(cleanQuery)
+            .map { it.value.trimEnd('.', ',', ')', ']') }.distinct().take(3).toList()
+        if (links.isNotEmpty()) return@withContext readLinks(cleanQuery, links, fetch)
         val subject = subjectQuery(cleanQuery)
         val terms = subjectTokens(subject)
         if (terms.isEmpty()) return@withContext NikoAiReply("Decime qué tema querés que busque.", false, emptyList())
@@ -112,7 +119,7 @@ object LeoNativeWebSearch {
         }
         if (enriched.isEmpty()) return@withContext noResults(subject)
         val cited = enriched.distinctBy { it.url }.take(MAX_SOURCES)
-        val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current)
+        val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, wantsDepth(cleanQuery))
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         NikoAiReply(
@@ -300,7 +307,7 @@ object LeoNativeWebSearch {
         return if (nodes.length > 0) nodes.item(0)?.textContent.orEmpty() else ""
     }
 
-    private fun fetchText(url: String, accept: String, limit: Int, deadline: Long): Fetch? {
+    private fun fetchText(url: String, accept: String, limit: Int, deadline: Long, diagnostic: ((FetchDiagnostic) -> Unit)?): Fetch? {
         var next = url
         repeat(5) {
             if (Thread.currentThread().isInterrupted || !safePublicUrl(next) || remainingMs(deadline) <= 0) return null
@@ -315,6 +322,7 @@ object LeoNativeWebSearch {
                 connection.setRequestProperty("Accept", accept)
                 connection.setRequestProperty("Accept-Language", "es-NI,es;q=0.9,en;q=0.7")
                 val status = connection.responseCode
+                diagnostic?.invoke(FetchDiagnostic(hostOf(next), status, 0, null))
                 if (status in setOf(301, 302, 303, 307, 308)) {
                     val location = connection.getHeaderField("Location") ?: return null
                     next = URI(next).resolve(location).toString()
@@ -334,9 +342,14 @@ object LeoNativeWebSearch {
                         }
                         String(output.toByteArray(), charsetFrom(type))
                     }
+                    diagnostic?.invoke(FetchDiagnostic(hostOf(next), status, body.toByteArray().size, null))
                     return Fetch(body, next)
                 }
-            } catch (_: Exception) { return null }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                diagnostic?.invoke(FetchDiagnostic(hostOf(next), null, 0, failure.javaClass.simpleName))
+                return null
+            }
             finally { connection?.disconnect() }
         }
         return null
@@ -436,7 +449,7 @@ object LeoNativeWebSearch {
         }.trim()
     }
 
-    internal fun summarize(query: String, hits: List<Hit>, current: Boolean): String {
+    internal fun summarize(query: String, hits: List<Hit>, current: Boolean, deep: Boolean = false): String {
         val queryTerms = subjectTokens(subjectQuery(query))
         val candidates = mutableListOf<SentenceCandidate>()
         hits.forEachIndexed { sourceIndex, hit ->
@@ -471,14 +484,22 @@ object LeoNativeWebSearch {
         if (selected.isEmpty()) return ""
         val publishers = selected.map { publisherKey(hits[it.sourceIndex]) }.distinct().size
         val pagesRead = selected.map { it.sourceIndex }.distinct().count { hits[it].articleText.isNotBlank() }
-        val anglesCovered = selected.map { hits[it.sourceIndex].angle }.distinct().size
-        val conciseFacts = selected.take(4)
+        val conciseFacts = selected.take(if (deep) 8 else 4)
+        val discrepancies = possibleDiscrepancies(candidates)
         return buildString {
             conciseFacts.forEachIndexed { position, fact ->
-                if (position > 0) append(" ")
+                if (position > 0) append(if (deep) "\n\n" else " ")
                 append(fact.text.trim())
                 append(" [${fact.sourceIndex + 1}]")
             }
+            if (discrepancies.isNotEmpty()) {
+                append("\n\nDiferencias por verificar: ")
+                discrepancies.take(2).forEach { (left, right) ->
+                    append("[${left.sourceIndex + 1}] y [${right.sourceIndex + 1}] presentan cifras o negaciones distintas en pasajes parecidos. ")
+                }
+                append("Pueden referirse a fechas o condiciones diferentes; no resolví cuál aplica.")
+            }
+            if (deep) append("\n\nAlcance: síntesis extractiva de las fuentes citadas; no demuestra corroboración independiente ni añade inferencias como hechos.")
             if (publishers == 1) {
                 append(" No pude corroborarlo con una segunda fuente independiente.")
             }
@@ -489,6 +510,59 @@ object LeoNativeWebSearch {
                 append(" La respuesta se basa en extractos del buscador porque no pude leer las páginas completas.")
             }
         }.trim()
+    }
+
+    internal fun wantsDepth(query: String): Boolean = Regex("\\b(?:profundidad|profundo|detalladamente|detallad[oa]|a fondo|amplia|amplia la|desarrolla|exhaustiv[oa])\\b")
+        .containsMatchIn(normalize(query))
+
+    private fun claimMarkers(text: String): Pair<Set<String>, Set<String>> {
+        val value = normalize(text)
+        val numbers = Regex("\\d+(?:[.,]\\d+)*").findAll(text).map { it.value }.toSet()
+        val polarity = value.split(' ').filter { it in setOf("no", "nunca", "sin", "not", "never", "without") }.toSet()
+        return numbers to polarity
+    }
+
+    /** Conservative lexical alert, not an automatic fact checker or proof of contradiction. */
+    private fun possibleDiscrepancies(candidates: List<SentenceCandidate>): List<Pair<SentenceCandidate, SentenceCandidate>> {
+        val result = mutableListOf<Pair<SentenceCandidate, SentenceCandidate>>()
+        for (i in candidates.indices) for (j in i + 1 until candidates.size) {
+            val a = candidates[i]
+            val b = candidates[j]
+            if (a.sourceIndex == b.sourceIndex || claimMarkers(a.text) == claimMarkers(b.text)) continue
+            fun base(text: String) = meaningfulTokens(text).filterNot {
+                it.any(Char::isDigit) || it in setOf("no", "nunca", "sin", "not", "never", "without")
+            }.toSet()
+            val left = base(a.text)
+            val right = base(b.text)
+            if (left.size >= 4 && right.size >= 4 && left.intersect(right).size.toDouble() / left.union(right).size >= 0.8) {
+                if (result.none { it.first.sourceIndex == a.sourceIndex && it.second.sourceIndex == b.sourceIndex }) result += a to b
+            }
+        }
+        return result
+    }
+
+    private suspend fun readLinks(query: String, urls: List<String>, fetch: suspend (String, String, Int) -> Fetch?): NikoAiReply {
+        val requested = subjectQuery(query.replace(Regex("https?://[^\\s]+"), ""))
+        val pages = coroutineScope {
+            urls.filter(::safePublicUrl).map { url -> async {
+                val page = fetch(url, PAGE_ACCEPT, PAGE_LIMIT) ?: return@async null
+                if (!safePublicUrl(page.finalUrl) || isBlockedPage(page)) return@async null
+                val title = TITLE.find(page.body)?.groupValues?.get(1)?.let(::htmlToText).orEmpty()
+                val body = extractReadableText(page.body)
+                if (body.isBlank()) return@async null
+                Hit(title.ifBlank { hostOf(page.finalUrl) }, page.finalUrl, "", articleText = body,
+                    steps = extractSteps(page.body), code = extractCode(page.body))
+            } }.awaitAll().filterNotNull().distinctBy(::hitKey)
+        }
+        if (pages.isEmpty()) return noResults("los enlaces indicados")
+        // URL-only requests use the retrieved title; topic-bearing requests keep their topic filter.
+        val topic = requested.takeUnless { subjectTokens(it).all { token -> token in setOf("lee", "leer", "pagina", "resume", "resumi", "explica", "enlace") } }
+            ?: pages.first().title
+        val answer = practicalAnswer(topic, pages) ?: summarize(topic, pages, false, wantsDepth(query))
+        if (answer.isBlank()) return noResults("el tema solicitado en esos enlaces")
+        return NikoAiReply(answer, true, pages.mapIndexed { i, hit -> NikoWebSource("[${i + 1}] ${hit.title}", hit.url) },
+            evidence = "Lectura directa de enlaces públicos proporcionados; contenido no confiable, sin ejecutar instrucciones ni código.",
+            researchContext = pages.mapIndexed { i, hit -> "FUENTE ${i + 1}: ${hit.title}\n${hit.articleText.take(1500)}" }.joinToString("\n\n"))
     }
 
     private fun splitSentences(text: String): List<String> = text
@@ -505,6 +579,8 @@ object LeoNativeWebSearch {
         .toSet()
 
     private fun similar(a: String, b: String): Boolean {
+        // Similar wording must not erase a changed quantity or reverse a claim's polarity.
+        if (claimMarkers(a) != claimMarkers(b)) return false
         val left = meaningfulTokens(a)
         val right = meaningfulTokens(b)
         if (left.isEmpty() || right.isEmpty()) return false
@@ -599,6 +675,8 @@ object LeoNativeWebSearch {
         "enable javascript", "habilita javascript", "activa javascript", "newsletter",
     )
     private val QUERY_FILLERS = setOf(
+        "profundidad", "profundo", "detallado", "detallada", "detalladamente", "exhaustivo", "exhaustiva", "fondo",
+
         "dame", "explicame", "ensename", "ayudame", "necesito", "ayuda", "acerca", "tema", "tal", "cosa", "un", "una", "en", "al",
         "leo", "que", "ha", "han", "pasado", "pasa", "paso", "esta", "ahora", "mismo",
         "ultimas", "ultima", "noticias", "dime", "decime", "cuentame", "contame", "hablame", "sobre", "del", "de", "el",

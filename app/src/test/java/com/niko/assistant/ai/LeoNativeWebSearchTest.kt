@@ -285,4 +285,50 @@ class LeoNativeWebSearchTest {
         assertEquals("cpp", LeoNativeWebSearch.subjectQuery("C++"))
     }
 
+    @Test fun disagreementIsNotDeduplicatedAndIsNotPresentedAsSettledFact() {
+        val hits = listOf(
+            LeoNativeWebSearch.Hit("Panel solar", "https://a.example/panel", "", articleText = "El panel solar produce 300 vatios bajo condiciones normales de ensayo."),
+            LeoNativeWebSearch.Hit("Panel solar", "https://b.example/panel", "", articleText = "El panel solar produce 400 vatios bajo condiciones normales de ensayo."),
+        )
+        val summary = LeoNativeWebSearch.summarize("panel solar", hits, false)
+        assertTrue(summary.contains("300 vatios"))
+        assertTrue(summary.contains("400 vatios"))
+        assertTrue(summary.contains("Diferencias por verificar"))
+        assertTrue(summary.contains("no resolví cuál aplica"))
+        val polarity = hits.mapIndexed { index, hit -> hit.copy(articleText = "El panel solar ${if (index == 1) "no " else ""}produce electricidad durante las horas de oscuridad total.") }
+        val negative = LeoNativeWebSearch.summarize("panel solar", polarity, false)
+        assertTrue(negative.contains("no produce"))
+        assertTrue(negative.contains("Diferencias por verificar"))
+    }
+
+    @Test fun requestedDepthIncludesMoreEvidenceWithoutClaimingVerification() {
+        val hits = (1..4).map { index -> LeoNativeWebSearch.Hit("Panel solar", "https://source$index.example/panel", "",
+            articleText = "El panel solar tiene una potencia de ${index * 100} vatios en laboratorio. El panel solar permite alimentar ${index * 2} equipos durante el día.") }
+        val brief = LeoNativeWebSearch.summarize("panel solar", hits, false)
+        val deep = LeoNativeWebSearch.summarize("panel solar", hits, false, true)
+        assertTrue(deep.length > brief.length)
+        assertTrue(deep.contains("no demuestra corroboración"))
+        assertTrue(LeoNativeWebSearch.wantsDepth("Explicame en profundidad el panel solar"))
+        assertFalse(LeoNativeWebSearch.wantsDepth("panel solar"))
+        assertEquals("panel solar", LeoNativeWebSearch.subjectQuery("panel solar en profundidad"))
+    }
+
+    @Test fun directPublicLinkNeedsNoSearchProviderAndNeverExecutesPageContent() = runBlocking {
+        val visited = mutableListOf<String>()
+        val url = "https://docs.example/panel"
+        val reply = LeoNativeWebSearch.search("busca $url") { requested, _, _ ->
+            visited += requested
+            LeoNativeWebSearch.Fetch("<title>Panel solar</title><article><p>El panel solar transforma la luz del sol en electricidad para alimentar equipos.</p><script>executeSecrets()</script></article>", requested)
+        }
+        assertEquals(listOf(url), visited)
+        assertTrue(reply.webUsed)
+        assertEquals(url, reply.sources.single().url)
+        assertTrue(reply.text.contains("transforma"))
+        assertFalse(reply.text.contains("executeSecrets"))
+        val privateReply = LeoNativeWebSearch.search("lee http://127.0.0.1/secrets") { _, _, _ -> error("Private URL fetched") }
+        assertFalse(privateReply.webUsed)
+        val redirect = LeoNativeWebSearch.search("lee $url") { _, _, _ -> LeoNativeWebSearch.Fetch("<p>Private data should not be retained.</p>", "http://192.168.1.1/private") }
+        assertFalse(redirect.webUsed)
+    }
+
 }
