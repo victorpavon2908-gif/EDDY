@@ -38,8 +38,7 @@ class NikoModelManager(context: Context) {
 
     fun isInstalled(spec: NikoModelSpec): Boolean = validateDirectory(spec, modelDir(spec)) == null
 
-    // TTS neuronal y LLM enriquecen a NIKO, pero no deben impedir que el núcleo privado
-    // de activación, Voice ID, VAD y reconocimiento español pueda iniciar.
+    // La escucha mínima depende únicamente de KWS, VAD, denoiser y Canary.
     fun coreReady(): Boolean = NikoModelCatalog.voiceCore.all(::isInstalled)
 
     fun invalidReason(spec: NikoModelSpec): String? = validateDirectory(spec, modelDir(spec))
@@ -49,60 +48,6 @@ class NikoModelManager(context: Context) {
         File(root, "${spec.id}.part").delete()
         File(root, "${spec.id}.download").delete()
         File(root, "${spec.directoryName}.installing").deleteRecursively()
-    }
-
-    suspend fun ensureRecommended(
-        @Suppress("UNUSED_PARAMETER") profile: NikoDeviceProfile,
-        onProgress: (NikoModelProgress) -> Unit = {},
-    ): Boolean = withContext(Dispatchers.IO) {
-        // Install only the acoustic core. Never download a 450+ MB LLM at startup.
-        val models = NikoModelCatalog.voiceCore
-        var allReady = true
-        for (spec in models) {
-            var installed = ensure(spec, onProgress)
-
-            // Retain a partial download after a network failure; ensure already rejects invalid installs.
-            if (!installed && spec != NikoModelCatalog.localLlm) {
-                onProgress(
-                    NikoModelProgress(
-                        "${spec.id} · reparando",
-                        0,
-                        0,
-                        NikoModelProgress.State.DOWNLOADING,
-                    ),
-                )
-                delay(REPAIR_RETRY_DELAY_MS)
-                installed = ensure(spec, onProgress)
-            }
-
-            if (!installed) {
-                allReady = false
-                val essential = spec in NikoModelCatalog.voiceCore
-                if (essential) {
-                    onProgress(
-                        NikoModelProgress(
-                            "${spec.id} · error de instalación",
-                            0,
-                            0,
-                            NikoModelProgress.State.DOWNLOADING,
-                        ),
-                    )
-                    break
-                } else {
-                    // La voz neural y el LLM son mejoras opcionales. NIKO continúa con el
-                    // fallback del sistema en vez de bloquear el asistente completo.
-                    onProgress(
-                        NikoModelProgress(
-                            "${spec.id} · alternativa activa",
-                            0,
-                            0,
-                            NikoModelProgress.State.DOWNLOADING,
-                        ),
-                    )
-                }
-            }
-        }
-        allReady
     }
 
     suspend fun ensureAcousticCore(

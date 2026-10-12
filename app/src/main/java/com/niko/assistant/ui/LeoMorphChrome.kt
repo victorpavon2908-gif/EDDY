@@ -276,32 +276,6 @@ internal fun LeoTransformCard(
 }
 
 @Composable
-internal fun LeoTransformLauncher(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(100.dp),
-        color = Color.White.copy(alpha = 0.96f),
-        border = BorderStroke(1.dp, Color(0xFF8C7CFF).copy(alpha = 0.34f)),
-        shadowElevation = 8.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Canvas(Modifier.size(8.dp)) { drawCircle(Color(0xFF8C7CFF)) }
-            Spacer(Modifier.size(8.dp))
-            Text(
-                text = "TRANSFORMAR",
-                color = Color(0xFF4D5B56),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.1.sp,
-            )
-        }
-    }
-}
-
-@Composable
 internal fun LeoMorphTransitionOverlay(mode: NikoUiMode, visible: Boolean) {
     val accent = leoModeAccent(mode)
     AnimatedVisibility(

@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Calendar,
 } from "lucide-react";
-import { NikoWebSource, GoogleSearchResult } from "../types";
+import { GoogleSearchResult } from "../types";
 
 interface GoogleSearchModalProps {
   isOpen: boolean;

@@ -208,9 +208,6 @@ class LeoFirstRunSetup(context: Context) {
             NikoModelCatalog.spanishAsr -> "Reconocimiento español Canary"
             NikoModelCatalog.whisperAsr -> "Segundo oído Whisper"
             NikoModelCatalog.speaker -> "Identificación de voz"
-            NikoModelCatalog.spanishVoice -> "Voz local de LEO"
-            NikoModelCatalog.localLlmQuality -> "Cerebro local de alta calidad"
-            NikoModelCatalog.localLlmFast -> "Cerebro local rápido de respaldo"
             else -> spec.id
         }
 

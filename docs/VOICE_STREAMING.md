@@ -1,26 +1,32 @@
-# Voz progresiva Android 0.12.1
+# Voz: ruta vigente y streaming retirado
 
-## Recorrido
+Actualizado el 2026-10-12. Esta página reemplaza las instrucciones de streaming Groq de 0.12.1, que ya no corresponden al producto actual.
 
-La transcripción local existente entrega una orden. Las acciones directas y memoria se resuelven igual que antes. Cuando el coordinador elige conversación en nube, Groq envía deltas SSE; el servicio muestra texto progresivo y agrupa frases en una cola. La primera frase se envía al TTS existente sin esperar el cierre del flujo. Los callbacks de reproducción retiran una frase a la vez. La respuesta final se conserva una sola vez en memoria y no se vuelve a pronunciar completa.
+## IMPLEMENTADO
 
-La interrupción limpia la cola y cancela el trabajo productor; el transporte cierra el canal y la conexión HTTP, incluso con una lectura bloqueada. Los mensajes parciales del proveedor solo usan `delta.content`, nunca campos de razonamiento ni salidas de herramientas. Se limita el tamaño de eventos, respuesta y cola de transporte.
+`NikoAssistantService` utiliza `LeoPlatformVoiceEngine` como reconocedor principal y `NikoLocalVoiceEngine` como respaldo. Las respuestas aprobadas por el control de turno se envían a `NikoTextToSpeech`, basado en el TTS de Android. El bus `LeoRealtimeTurnBus` y la cancelación de turno se conservan.
 
-Investigación con fuentes permanece sin streaming. No se cambian permisos, proveedor, credenciales, detección de fin de habla ni modelos ASR. No se inicia inferencia sobre transcripciones provisionales que podrían resultar equivocadas. La arquitectura interna de ChatGPT no se conoce ni se reproduce aquí.
+La instancia nullable `progressiveSpeech` nunca recibía una cola y la propiedad lazy `neuralTts` nunca se consultaba para hablar. Se eliminaron esas rutas y sus pruebas exclusivas. También se retiraron las implementaciones Groq que solo sobrevivían en el árbol de tests. Esto no implementa síntesis incremental: no hay un productor de deltas conectado al TTS actual.
+
+El catálogo deja de descargar el paquete Piper que ese sintetizador inactivo habría consumido. No borra modelos previamente descargados ni modifica preferencias, identificadores o bases de datos. KWS, VAD, denoiser, Canary, Whisper e identificación del hablante se conservan.
 
 ## Pruebas reproducibles
 
 ```sh
 bash scripts/test_voice_fidelity.sh
 bash scripts/test_ai_core.sh
-LEO_JSON_JAR=/ruta/json-20250517.jar bash scripts/test_streaming.sh
-./gradlew :app:testDebugUnitTest :app:lintDebug
+LEO_JSON_JAR=/ruta/json.jar bash scripts/test_agent.sh
+./gradlew :app:externalNativeBuildDebug :app:testDebugUnitTest :app:lintDebug
 ```
 
-El script de streaming requiere el JAR `org.json:json:20250517` y las librerías Kotlin/JUnit de Gradle 8.13. Sus pruebas simulan fragmentos de red, finalización, red bloqueada, cancelación, error HTTP, respuesta parcial y vencimiento del plazo. No consumen una API key ni sustituyen una prueba de audio real. El workflow Android también incluye estas pruebas JUnit.
+Los scripts JVM usan las librerías Kotlin/JUnit de Gradle 8.13. Las pruebas comprueban políticas, cancelación, control de turnos y procesamiento de audio; no prueban un micrófono físico. Los resultados de esta limpieza se registran en [LEO_CODE_CLEANUP.md](LEO_CODE_CLEANUP.md).
 
-## Comprobación en teléfono pendiente
+## PENDIENTE DE VALIDACIÓN FÍSICA
 
-Con Groq configurado, pedir una explicación de varias frases y comprobar que LEO empieza a hablar mientras el texto continúa. Interrumpir a mitad de frase y comprobar que no reaparece audio del turno anterior. Repetir sin red, con una caída a mitad de respuesta, sin clave, con órdenes locales y con una búsqueda que requiera fuentes. Comparar 20 turnos equivalentes y reportar mediana y percentil 95 de `Orden → primer texto` y `Orden → primer sonido`.
+Reproducir una respuesta, interrumpir con «LEO, pará» y verificar que el audio anterior no reaparece. Repetir con pantalla apagada, ruido, Bluetooth, llamadas y música. Probar instalación nueva y actualización con modelos antiguos ya descargados. Verificar la selección y disponibilidad offline de la voz Android instalada.
 
-Esas mediciones arrancan cuando el servicio acepta la orden ya transcrita; la latencia ASR se muestra por separado. No se promete un número de milisegundos ni equivalencia de velocidad/calidad con ChatGPT. El TTS neural de respaldo puede introducir pausas de síntesis entre frases; verificar ambas voces en dispositivo.
+Conservar evidencia de ASR, primer texto y primer sonido usando los diagnósticos existentes. No se atribuyen mediciones nuevas de latencia, batería o precisión a esta limpieza.
+
+## PLANIFICADO
+
+Una futura voz incremental necesitará un productor real, límites de cola, cancelación de transporte, callbacks asociados al turno y pruebas de integración. No se conserva una implementación desconectada como si proporcionara esa capacidad.

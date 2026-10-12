@@ -117,66 +117,14 @@ object NikoModelCatalog {
         requireInstallMarker = true,
     )
 
-    // Voz masculina latinoamericana local.
-    val spanishVoice = NikoModelSpec(
-        id = "tts-claude-es-mx-high-v3",
-        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_MX-claude-high.tar.bz2",
-        archiveType = NikoArchiveType.TAR_BZ2,
-        directoryName = "tts",
-        expectedFiles = listOf(
-            "vits-piper-es_MX-claude-high/es_MX-claude-high.onnx",
-            "vits-piper-es_MX-claude-high/tokens.txt",
-            "vits-piper-es_MX-claude-high/espeak-ng-data",
-        ),
-        minBytes = 10_000_000L,
-        expectedMinBytes = mapOf(
-            "vits-piper-es_MX-claude-high/es_MX-claude-high.onnx" to 10_000_000L,
-            "vits-piper-es_MX-claude-high/tokens.txt" to 512L,
-        ),
-        requireInstallMarker = true,
-    )
-
-    // Cerebro rápido: útil en teléfonos con menos RAM o como respaldo de recuperación.
-    val localLlmFast = NikoModelSpec(
-        id = "llm-qwen25-05b-q8-v1",
-        url = "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
-        archiveType = NikoArchiveType.FILE,
-        directoryName = "llm-fast",
-        expectedFiles = listOf("Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"),
-        minBytes = 450_000_000L,
-        expectedMinBytes = mapOf(
-            "Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task" to 450_000_000L,
-        ),
-    )
-
-    // Cerebro de calidad para Android: Qwen2.5 1.5B Instruct INT8.
-    val localLlmQuality = NikoModelSpec(
-        id = "llm-qwen25-15b-q8-v1",
-        url = "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
-        archiveType = NikoArchiveType.FILE,
-        directoryName = "llm-quality",
-        expectedFiles = listOf("Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"),
-        minBytes = 1_450_000_000L,
-        expectedMinBytes = mapOf(
-            "Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task" to 1_450_000_000L,
-        ),
-    )
-
-    val localLlm: NikoModelSpec get() = localLlmFast
-    val conversationModels: List<NikoModelSpec> get() = listOf(localLlmQuality, localLlmFast)
-
-    fun recommendedConversationModel(profile: NikoDeviceProfile): NikoModelSpec =
-        if (profile.prefersQualityLocalLlm) localLlmQuality else localLlmFast
-
     // KWS/VAD/GTCRN/Canary forman la escucha mínima que usa el motor de voz en runtime.
     val voiceCore = listOf(keyword, vad, denoiser, spanishAsr)
-    val acousticCore: List<NikoModelSpec> = voiceCore + speaker + spanishVoice
+    val acousticCore: List<NikoModelSpec> = voiceCore + speaker
     val advancedVoice: List<NikoModelSpec> = listOf(whisperAsr)
 
     /** Voice assets only: the active Kotlin brain does not consume legacy Qwen tasks. */
     fun firstRunModels(@Suppress("UNUSED_PARAMETER") profile: NikoDeviceProfile): List<NikoModelSpec> =
         (acousticCore + advancedVoice).distinctBy { it.id }
 
-    fun byId(id: String): NikoModelSpec? =
-        (voiceCore + speaker + spanishVoice + advancedVoice + conversationModels).firstOrNull { it.id == id }
+
 }

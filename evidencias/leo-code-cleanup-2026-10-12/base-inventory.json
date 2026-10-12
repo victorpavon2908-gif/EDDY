@@ -1,0 +1,3174 @@
+{
+  "base_commit": "89d80c78e7d2fc28edabf4bed6a0599391b6235a",
+  "tracked_files": 528,
+  "files": [
+    {
+      "path": ".env.example",
+      "blob": "51e89756a16ac2a81ff98dc74962716290f16149",
+      "bytes": 30,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/android-apk.yml",
+      "blob": "d38c7fb62ccf38e459e40cf9dc3caf6aa35b6955",
+      "bytes": 3093,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/android-build.yml",
+      "blob": "0c23fbfd2566146c56028afcc5a305bfcaa6e258",
+      "bytes": 1641,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/leo-frozen-brain.yml",
+      "blob": "b185b54eed36be3ea71bc254e165946c773ce586",
+      "bytes": 3143,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/web-build.yml",
+      "blob": "415ebe88330a1c750e5bdabe49de234a6ec52d7e",
+      "bytes": 621,
+      "mode": "100644"
+    },
+    {
+      "path": ".gitignore",
+      "blob": "2e843daec1e390efff1e911b34003f1b8f8bfb70",
+      "bytes": 342,
+      "mode": "100644"
+    },
+    {
+      "path": "AGENTS.md",
+      "blob": "4b4186c12e8d2409b12299ca9bb4b3670f7a472b",
+      "bytes": 699,
+      "mode": "100644"
+    },
+    {
+      "path": "LEO_MICROGPT.md",
+      "blob": "6f203974c9c7c663e6ae5b3f8ecf70f0c27ed7b6",
+      "bytes": 2355,
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "blob": "fa8a09d0fb1777115963ad24534b9224c32d4907",
+      "bytes": 7866,
+      "mode": "100644"
+    },
+    {
+      "path": "THIRD_PARTY_UI_NOTICES.md",
+      "blob": "ce953c7faac58c7722ccb9de49ee997f7688a3d9",
+      "bytes": 1857,
+      "mode": "100644"
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "blob": "9999a040774ae97c0c69ab90b8fadde6aa84bc6f",
+      "bytes": 5346,
+      "mode": "100644"
+    },
+    {
+      "path": "app/lint.xml",
+      "blob": "0b16b97f73f7682951f01db9b7662b9b00290b55",
+      "bytes": 428,
+      "mode": "100644"
+    },
+    {
+      "path": "app/proguard-rules.pro",
+      "blob": "d0650bf4e1390934be78e5615f2c3605d5a591f9",
+      "bytes": 174,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "blob": "36ab9373f5c6c19f34c5e1d6d6274a238b2828ab",
+      "bytes": 5702,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-intent-network-v1.bin",
+      "blob": "1ea55bbc222c4cb6586a46bba86a37566c830891",
+      "bytes": 18858,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair06",
+      "blob": "0a73f9cd10f973ea66f9c92781098358637c6831",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair07",
+      "blob": "365e1c814dfe8c684b9e0901ae5722334bdbb759",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair08",
+      "blob": "be6b368ecd3a622383a5fbc2d9025b75597f1421",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair09",
+      "blob": "2f6b2347a3a74fd1c641b32c0f581ab12132baeb",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair10",
+      "blob": "82e9bc3c14b92c12d2578e07bb6d29e59033c425",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair11",
+      "blob": "88831dadd62883360d117aade801676b7aef569d",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair12",
+      "blob": "b3657b0206aaa51c33d5b39c1ab2c247777ce79f",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair13",
+      "blob": "0f8bfa61f21e4d14a8775aabcad6e23cc4c0e161",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair14",
+      "blob": "710c774b195f93baa21894a1c5450910fc539a95",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.pair15",
+      "blob": "28f7a1adcaa24f54277bd808d98bf6731645a5f5",
+      "bytes": 4096,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part01",
+      "blob": "9d43f5383535397dc41b346b5a398d160aa44b1c",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part02",
+      "blob": "d63e32eae98117cfc3e736d034e617dd11670395",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part03",
+      "blob": "cbf4d768dbef619863d65bf6be1f1761d5229589",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part04",
+      "blob": "bc662c52fdd0d81d8518deb4e1e1776d736bfb1c",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part05",
+      "blob": "a3f53b182ed4ede5cb4d8a608e3dec374d00a5e2",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part06",
+      "blob": "a639681fdee7ef6ca82035cb3de5a71dacf86114",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part07",
+      "blob": "10de5fe420bed8b43eb871fd3c859514460e4a85",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.part08",
+      "blob": "f79f3b2b3f145a0f5b85c317a381a52cc7f8e7d0",
+      "bytes": 9144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail001",
+      "blob": "136de07217b0ccdb6cd33c2577ad2f2394130171",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail002",
+      "blob": "c59a177274e9319789eee4d355feca134930f2fb",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail003",
+      "blob": "66e15d024c99912381b2341445cf5caf07c31273",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail004",
+      "blob": "733f9a985b3ea9b9725ea94d42db5a2ffc4143b0",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail005",
+      "blob": "1fd20f9923b72403fcdcd785b3b8121cc5551a27",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail006",
+      "blob": "a833f0f0efb98680ba2a667a8fa8b4280eb49997",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail007",
+      "blob": "d2a53f30abe4bf9b221dc8d60e4930ab918dc108",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail008",
+      "blob": "b5271d78f63d362bd5086a46b4f0befa046cef24",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail009",
+      "blob": "239e3a49e0de267574535cf0749e9bc8d8241efd",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail010",
+      "blob": "b2e7b6144cff0a4e0cbfa9867c4197b320f15d70",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail031",
+      "blob": "3bce613cd68ad25737e8d8ab457a7bd85b35d2b9",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail032",
+      "blob": "322ea09f8047850fa7f928c0b6679f5e5602b356",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail033",
+      "blob": "a9af33d21bc5b3410c9bc9fc00989f98758d17b0",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail034",
+      "blob": "20e85b1a7f137f13d9fe70362f77dcfbca95f8dc",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail035",
+      "blob": "3c560767ce4883b55773b67301496710cbfd9db6",
+      "bytes": 2048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/leo-microgpt-v1.bundle.b64.tail036",
+      "blob": "4e953fceb1b3803fb42d601bb0585d08d99aac1e",
+      "bytes": 1464,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/licenses/distiluse-Apache-2.0.txt",
+      "blob": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+      "bytes": 11358,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/licenses/onnxruntime-MIT.txt",
+      "blob": "48bc6bb4996ac924359e8e28b9ae88970e5ed3fc",
+      "bytes": 1073,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/licenses/semantic-model-NOTICE.txt",
+      "blob": "9985a3ee819f56b2d8359a52d5228b80860417da",
+      "bytes": 808,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/assets/models/leo_robot.glb",
+      "blob": "d7d660caddadf0c2dc072f4a0a6d25de9aa5270b",
+      "bytes": 2533596,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/cpp/CMakeLists.txt",
+      "blob": "53144b75bd6884eb21a58540bc16cf73d4db97dc",
+      "bytes": 558,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/cpp/README.md",
+      "blob": "9c5f5457af512fa5761edafaac95d0533f89e8b2",
+      "bytes": 1151,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/cpp/include/onnxruntime_c_api.h",
+      "blob": "b01b7e48dc87bbeeb026c61fb06c591053853ad1",
+      "bytes": 275409,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/cpp/leo_semantic_jni.cpp",
+      "blob": "f48c6907046454ec3b21e65dda63a7a6394977c9",
+      "bytes": 6154,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/eddy/assistant/EddyWakeActivity.kt",
+      "blob": "bd1c24be98c94832adf05d737d421e4b2f8e1549",
+      "bytes": 158,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/eddy/assistant/background/EddyAssistantService.kt",
+      "blob": "18fdf19d33d0b0e4bdfebeb74ab2c3a8d0aafeb2",
+      "bytes": 188,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/eddy/assistant/devicecontrol/EddyAccessibilityService.kt",
+      "blob": "8e3d0442b85afba983ff791ad0f410da07feaaf5",
+      "bytes": 202,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/eddy/assistant/proactive/EddyProactiveReceiver.kt",
+      "blob": "5284968e9abdedea6ebda302e97cc25f57643f78",
+      "bytes": 188,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/AiSettingsActivity.kt",
+      "blob": "73a35b7c0c6c1a1b3890431b6207ac0448a07405",
+      "bytes": 22556,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/LeoApplication.kt",
+      "blob": "72e855cc48a815da7661641d8ce964df0ae89cc6",
+      "bytes": 1331,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/MainActivity.kt",
+      "blob": "eefb4b0f354e0fc8b8303d1e8e5a13dd2fa5718b",
+      "bytes": 17810,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/NikoWakeActivity.kt",
+      "blob": "744c822e8bd2e4706983a9b5230955d08857e44c",
+      "bytes": 2807,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/SmartHomeSettingsActivity.kt",
+      "blob": "c6018f47fd819306bb4136414f67d0b3ad47737f",
+      "bytes": 5229,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/actions/ActionExecutor.kt",
+      "blob": "c3492fe5f19c13c2e0e46a74e24d354590d53c3a",
+      "bytes": 20595,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/actions/AndroidActionLauncher.kt",
+      "blob": "9934be215fcdcab5fc71a315972c55958323dff9",
+      "bytes": 2361,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/agent/ConversationState.kt",
+      "blob": "e8d50e2b1de60981ab0de26ba0c33fcd08b3cdea",
+      "bytes": 4727,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/agent/LeoAgentRuntime.kt",
+      "blob": "36909e7a05d7d4ac34795edcd7932d6b4e8abd5e",
+      "bytes": 1666,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/agent/LeoTaskExecutor.kt",
+      "blob": "820007d5f77816e44923528ae9782b9fff68bd8f",
+      "bytes": 2547,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/agent/TurnController.kt",
+      "blob": "379f683660d6eaa976a3a8e4c09bd872c95e144b",
+      "bytes": 1252,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/AutonomousResearch.kt",
+      "blob": "b9fe33cbe8c53ee9f33f04cf71b413dcea3453d2",
+      "bytes": 3464,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/ConversationContext.kt",
+      "blob": "6357461779f57511273509e233b6168c2740833c",
+      "bytes": 4795,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/ConversationCoordinator.kt",
+      "blob": "d876068e01af1eb347b9d599c73c8dbf2bb58018",
+      "bytes": 1407,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/GeneratedToolPlanner.kt",
+      "blob": "cfb7d066265c0a199ba395e194a351c02f4dce9a",
+      "bytes": 16445,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/LeoBrand.kt",
+      "blob": "81513f03f5a9e17a03476ea96e62e36315e1f323",
+      "bytes": 714,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt",
+      "blob": "ea19bbfaae923c12939e310a23b9035d066920af",
+      "bytes": 44124,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoActionPlanner.kt",
+      "blob": "afd49e8019019ebc83f9fcba9015bd4b544d1dff",
+      "bytes": 823,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoAiClient.kt",
+      "blob": "c9b52892d6e209394910e031ae3a0b422cfc2a31",
+      "bytes": 2113,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt",
+      "blob": "2e34dcafc3c98ff9d2ced66a1ede77e43b8fde14",
+      "bytes": 469,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoAiSettings.kt",
+      "blob": "ee47f2488fcabffd4d687dee7d28ff2c559963d9",
+      "bytes": 2081,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoBackendPrewarmer.kt",
+      "blob": "1308cf281d9f24aa121b2d5140d1231cd34b9d1d",
+      "bytes": 469,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoFallbackConversation.kt",
+      "blob": "a4d1ff454461245442f23915715c0f63a1522255",
+      "bytes": 2330,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoIdentity.kt",
+      "blob": "a4cb6bef3159e875cf9f097a85b268d6da4db083",
+      "bytes": 4852,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/NikoPersonality.kt",
+      "blob": "9c56cda3c5928c01b76e09154bc4f121339900b3",
+      "bytes": 1016,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/ResearchCitationPolicy.kt",
+      "blob": "558632b8acda76637ed94ba956d01d81a276930a",
+      "bytes": 1694,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ai/ResearchQuality.kt",
+      "blob": "9efb3b1641fa50da99c4fa0bf2624612c830c83b",
+      "bytes": 817,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/background/NikoAssistantService.kt",
+      "blob": "e67cbe1b8b513a79153cc89b1f56e8f44531cf46",
+      "bytes": 79467,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/background/NikoRuntimeState.kt",
+      "blob": "7ba9601829dc42f4e48f9efe3bac1c6d9a76ab06",
+      "bytes": 16441,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/background/NikoVoiceSettings.kt",
+      "blob": "4bc2c2adb5029716eeb72f2e660da9669bd908a6",
+      "bytes": 2327,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/AssistantCommand.kt",
+      "blob": "43d1b31443b76decc348fcb83e55226ec226f222",
+      "bytes": 2727,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/GeneratedToolEdit.kt",
+      "blob": "4e5e6c449232d0ab0a7683d7ac188548e88b81b3",
+      "bytes": 622,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/LeoStructuredPlanner.kt",
+      "blob": "322b77b0b914a334a61d680ba4db4ada7dcc8c9b",
+      "bytes": 24190,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/LocalBrain.kt",
+      "blob": "c0976366e653ca58b754e859bd6ba616b8dd1fcb",
+      "bytes": 26335,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/MusicCommand.kt",
+      "blob": "0b5de27ef97dcda1dd76781f342a6e4214e706f3",
+      "bytes": 359,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/NikoMathEngine.kt",
+      "blob": "88b4af2ada26d510317073487beac2aad5a5a2dc",
+      "bytes": 5874,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/NikoSemanticActionResolver.kt",
+      "blob": "315fd30fbf36e7fd9fb59b20679fd805400ad7dc",
+      "bytes": 3202,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/brain/WebQueryRouter.kt",
+      "blob": "89506a9f46d569f3b9f5f46f5e63d7a371a21cce",
+      "bytes": 2683,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/compat/UpgradeIdentity.kt",
+      "blob": "ffbaf411c7e696e3753b48fc66e95468cccc89e4",
+      "bytes": 2242,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/LeoUiSession.kt",
+      "blob": "da15a3fe83e96e2a248ed6cf9d7ad923fe978c91",
+      "bytes": 1811,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/LeoUiStepPlanner.kt",
+      "blob": "f861ea25a3b1acfe4bf9ab6f669315e7cfd9306d",
+      "bytes": 8928,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/LeoVisionContext.kt",
+      "blob": "68a11f086e470d8df8b1bd039594d62c75bba46e",
+      "bytes": 2008,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/NikoAccessibilityService.kt",
+      "blob": "34f298e934a15829b7bbf67049adea57acc6cac9",
+      "bytes": 19975,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/NikoDirectUiAction.kt",
+      "blob": "fa133f0591d718d817da1304d1e9b62a435f37da",
+      "bytes": 2930,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/NikoUiAutomationAgent.kt",
+      "blob": "3863b9ff5bc43772b8b1bdcd01e9cb70dbaa34d4",
+      "bytes": 6734,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/NikoUiTaskPolicy.kt",
+      "blob": "6f790750cfd889b49bbc0bb1dca79fd97db8bbe7",
+      "bytes": 4150,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/devicecontrol/NikoVisualContext.kt",
+      "blob": "8b86d77e87bdc8bb650704c207dcef5344586b52",
+      "bytes": 4373,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/diagnostics/LeoCrashRecorder.kt",
+      "blob": "ed402c0eea9decec0ab88c4824f3194eb32ba35f",
+      "bytes": 3500,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/AdaptiveIntentStore.kt",
+      "blob": "412ead907c18b7991ea9ca1db4a4586cd3802c2a",
+      "bytes": 2552,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/AdaptiveLearningPolicy.kt",
+      "blob": "9461f02bede36075d9cbfadf87a6adff1c395af7",
+      "bytes": 1230,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/InteractionCorrection.kt",
+      "blob": "d9bfc3eaac969f97da48a6ff548e9eebe3b418da",
+      "bytes": 772,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/LearnedActionCodec.kt",
+      "blob": "d2bf4f72783121680a383b5b9ce788c48e5d6a17",
+      "bytes": 3338,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/LearnedActionStore.kt",
+      "blob": "d2a7042daf974bfb082ac54fd249f5b7fd4a20e7",
+      "bytes": 6195,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/LeoAdaptiveTrainer.kt",
+      "blob": "ded82669d46d3ef981bcb1be9e750d409833d791",
+      "bytes": 1905,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/LeoIntentTrainingCorpus.kt",
+      "blob": "83bc71cd07b3cb0398d7f5e5693f7ea8702fe08f",
+      "bytes": 3674,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/LeoLearningJournal.kt",
+      "blob": "c7adf6bc99a2bdb3401368a73933a600a0950070",
+      "bytes": 3669,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/NikoKnowledgeStore.kt",
+      "blob": "495d6af88f1e747227afab34df7054c3c6e1c5a6",
+      "bytes": 10588,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/learning/OnlineIntentNetwork.kt",
+      "blob": "c38d6d8699f91a4310031dd03094448c2d9b56bb",
+      "bytes": 9114,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoBrainStorage.kt",
+      "blob": "f10abf1700e14f2bbd527a21dad82b631ec02a90",
+      "bytes": 4065,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoDirectoryActivation.kt",
+      "blob": "9b0801cc7875f155e84d2b815b28de82a713616a",
+      "bytes": 1696,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoDownloadIntegrity.kt",
+      "blob": "4e019e88714b60bd35da8036e23e9918931663b7",
+      "bytes": 1032,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoFrozenBrainManager.kt",
+      "blob": "113b2c4d0ed4c85c9dfec497b49412e8f7b67022",
+      "bytes": 15018,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoFrozenKnowledgeStore.kt",
+      "blob": "23bf36b1055640b199c00dd575000fce91992b45",
+      "bytes": 6269,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoMicroGptAsset.kt",
+      "blob": "94e89e0b26b144aa40a14f0afb052202fc33586f",
+      "bytes": 1972,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoMicroGptCore.kt",
+      "blob": "7d8dd48cefa64444e371839a6dfe19f7b0491725",
+      "bytes": 12071,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoMicroGptGate.kt",
+      "blob": "aa8add482daf949b5d146bb05fa2a4b12f2030ac",
+      "bytes": 10475,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LeoOfflineKnowledgeSettings.kt",
+      "blob": "4c20dc510164ed1b30335b40e4808dc787ed81e9",
+      "bytes": 728,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/LocalConversationPrompt.kt",
+      "blob": "f4e5a96165e957ec4401626d568207860cb22fe0",
+      "bytes": 3121,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/NikoDeviceProfile.kt",
+      "blob": "e09d5540d6221c17d0fc143f5add92e84bbd2cd2",
+      "bytes": 2861,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/NikoLocalLlm.kt",
+      "blob": "ae858768434027ddd3d5e11558c118c77d35f0b9",
+      "bytes": 6272,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/NikoModelCatalog.kt",
+      "blob": "bf2cb24ab6da89af45cf07c5ffeec604fb77e835",
+      "bytes": 8793,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/NikoModelManager.kt",
+      "blob": "4e63eb2e42f0cbe38f71ad32092257038b31e547",
+      "bytes": 21635,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/localai/NikoVoiceProfile.kt",
+      "blob": "c0ef212c5c782fc8a9ba5cea1726605ae7db3ee8",
+      "bytes": 5373,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/media/CaptureGate.kt",
+      "blob": "ca74f94939a5120afeb39a992f6823b3a97de10e",
+      "bytes": 760,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/media/LeoMusicPlayer.kt",
+      "blob": "96971fd2e07ce9757aee96149923681276319fa6",
+      "bytes": 4556,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/media/MediaFiles.kt",
+      "blob": "dc2975697408985318ddb1e7fa2f392d8025909b",
+      "bytes": 2083,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/media/MusicSearch.kt",
+      "blob": "5fb512d9e9bf87c7a4949306f72e246bbcc96c18",
+      "bytes": 3841,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/media/MusicSearchSession.kt",
+      "blob": "204581fb6c80b11fcb2588741fe57f00fb68b3b7",
+      "bytes": 1875,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/EddyTransformerEmbedder.kt",
+      "blob": "830a0eea93c50f20aa23baaac67b597ce7651cc8",
+      "bytes": 11107,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt",
+      "blob": "bcb741f3508e3dfa179a1e9da7358f13f157d853",
+      "bytes": 2025,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/MemoryRevision.kt",
+      "blob": "b323fe23f21e790b5a45b753f371c247a7a526ca",
+      "bytes": 1825,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/NikoLongTermMemory.kt",
+      "blob": "5b279f04cc4bde9b783414c62826218269fb9b8f",
+      "bytes": 11146,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/NikoMemory.kt",
+      "blob": "19cf7525c8ceb46a839051536bf6948ad28c5540",
+      "bytes": 21691,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/NikoMemoryArchive.kt",
+      "blob": "6f31d1daeb32bda92b75158096d8989bf0af6a9c",
+      "bytes": 11886,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/embedding/LeoEmbeddingModel.kt",
+      "blob": "11e2c601f62981eb18942f4ef0b9bb58dfa2258f",
+      "bytes": 1893,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/embedding/LeoOrtBridge.kt",
+      "blob": "27597c5317e7e373ccdab5c576ec835114ed4e30",
+      "bytes": 362,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/embedding/LeoSemanticEncoder.kt",
+      "blob": "ceb4dbbb3efe81d6c5cbe4ea1f9622c07a519af5",
+      "bytes": 3215,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/embedding/LeoSemanticMemory.kt",
+      "blob": "e5030d39b0829b27da4994d3e3f4c6aef3b976be",
+      "bytes": 6543,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/memory/embedding/LeoWordPiece.kt",
+      "blob": "24cd8e827df6a23bfccb93e2662337a0f6af9767",
+      "bytes": 2741,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/proactive/CompanionInitiative.kt",
+      "blob": "dafd760653f2773005f07941b2a2436d263da096",
+      "bytes": 1259,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/proactive/LeoInitiativeEngine.kt",
+      "blob": "75e2e5c198abf40f9eccac2dd9babf912f0705ba",
+      "bytes": 3032,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/proactive/LeoInitiativeStore.kt",
+      "blob": "bd34eef68a35d007b3e9b17baced744a93bd948e",
+      "bytes": 1627,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/proactive/NikoProactiveReceiver.kt",
+      "blob": "434de8674b48d85af446577059c27c08b825cdbd",
+      "bytes": 2748,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/proactive/NikoProactiveScheduler.kt",
+      "blob": "a9229664b9ea7b8037585c6af96f38d6727458b3",
+      "bytes": 1857,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/programming/NikoCodeAgent.kt",
+      "blob": "e30d1bc53c6f848b694709288b9d28c3128156db",
+      "bytes": 3456,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/selfupgrade/NikoSelfUpgradeManager.kt",
+      "blob": "57ffe40501aee7ed3890f898c9418b113a3231e9",
+      "bytes": 7009,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/skills/LeoSkill.kt",
+      "blob": "176ce2ba3c1569f2ca23eda747010e227ebbf7bc",
+      "bytes": 3632,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/skills/NikoSkillEngine.kt",
+      "blob": "5ab9d361c6a2ca77b17cbcc7e60ec14babf6cabe",
+      "bytes": 4920,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/smarthome/LocalSmartHomeClient.kt",
+      "blob": "ac985a12d40f5e0e93b96f1eca7782dcb1da6262",
+      "bytes": 4947,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/startup/LeoFirstRunSetup.kt",
+      "blob": "f18a8a81335a4cd6453fd230b100c8bee9a5dbe3",
+      "bytes": 11845,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/CountdownClock.kt",
+      "blob": "b5982523a3a55d9a71ced56383b42608f420b0f0",
+      "bytes": 232,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoAudioRecorderScreen.kt",
+      "blob": "2949c7e7c9e9c31fc1877c39d2092e6a438dc96e",
+      "bytes": 4898,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoBrainStatusOverlay.kt",
+      "blob": "b86a708c73b2233dc7fcb511992bbbf9ef6e79f0",
+      "bytes": 5669,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoCameraScreen.kt",
+      "blob": "24e70fa69f58d5a92835cffcd93fd7ae3eaf34c6",
+      "bytes": 7888,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoFirstRunScreen.kt",
+      "blob": "84e0ed13e77e963d920201682a186f8ea1577d56",
+      "bytes": 4907,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoLiveTranscriptOverlay.kt",
+      "blob": "5121ad882bbce1a2190ae7f5a52a08c93d260db7",
+      "bytes": 3602,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoMediaCommon.kt",
+      "blob": "40e88c00226a0ea77a9f4764161b4a9862090b70",
+      "bytes": 5424,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoMorphChrome.kt",
+      "blob": "f11b9cf9ca1b48e7f167a2099782c57bc89253ee",
+      "bytes": 14933,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoMusicScreen.kt",
+      "blob": "f0231ea4bf6e0a1f6344871f9a09ba4197912b67",
+      "bytes": 8363,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/LeoVoiceDiagnosticsScreen.kt",
+      "blob": "f32fefe89c90ca640950f1b1e07ac3eb69cfaa1b",
+      "bytes": 10326,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/NikoDesignTokens.kt",
+      "blob": "9e984123ffea1fda44c6aea14715ae43cf4aad44",
+      "bytes": 522,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/NikoEmbeddedApps.kt",
+      "blob": "5f433d40f41877a6d0c55794a5f9f860cc20109c",
+      "bytes": 14781,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/NikoHero.kt",
+      "blob": "dce6b0780bf390d2668626b794e8da4f9282e6b0",
+      "bytes": 4627,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/NikoMiniControls.kt",
+      "blob": "56421fd924203267b2a7e616201c65358025f785",
+      "bytes": 3698,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/NikoReferenceScreen.kt",
+      "blob": "72bba13c6210d396080457409dd25853f181276a",
+      "bytes": 25978,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/NikoUiModeStore.kt",
+      "blob": "252f6ffeda4871a0042bd28ff68304260f072b14",
+      "bytes": 3573,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedAdvancedComponents.kt",
+      "blob": "a6421aeced1ed315c0f22571620b5617deea1e21",
+      "bytes": 25440,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedAppComponents.kt",
+      "blob": "35ea30b3931abf7aa7f49d5def1e50a9c15e9dfd",
+      "bytes": 15007,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedCreativeComponents.kt",
+      "blob": "1b0efabf411663028d3216512bc2bd89d8a02145",
+      "bytes": 10478,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedFallingBlocksGame.kt",
+      "blob": "350e4f19b0bf5225f6d4b51401779c1c70204090",
+      "bytes": 12361,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedFormulaEngine.kt",
+      "blob": "d26804b0ad71602db2e8c43eb094766ce883e525",
+      "bytes": 3034,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedGameFamilies.kt",
+      "blob": "a1c12342cd88f567465ddbff49b0b77d6ecee4d4",
+      "bytes": 28384,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedGameRouter.kt",
+      "blob": "c5762a6ebeefae5303b0d853cc086e5f6edf75f6",
+      "bytes": 1570,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedMiniGame.kt",
+      "blob": "be2601d578e1ed68d64c743f076d3891ca061214",
+      "bytes": 12494,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedToolScreen.kt",
+      "blob": "752ba60283c529df3f1ee38927115b4391d3536d",
+      "bytes": 17476,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedToolSpec.kt",
+      "blob": "3ba0a1008708d43cf92221381edd53b7ed0defeb",
+      "bytes": 8121,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/generated/GeneratedToolStore.kt",
+      "blob": "8321cf55e7d14f3b8be801b29985ea7efccce885",
+      "bytes": 2983,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/robot/LeoRobotView.kt",
+      "blob": "1cabade7c965681bcd614de6a7562c644d21fd1b",
+      "bytes": 6399,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/robot/RobotMotion.kt",
+      "blob": "c6f4c56d0966283788fecfe15186c77cbec43ae6",
+      "bytes": 3971,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/ui/theme/Theme.kt",
+      "blob": "346095048f3145c88193ef1d840ac8e8aa582510",
+      "bytes": 5370,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/FaithfulSpeechTranscriber.kt",
+      "blob": "72255da712981554d41e21a79a00b7e904ea4a84",
+      "bytes": 3212,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/FarFieldAudioEnhancer.kt",
+      "blob": "caa1e12c9aca1ce33f7a1b29ffc25ff1d5512693",
+      "bytes": 1766,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/LeoDuplexPolicy.kt",
+      "blob": "bb7cc4b0a75b7ee3ba1370141772ae4607d80059",
+      "bytes": 982,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/LeoPassiveWakeVerifier.kt",
+      "blob": "ff68a4e872aab6b00b29250b5592a21ad423d558",
+      "bytes": 1048,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/LeoPlatformVoiceEngine.kt",
+      "blob": "31810158286a72cb05f8b934ec79e28245d442e1",
+      "bytes": 16100,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/LeoRealtimeTurnBus.kt",
+      "blob": "32a1a093292674fe9c82e6d6ab21a0ba98f5e625",
+      "bytes": 2789,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/LeoVoiceDiagnostics.kt",
+      "blob": "68a98b8f9152568207d88bdc53ea6cef81a48ab5",
+      "bytes": 15365,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/LeoVoiceMetrics.kt",
+      "blob": "d0232371bebf911cda0fd79c663dd009a99427fa",
+      "bytes": 4824,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/LeoVoiceTuning.kt",
+      "blob": "9b542f0ce78f996d06d00d3fda453d4a52f9c45e",
+      "bytes": 3160,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/NikoEmotionEngine.kt",
+      "blob": "0b4a9cc90342808e7856b9b9f742bdd16ec2c13d",
+      "bytes": 3634,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/NikoKeywordConfig.kt",
+      "blob": "983159a41e989d3c4e353e0056a773dd11cd0f8c",
+      "bytes": 3401,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/NikoLocalVoiceEngine.kt",
+      "blob": "7dd06883402b246d4410c21785207cedcde7d6e9",
+      "bytes": 43803,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/NikoNeuralTextToSpeech.kt",
+      "blob": "5b2bdd8437cfbade019c24ace0141794b0bab227",
+      "bytes": 9145,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/NikoTextToSpeech.kt",
+      "blob": "2a091767a05d28528be7d7e000b73f9b7faf2320",
+      "bytes": 7728,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/OfflineVoiceSelector.kt",
+      "blob": "0a7e62ee902f0374b1569095bf05e7e44ca75e6e",
+      "bytes": 1800,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/OwnerVoicePolicy.kt",
+      "blob": "1a16f817a70e931d2e214c05b4b6fa6985cec4e7",
+      "bytes": 4600,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/PcmPreRoll.kt",
+      "blob": "2668d247e6a510661bab5a520b9e7cd6e5dbeb8c",
+      "bytes": 728,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/ProgressiveSpeech.kt",
+      "blob": "476eeeb965a86218f4cd50fb99f6519a340219f0",
+      "bytes": 2336,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/SpeechAudioFidelity.kt",
+      "blob": "0594b34785d32e09dffc3e9995b6a42f812b628c",
+      "bytes": 1697,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/SpeechAudioHistory.kt",
+      "blob": "7cd064fcae65072bf476b4be8ee512a98cfcf7a0",
+      "bytes": 2160,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/SpeechOutputPolicy.kt",
+      "blob": "dd3ecd43376498abcc4877c812d9fe116fafdca0",
+      "bytes": 1290,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/SpeechProsody.kt",
+      "blob": "6f3c447ea5e7518e50054678c30297f57e9f1b0b",
+      "bytes": 2750,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/SpeechStartGate.kt",
+      "blob": "2b35c2c312dbfe411c1b9c9d164057adc24f9447",
+      "bytes": 842,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/TranscriptQuality.kt",
+      "blob": "19248b1dd818f4c749937db946cd4b27f0f05a3d",
+      "bytes": 6002,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/VoiceControl.kt",
+      "blob": "16a9d865f2ddc419ff0ae7098c749cf07a34e3e6",
+      "bytes": 1507,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/VoiceRecoveryPolicy.kt",
+      "blob": "8aa6d97e5346474c406f9802942a7e357342ef02",
+      "bytes": 879,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/WakeCommandWindow.kt",
+      "blob": "4137b92673d5ab3808768a42285d5ab0533f73b8",
+      "bytes": 1483,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/java/com/niko/assistant/voice/WakeWordGate.kt",
+      "blob": "c772d319bfb6b7990b887fe0d9dd6855e413a01f",
+      "bytes": 3069,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/drawable-nodpi/leo_robot_portrait.png",
+      "blob": "1f81f24d693b63ac69c0f108de650ed562d3c21e",
+      "bytes": 103312,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/drawable-nodpi/leo_robot_poster.png",
+      "blob": "e570d506c07a2f3f0166aa4f8767c1ac6d52af5e",
+      "bytes": 164924,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_niko.xml",
+      "blob": "4c87fa814b1fc5189b07790524f9d65f9c6f808d",
+      "bytes": 444,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_niko_mark.xml",
+      "blob": "b292c6b60f3b87a3d7b0f9c32984d61a77242e14",
+      "bytes": 197,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_niko_mascot_pro.xml",
+      "blob": "77553dd74ae571062314fe72185decf278bdd89b",
+      "bytes": 638,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_niko_notification.xml",
+      "blob": "6a8831cfdd79cecf9439801258735676a376373f",
+      "bytes": 508,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/values/strings.xml",
+      "blob": "999a5f973e86b5f0e65ec4cee7d95bcf094aa38c",
+      "bytes": 66,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/values/themes.xml",
+      "blob": "f9386797e65c5669d20f7973560d8d1437c6cbd4",
+      "bytes": 473,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/xml/media_paths.xml",
+      "blob": "3be739bf5d5a713e5b16b0b8f9c0bf0405e1cb51",
+      "bytes": 167,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/main/res/xml/niko_accessibility_service.xml",
+      "blob": "71e1c8c504800cc896264cf06bfd971805108e33",
+      "bytes": 573,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/actions/ActionExecutorTest.kt",
+      "blob": "d0afe7c447a73e051da06dbe6f5a14570ebaab96",
+      "bytes": 4374,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/actions/TransformationPipelineTest.kt",
+      "blob": "8b6532b5fd4de6fa9f8f9c4a25642203cde88a2b",
+      "bytes": 3666,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/agent/LeoAgentRuntimeTest.kt",
+      "blob": "a83d0569e4c31cef2ba6b6367b13eb9c11c011f5",
+      "bytes": 6543,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/ConversationContextTest.kt",
+      "blob": "4b320cdfe9c697e396f0c0701157b0b1bcc92207",
+      "bytes": 1388,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/ConversationCoordinatorTest.kt",
+      "blob": "080127f2ef664f299f09b2683ce37a4bb9be8e1e",
+      "bytes": 4777,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqConversation.kt",
+      "blob": "360f299aad96bcd5de8907c2d182c14a6ac82f77",
+      "bytes": 4221,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqConversationTest.kt",
+      "blob": "61eafd8df790a805ff24d553d1eb371b1e469927",
+      "bytes": 2905,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqGateway.kt",
+      "blob": "32ff7ae584c134dcae281bb2b906b93c8783c84f",
+      "bytes": 4348,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqGatewayTest.kt",
+      "blob": "deca538b715d8233221465a2fb9efcac08a9792f",
+      "bytes": 4699,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqHttpClient.kt",
+      "blob": "a35739c640cb5a21e9c06c475f8be909739d193e",
+      "bytes": 5333,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqHttpStreamingTest.kt",
+      "blob": "6a720983abe70535e3891561a72660ec121e8ce9",
+      "bytes": 2256,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqProtocol.kt",
+      "blob": "707c88a7fa33d793aeefaaf2722fa4ad00771272",
+      "bytes": 5128,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqProtocolTest.kt",
+      "blob": "873728ba34528c1daf2d56f36214bde74fa5a446",
+      "bytes": 3222,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqSseReader.kt",
+      "blob": "7bbefb9796d0b11e4f952b2ef49b15ca017a3d7e",
+      "bytes": 2342,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqSseReaderTest.kt",
+      "blob": "30dedef8af17047a497f8b5d080a8ec1a045fde1",
+      "bytes": 1952,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqStreamTransport.kt",
+      "blob": "52028c5898ad0f99a42655b0dabeaf688ddd37f2",
+      "bytes": 309,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/GroqStreamingTest.kt",
+      "blob": "0b7a9abbd24fad9db6dbaee0c7206431082dee7a",
+      "bytes": 3509,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/LeoNativeWebSearchTest.kt",
+      "blob": "8d2522004416bef312c362d7bfe48bd1643ce416",
+      "bytes": 22354,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/LeoWebOnlyClientTest.kt",
+      "blob": "385ed18a8179ce2102b696986c68fde99075f50c",
+      "bytes": 1335,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/NikoAiSettingsTest.kt",
+      "blob": "10e9c2373ca869893945efcbbc18bd3484792a54",
+      "bytes": 1360,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/NikoIdentityTest.kt",
+      "blob": "fb3a7cc38a8446bb4a02358e8dec77cd3823cec3",
+      "bytes": 2618,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/ResearchCitationPolicyTest.kt",
+      "blob": "bb37536eab79c28397e0e1342632573412b313d8",
+      "bytes": 1828,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/ResearchQualityTest.kt",
+      "blob": "427f33595ff9f0b1d6c53a9cd1347518d6525887",
+      "bytes": 1136,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/ResearchSynthesis.kt",
+      "blob": "1324e56031de3c8c63731b8d3a5c51b6d99cc964",
+      "bytes": 5555,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ai/ResearchSynthesisTest.kt",
+      "blob": "b905acc87d83863b4a549cb4a33742b922ba7b3c",
+      "bytes": 3685,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/background/NikoRuntimeStateBrainTest.kt",
+      "blob": "ef17833258c60a1de9127f18fbd165f903f4cbd9",
+      "bytes": 629,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/background/NikoRuntimeStateFlowTest.kt",
+      "blob": "00b4b09311b8e76027a11304b99eb392f5488b1c",
+      "bytes": 4640,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/background/NikoRuntimeStateTest.kt",
+      "blob": "7916de5a649bdfd116a2d514e5b9e7225b40abfa",
+      "bytes": 3870,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/brain/LeoStructuredPlannerTest.kt",
+      "blob": "6c3a5d6d33592ea4102c088db07f2aa5773f04d6",
+      "bytes": 6158,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/brain/LocalBrainTest.kt",
+      "blob": "26af51cc8a5d437f78bc46c0ee37d2a2d6a6d9ba",
+      "bytes": 14327,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/brain/NikoMathEngineTest.kt",
+      "blob": "21aaac7fd3b8f789381c00ac5609794fa85c4d26",
+      "bytes": 1003,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/brain/NikoSemanticActionResolverPhase2Test.kt",
+      "blob": "b69dd30a1768ef14cd375cb80391c4b404e3bf74",
+      "bytes": 2298,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/brain/NikoSemanticActionResolverTest.kt",
+      "blob": "6a125fe58cbe83f65b0c1b90ef11e96b2bd23031",
+      "bytes": 6192,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/brain/PolymorphismTest.kt",
+      "blob": "2db94e6e8ad13e9ff141f178c60381739de09339",
+      "bytes": 1858,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/brain/WebQueryRouterTest.kt",
+      "blob": "f590a3c48d136d17718861a4abc9e94da80d446f",
+      "bytes": 2793,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/devicecontrol/LeoUiStepPlannerTest.kt",
+      "blob": "2a103565b51e1e7c64ec61d3b8791c041bf20ed5",
+      "bytes": 6468,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/devicecontrol/LeoVisionContextTest.kt",
+      "blob": "b64f5fe1074789fd922f1fa5ecbc21df9222cf98",
+      "bytes": 1121,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/devicecontrol/NikoDirectUiActionTest.kt",
+      "blob": "f9f2c02bea3dacefef639d437000896b4ca3bcdf",
+      "bytes": 983,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/devicecontrol/NikoUiAutomationAgentTest.kt",
+      "blob": "c4446057d4b3b06ff4d1dedaa518905589b537d4",
+      "bytes": 7206,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/devicecontrol/NikoUiTaskPolicyTest.kt",
+      "blob": "8bd4a77e3f574d982b4f6427a566bdd4c54738b8",
+      "bytes": 2090,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/devicecontrol/NikoVisualContextTest.kt",
+      "blob": "d49df6d21d6fc5aae87ac727bc62916970574f32",
+      "bytes": 999,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/AdaptiveIntentStoreTest.kt",
+      "blob": "244b4474ab6da433c931aa0e11cd936cfbe5e2a0",
+      "bytes": 2268,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/AdaptiveLearningPolicyTest.kt",
+      "blob": "af524f86d86365c56262522ca38d95647701eee9",
+      "bytes": 851,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/InteractionCorrectionTest.kt",
+      "blob": "2050dd8b8da0983a1efc530b91111a163907b195",
+      "bytes": 885,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/LearnedActionCodecTest.kt",
+      "blob": "07d59741d38b4135f19b97ed4b9cd67f39d92d7c",
+      "bytes": 1251,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/LearnedActionStoreTest.kt",
+      "blob": "f214d92fa926e9a725b0903b9e8ef4db8d579c8e",
+      "bytes": 1813,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/LeoAdaptiveTrainerTest.kt",
+      "blob": "2a6e83d32128aa6440a435b82c8929fc950c2c5c",
+      "bytes": 2131,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/LeoImprovementObservationTest.kt",
+      "blob": "be01d3dca5ed0e919cbeb2774247b6167324da6a",
+      "bytes": 3044,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/LeoIntentTrainingCorpusTest.kt",
+      "blob": "c301655b52db32bb98b1425c82aaa796591a1bbf",
+      "bytes": 2159,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/LeoLearningJournalTest.kt",
+      "blob": "ab080bf602c14551cca6ad9004c2354c3a2a5553",
+      "bytes": 3183,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/NikoKnowledgeStoreTest.kt",
+      "blob": "dc4159dd5cdeb439d38ed76f305916177a6be5a1",
+      "bytes": 1586,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/learning/OnlineIntentNetworkTest.kt",
+      "blob": "462990002e9246bb5f38adcb2cfb269b4f84073f",
+      "bytes": 3888,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/LeoDirectoryActivationTest.kt",
+      "blob": "644245a50f80b922cae6cd0580082c4128339d3f",
+      "bytes": 1700,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/LeoDownloadIntegrityTest.kt",
+      "blob": "9eadb90b4b0b2cc4fe8ff3eb629d334815413702",
+      "bytes": 1309,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/LeoFrozenBrainContractTest.kt",
+      "blob": "d22a462486470016a31874406c49e9a9c65e305e",
+      "bytes": 3367,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/LeoMicroGptAssetFilesTest.kt",
+      "blob": "f2b097e5e1e71ca4ede2bd3d7785409b8aac7608",
+      "bytes": 2907,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/LeoMicroGptGateTest.kt",
+      "blob": "53a5cc0b4338f4c6ae720dd0e3b913c4480e9f94",
+      "bytes": 2688,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/LeoOfflineKnowledgeSettingsTest.kt",
+      "blob": "50c2dc30872e8611772ba415b023eaf6f7c46e2a",
+      "bytes": 1516,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/LocalConversationPromptTest.kt",
+      "blob": "aee95033ed6049689a6aec1bd3c9578824d0a4d1",
+      "bytes": 1212,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/NikoDeviceProfileCompatibilityTest.kt",
+      "blob": "7a13f98efb6d3811a9edc002b28b81870e5f61ee",
+      "bytes": 1919,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/NikoModelCatalogTest.kt",
+      "blob": "5f74a28a7453a111b892a7cdef273e93294d4cf7",
+      "bytes": 4795,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/NikoUpgradeCompatibilityTest.kt",
+      "blob": "b5db906d14f4874112abde1e0ec0c7cf1f3dd7aa",
+      "bytes": 2855,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/localai/NikoVoiceProfileTest.kt",
+      "blob": "a97a2ab7320a3067f50660918f94001982e2fcc8",
+      "bytes": 2522,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/media/CaptureGateTest.kt",
+      "blob": "6e035d518568581ef34b1a5c9502fd8ec6b5cad9",
+      "bytes": 1550,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/media/MediaFilesTest.kt",
+      "blob": "4a4470752df69344bbd65dbdee2f895da3f2676e",
+      "bytes": 794,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/media/MusicSearchCancellationTest.kt",
+      "blob": "f337af6d498fc25f5037852895f96bfba1243e2f",
+      "bytes": 1228,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/media/MusicSearchSessionTest.kt",
+      "blob": "33a1e2a346aa8827e9340c3335e6acfcb3c02c70",
+      "bytes": 1454,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/media/MusicSearchTest.kt",
+      "blob": "751d74602a632460c48ff800c48c2f12a8d09ab7",
+      "bytes": 1248,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/memory/EddyTransformerEmbedderTest.kt",
+      "blob": "8296ca0022dab64087f9f2a610ce30b76e9512e7",
+      "bytes": 2107,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/memory/MemoryLearningTest.kt",
+      "blob": "6e633a3c0313e8129abf5b45d33c51bf61f39ac3",
+      "bytes": 1678,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/memory/MemoryRevisionTest.kt",
+      "blob": "b650b85c643f7584fdf4a7e9994f29c14a1b870a",
+      "bytes": 958,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/memory/NikoLongTermMemoryTest.kt",
+      "blob": "ece351d47da5e0241fcd441ef3440ff13d4359f7",
+      "bytes": 3847,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/memory/NikoMemoryArchiveTest.kt",
+      "blob": "e837d7386e1f3779072c02e4f840852914213d68",
+      "bytes": 5632,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/memory/embedding/LeoSemanticEncoderTest.kt",
+      "blob": "2e39d4cb8a5844f1c25f3d2dfaba57a6bef5104b",
+      "bytes": 3009,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/memory/embedding/LeoWordPieceTest.kt",
+      "blob": "63a0aa4f7c2a42ceface34513722d2b21f84c120",
+      "bytes": 1113,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/proactive/CompanionInitiativeTest.kt",
+      "blob": "899f86ed6931bf2164aa1558eabf8518dc57afa5",
+      "bytes": 1581,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/proactive/LeoInitiativeEngineTest.kt",
+      "blob": "d33fa14624f361e8c87bbe1be01c09bc147fff3e",
+      "bytes": 2830,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/skills/LeoSkillRegistryTest.kt",
+      "blob": "d9526ff324eda83e805a944729642ac037b5cd42",
+      "bytes": 1927,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/testsupport/LeoNativeMemoryTestRunner.kt",
+      "blob": "e13c3331b3684e09ff470968460d8842d82e5314",
+      "bytes": 680,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ui/CountdownClockTest.kt",
+      "blob": "f9d88ed2fab997c8140201f07b9ea948cf68865e",
+      "bytes": 498,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ui/NikoUiModeStorePhase3Test.kt",
+      "blob": "da3ca0af99262a8f2b97cbc00e4ae02d3be8d789",
+      "bytes": 1416,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ui/generated/GeneratedFormulaEngineTest.kt",
+      "blob": "6ff285605e09be45578c40970ef0911904d47145",
+      "bytes": 889,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ui/generated/GeneratedGameRouterTest.kt",
+      "blob": "ce52261615c99096ee6a652d360c8ba99558e6c0",
+      "bytes": 2234,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ui/generated/GeneratedToolSpecTest.kt",
+      "blob": "7703c1121c4c0cab75871579e3f42bb556b33f60",
+      "bytes": 5376,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ui/generated/GeneratedToolStoreTest.kt",
+      "blob": "dda99963d4fb13053c03703da5ec7d0317073975",
+      "bytes": 3365,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/ui/robot/RobotMotionTest.kt",
+      "blob": "ea8cd6365c3b4179a40f9452c9bbc51a12da4fdb",
+      "bytes": 3394,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/FaithfulSpeechTranscriberTest.kt",
+      "blob": "01e1dbf7191588530a617e150b786f85bfcabc7a",
+      "bytes": 4476,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/FarFieldAudioEnhancerTest.kt",
+      "blob": "eaf2ceb3f1a75e43db60983030873c654100147d",
+      "bytes": 1458,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/LeoDuplexPolicyTest.kt",
+      "blob": "00256c2b3c238eb8188f6fbea1e8655d49933988",
+      "bytes": 1552,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/LeoPassiveWakeVerifierTest.kt",
+      "blob": "54225148113d7e86697935b0f756e49285a93d28",
+      "bytes": 1498,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/LeoPlatformDuplexTest.kt",
+      "blob": "36a8277442a1dad308954a9c421e6ec53f77c1ac",
+      "bytes": 4901,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/LeoPlatformVoiceEngineTest.kt",
+      "blob": "992d773da313d33e8ae3cde76e4c205f1ea233b5",
+      "bytes": 910,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/LeoRealtimeTurnBusTest.kt",
+      "blob": "7f564b91fe51a0c186d69bc97110a83b60fe92cd",
+      "bytes": 2682,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/LeoVoiceTuningAdvisorTest.kt",
+      "blob": "2751cddc5258271fc5084100d08f5c3a3de2779c",
+      "bytes": 2588,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/NikoKeywordConfigTest.kt",
+      "blob": "cd9d378412e35925c9cc2cea58968c45ad3295d8",
+      "bytes": 2042,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/NikoKeywordNativeTest.kt",
+      "blob": "8a23c597e614ef307468b2a131e44754fded8aa5",
+      "bytes": 4667,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/NikoKeywordTuningTest.kt",
+      "blob": "e9148b3b81d9a41b2047e91c0c59ecb803b3a3e3",
+      "bytes": 482,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/OfflineVoiceSelectorTest.kt",
+      "blob": "d074baffee43885061f91915195bb383a4f160dd",
+      "bytes": 1540,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/OwnerVoicePolicyTest.kt",
+      "blob": "f75e6b3c31f7c439e7d6e89c0d1700d90ccb5de4",
+      "bytes": 2463,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/PcmPreRollTest.kt",
+      "blob": "6999970e4b7312110b77f2afe700f31051ebb295",
+      "bytes": 804,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/ProgressiveSpeechTest.kt",
+      "blob": "c6501a1ba9b95e78606ca329d61b0763eca814db",
+      "bytes": 2748,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/SpeechAudioFidelityTest.kt",
+      "blob": "f5caed2cc28c9f0ea0a642eab17dcb527fb235e2",
+      "bytes": 1450,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/SpeechAudioHistoryTest.kt",
+      "blob": "7e8489d7cf0155fb98732dcc53712e837194c7b8",
+      "bytes": 2549,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/SpeechOutputPolicyTest.kt",
+      "blob": "4016ee84d2cf6fad11eb9953d163e5a798494954",
+      "bytes": 2235,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/SpeechProsodyTest.kt",
+      "blob": "ba33ba20377e2cded50e2990dd8edc1102869465",
+      "bytes": 1141,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/SpeechStartGateTest.kt",
+      "blob": "ccad88150e4c314dcc5287526f852471949d8fba",
+      "bytes": 1034,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/TranscriptLiteralSafetyTest.kt",
+      "blob": "3f1a23b9f65e07c904a4738dafef4ccb49abf6c2",
+      "bytes": 1018,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/TranscriptQualityTest.kt",
+      "blob": "10341a171d077344d2c3756d1b399d2b9c38d166",
+      "bytes": 2831,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/VoiceControlTest.kt",
+      "blob": "330a39c44d9d7e57ed02654618062391b78bcd3a",
+      "bytes": 940,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/VoiceRecoveryPolicyTest.kt",
+      "blob": "f4b9acdbadd83d25372650bb8d63650f538df013",
+      "bytes": 1293,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/WakeCommandWindowTest.kt",
+      "blob": "d6673c52cd0f6dab18cc7a32ca1a258f9a2a3e41",
+      "bytes": 2519,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/java/com/niko/assistant/voice/WakeWordGateTest.kt",
+      "blob": "24a382468333532a574a58d061d3c7fe6b6d90fa",
+      "bytes": 4519,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/README.md",
+      "blob": "3890c837f2a3d76556a195aaf9baddf2d91c5d55",
+      "bytes": 3238,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/abanico.pcm",
+      "blob": "236199e22c62239f0e88270ed7b83f4fdcbfc8bc",
+      "bytes": 46810,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/ayer_pedi.pcm",
+      "blob": "cb362a96251a14f37c01ff852dbd9c467a9ec505",
+      "bytes": 43468,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/dia.pcm",
+      "blob": "508d967d822abaefe0da2a475bcd67eb4fd2f5d8",
+      "bytes": 34180,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/edificio.pcm",
+      "blob": "3196c4aff07092daa902937e83def4f9e9742d7f",
+      "bytes": 50900,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/edison.pcm",
+      "blob": "ec50aace5a2bde0701e366ef31553907418afe63",
+      "bytes": 21178,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/edita.pcm",
+      "blob": "9e01e3e9f2ce5781dfad95c2f939d94fb608cd53",
+      "bytes": 44212,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/ella.pcm",
+      "blob": "393db5e3edd85869a041fef2732f0ce7d1e81cd6",
+      "bytes": 42354,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/hey_niko.pcm",
+      "blob": "7e0cbd3f8bd0a51951740411829b232426243206",
+      "bytes": 24892,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/hola_niko.pcm",
+      "blob": "6e8ad19f8257bdf4f69b1d2c048955fe6bd52757",
+      "bytes": 27864,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/le_di.pcm",
+      "blob": "0fe7f69daa6399d298fc2faed0d7f873f5f9f33e",
+      "bytes": 39754,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/luz.pcm",
+      "blob": "00d22584f7283abc6d0c18be47a474bd96fe19d9",
+      "bytes": 35666,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/medio.pcm",
+      "blob": "8abd668cea3cae817d1959a1b3933570d4512868",
+      "bytes": 41612,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/mexico.pcm",
+      "blob": "8536745578ecaa71da75705c16e7c9b9a9a78c87",
+      "bytes": 41982,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/micro.pcm",
+      "blob": "114a033be52bfef6ca89d4173d4bb42fc019c0a6",
+      "bytes": 42726,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/nadie.pcm",
+      "blob": "379cea5c5e30200e1ed474fc0bd326a69f55389c",
+      "bytes": 35296,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/nico.pcm",
+      "blob": "5f0d831564f046b8973f817074fa58e431087788",
+      "bytes": 20064,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/nicolas.pcm",
+      "blob": "d722cbdaa11fc9177ff161b711e0ac536330b97e",
+      "bytes": 46810,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/nicole.pcm",
+      "blob": "60a39acc3d4d480861193e87bd9d9c76227f030c",
+      "bytes": 32694,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/niko.pcm",
+      "blob": "8bbc57dcce8ac6b0393851fb411e8f65a288f639",
+      "bytes": 20806,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/niko_command.pcm",
+      "blob": "ef9f896c4dc9e35bbbdff64efd6409b938084e6b",
+      "bytes": 45366,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/niko_fast.pcm",
+      "blob": "a18a9193bc93747af68787ece6de11b142b72742",
+      "bytes": 17460,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/niko_slow.pcm",
+      "blob": "4efb227d2286ba0989e9ba56bca5a173d813f390",
+      "bytes": 22292,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/other_name.pcm",
+      "blob": "47b032531aac4adc28b66aca6d66bc3153752e7f",
+      "bytes": 20806,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/pedi.pcm",
+      "blob": "f2d0e4f27234b609f874ed0c1099bb873a136b70",
+      "bytes": 37896,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/pedir.pcm",
+      "blob": "afdfdee70393f271a4baf1d20b040112769fb46e",
+      "bytes": 46440,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/pico.pcm",
+      "blob": "47e0fde6727010984e0ab409412d78ea9bc8e0c2",
+      "bytes": 45326,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/radio.pcm",
+      "blob": "6b8aad78ab26c021c7595a5b2aae8c916bca2d86",
+      "bytes": 36782,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/retired_01.pcm",
+      "blob": "f71cf0ba26c5e0f8052edf0adb93661187a8c5c9",
+      "bytes": 18576,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/retired_02.pcm",
+      "blob": "da2b9076a12049ee4ddcefffbd0ae31516854fba",
+      "bytes": 15234,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/retired_03.pcm",
+      "blob": "322020938fde75573b4370d804ed7a666cbd89c6",
+      "bytes": 23036,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/retired_04.pcm",
+      "blob": "7148817135d7ea0fea4e314a0bf2f66ca95fd278",
+      "bytes": 26748,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/retired_05.pcm",
+      "blob": "326131db955b9869d05d3da6d725823895140cd7",
+      "bytes": 39622,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/rico.pcm",
+      "blob": "86ffbec2277cfe786c7b1cd34ea1fb52d23c295a",
+      "bytes": 26748,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/tecnico.pcm",
+      "blob": "4cd5bdbda60fe7192b48020c9f88f506f3e2cfed",
+      "bytes": 46440,
+      "mode": "100644"
+    },
+    {
+      "path": "app/src/test/resources/voice/wake/unico.pcm",
+      "blob": "00f34619d1248c8bcee7da6a607ba30546a3b1b8",
+      "bytes": 31952,
+      "mode": "100644"
+    },
+    {
+      "path": "brain/README.md",
+      "blob": "532b5054b36eb9a70e1adf3c7c7ce389bb634d94",
+      "bytes": 1770,
+      "mode": "100644"
+    },
+    {
+      "path": "brain/leo_seed_knowledge.jsonl",
+      "blob": "3124a600a172a733949fa816f88309fc773af993",
+      "bytes": 10798,
+      "mode": "100644"
+    },
+    {
+      "path": "build.gradle.kts",
+      "blob": "bdec9686b824a0f150486a9517d9f41539706c81",
+      "bytes": 218,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/ANDROID_012_VALIDATION.md",
+      "blob": "7c22d403f749486df08c22482d502ef84c5f0f8c",
+      "bytes": 1726,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/AUTONOMY_AND_LOCAL_LEARNING.md",
+      "blob": "e4085c27c65b450b8e96675462b2e6006f43e124",
+      "bytes": 6288,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/GROQ_CLOUD.md",
+      "blob": "d32a4328d7a68a4dd741a1c9cd9f3ba6bda07873",
+      "bytes": 2948,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/IDENTIDAD_LEO.md",
+      "blob": "ddc3fdcefdc0a50a6a2596415c2103916e02ad5c",
+      "bytes": 2798,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md",
+      "blob": "d56b569259a294f0c81382f8ea77da3e55f4fd0a",
+      "bytes": 8432,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_011_PHYSICAL_TEST_RESULTS.md",
+      "blob": "1e48253bfc0d6f6d7cf00d8cfd92efb2ccc100c0",
+      "bytes": 7560,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_014_VALIDATION.md",
+      "blob": "35faaeca3c1f8d2d9e3042e600135a72c0d3ebf6",
+      "bytes": 3143,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_AGENT_SYSTEM.md",
+      "blob": "d84087a8e6088e5ffd3c4716a54c7ba8eeba2f9c",
+      "bytes": 2511,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_ARCHITECTURE.md",
+      "blob": "e439ed6dc43f932b4d724faabde65d9b9f3b32ab",
+      "bytes": 4881,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_COGNITIVE_ENGINE.md",
+      "blob": "466a6ea7f023c98fa148a01d3d49930803b16da0",
+      "bytes": 3064,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_CONTINUOUS_LEARNING.md",
+      "blob": "173b4268cf15dba79bc022ed7e4a06010a0035f7",
+      "bytes": 5618,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_EVALUATION.md",
+      "blob": "7635b424c613c95620198b8130e330436677aef4",
+      "bytes": 3697,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_MEMORY.md",
+      "blob": "3cca7641c5bccaa7a7bacdcc3e0bcec6af049025",
+      "bytes": 4533,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_PHASE3_VOICE_VALIDATION.md",
+      "blob": "159e305182d5446b0e9630ab19b461f18147bb73",
+      "bytes": 3594,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_PRODUCT_READINESS.md",
+      "blob": "c9b2380ebf82590ebe4ab5c2bddd2e72327ec308",
+      "bytes": 5891,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_RESEARCH.md",
+      "blob": "57a4c2e846b218d06a85bd698cf2c5b220293c0d",
+      "bytes": 3167,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_RESEARCH_EVOLUTION.md",
+      "blob": "923df34c616ec18043bff4b13d7cb40e2d0d65c7",
+      "bytes": 5359,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_ROADMAP.md",
+      "blob": "6c4e5c555a0b48f7944030b8377c39ffadb317dc",
+      "bytes": 2621,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_SAFETY.md",
+      "blob": "eaf8bcc0842da16e5ac32e634dc9fad65f37330a",
+      "bytes": 2751,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_SEARCH_VOICE_VALIDATION.md",
+      "blob": "76d1b37da480a0c324b918753dc9d445482efc60",
+      "bytes": 5215,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_SEMANTIC_DUPLEX.md",
+      "blob": "7ef35e9078e21a62012bc5ba51e5b3bbeece5907",
+      "bytes": 5761,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_SKILLS.md",
+      "blob": "de4576a765c7c249805797254c3cdf15031015f7",
+      "bytes": 2562,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_VALIDATION.md",
+      "blob": "edf83e90b431091260073e963070d4dbd803a1b8",
+      "bytes": 6183,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_VOICE.md",
+      "blob": "d17918c401846008fd6e99c7aea1ca4c04f4ec80",
+      "bytes": 3264,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/LEO_WEB_FIRST.md",
+      "blob": "73f451f3366b78751f188a3f53ee34900fe3ad79",
+      "bytes": 5476,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/OPEN_SOURCE_UI_REFERENCES.md",
+      "blob": "8e427fc4317c550e14570b462ddde06db6ff2c22",
+      "bytes": 1436,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/POLYMORPHIC_TOOLS.md",
+      "blob": "16d3573b6bb0b3c1938a3d22949a6a6547b32e01",
+      "bytes": 3506,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/VOICE_DIALOGUE_VALIDATION.md",
+      "blob": "b1d817b5e48accb0c632942d0291e09afcfb6a85",
+      "bytes": 1137,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/VOICE_STREAMING.md",
+      "blob": "5b8d56a9417b717053dcd9dfc339a39b592e7415",
+      "bytes": 2597,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/WEB_COMPANION.md",
+      "blob": "7b35b071d73ee4fdd5cff5f6f72d3aab45b7acf4",
+      "bytes": 4791,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/LEO_ROBOT.md",
+      "blob": "288a26bf0c6b299c5fc6f30e2ceb9ce35bea12b7",
+      "bytes": 4111,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/leo-robot-preview.mp4",
+      "blob": "70a113c93345e7b3ff42f85e9c3a7a8764553bb3",
+      "bytes": 382773,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/leo-robot-preview.png",
+      "blob": "2395cb0f9e6a450378be80ace3b063859a36c1ce",
+      "bytes": 366339,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/AUDITORIA_CALIDAD_2026-10-02.md",
+      "blob": "dd7ac404ef8a0e500e3e7ea7d2d2db2c9d14bbcd",
+      "bytes": 7408,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/IDENTIDAD_LEO_2026-10-05.json",
+      "blob": "4af4e019cac64af7cd040bf9d47779a130f41b3b",
+      "bytes": 14280,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/INFORME_EJECUTADO.md",
+      "blob": "15d83259a2a1f6aa03d1348a5b96cfc241e5cdd5",
+      "bytes": 5080,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/README.md",
+      "blob": "a4688844afca0a1963d0f46cfff9a3b5ff957cae",
+      "bytes": 3472,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/REPO_MEASUREMENTS.md",
+      "blob": "31bebd2b46aa52316fcfc4b3d85d77efc50da45e",
+      "bytes": 4294,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/android_ai_core.log",
+      "blob": "220825fe0948b5a8fcf1ac6e38b0913bed746672",
+      "bytes": 3171,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/android_voice.log",
+      "blob": "ae066520a9cc0c7f7a2dc0a2887973bbde3879dd",
+      "bytes": 3199,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/benchmark_texto.log",
+      "blob": "da2ac25b109cea9ebb943884a3b220a944294242",
+      "bytes": 263,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/build_web.log",
+      "blob": "e1ee0d80abaf535b48689bc0684dfc551d030e98",
+      "bytes": 1003,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/metricas_fisicas.log",
+      "blob": "49d8838d6f47bcbb439811cf5ae8a315627a745c",
+      "bytes": 1531,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/microgpt_assets.log",
+      "blob": "ea03af4528c4ca3f3ee7d75a4a6cc0214a921a56",
+      "bytes": 1230,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/resultados.json",
+      "blob": "8b2b79ef96ce7b2783b700bef2f87cd8f8b21145",
+      "bytes": 7655,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/tests_bateria.log",
+      "blob": "d4cc6928e3d61e3f7f0f0d192f29ae6f1ffbe1a6",
+      "bytes": 443,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/tests_web.log",
+      "blob": "eeb9239027a7d503ab054d4db26d48c5a176e461",
+      "bytes": 4849,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/ejecucion_software/typescript.log",
+      "blob": "a631341656054b7d0411d3858dc32209ba965574",
+      "bytes": 144,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/README.md",
+      "blob": "e21a37a175039de070dfa5147db002e4ebfb1848",
+      "bytes": 532,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/agent.log",
+      "blob": "b5c31af02694957a6ea1c4e389ff428295d8b8c2",
+      "bytes": 103,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/ai-core.log",
+      "blob": "f10536a1976b2beebb5f202822cf790ffc0bfa2d",
+      "bytes": 94,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/inventory.json",
+      "blob": "455711ac4be70a82835629fcf20592d71541c219",
+      "bytes": 111333,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/metrics.log",
+      "blob": "f6db0299cb2966d1f233ebcbd407b3b28bd663f7",
+      "bytes": 1700,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/microgpt.log",
+      "blob": "084c61d2bac80ff12a6c6cd53cbe202248800b56",
+      "bytes": 150,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/python.log",
+      "blob": "8526bc9d7d68fc38b9488c29aff2206c6727d7c2",
+      "bytes": 959,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/streaming.log",
+      "blob": "f3d4d060d2a3518a4e4fe65f23fe906bf0e2cf9e",
+      "bytes": 81,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/validation.json",
+      "blob": "fe1182f5226f125169d8ca3335fb95b22a67e727",
+      "bytes": 54946,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/voice.log",
+      "blob": "e88e431d65cf7f154ba7d99f0db24038644b22b6",
+      "bytes": 135,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/web-build.log",
+      "blob": "c6bee5216795360e3c960c61c8c30394d087a891",
+      "bytes": 1073,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/web-tests.log",
+      "blob": "fa8595cb55ac1c38b5888e81a05702d4910eb9c7",
+      "bytes": 2007,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-agent-2026-10-06/web-types.log",
+      "blob": "a631341656054b7d0411d3858dc32209ba965574",
+      "bytes": 144,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-learning-2026-10-10/core.log",
+      "blob": "93f3c2251a9f287f2df368fe6859b38b71896a43",
+      "bytes": 247,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-product-readiness-2026-10-12/core.log",
+      "blob": "ade389b33998a52225befcf223c9c2379be4bee3",
+      "bytes": 257,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-product-readiness-2026-10-12/live-web.log",
+      "blob": "69d1b036e170484d2741e1031110130f06d0a815",
+      "bytes": 2595,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-research-evolution-2026-10-10/agent.log",
+      "blob": "2a27401ef754f5bd0ab65e070d37c1bbb24bdf06",
+      "bytes": 103,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-research-evolution-2026-10-10/core.log",
+      "blob": "2dbeb504aa5b4d41a81c6b3dfceebfc40f01a375",
+      "bytes": 249,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-research-evolution-2026-10-10/live-web.log",
+      "blob": "9fdc211b9ab92ba62d81edb47f6b96e9dcd0b294",
+      "bytes": 2306,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-semantic-duplex-2026-10-07/agent-jvm.log",
+      "blob": "6888ca7bfb2c8817d4faa2711e98d6f935f0c7b1",
+      "bytes": 103,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-semantic-duplex-2026-10-07/python.log",
+      "blob": "63e66b9ecb3074fa7c5f0876c558bc1a43bb9e96",
+      "bytes": 959,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-semantic-duplex-2026-10-07/semantic-jvm.log",
+      "blob": "e208db22722b466c7b1d17e88337c25c2a26da4c",
+      "bytes": 715,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-semantic-duplex-2026-10-07/semantic-portable-jvm.log",
+      "blob": "36d79533597105d29915eb60f0646e6403de6300",
+      "bytes": 713,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-semantic-duplex-2026-10-07/semantic-sherpa-jvm.log",
+      "blob": "c0c5f6fc709fde942d3f580eb112cdd0e221a0d4",
+      "bytes": 714,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-semantic-duplex-2026-10-07/voice-jvm.log",
+      "blob": "6cced6cb2f68de6a1f3edf44e9edbdc19dbe4559",
+      "bytes": 139,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-web-first-2026-10-10/agent.log",
+      "blob": "6888ca7bfb2c8817d4faa2711e98d6f935f0c7b1",
+      "bytes": 103,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-web-first-2026-10-10/core.log",
+      "blob": "f04a871f1df89874f7218b210087ca592a20ca87",
+      "bytes": 104,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-web-first-2026-10-10/legacy-protocol.log",
+      "blob": "d38ef2eb5ca2476774a2b0f647385138281d8a84",
+      "bytes": 81,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-web-first-2026-10-10/live-http-without-proxy.log",
+      "blob": "263f144127dfbb75ac74c2bd6d3b1368e260f327",
+      "bytes": 1170,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-web-first-2026-10-10/live-http.log",
+      "blob": "ddfbceb2f002fe2b02ae698adb2e435b69ff23f1",
+      "bytes": 1170,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-web-first-2026-10-10/web-build.log",
+      "blob": "222a566827d3943db6cdcde071d83371d614fda7",
+      "bytes": 1073,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/leo-web-first-2026-10-10/web.log",
+      "blob": "bdc52944165697e2795317048367b2bc5246146e",
+      "bytes": 2151,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/mediciones.csv",
+      "blob": "21e2550099448570f8d71a2671fbec1da80ff4f2",
+      "bytes": 724,
+      "mode": "100644"
+    },
+    {
+      "path": "evidencias/mediciones_repo.csv",
+      "blob": "c6c0d01293e067809d01e34193420b8a6b10fe30",
+      "bytes": 1248,
+      "mode": "100644"
+    },
+    {
+      "path": "gradle.properties",
+      "blob": "f0a2e55f89e383466d2c6b481c8c468a3aa0b13d",
+      "bytes": 136,
+      "mode": "100644"
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.properties",
+      "blob": "c99f97449423e41b3d152e2af4cb576b580bb390",
+      "bytes": 338,
+      "mode": "100644"
+    },
+    {
+      "path": "gradlew",
+      "blob": "9c9102eb9d50700e10de5f3f5ebef22cd4306017",
+      "bytes": 2215,
+      "mode": "100755"
+    },
+    {
+      "path": "gradlew.bat",
+      "blob": "96cf3ad40a69ddbbcc1395b97f9ae54478687ed5",
+      "bytes": 1722,
+      "mode": "100644"
+    },
+    {
+      "path": "index.html",
+      "blob": "a693695a1cce93189bbf63f65e8d23108bff2f99",
+      "bytes": 1385,
+      "mode": "100644"
+    },
+    {
+      "path": "local.properties.example",
+      "blob": "43d38d6ad4ce5a4a9e206edc63e313c7680bb2de",
+      "bytes": 276,
+      "mode": "100644"
+    },
+    {
+      "path": "metadata.json",
+      "blob": "2a904119ebb4a595a159fa7d589f71288d47e9af",
+      "bytes": 318,
+      "mode": "100644"
+    },
+    {
+      "path": "package-lock.json",
+      "blob": "503ad1b4b8c67eaf14da7fb8545abbdd3d7010ef",
+      "bytes": 154293,
+      "mode": "100644"
+    },
+    {
+      "path": "package.json",
+      "blob": "b72ddd3ae58fc79910eebfac48331052569fa902",
+      "bytes": 1062,
+      "mode": "100644"
+    },
+    {
+      "path": "public/leo-robot-preview.png",
+      "blob": "2395cb0f9e6a450378be80ace3b063859a36c1ce",
+      "bytes": 366339,
+      "mode": "100644"
+    },
+    {
+      "path": "public/leo_robot_portrait.png",
+      "blob": "1f81f24d693b63ac69c0f108de650ed562d3c21e",
+      "bytes": 103312,
+      "mode": "100644"
+    },
+    {
+      "path": "public/leo_robot_poster.png",
+      "blob": "e570d506c07a2f3f0166aa4f8767c1ac6d52af5e",
+      "bytes": 164924,
+      "mode": "100644"
+    },
+    {
+      "path": "public/models/leo_robot.glb",
+      "blob": "d7d660caddadf0c2dc072f4a0a6d25de9aa5270b",
+      "bytes": 2533596,
+      "mode": "100644"
+    },
+    {
+      "path": "render.yaml",
+      "blob": "a4c4862528911d7968c1641e42eca62be8ee7607",
+      "bytes": 202,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/TrainLeoIntents.kt",
+      "blob": "04e2819f259d69d2a9ab6b344b45bbd76f30ec3a",
+      "bytes": 777,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/benchmark_local.ts",
+      "blob": "20c3add7baad49781049a2fe596a35bd49be72eb",
+      "bytes": 1142,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/bundle_voice_models.py",
+      "blob": "e02a67409309fcda72c35fba3f7cbf36bbc45280",
+      "bytes": 1878,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/calcular_metricas.mjs",
+      "blob": "231d0dba587d740f2d46549629bbe0c55de27f3c",
+      "bytes": 5387,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/collect_leo_device_evidence.py",
+      "blob": "109211da23c77db8e69741d67ab6270960dfc867",
+      "bytes": 4824,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/leo_microgpt_corpus.json",
+      "blob": "68b25624697cd7a6ee5abd85b9e316f6b1831a2f",
+      "bytes": 11309,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/medir_bateria.py",
+      "blob": "c49a8fd1ea50c23e470407e94eb910d49a39fe0b",
+      "bytes": 4555,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/medir_repo.py",
+      "blob": "73e3bf62e0dc2f93c7d3677bc77ee85d95974f3b",
+      "bytes": 2626,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/prepare_kws_native_test.py",
+      "blob": "8f88922ed00c0d3afb10a749095d40e293fce1bc",
+      "bytes": 2012,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/prepare_leo_robot.py",
+      "blob": "813418882e416b5305b15993e530b98d38d847eb",
+      "bytes": 12858,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/prepare_semantic_test.py",
+      "blob": "56300e257a4b4b1b94c177f99739f11f5099a0fc",
+      "bytes": 3368,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/probe_web_research.sh",
+      "blob": "a6407ad9ea33cf82ba37c22c56353410219b1730",
+      "bytes": 1992,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/test_agent.sh",
+      "blob": "69f4adea158ef042fe331653cce6027e35eb487a",
+      "bytes": 1829,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/test_ai_core.sh",
+      "blob": "dfed93d6efca1b6fc780ffb1ed939fd2f0f7089e",
+      "bytes": 4635,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/test_semantic_embeddings.sh",
+      "blob": "fc8e4bd4b824786e5dbb2a915c2a1b6440a49ccf",
+      "bytes": 1626,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/test_streaming.sh",
+      "blob": "090d67da88270caa074f213f0dc41ad39352d05b",
+      "bytes": 1617,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/test_voice_fidelity.sh",
+      "blob": "3b254a4006aaf99e1ca18a144ca417fd59859f20",
+      "bytes": 2123,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/testsupport/LeoVoiceJvmStubs.kt",
+      "blob": "4defd9d01d2fff94e335527cd51bedee956f4f4e",
+      "bytes": 479,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/train_leo_intents.sh",
+      "blob": "a5fc43c0a1df1d83cf437db7a18e142d7b2e6a4f",
+      "bytes": 1797,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/train_leo_microgpt.py",
+      "blob": "bddb29703ef37e0a84d6b9936d4f1779480db2ad",
+      "bytes": 7533,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/validate_leo_microgpt_assets.py",
+      "blob": "ab10e8b1f61e622fbf683e26dd6266cb5e74f684",
+      "bytes": 2373,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/validate_leo_robot.cjs",
+      "blob": "0683185d70e63abe4d389419a32c5b8dd226392e",
+      "bytes": 1655,
+      "mode": "100644"
+    },
+    {
+      "path": "server.ts",
+      "blob": "af34ce236ec66caa66d4343ce2402537d3711bac",
+      "bytes": 15821,
+      "mode": "100644"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "blob": "7f5bb8f608a18f2eb206aa2f8f5a64f5908e90a4",
+      "bytes": 740,
+      "mode": "100644"
+    },
+    {
+      "path": "src/App.tsx",
+      "blob": "1e224d65ce5943ad30aacf898aa6cf44945acb37",
+      "bytes": 20014,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/AiSettingsModal.tsx",
+      "blob": "bd6eec754f9322cf734d340730218059ce163ed0",
+      "bytes": 10425,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/ConversationGlass.tsx",
+      "blob": "51f94080d45ae4d6272763e85cbf867904aff4bc",
+      "bytes": 6039,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/EmbeddedAppsModal.tsx",
+      "blob": "2e220519f8b59b78f3349d2b421d48660cea8483",
+      "bytes": 17135,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/GoogleSearchModal.tsx",
+      "blob": "e98dabc13c865dad73c9f6e28ba5ae37ead5dfd0",
+      "bytes": 19319,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/LeoFirstRunModal.tsx",
+      "blob": "606b9207f8129de6d456662ee32d4946551d673c",
+      "bytes": 2242,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/LeoRobot.tsx",
+      "blob": "4a2a4b391b6b16bfae8df8082ef93369187d3af7",
+      "bytes": 10875,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/LiveStateBadge.tsx",
+      "blob": "f76a447ae686e78ec2fa2404fd097c84352e8a21",
+      "bytes": 1814,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/NeuralWaveform.tsx",
+      "blob": "18bf0db7945b2702a1fc95c9a5e782484bc3e526",
+      "bytes": 3000,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/NikoTopBar.tsx",
+      "blob": "6c051d9328ff6ec60cbec13fc822589cd9301e89",
+      "bytes": 3537,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/QuickActionsRail.tsx",
+      "blob": "7d91af768d32a51399dc5c3e2074ee554b9b8436",
+      "bytes": 4138,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/SmartHomeModal.tsx",
+      "blob": "09dd8751d4acd16ad7b8f7b04fd08aac7b51705a",
+      "bytes": 7868,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/VoiceDiagnosticsModal.tsx",
+      "blob": "5666da84ef2e2482150571d49c950cdae3b58a20",
+      "bytes": 7172,
+      "mode": "100644"
+    },
+    {
+      "path": "src/components/WakeDock.tsx",
+      "blob": "f554fb66fd32d6a1c6536f8cbf986c6fecc1d19d",
+      "bytes": 4093,
+      "mode": "100644"
+    },
+    {
+      "path": "src/index.css",
+      "blob": "057049d8d9286dbb48f22f2de6d35cec16dd3ea7",
+      "bytes": 539,
+      "mode": "100644"
+    },
+    {
+      "path": "src/main.tsx",
+      "blob": "005f2e197455333266cc5b6143a006606a9ece5a",
+      "bytes": 303,
+      "mode": "100644"
+    },
+    {
+      "path": "src/services/localBrain.ts",
+      "blob": "ab9e602d9d71aa761325ebafbd3b7dc0c7e880af",
+      "bytes": 8928,
+      "mode": "100644"
+    },
+    {
+      "path": "src/services/memoryStore.ts",
+      "blob": "1904857a297280fb325ab474cbc9182e5fac6e45",
+      "bytes": 3533,
+      "mode": "100644"
+    },
+    {
+      "path": "src/services/voiceService.ts",
+      "blob": "24c4d13d3e610281997969d09cc23e4bd1fa6b62",
+      "bytes": 6305,
+      "mode": "100644"
+    },
+    {
+      "path": "src/types.ts",
+      "blob": "4e26fd627d9d167b38cd80dd8c2759744cf350e5",
+      "bytes": 1981,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/local-brain.test.ts",
+      "blob": "e94f14b57ff002f9ba8fb369e7ea6e5ceccd9663",
+      "bytes": 1157,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/metrics.test.mjs",
+      "blob": "8547cd08d72eb48052206e7d28890f08b083d37d",
+      "bytes": 2783,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_battery.py",
+      "blob": "bb2c6d24dce83750fb100c52d93f6ab5f4ac4c79",
+      "bytes": 1094,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_device_evidence.py",
+      "blob": "1f8d86e9f3ff55f23fcc7cd88fa227e332329a91",
+      "bytes": 2333,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/build_leo_frozen_brain.py",
+      "blob": "2947a70c6bd4d02cd40508ee51b9486af4aaa6fb",
+      "bytes": 14275,
+      "mode": "100644"
+    },
+    {
+      "path": "tsconfig.json",
+      "blob": "f489c8b70d710cba6d0ba5857cfd606498e4ffe0",
+      "bytes": 511,
+      "mode": "100644"
+    },
+    {
+      "path": "tsconfig.node.json",
+      "blob": "6357cc60ad23368866bd870bda2514cfe5e68e67",
+      "bytes": 246,
+      "mode": "100644"
+    },
+    {
+      "path": "vite.config.ts",
+      "blob": "23217a9e5749894c3872c097d981d162799069ff",
+      "bytes": 250,
+      "mode": "100644"
+    }
+  ]
+}

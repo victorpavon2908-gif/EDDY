@@ -170,9 +170,7 @@ private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> 
                 }
                 modelStatus = if (ready) {
                     when {
-                        spec == NikoModelCatalog.spanishVoice -> "Voz preparada. Se usará al volver a iniciar la escucha desde Ajustes."
                         spec == NikoModelCatalog.whisperAsr -> "Whisper preparado. Reiniciá la escucha: LEO lo usará como segunda pasada solo cuando Canary detecte una transcripción dudosa."
-                        spec in NikoModelCatalog.conversationModels -> "Cerebro local preparado. LEO ya puede conversar e interpretar órdenes libres sin Internet."
                         else -> "Preparado para usar sin Internet."
                     }
                 } else "No se pudo preparar. Comprobá conexión y espacio disponible."
@@ -317,7 +315,6 @@ private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> 
                 }) { Text("DETENER Y NO REANUDAR AUTOMÁTICAMENTE") }
             }
             Text(offlineStatus, style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { prepareModel(NikoModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }
             Text(modelStatus, style = MaterialTheme.typography.bodySmall)
             Text("Memoria semántica", style = MaterialTheme.typography.titleMedium)
             Text("Modelo multilingüe entrenado · descarga única de 138 MB. Tus recuerdos se procesan en el teléfono.", style = MaterialTheme.typography.bodyMedium)

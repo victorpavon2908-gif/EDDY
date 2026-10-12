@@ -1,14 +1,14 @@
 # LEO: arquitectura incremental del agente
 
-Base inspeccionada: `e59c27403fe23398c127a96380f4eaac4575b7ca`, rama main. Producto público: LEO. `com.eddy.assistant`, `com.niko.assistant`, alias y formatos existentes conservados.
+Base de la auditoría inicial: `e59c27403fe23398c127a96380f4eaac4575b7ca`, rama main. Producto público: LEO. `com.eddy.assistant`, `com.niko.assistant`, alias y formatos existentes conservados.
 
 ## Rutas reales
 
 1. Manifest → EddyAssistantService (compatibilidad) → NikoAssistantService.
 2. ensureVoiceListening → LeoPlatformVoiceEngine como ruta primaria; NikoLocalVoiceEngine como respaldo. No se cambia la selección, ASR, KWS, VAD ni los modelos de escucha.
 3. onCommand → submitCommand → LeoAgentRuntime.begin → TurnController.Token en el contexto de coroutine → handleCommand.
-4. Acciones determinísticas → registro LeoSkillRegistry → adaptadores → ejecutores existentes. Preguntas → ConversationCoordinator → MicroGPT/conocimiento local o Groq. Investigación → NikoAiClient → búsqueda nativa → síntesis con fuentes.
-5. Respuesta → comprobación de turno → ConversationManager → estado visible → TTS Android. Interrupción invalida generación y cancela job, cola y streaming; los motores existentes mantienen la responsabilidad de detectar la voz.
+4. Acciones determinísticas → registro LeoSkillRegistry → adaptadores → ejecutores existentes. Preguntas → ConversationCoordinator → MicroGPT/conocimiento local o investigación web nativa. Investigación → NikoAiClient → búsqueda nativa → síntesis con fuentes.
+5. Respuesta → comprobación de turno → ConversationManager → estado visible → TTS Android. Interrupción invalida generación y cancela el job y detiene el TTS; los motores existentes mantienen la responsabilidad de detectar la voz.
 
 El servicio conserva preparación del micrófono, overlays, ciclo de vida Android y compatibilidad. El nuevo núcleo contiene estado de conversación, capacidades de turno y confirmación. La extracción es incremental; el servicio sigue siendo grande y no se declara refactorizado por completo.
 
@@ -25,10 +25,10 @@ El servicio conserva preparación del micrófono, overlays, ciclo de vida Androi
 | clickText elegía el primer resultado de varias coincidencias | Coincidencia exacta y única; liberación de nodos obtenidos |
 | SmartHome.control usa runBlocking | Servicio utiliza controlAsync existente |
 | Embeddings recalculaban K/V dentro de cada cabeza y token | Proyecciones precalculadas; caché protegida de mutación externa |
-| NikoActionPlanner / NikoBackendPrewarmer sin consumidores productivos encontrados | Conservados como compatibilidad; no contados como capacidades |
+| NikoActionPlanner / NikoBackendPrewarmer sin consumidores productivos encontrados | Eliminados el 2026-10-12: no tenían consumidores ni estado persistido |
 | NikoVisualContext.capture no se conecta a conversación en la base | Conectado ahora a peticiones explícitas de pantalla; Accessibility aporta texto, no píxeles |
-| Neural TTS tiene construcción lazy pero ruta normal habla por Android TTS | No se atribuye síntesis neural a la ruta activa |
-| ResearchQuality existe pero NikoAiClient seleccionaba por su propia política | No se cuenta el archivo como orquestación activa |
+| Neural TTS tiene construcción lazy pero ruta normal habla por Android TTS | Retirada la ruta lazy inalcanzable el 2026-10-12; se conserva Android TTS |
+| ResearchQuality existe pero NikoAiClient seleccionaba por su propia política | Eliminado el selector desconectado el 2026-10-12 |
 
 ## Superficie conservada
 
@@ -42,7 +42,9 @@ Inventario trazable de todos los archivos versionados de la base: `evidencias/le
 Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AUTOMATIZADAMENTE PROBADO solo para los casos ejecutados en [LEO_VALIDATION.md](LEO_VALIDATION.md). Toda propiedad del teléfono permanece **PENDIENTE DE VALIDACIÓN FÍSICA**. Los contratos o tipos sin ruta productiva se indican como PLANIFICADO.
 
 
-Actualización: LeoVisionContext conecta peticiones explícitas de pantalla con observaciones reales de Accessibility, con caducidad. Sin entrada accesible no afirma visión. Offline describe etiquetas; Groq puede interpretar el texto observado, sin herramientas web. Cámara, imágenes y OCR de documentos siguen pendientes. Memoria y observaciones cloud se adjuntan como datos de usuario no confiables, nunca dentro del rol system.
+Nota histórica de la integración anterior (Groq ya retirado): LeoVisionContext conecta peticiones explícitas de pantalla con observaciones reales de Accessibility, con caducidad. Sin entrada accesible no afirma visión. Offline describe etiquetas; Groq puede interpretar el texto observado, sin herramientas web. Cámara, imágenes y OCR de documentos siguen pendientes. Memoria y observaciones cloud se adjuntan como datos de usuario no confiables, nunca dentro del rol system.
 
 
 Iteración de producto: [LEO_PRODUCT_READINESS.md](LEO_PRODUCT_READINESS.md) recoge control de descargas opcionales, recuperación, fallos web y aceptación física pendiente.
+
+Limpieza posterior y alcance comprobado: [LEO_CODE_CLEANUP.md](LEO_CODE_CLEANUP.md). Los hallazgos históricos de esta página no sustituyen ese estado actual.

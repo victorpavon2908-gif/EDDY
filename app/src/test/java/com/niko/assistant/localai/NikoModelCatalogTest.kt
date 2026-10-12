@@ -42,32 +42,12 @@ class NikoModelCatalogTest {
     }
 
     @Test
-    fun qualityConversationModelRemainsCataloguedForFutureIsolatedRuntime() {
-        val model = NikoModelCatalog.localLlmQuality
-        assertTrue(model.url.contains("Qwen2.5-1.5B-Instruct"))
-        assertTrue(model.expectedFiles.single().contains("q8_ekv1280.task"))
-        assertTrue(model.minBytes >= 1_400_000_000L)
-        assertTrue(model !in NikoModelCatalog.acousticCore)
-    }
-
-    @Test
-    fun fastConversationModelRemainsCataloguedForFutureIsolatedRuntime() {
-        val model = NikoModelCatalog.localLlmFast
-        assertTrue(model.url.contains("Qwen2.5-0.5B-Instruct"))
-        assertTrue(model.minBytes >= 400_000_000L)
-        assertTrue(model !in NikoModelCatalog.acousticCore)
-        assertTrue(NikoModelCatalog.conversationModels.containsAll(listOf(NikoModelCatalog.localLlmQuality, model)))
-    }
-
-    @Test
     fun firstRunBundleContainsEveryVoiceModuleButNoInProcessLlm() {
         val models = NikoModelCatalog.firstRunModels(balancedProfile())
         assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
+        assertFalse(models.any { it.id.startsWith("llm-") || it.id.startsWith("tts-") })
         assertTrue(NikoModelCatalog.speaker in models)
-        assertTrue(NikoModelCatalog.spanishVoice in models)
         assertTrue(NikoModelCatalog.whisperAsr in models)
-        assertFalse(NikoModelCatalog.localLlmFast in models)
-        assertFalse(NikoModelCatalog.localLlmQuality in models)
         assertEquals(models.size, models.distinctBy { it.id }.size)
     }
 
@@ -82,11 +62,9 @@ class NikoModelCatalogTest {
             manufacturer = "generic",
         )
         val models = NikoModelCatalog.firstRunModels(profile)
-        assertFalse(NikoModelCatalog.localLlmQuality in models)
-        assertFalse(NikoModelCatalog.localLlmFast in models)
         assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
+        assertFalse(models.any { it.id.startsWith("llm-") || it.id.startsWith("tts-") })
         assertTrue(NikoModelCatalog.speaker in models)
-        assertTrue(NikoModelCatalog.spanishVoice in models)
         assertTrue(NikoModelCatalog.whisperAsr in models)
     }
 
@@ -100,10 +78,8 @@ class NikoModelCatalogTest {
             abi = "arm64-v8a",
         )
         val models = NikoModelCatalog.firstRunModels(profile)
-        assertFalse(NikoModelCatalog.localLlmFast in models)
-        assertFalse(NikoModelCatalog.localLlmQuality in models)
         assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
-        assertTrue(NikoModelCatalog.spanishVoice in models)
+        assertFalse(models.any { it.id.startsWith("llm-") || it.id.startsWith("tts-") })
         assertTrue(NikoModelCatalog.whisperAsr in models)
     }
 

@@ -10,9 +10,10 @@ class NikoDeviceProfileCompatibilityTest {
     fun allManufacturersUseSameSafeCorePolicy() {
         listOf("HONOR", "Samsung", "Xiaomi", "Motorola", "OPPO", "vivo", "Google", "OnePlus").forEach { manufacturer ->
             val profile = capableProfile(manufacturer)
-            assertFalse("$manufacturer must not load an in-process JNI LLM", profile.localLlmRuntimeSafe)
-            assertFalse(profile.supportsLocalLlm)
-            assertFalse(profile.prefersQualityLocalLlm)
+            val models = NikoModelCatalog.firstRunModels(profile)
+            assertTrue("$manufacturer must retain all voice inputs", models.containsAll(NikoModelCatalog.voiceCore))
+            assertFalse("$manufacturer must not download unused inference models",
+                models.any { it.id.startsWith("llm-") || it.id.startsWith("tts-") })
         }
     }
 
@@ -20,10 +21,9 @@ class NikoDeviceProfileCompatibilityTest {
     fun firstRunNeverDownloadsQwenForUniversalCore() {
         listOf("HONOR", "Samsung", "Xiaomi", "Google").forEach { manufacturer ->
             val models = NikoModelCatalog.firstRunModels(capableProfile(manufacturer))
-            assertTrue(models.none { it in NikoModelCatalog.conversationModels })
+            assertTrue(models.none { it.id.startsWith("llm-") || it.id.startsWith("tts-") })
             assertTrue(models.containsAll(NikoModelCatalog.voiceCore))
             assertTrue(models.contains(NikoModelCatalog.spanishAsr))
-            assertTrue(models.contains(NikoModelCatalog.spanishVoice))
         }
     }
 

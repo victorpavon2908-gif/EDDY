@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Home, Lightbulb, Fan, Thermometer, Lock, Check } from "lucide-react";
+import { X, Home, Lightbulb, Fan, Thermometer, Lock } from "lucide-react";
 import { MemoryStore } from "../services/memoryStore";
 import { SmartHomeEntity } from "../types";
 

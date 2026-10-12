@@ -32,6 +32,6 @@ PyTorch is a training-only dependency and is deliberately not added to the Andro
 
 ## Safety and routing boundary
 
-MicroGPT is not used to execute actions and is not treated as an authoritative factual model. The existing deterministic action planner remains responsible for phone commands. Learned local knowledge is checked before MicroGPT. Open-domain or current questions fall through to Groq/web according to the existing `ConversationCoordinator` policy.
+MicroGPT is not used to execute actions and is not treated as an authoritative factual model. The existing deterministic action planner remains responsible for phone commands. Learned local knowledge is checked before MicroGPT. Open-domain or current questions fall through to native web research according to the existing `ConversationCoordinator` policy.
 
 The older native/JNI open-domain LLM runtime remains disabled. This avoids reintroducing the Android 12+ native crashes that motivated the safe local architecture.

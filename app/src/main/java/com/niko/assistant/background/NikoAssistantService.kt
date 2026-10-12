@@ -74,11 +74,8 @@ import com.niko.assistant.ui.NikoUiModeStore
 import com.niko.assistant.proactive.NikoProactiveScheduler
 import com.niko.assistant.smarthome.LocalSmartHomeClient
 import com.niko.assistant.voice.NikoLocalVoiceEngine
-import com.niko.assistant.voice.NikoNeuralTextToSpeech
 import com.niko.assistant.voice.NikoTextToSpeech
 import com.niko.assistant.voice.VoiceRecoveryPolicy
-import com.niko.assistant.voice.SpeechOutputPolicy
-import com.niko.assistant.voice.ProgressiveSpeech
 import com.niko.assistant.voice.SpeechProsody
 import java.io.File
 import java.text.SimpleDateFormat
@@ -126,7 +123,7 @@ open class NikoAssistantService : Service() {
     private val ownerVoice by lazy(LazyThreadSafetyMode.NONE) { NikoVoiceProfile(applicationContext) }
 
     private val localLlmDelegate = lazy(LazyThreadSafetyMode.NONE) {
-        NikoLocalLlm(applicationContext, modelManager)
+        NikoLocalLlm(applicationContext)
     }
     private val localLlm: NikoLocalLlm get() = localLlmDelegate.value
 
@@ -149,7 +146,6 @@ open class NikoAssistantService : Service() {
     private var lastTrainableUtterance: String? = null
     private var lastCommandSucceeded = false
     private var replyProsody = SpeechProsody()
-    private val speechOutput = SpeechOutputPolicy()
     private var localVoice: NikoLocalVoiceEngine? = null
     private var platformVoice: LeoPlatformVoiceEngine? = null
     private var localVoiceActive = false
@@ -157,37 +153,15 @@ open class NikoAssistantService : Service() {
         NikoTextToSpeech(
             context = applicationContext,
             onReady = { ready ->
-                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) {
-                    NikoRuntimeState.setVoiceReady(applicationContext, ready)
-                }
+                NikoRuntimeState.setVoiceReady(applicationContext, ready)
             },
             onVoiceSelected = { description ->
-                if (speechOutput.selected != SpeechOutputPolicy.Backend.NEURAL) {
-                    NikoRuntimeState.setVoiceStatus(applicationContext, description)
-                }
+                NikoRuntimeState.setVoiceStatus(applicationContext, description)
             },
             onSpeakingChanged = ::onSpeakingChanged,
         )
     }
     private val platformTts: NikoTextToSpeech get() = platformTtsDelegate.value
-
-    private val neuralTtsDelegate = lazy(LazyThreadSafetyMode.NONE) {
-        NikoNeuralTextToSpeech(
-            models = modelManager,
-            profile = deviceProfile,
-            onSpeakingChanged = ::onSpeakingChanged,
-            canUseFallback = { platformTts.isReady },
-            onFailure = { text, audioStarted -> serviceScope.launch {
-                if (!destroyed) {
-                    speechOutput.neuralFailed()
-                    NikoRuntimeState.setVoiceStatus(applicationContext, "La voz local se interrumpió. ${platformTts.voiceDescription}")
-                    if (audioStarted || !platformTts.speak(text, replyProsody)) onSpeakingChanged(false)
-                    NikoRuntimeState.setVoiceReady(applicationContext, platformTts.isReady)
-                }
-            } },
-        )
-    }
-    private val neuralTts: NikoNeuralTextToSpeech get() = neuralTtsDelegate.value
 
     private var destroyed = false
     private var foregroundReady = false
@@ -197,7 +171,6 @@ open class NikoAssistantService : Service() {
     private var localVoiceEpoch = 0
     private var isTranscribing = false
     private var commandJob: Job? = null
-    private var progressiveSpeech: ProgressiveSpeech? = null
     private val agent = com.niko.assistant.agent.LeoAgentRuntime()
     private val taskExecutor = com.niko.assistant.agent.LeoTaskExecutor()
     private val skillRegistry by lazy {
@@ -345,8 +318,6 @@ open class NikoAssistantService : Service() {
         agent.interrupt()
         LeoRealtimeTurnBus.unregisterTurnInterrupter(turnInterrupter)
         LeoVoiceDiagnostics.cancelResponseTiming()
-        progressiveSpeech?.cancel()
-        progressiveSpeech = null
         commandJob?.cancel()
         speechTimeout?.cancel()
         recoveryJob?.cancel()
@@ -354,7 +325,6 @@ open class NikoAssistantService : Service() {
         hideBubble()
         unregisterScreenStateReceiver()
         stopActiveVoice()
-        if (neuralTtsDelegate.isInitialized()) neuralTts.shutdown()
         if (platformTtsDelegate.isInitialized()) platformTts.shutdown()
         if (localLlmDelegate.isInitialized()) localLlm.release()
         releaseCpuWakeLock()
@@ -399,7 +369,7 @@ open class NikoAssistantService : Service() {
                             if (failedModel != null && voiceRecovery.allowModelRepair(failedModel.id)) {
                                 modelManager.repair(failedModel, ::onModelProgress)
                             }
-                            modelManager.ensureRecommended(deviceProfile, ::onModelProgress)
+                            modelManager.ensureAcousticCore(::onModelProgress)
                         }
                         if (ready && startLocalVoiceIfReady()) return@launch
                         if (!ready) inputUnavailable("No pude preparar el motor de voz. Revisá Internet, espacio y permiso de micrófono.")
@@ -694,8 +664,6 @@ open class NikoAssistantService : Service() {
         agent.interrupt()
         RobotMotionBus.clear()
         LeoVoiceDiagnostics.cancelResponseTiming()
-        progressiveSpeech?.cancel()
-        progressiveSpeech = null
         commandJob?.cancel()
         commandJob = null
         speechTimeout?.cancel()
@@ -757,8 +725,6 @@ open class NikoAssistantService : Service() {
                     true
                 } == true
                 if (!completed && epoch == turnEpoch && !destroyed) {
-                    progressiveSpeech?.cancel()
-                    progressiveSpeech = null
                     LeoRealtimeTurnBus.interruptSpeech()
                     speakResponse("La orden tardó demasiado. Ya liberé el procesamiento; decime de nuevo qué querés hacer.")
                 }
@@ -766,8 +732,6 @@ open class NikoAssistantService : Service() {
                 throw cancelled
             } catch (_: Exception) {
                 if (epoch == turnEpoch) {
-                    progressiveSpeech?.cancel()
-                    progressiveSpeech = null
                     LeoRealtimeTurnBus.interruptSpeech()
                     speakResponse("No pude completar eso. Volvé a llamarme y lo intentamos.")
                 }
@@ -1381,19 +1345,10 @@ open class NikoAssistantService : Service() {
         }
     }
 
-    private fun playNextProgressivePhrase(): Boolean {
-        val queue = progressiveSpeech ?: return false
-        val phrase = queue.poll()
-        if (phrase != null) { speakOnly(phrase); return true }
-        if (queue.isDrained) progressiveSpeech = null
-        return false
-    }
-
     private fun onSpeakingChanged(speaking: Boolean) {
         serviceScope.launch {
             if (destroyed || (!speaking && !isSpeaking)) return@launch
             isSpeaking = speaking
-            if (!speaking && playNextProgressivePhrase()) return@launch
             if (localVoiceActive) setActiveVoiceSpeaking(speaking, continueAfterSpeech)
             if (!speaking) {
                 speechTimeout?.cancel()

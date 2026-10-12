@@ -27,7 +27,7 @@ Los commits ejecutan pruebas Android y Lint; no generan APK. Las descargas inici
 ## Funciones
 
 - Activación y reconocimiento local de voz en español, voz sintetizada y modo de servicio en primer plano.
-- Memoria local, acciones del teléfono, búsqueda y configuración de proveedores de IA.
+- Memoria local, acciones del teléfono y búsqueda web nativa.
 - Calculadora, notas, reloj, cronómetro, temporizador y conversor integrados.
 - Diagnóstico de voz y protocolo de medición física con evidencia.
 
@@ -53,24 +53,18 @@ El código React se conserva para no perder trabajo previo; sus pruebas no equiv
 - [Protocolo físico](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md)
 - [Registro de mediciones](evidencias/mediciones.csv)
 
-## Voz progresiva 0.12.1
+## Voz y limpieza de código (2026-10-12)
 
-La conversación por Groq recibe texto por streaming y lo reproduce por frases mientras llega el resto. Usa la clave y el modelo ya configurados, sin nuevos proveedores ni envío del audio. La escucha/transcripción y la síntesis siguen siendo las locales existentes; no es una copia del modelo de voz de ChatGPT ni audio-a-audio nativo.
+La salida activa utiliza el TTS de Android. Se retiraron el transporte Groq histórico, la cola progresiva desconectada y el sintetizador neuronal que nunca se inicializaba. Se conservan el reconocedor principal, el respaldo local, la cancelación por generación de turno y la instrumentación de voz.
 
-- Cola ordenada de frases, cancelación de red y audio al interrumpir y sin repetir la respuesta completa al finalizar.
-- Actualización visual en memoria, limitada a una cada 80 ms; solo se guarda el resultado final.
-- Si la conexión falla tras comenzar, se informa la interrupción sin iniciar otra respuesta encima. Antes del primer texto se mantienen las alternativas de modelo autorizadas por el cliente.
-- Búsqueda con fuentes y órdenes del teléfono conservan sus rutas; la investigación no se lee parcialmente antes de validar las fuentes.
-- Diagnóstico: **Orden → primer texto** y **Orden → primer sonido**. Estos tiempos empiezan tras aceptar la transcripción, no incluyen ASR. No hay valores medidos en teléfono todavía.
-
-Implementación basada en el [protocolo público de streaming de Groq](https://console.groq.com/docs/text-chat). Ver [pruebas y límites](docs/VOICE_STREAMING.md).
+Ver [rutas de voz vigentes](docs/VOICE_STREAMING.md) y [alcance, eliminaciones y validación de la limpieza](docs/LEO_CODE_CLEANUP.md). Las capacidades físicas siguen **PENDIENTES DE VALIDACIÓN FÍSICA**.
 
 ## Usabilidad y voz 0.12.2
 
 - Cada herramienta conserva su estado al volver al asistente y regresar, mediante un contenedor de estado por pantalla.
 - Las notas se guardan automáticamente tras una pausa breve de escritura, al salir de Notas y al pasar a segundo plano; muestran el estado de guardado. El guardado usa preferencias locales con escritura asíncrona, no sincronización en nube.
 - El conversor acepta coma decimal y muestra error para entradas inválidas en lugar de convertirlas silenciosamente a cero.
-- Los bloques grandes recibidos por streaming se dividen antes de la síntesis; cada frase se limita a 240 caracteres y se evita cortar pares Unicode de emojis.
+- La cola de streaming de aquella versión se retiró el 2026-10-12 al comprobar que ya no tenía productores activos.
 
 La revisión anterior `eae91c6` aprobó pruebas Android y Lint en GitHub (ejecución 36722239966). Cada nueva revisión debe validar su propio workflow. La fluidez y los cambios de pantalla aún requieren verificación visual y auditiva en dispositivo.
 

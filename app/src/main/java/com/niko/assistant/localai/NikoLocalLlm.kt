@@ -22,7 +22,6 @@ import kotlinx.coroutines.withContext
  */
 class NikoLocalLlm(
     context: Context,
-    @Suppress("UNUSED_PARAMETER") models: NikoModelManager,
 ) {
     private val appContext = context.applicationContext
     private val knowledge = NikoKnowledgeStore(appContext)
@@ -47,13 +46,8 @@ class NikoLocalLlm(
         }
     }
 
-    /** Pure Kotlin conversational generation is supported without loading JNI. */
-    val runtimeSupported: Boolean get() = microGpt.isAvailable
-
     /** MicroGPT works immediately; the larger frozen knowledge layer can arrive later. */
     val isAvailable: Boolean get() = !closed && microGpt.isAvailable
-
-    val preferredModel: NikoModelSpec get() = NikoModelCatalog.localLlmFast
 
     suspend fun prewarm(): Boolean = withContext(Dispatchers.IO) {
         if (closed) return@withContext false

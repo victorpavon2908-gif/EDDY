@@ -1,22 +1,7 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-}
-
-val nikoLocalProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
-}
-
-fun configString(envName: String, propertyName: String, defaultValue: String = ""): String {
-    val raw = System.getenv(envName) ?: nikoLocalProperties.getProperty(propertyName)
-        ?: System.getenv(envName.replaceFirst("NIKO_", "EDDY_"))
-        ?: nikoLocalProperties.getProperty(propertyName.replaceFirst("niko.", "eddy.")) ?: defaultValue
-    val escaped = raw.replace("\\", "\\\\").replace("\"", "\\\"")
-    return "\"$escaped\""
 }
 
 val sherpaVersion = "1.13.7"
@@ -34,7 +19,6 @@ android {
         versionCode = 40
         versionName = "0.14.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "NIKO_AI_BASE_URL", configString("NIKO_AI_BASE_URL", "niko.ai.baseUrl", "https://eddy-ai-ny8o.onrender.com"))
 
         // LEO keeps the legacy namespace/application id so existing installs update in place.
         // No fijamos abiFilters: el APK empaqueta todas las ABI que expongan Sherpa y el
@@ -95,7 +79,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")

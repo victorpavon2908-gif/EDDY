@@ -16,29 +16,6 @@ data class NikoDeviceProfile(
 ) {
     enum class Tier { LITE, BALANCED, POWER }
 
-    /**
-     * Compatibilidad universal Android 12+.
-     *
-     * Un SIGSEGV dentro de un runtime JNI no se puede capturar con try/catch y no debe
-     * poder matar el proceso principal de LEO. Por eso el núcleo estable no habilita
-     * inferencia LLM nativa dentro del mismo proceso en ningún fabricante. No usamos
-     * listas negras por marca: Samsung, HONOR, Xiaomi, Motorola, OPPO, vivo, Pixel, etc.
-     * siguen exactamente la misma regla.
-     *
-     * La conversación generativa local sólo se volverá a habilitar cuando ese runtime
-     * viva en un proceso aislado que pueda morir/reiniciarse sin tumbar voz, wake word,
-     * acciones, memoria ni búsqueda web.
-     */
-    val localLlmRuntimeSafe: Boolean get() = false
-
-    /** El núcleo universal nunca depende del LLM JNI para funcionar. */
-    val supportsLocalLlm: Boolean get() = false
-
-    val prefersQualityLocalLlm: Boolean get() = false
-
-    // Se conserva para compatibilidad de API; el runtime LLM no se crea en el proceso principal.
-    val prefersGpuLlm: Boolean get() = false
-
     companion object {
         fun detect(context: Context): NikoDeviceProfile {
             val activityManager = context.getSystemService(ActivityManager::class.java)
