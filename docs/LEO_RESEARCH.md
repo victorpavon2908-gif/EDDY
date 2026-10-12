@@ -26,3 +26,6 @@ Al combinar varias búsquedas, los índices de citas se reasignan por URL y el e
 
 
 Actualización 2026-10-10: [Investigación y evolución controlada](LEO_RESEARCH_EVOLUTION.md) documenta lectura directa, profundidad extractiva, discrepancias, edición/versionado de herramientas y límites pendientes.
+
+
+Iteración de producto: [LEO_PRODUCT_READINESS.md](LEO_PRODUCT_READINESS.md) recoge control de descargas opcionales, recuperación, fallos web y aceptación física pendiente.

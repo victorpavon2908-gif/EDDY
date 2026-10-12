@@ -19,6 +19,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withTimeoutOrNull
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
 
@@ -49,14 +50,39 @@ object LeoNativeWebSearch {
 
     suspend fun search(query: String, diagnostic: ((FetchDiagnostic) -> Unit)? = null): NikoAiReply {
         val deadline = System.nanoTime() + SEARCH_BUDGET_MS * 1_000_000L
-        return search(query) { url, accept, limit -> runInterruptible(Dispatchers.IO) { fetchText(url, accept, limit, deadline, diagnostic) } }
+        val observations = java.util.Collections.synchronizedList(mutableListOf<FetchDiagnostic>())
+        val reply = withTimeoutOrNull(SEARCH_BUDGET_MS + 2_000L) {
+            search(query) { url, accept, limit -> runInterruptible(Dispatchers.IO) {
+                fetchText(url, accept, limit, deadline) { event ->
+                    observations += event
+                    diagnostic?.invoke(event)
+                }
+            } }
+        }
+        if (reply?.webUsed == true) return reply
+        val failure = synchronized(observations) { failureMessage(observations.toList()) }
+        return if (failure != null) NikoAiReply(failure, false, reply?.sources.orEmpty())
+            else reply ?: NikoAiReply("La investigación agotó su tiempo. Podés reintentar o pasarme un enlace público para leerlo.", false, emptyList())
+    }
+
+    internal fun failureMessage(events: List<FetchDiagnostic>): String? = when {
+        events.any { it.status == 429 } -> "Un buscador limitó las consultas y no obtuve evidencia suficiente. Probá más tarde o pasame un enlace público."
+        events.any { it.status == 403 } -> "Un sitio rechazó el acceso y no obtuve evidencia suficiente. Podés pasarme otra fuente pública; no voy a saltarme ese bloqueo."
+        events.any { it.failure == "SocketTimeoutException" } -> "La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público."
+        events.any { it.failure == "UnknownHostException" || it.failure == "ConnectException" } -> "No pude conectar con las fuentes. Revisá la conexión o probá con un enlace público cuando vuelva Internet."
+        else -> null
     }
 
     /** Injectable transport exercises discovery, redirects, filtering and summary together. */
     internal suspend fun search(
         query: String,
-        fetch: suspend (String, String, Int) -> Fetch?,
+        transport: suspend (String, String, Int) -> Fetch?,
     ): NikoAiReply = withContext(Dispatchers.IO) {
+        val fetch: suspend (String, String, Int) -> Fetch? = { url, accept, limit ->
+            try { transport(url, accept, limit) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
+        }
         val cleanQuery = query.trim().take(MAX_QUERY_CHARS)
         // Explicit public links can be read even when discovery providers are unavailable.
         val links = Regex("https?://[^\\s<>\"]+").findAll(cleanQuery)
@@ -124,7 +150,8 @@ object LeoNativeWebSearch {
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         NikoAiReply(
             text = summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." },
-            webUsed = true,
+            // Discovery alone is not a delivered, learnable research answer.
+            webUsed = summary.isNotBlank(),
             sources = sources,
             evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
             researchContext = cited.mapIndexed { index, hit ->

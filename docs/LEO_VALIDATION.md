@@ -70,3 +70,6 @@ Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenam
 
 
 Actualización 2026-10-10: [Investigación y evolución controlada](LEO_RESEARCH_EVOLUTION.md) documenta lectura directa, profundidad extractiva, discrepancias, edición/versionado de herramientas y límites pendientes.
+
+
+Iteración de producto: [LEO_PRODUCT_READINESS.md](LEO_PRODUCT_READINESS.md) recoge control de descargas opcionales, recuperación, fallos web y aceptación física pendiente.

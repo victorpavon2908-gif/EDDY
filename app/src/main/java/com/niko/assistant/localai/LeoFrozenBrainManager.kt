@@ -13,6 +13,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 /** Downloads, verifies and atomically activates Leo's immutable ~500 MB knowledge brain. */
@@ -49,15 +52,24 @@ class LeoFrozenBrainManager(context: Context) {
 
     fun databaseFile(): File = File(storage.frozen, DATABASE_NAME)
 
-    suspend fun ensureInstalled(onProgress: (Progress) -> Unit = {}): Boolean = withContext(Dispatchers.IO) {
+    suspend fun ensureInstalled(onProgress: (Progress) -> Unit = {}): Boolean = installMutex.withLock {
+        withContext(Dispatchers.IO) { install(onProgress) }
+    }
+
+    private suspend fun install(onProgress: (Progress) -> Unit): Boolean {
         onProgress(Progress(Progress.State.CHECKING, message = "Comprobando cerebro congelado"))
+        runCatching { LeoDirectoryActivation.recover(storage.frozen) }.getOrElse {
+            onProgress(Progress(Progress.State.FAILED, message = "No pude recuperar el paquete anterior; no se reemplazó"))
+            return false
+        }
         if (isInstalled()) {
             onProgress(Progress(Progress.State.READY, message = "Cerebro congelado listo"))
-            return@withContext true
+            return true
         }
+        if (!LeoOfflineKnowledgeSettings.downloadAllowed(appContext)) return false
 
-        runCatching {
-            val manifest = fetchManifest()
+        return runCatching {
+            val manifest = runInterruptible { checkDownloadAllowed(); fetchManifest() }
             require(manifest.version == BRAIN_VERSION) { "Versión de cerebro inesperada" }
             require(manifest.archiveName == ARCHIVE_NAME) { "Paquete de cerebro inesperado" }
             require(manifest.installedBytes in LeoBrainStorage.FROZEN_MIN_BYTES..LeoBrainStorage.FROZEN_MAX_BYTES) {
@@ -71,27 +83,28 @@ class LeoFrozenBrainManager(context: Context) {
             val archive = File(storage.downloads, "$ARCHIVE_NAME.part")
             downloadArchive(manifest, archive, onProgress)
             onProgress(Progress(Progress.State.VERIFYING, archive.length(), manifest.archiveBytes, "Verificando paquete"))
-            require(archive.length() == manifest.archiveBytes) { "Descarga incompleta del cerebro" }
-            require(sha256(archive) == manifest.archiveSha256) { "SHA-256 del paquete cerebral no coincide" }
+            runInterruptible {
+                LeoDownloadIntegrity.requireValidArchive(archive, manifest.archiveBytes, manifest.archiveSha256, ::sha256)
+            }
 
             val installing = File(storage.root, "${LeoBrainStorage.FROZEN_DIRECTORY}.installing")
             makeWritable(installing)
             installing.deleteRecursively()
             require(installing.mkdirs()) { "No se pudo preparar la instalación cerebral" }
             onProgress(Progress(Progress.State.INSTALLING, 0L, manifest.installedBytes, "Instalando cerebro congelado"))
-            unzipSafely(archive, installing, manifest.installedBytes, onProgress)
+            runInterruptible { unzipSafely(archive, installing, manifest.installedBytes, onProgress) }
 
             val candidate = File(installing, DATABASE_NAME)
             require(candidate.isFile && candidate.length() == manifest.installedBytes) { "Tamaño instalado del cerebro no coincide" }
-            require(sha256(candidate) == manifest.installedSha256) { "SHA-256 del cerebro instalado no coincide" }
+            require(runInterruptible { sha256(candidate) } == manifest.installedSha256) { "SHA-256 del cerebro instalado no coincide" }
             require(File(installing, INTERNAL_MANIFEST).isFile) { "Falta el manifiesto interno del cerebro" }
             require(File(installing, ATTRIBUTION_FILE).isFile) { "Falta la atribución del conocimiento" }
 
+            checkDownloadAllowed()
             File(installing, VALIDATED_MARKER).writeText("${manifest.version}|${manifest.installedSha256}")
             val finalDir = storage.frozen
             makeWritable(finalDir)
-            require(finalDir.deleteRecursively() || !finalDir.exists()) { "No se pudo reemplazar el cerebro anterior" }
-            require(installing.renameTo(finalDir)) { "No se pudo activar el cerebro congelado" }
+            LeoDirectoryActivation.activate(installing, finalDir)
             setFrozenReadOnly(finalDir)
             archive.delete()
 
@@ -128,7 +141,7 @@ class LeoFrozenBrainManager(context: Context) {
         var failure: Throwable? = null
         repeat(DOWNLOAD_ATTEMPTS) { attempt ->
             try {
-                downloadAttempt(manifest, output, onProgress)
+                runInterruptible { checkDownloadAllowed(); downloadAttempt(manifest, output, onProgress) }
                 return
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -164,6 +177,11 @@ class LeoFrozenBrainManager(context: Context) {
             connection.connect()
             val code = connection.responseCode
             require(code in 200..299) { "HTTP $code al descargar el cerebro" }
+            if (code == HttpURLConnection.HTTP_PARTIAL) {
+                require(LeoDownloadIntegrity.validPartialRange(connection.getHeaderField("Content-Range"), existing, manifest.archiveBytes)) {
+                    "El servidor devolvió un rango de descarga incorrecto"
+                }
+            }
             val append = existing > 0L && code == HttpURLConnection.HTTP_PARTIAL
             if (existing > 0L && !append) {
                 output.delete()
@@ -176,6 +194,7 @@ class LeoFrozenBrainManager(context: Context) {
                 FileOutputStream(output, append).buffered(BUFFER_BYTES).use { target ->
                     val buffer = ByteArray(BUFFER_BYTES)
                     while (true) {
+                        checkDownloadAllowed()
                         val count = input.read(buffer)
                         if (count < 0) break
                         target.write(buffer, 0, count)
@@ -216,6 +235,7 @@ class LeoFrozenBrainManager(context: Context) {
                     FileOutputStream(target).buffered(BUFFER_BYTES).use { out ->
                         val buffer = ByteArray(BUFFER_BYTES)
                         while (true) {
+                            checkDownloadAllowed()
                             val count = zip.read(buffer)
                             if (count < 0) break
                             out.write(buffer, 0, count)
@@ -243,11 +263,18 @@ class LeoFrozenBrainManager(context: Context) {
         directory.walkTopDown().forEach { file -> runCatching { file.setWritable(true, true) } }
     }
 
+    private fun checkDownloadAllowed() {
+        if (Thread.currentThread().isInterrupted || !LeoOfflineKnowledgeSettings.downloadAllowed(appContext)) {
+            throw CancellationException("Descarga opcional detenida")
+        }
+    }
+
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         FileInputStream(file).buffered(BUFFER_BYTES).use { input ->
             val buffer = ByteArray(BUFFER_BYTES)
             while (true) {
+                checkDownloadAllowed()
                 val count = input.read(buffer)
                 if (count < 0) break
                 digest.update(buffer, 0, count)
@@ -257,6 +284,7 @@ class LeoFrozenBrainManager(context: Context) {
     }
 
     companion object {
+        private val installMutex = Mutex()
         const val BRAIN_VERSION = "leo-brain-v1"
         const val DATABASE_NAME = "brain.sqlite"
         const val INTERNAL_MANIFEST = "brain-manifest.json"

@@ -41,7 +41,7 @@ class NikoLocalLlm(
         // so a first-run ~500 MB install never blocks wake word, STT or the first spoken reply.
         brainScope.launch {
             delay(FROZEN_BRAIN_START_DELAY_MS)
-            if (!closed) {
+            if (!closed && LeoOfflineKnowledgeSettings.downloadAllowed(appContext)) {
                 frozenManager.ensureInstalled { progress -> publishFrozenBrainProgress(progress) }
             }
         }
@@ -132,7 +132,7 @@ class NikoLocalLlm(
         frozenManager.isInstalled() ->
             "Mi MicroGPT y mi cerebro congelado local están disponibles. Para datos actuales uso búsqueda web cuando hacen falta."
         else ->
-            "Mi MicroGPT local ya funciona y mi cerebro congelado de 500 MB se instala en segundo plano. Para conocimiento que aún no tenga uso búsqueda web."
+            "La conversación breve local está disponible. El conocimiento offline es un paquete opcional en Ajustes; para datos actuales uso búsqueda web."
     }
 
     private companion object {

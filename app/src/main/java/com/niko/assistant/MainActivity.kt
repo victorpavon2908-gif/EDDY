@@ -221,6 +221,11 @@ class MainActivity : ComponentActivity() {
             )
             return
         }
+        if (!com.niko.assistant.localai.LeoOfflineKnowledgeSettings.downloadAllowed(applicationContext)) {
+            NikoRuntimeState.setBrainProgress(applicationContext, NikoRuntimeState.BrainState.WAITING,
+                "Conocimiento offline opcional. Podés descargarlo desde Ajustes; LEO funciona sin este paquete.")
+            return
+        }
         frozenBrainJob = lifecycleScope.launch {
             frozenBrainManager.ensureInstalled { progress ->
                 val state = when (progress.state) {

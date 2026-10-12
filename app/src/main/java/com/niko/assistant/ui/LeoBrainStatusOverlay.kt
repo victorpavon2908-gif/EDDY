@@ -42,7 +42,7 @@ internal fun LeoBrainStatusOverlay(
         else -> Color(0xFF79A7FF)
     }
     val title = when (state) {
-        BrainState.WAITING -> "CEREBRO LOCAL · PENDIENTE"
+        BrainState.WAITING -> "CONOCIMIENTO OFFLINE · OPCIONAL"
         BrainState.CHECKING -> "CEREBRO LOCAL · COMPROBANDO"
         BrainState.DOWNLOADING -> "CEREBRO LOCAL · DESCARGANDO $progress%"
         BrainState.VERIFYING -> "CEREBRO LOCAL · VERIFICANDO"
@@ -54,7 +54,7 @@ internal fun LeoBrainStatusOverlay(
         BrainState.DOWNLOADING -> transferText(downloadedBytes, totalBytes)
         BrainState.INSTALLING -> if (totalBytes > 0L) "${decimalMb(downloadedBytes)} / ${decimalMb(totalBytes)} MB instalados" else status
         BrainState.READY -> if (totalBytes > 0L) "${decimalMb(totalBytes)} MB instalados y disponibles sin Internet" else "Instalado y disponible sin Internet"
-        BrainState.ERROR -> status.ifBlank { "No se pudo instalar. Leo reintentará al volver a iniciar." }
+        BrainState.ERROR -> status.ifBlank { "No se pudo instalar. Podés reintentar desde Ajustes." }
         else -> status.ifBlank { "Preparando el conocimiento base de Leo" }
     }
 

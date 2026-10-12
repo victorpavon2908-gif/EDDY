@@ -331,4 +331,33 @@ class LeoNativeWebSearchTest {
         assertFalse(redirect.webUsed)
     }
 
+    @Test fun oneFailedProviderDoesNotDiscardWorkingSources() = runBlocking {
+        val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
+            when {
+                "duckduckgo" in url -> throw java.io.IOException("provider unavailable")
+                "bing.com" in url -> LeoNativeWebSearch.Fetch("<rss><channel><item><title>Panel solar</title><link>https://energy.example/panel</link><description>El panel solar transforma la luz en electricidad para alimentar equipos.</description></item></channel></rss>", url)
+                else -> LeoNativeWebSearch.Fetch("<p>El panel solar transforma la luz en electricidad para alimentar equipos.</p>", url)
+            }
+        }
+        assertTrue(reply.webUsed)
+        assertEquals("https://energy.example/panel", reply.sources.single().url)
+    }
+
+    @Test fun discoveredLinksWithoutAnAnswerAreNotLearnableResearch() = runBlocking {
+        val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
+            if ("bing.com" in url) LeoNativeWebSearch.Fetch("<rss><channel><item><title>Panel solar</title><link>https://energy.example/panel</link></item></channel></rss>", url) else null
+        }
+        assertFalse(reply.webUsed)
+        assertEquals(1, reply.sources.size)
+        assertTrue(reply.text.contains("no pude extraer"))
+    }
+
+    @Test fun networkFailureAdviceDistinguishesRateLimitsFromTimeouts() {
+        val rateLimited = LeoNativeWebSearch.failureMessage(listOf(LeoNativeWebSearch.FetchDiagnostic("search.example", 429, 0, null)))!!
+        assertTrue(rateLimited.contains("limitó"))
+        val timeout = LeoNativeWebSearch.failureMessage(listOf(LeoNativeWebSearch.FetchDiagnostic("search.example", null, 0, "SocketTimeoutException")))!!
+        assertTrue(timeout.contains("agotó el tiempo"))
+        assertEquals(null, LeoNativeWebSearch.failureMessage(emptyList()))
+    }
+
 }

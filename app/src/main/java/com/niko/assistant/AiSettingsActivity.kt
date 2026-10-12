@@ -147,13 +147,10 @@ private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> 
     var preparing by remember { mutableStateOf(false) }
     var modelStatus by remember { mutableStateOf("La conversación y la voz local se preparan una vez con conexión.") }
     val modelManager = remember { NikoModelManager(context) }
-    val deviceProfile = remember { NikoDeviceProfile.detect(context) }
-    val conversationModel = remember(deviceProfile) { NikoModelCatalog.recommendedConversationModel(deviceProfile) }
-    val conversationLabel = if (conversationModel == NikoModelCatalog.localLlmQuality) {
-        "Qwen2.5 1.5B INT8 · calidad local · aprox. 1.6 GB"
-    } else {
-        "Qwen2.5 0.5B INT8 · modo local ligero"
-    }
+    val offlineKnowledge = remember { com.niko.assistant.localai.LeoFrozenBrainManager(context) }
+    var offlineAllowed by remember { mutableStateOf(com.niko.assistant.localai.LeoOfflineKnowledgeSettings.downloadAllowed(context)) }
+    var offlineJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var offlineStatus by remember { mutableStateOf(if (offlineKnowledge.isInstalled()) "Paquete instalado y disponible sin Internet." else "Paquete opcional sin instalar.") }
 
     fun saveBehavior() = NikoAiSettings.saveBehavior(context, personality, localFirst, autoResearch, learning)
     fun prepareModel(spec: NikoModelSpec) {
@@ -291,8 +288,35 @@ private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> 
                 Switch(checked = learning, onCheckedChange = { learning = it; saveBehavior() })
             }
             Text("Cada actualización del clasificador se compara con ocho casos de regresión antes de guardarse. Decí «eso está mal», «eso me sirvió» o «qué aprendiste». Las respuestas web no se convierten automáticamente en hechos verificados. Borrar memoria elimina también este aprendizaje; no se reentrena el modelo generativo completo.", style = MaterialTheme.typography.bodySmall)
-            Text(conversationLabel, style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { prepareModel(conversationModel) }, enabled = !preparing) { Text("PREPARAR CONVERSACIÓN LOCAL") }
+            Text("Conversación breve local: MicroGPT incluido. El clasificador aprende intenciones; el modelo de lenguaje no se reentrena con cada pregunta.", style = MaterialTheme.typography.bodySmall)
+            Text("Conocimiento offline opcional", style = MaterialTheme.typography.titleMedium)
+            Text("Enciclopedia local: ocupa unos 500 MB una vez instalada. Al descargarla autorizás que se reanude cuando vuelvas a abrir LEO. Podés detenerla y conservar lo ya instalado.", style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = {
+                com.niko.assistant.localai.LeoOfflineKnowledgeSettings.allowDownload(context, true)
+                offlineAllowed = true
+                offlineStatus = "Preparando descarga…"
+                offlineJob = scope.launch {
+                    try {
+                        offlineKnowledge.ensureInstalled { progress ->
+                            scope.launch { offlineStatus = progress.message + if (progress.totalBytes > 0) " · ${progress.downloadedBytes / 1_000_000}/${progress.totalBytes / 1_000_000} MB" else "" }
+                        }
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                        offlineStatus = "Descarga detenida. Lo descargado permite reanudar más adelante."
+                        throw cancelled
+                    } catch (_: Exception) {
+                        offlineStatus = "No pude completar la descarga. Revisá conexión y almacenamiento y reintentá."
+                    } finally { offlineJob = null }
+                }
+            }, enabled = offlineJob == null) { Text("DESCARGAR O COMPROBAR PAQUETE OFFLINE") }
+            if (offlineAllowed) {
+                OutlinedButton(onClick = {
+                    com.niko.assistant.localai.LeoOfflineKnowledgeSettings.allowDownload(context, false)
+                    offlineAllowed = false
+                    offlineJob?.cancel()
+                    offlineStatus = "Descargas automáticas desactivadas. El conocimiento instalado se conserva."
+                }) { Text("DETENER Y NO REANUDAR AUTOMÁTICAMENTE") }
+            }
+            Text(offlineStatus, style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { prepareModel(NikoModelCatalog.spanishVoice) }, enabled = !preparing) { Text("PREPARAR VOZ LOCAL") }
             Text(modelStatus, style = MaterialTheme.typography.bodySmall)
             Text("Memoria semántica", style = MaterialTheme.typography.titleMedium)
@@ -314,7 +338,9 @@ private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> 
             Text(outputVoiceStatus, style = MaterialTheme.typography.bodySmall)
             Text("INVESTIGACIÓN WEB", style = MaterialTheme.typography.headlineMedium)
             Text("LEO busca y lee fuentes públicas sin clave de API. Las preguntas de conocimiento consultan Internet; la memoria personal y las acciones siguen en el teléfono.", style = MaterialTheme.typography.bodyMedium)
-            Text("Las respuestas incluyen fuentes. Si falta evidencia, LEO lo indica. Los ejemplos de código no se ejecutan automáticamente.", style = MaterialTheme.typography.bodySmall)
+            Text("Las respuestas web son extractivas y citan fuentes; pedir más profundidad amplía la evidencia, no garantiza exactitud. Si los buscadores fallan, podés proporcionar un enlace público. Los ejemplos de código no se ejecutan automáticamente.", style = MaterialTheme.typography.bodySmall)
+            Text("Tus datos", style = MaterialTheme.typography.titleMedium)
+            Text("Memoria y aprendizaje se guardan en el teléfono. Las consultas y enlaces de investigación se envían a los sitios públicos correspondientes. La voz principal usa el reconocedor de Android, cuyo procesamiento depende del proveedor; la escucha avanzada usa modelos locales. Decí «borrá tu memoria» para iniciar el borrado con confirmación.", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = onClose) { Text("CERRAR") }
         }
     }
