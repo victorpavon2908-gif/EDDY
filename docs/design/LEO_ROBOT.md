@@ -1,3 +1,5 @@
+> Histórico: sustituido por [el emblema proporcionado por el usuario](LEO_EMBLEM.md) el 2026-10-12. Los comandos de preparación GLB ya no aplican.
+
 # LEO 0.11 · Robot 3D
 
 LEO sustituye la N de la pantalla principal por un personaje articulado con superficies redondeadas, acabado perla, juntas de grafito y ojos turquesa. El modelo GLB y todos los movimientos están incluidos en la app: no requieren conexión ni descarga inicial.

@@ -1,4 +1,5 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M7,4Q3,4 3,8V17Q3,21 7,21H17Q21,21 21,17V8Q21,4 17,4ZM8,9A2,2 0,1 1,8,13A2,2 0,1 1,8,9ZM16,9A2,2 0,1 1,16,13A2,2 0,1 1,16,9ZM8,16H16V18H8Z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M11,1H13V5H11ZM0,9H2V16H0ZM22,9H24V16H22Z" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="360" android:viewportHeight="341">
+    <!-- Android notification icons use a monochrome silhouette. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M82,318V115C82,-20 286,-20 286,115H260C260,15 109,15 109,115V199H252V220H109V295H274V318Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="7" android:pathData="M125,118C125,82 172,82 172,118ZM196,118C196,82 244,82 244,118ZM149,144H219C219,197 149,197 149,144ZM139,219L183,270L225,219M183,270V298" />
 </vector>

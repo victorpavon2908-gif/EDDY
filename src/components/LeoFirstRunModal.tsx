@@ -16,7 +16,7 @@ export const LeoFirstRunModal: React.FC<LeoFirstRunModalProps> = ({ isOpen, onCo
         className="w-full max-w-sm rounded-3xl bg-[#0B111C] border border-white/10 shadow-2xl p-6 flex flex-col items-center text-center space-y-4"
       >
         <div className="w-16 h-16 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mb-1">
-          <img src="/leo_robot_portrait.png" alt="LEO" className="w-12 h-12 object-contain" />
+          <img src="/leo_emblem.webp" alt="LEO" className="w-12 h-12 object-contain" />
         </div>
 
         <h2 className="text-xl font-black tracking-wide text-white font-mono">

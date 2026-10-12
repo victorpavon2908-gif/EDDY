@@ -1,5 +1,7 @@
 # LEO · Android 0.14.0
 
+Identidad visual actual: [emblema negro proporcionado por el usuario](docs/design/LEO_EMBLEM.md), en sustitución del robot 3D.
+
 Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
 La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad para auditoría](docs/IDENTIDAD_LEO.md).
 

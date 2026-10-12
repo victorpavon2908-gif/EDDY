@@ -74,7 +74,6 @@ dependencies {
     // MediaPipe Tasks GenAI se retira del proceso principal: un SIGSEGV JNI no es recuperable
     // y LEO debe mantener voz/acciones/búsqueda estables en cualquier Android 12+.
     implementation("org.apache.commons:commons-compress:1.27.1")
-    implementation("io.github.sceneview:sceneview:2.3.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.13.0")
