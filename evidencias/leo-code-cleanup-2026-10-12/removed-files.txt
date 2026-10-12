@@ -6,6 +6,7 @@ app/src/main/java/com/niko/assistant/ui/NikoMiniControls.kt
 app/src/main/java/com/niko/assistant/voice/NikoNeuralTextToSpeech.kt
 app/src/main/java/com/niko/assistant/voice/ProgressiveSpeech.kt
 app/src/main/java/com/niko/assistant/voice/SpeechOutputPolicy.kt
+app/src/main/java/com/niko/assistant/voice/SpeechStartGate.kt
 app/src/main/res/drawable/ic_niko_mascot_pro.xml
 app/src/test/java/com/niko/assistant/ai/GroqConversation.kt
 app/src/test/java/com/niko/assistant/ai/GroqConversationTest.kt
@@ -25,4 +26,5 @@ app/src/test/java/com/niko/assistant/ai/ResearchSynthesisTest.kt
 app/src/test/java/com/niko/assistant/localai/LocalConversationPromptTest.kt
 app/src/test/java/com/niko/assistant/voice/ProgressiveSpeechTest.kt
 app/src/test/java/com/niko/assistant/voice/SpeechOutputPolicyTest.kt
+app/src/test/java/com/niko/assistant/voice/SpeechStartGateTest.kt
 scripts/test_streaming.sh

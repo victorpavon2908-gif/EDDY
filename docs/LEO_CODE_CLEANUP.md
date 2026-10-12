@@ -18,7 +18,7 @@ El análisis léxico de declaraciones y referencias señaló cinco archivos Kotl
 | ResearchQuality | Selector solo llamado desde su propio test; búsqueda activa usa otra política. |
 | Copias Groq/ResearchSynthesis dentro de tests y test_streaming.sh | Implementaciones históricas exclusivas del árbol de test; sin llamadas productivas. |
 | ProgressiveSpeech y conexiones nulas del servicio | No se construía ninguna instancia; el campo del servicio solo se asignaba a null. |
-| NikoNeuralTextToSpeech y SpeechOutputPolicy | Lazy nunca inicializado; no había llamada a speak ni selección del backend. La salida real ya era Android TTS. |
+| NikoNeuralTextToSpeech, SpeechOutputPolicy y SpeechStartGate | Lazy nunca inicializado; no había llamada a speak ni selección del backend. La salida real ya era Android TTS. |
 | Descarga Piper y botón para prepararla | Solo alimentaban el sintetizador inactivo. Modelos ya descargados permanecen en disco. |
 | Duplicación ensureRecommended/ensureAcousticCore | Ambas recorrían voiceCore con el mismo reintento y corte al fallar. Servicio usa ahora ensureAcousticCore. |
 | NikoMiniControls, colores sin consumidores, LeoTransformLauncher e icono mascot_pro | Sin referencias Compose, XML o búsquedas dinámicas observadas. Se conserva el botón de transformación activo. |
