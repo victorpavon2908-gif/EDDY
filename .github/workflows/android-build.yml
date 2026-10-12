@@ -33,7 +33,7 @@ jobs:
       - name: Prepare trained semantic model regression
         run: python scripts/prepare_semantic_test.py --destination "$RUNNER_TEMP/leo-semantic" --github-env "$GITHUB_ENV"
       - name: Native Kotlin tests and Android lint (no APK)
-        run: ./gradlew :app:externalNativeBuildDebug :app:testDebugUnitTest :app:lintDebug --stacktrace
+        run: ./gradlew :app:externalNativeBuildDebug :app:mergeDebugNativeLibs :app:testDebugUnitTest :app:lintDebug --stacktrace
       - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -42,4 +42,28 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore
+
+  native-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: sdkmanager "ndk;27.0.12077973" "cmake;3.22.1"
+      - name: Link all Android ABIs on Windows with spaces in paths (no APK)
+        shell: pwsh
+        run: python scripts/validate_android_native.py --sdk "$env:ANDROID_HOME" --work "$env:RUNNER_TEMP/LEO native validation"
+      - name: Native linker evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-validation
+          path: ${{ runner.temp }}/LEO native validation/*.log
           if-no-files-found: ignore

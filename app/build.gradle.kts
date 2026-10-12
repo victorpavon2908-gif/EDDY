@@ -19,6 +19,9 @@ android {
         versionCode = 40
         versionName = "0.14.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake { arguments += "-DANDROID_STL=c++_shared" }
+        }
 
         // LEO keeps the legacy namespace/application id so existing installs update in place.
         // No fijamos abiFilters: el APK empaqueta todas las ABI que expongan Sherpa y el
