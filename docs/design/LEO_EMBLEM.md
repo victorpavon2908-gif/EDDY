@@ -15,3 +15,9 @@ Comprobar identidad binaria de ambas copias respecto al archivo suministrado, li
 **PENDIENTE DE VALIDACIÓN FÍSICA:** pantalla principal, Música, burbuja, icono de launcher en HONOR, notificaciones, tamaño de pantalla, gesto interrumpido por escucha y actualización conservando datos. Sin nuevas mediciones de rendimiento físico. No se genera APK en esta entrega.
 
 Validación local ejecutada: `npm run lint`, 36 pruebas de `npm test` y `npm run build` aprobados. SHA-256 idéntico de la referencia y ambas copias: `ecf5bddbb0b2619babece2f0e2992345fcae59ab6fd9f45e746a86510b2a762b`.
+
+## Vista Android a pantalla completa
+
+LEO ocupa el contenedor completo sobre fondo blanco, sin la tarjeta oscura, el límite de 220 dp ni márgenes internos del emblema. La proporción de la imagen se conserva: no se estira ni recorta para llenar una pantalla alargada. Ajustes, estado y acceso a herramientas quedan superpuestos de forma compacta. «Conversación y controles» abre un panel desplazable con respuestas completas, fuentes, acciones rápidas y controles de voz existentes. Cerrar el panel devuelve la vista completa. Música conserva su disposición previa.
+
+El aviso persistente de conocimiento offline listo/opcional deja de tapar el inicio; sus controles siguen en Ajustes. Descargas, verificación, instalación y errores siguen mostrando su aviso. Revisión visual en teléfono: PENDIENTE DE VALIDACIÓN FÍSICA.

@@ -342,7 +342,8 @@ class MainActivity : ComponentActivity() {
                             webSources = snapshot.webSources,
                             onTools = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
                         )
-                        LeoBrainStatusOverlay(
+                        // Stable offline status is available in Settings; show only active work/errors here.
+                        if (snapshot.brainState !in setOf(NikoRuntimeState.BrainState.READY, NikoRuntimeState.BrainState.WAITING)) LeoBrainStatusOverlay(
                             state = snapshot.brainState,
                             progress = snapshot.brainProgress,
                             status = snapshot.brainStatus,

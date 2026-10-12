@@ -39,7 +39,7 @@ import kotlin.math.sin
 
 /** The supplied emblem is displayed unmodified; only explicit gestures move the whole image. */
 @Composable
-internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, enabled: Boolean = true) {
+internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, enabled: Boolean = true, immersive: Boolean = false) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val lifecycleState by lifecycle.currentStateAsState()
     val request by RobotMotionBus.requests.collectAsStateWithLifecycle()
@@ -97,13 +97,13 @@ internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, ena
             painter = painterResource(R.drawable.leo_emblem),
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().padding(vertical = 32.dp, horizontal = 24.dp)
+            modifier = Modifier.fillMaxSize().padding(vertical = if (immersive) 0.dp else 32.dp, horizontal = if (immersive) 0.dp else 24.dp)
                 .graphicsLayer { rotationZ = rotation; translationY = lift }
                 .clickable(enabled = enabled, onClickLabel = "Saludar con LEO") {
                     RobotMotionBus.perform(RobotMotion.WAVE)
                 },
         )
-        if (state == NikoVisualState.IDLE && enabled) Text(
+        if (!immersive && state == NikoVisualState.IDLE && enabled) Text(
             text = "Decí «Leo» y hablame normal",
             color = Color(0xFF7C8A85), fontSize = 11.sp,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp),

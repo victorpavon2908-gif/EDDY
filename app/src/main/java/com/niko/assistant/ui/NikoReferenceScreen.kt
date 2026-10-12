@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -78,7 +79,8 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 
-/** LEO: articulated companion, with conversation and controls below the stage. */
+/** Full-screen LEO with conversation and controls available on demand. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun NikoReferenceScreen(
     visualState: NikoVisualState,
@@ -94,23 +96,47 @@ internal fun NikoReferenceScreen(
     onTools: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    var controlsOpen by remember { mutableStateOf(false) }
     val displayState = if (visualState == NikoVisualState.LISTENING && inputState != InputState.READY) {
         NikoVisualState.IDLE
     } else visualState
-    val accent = stateAccent(displayState)
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF4F1EB)),
-    ) {
-
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        NikoHero(
+            state = displayState,
+            enabled = autoListeningEnabled,
+            immersive = true,
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
+        )
+        androidx.compose.material3.IconButton(
+            onClick = { context.startActivity(Intent(context, AiSettingsActivity::class.java)) },
+            modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp),
+        ) {
+            Icon(Icons.Rounded.Settings, contentDescription = "Ajustes", tint = Color(0xFF345B50))
+        }
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 10.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            LiveStateBadge(
+                state = displayState,
+                enabled = autoListeningEnabled,
+                inputState = inputState,
+                webSearching = webSearching,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                TextButton(onClick = { controlsOpen = true }) { Text("Conversación y controles") }
+                TextButton(onClick = onTools) { Text("Herramientas") }
+            }
+        }
+    }
+    if (controlsOpen) ModalBottomSheet(
+        onDismissRequest = { controlsOpen = false },
+        containerColor = Color(0xFFF4F1EB),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(.85f)
+                .verticalScroll(rememberScrollState()).navigationBarsPadding().padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             NikoTopBar(
@@ -118,71 +144,18 @@ internal fun NikoReferenceScreen(
                 autoListeningEnabled = autoListeningEnabled,
                 onSettings = { context.startActivity(Intent(context, AiSettingsActivity::class.java)) },
             )
-
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().height(minOf(260.dp, (maxHeight - 46.dp).coerceAtLeast(0.dp))),
-                    shape = RoundedCornerShape(28.dp),
-                    color = Color(0xFF192B27),
-                    border = BorderStroke(1.dp, Color(0xFF3D5147)),
-                    shadowElevation = 0.dp,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Canvas(Modifier.fillMaxSize()) {
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    listOf(Color(0xFFB7C8B2).copy(alpha = 0.16f), Color.Transparent),
-                                ),
-                                radius = size.minDimension * 0.48f,
-                            )
-                        }
-                        NikoHero(
-                            state = displayState,
-                            enabled = autoListeningEnabled,
-                            modifier = Modifier.size(220.dp).padding(12.dp),
-                        )
-                    }
-                }
-
-                LiveStateBadge(
-                    state = displayState,
-                    enabled = autoListeningEnabled,
-                    inputState = inputState,
-                    webSearching = webSearching,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 2.dp),
-                )
-            }
-
             ConversationGlass(
-                state = displayState,
-                heardText = heardText,
-                responseText = responseText,
-                webUsed = webUsed,
-                webSearching = webSearching,
-                sources = webSources,
+                state = displayState, heardText = heardText, responseText = responseText,
+                webUsed = webUsed, webSearching = webSearching, sources = webSources,
             )
-
             Spacer(Modifier.height(12.dp))
             QuickActionsRail()
             Spacer(Modifier.height(12.dp))
-
             PremiumBottomDock(
-                enabled = autoListeningEnabled,
-                inputState = inputState,
-                inputStatus = inputStatus,
-                voiceReady = voiceReady,
-                state = displayState,
-                onTools = onTools,
+                enabled = autoListeningEnabled, inputState = inputState, inputStatus = inputStatus,
+                voiceReady = voiceReady, state = displayState,
+                onTools = { controlsOpen = false; onTools() },
             )
-
-            Spacer(Modifier.height(4.dp))
         }
     }
 }
