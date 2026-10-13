@@ -11,6 +11,12 @@ data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
             return when {
                 Regex("\\b(?:mas despacio|habla lento|estoy triste|me siento mal|estoy preocupado|estoy preocupada)\\b").containsMatchIn(text) -> SpeechProsody(speed = 0.93f)
                 Regex("\\b(?:mas rapido|responde rapido|habla rapido|date prisa|apurate|no dilates|voz tarda)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.15f)
+                Regex("\\b(?:ponte serio|habla serio|modo serio|voz seria|sin bromas)\\b").containsMatchIn(text) -> SpeechProsody(speed = 0.96f, pitch = 0.89f)
+                Regex("\\b(?:ponte sarcastico|habla sarcastico|modo sarcasmo|burlate|haz una broma)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.10f, pitch = 0.96f)
+                Regex("\\b(?:alegrate|ponte feliz|habla alegre|emocionate|modo alegre|entusiasmado)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.14f, pitch = 1.02f)
+                Regex("\\b(?:asustate|ten miedo|voz de miedo|habla asustado)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.12f, pitch = 1.04f)
+                Regex("\\b(?:enojate|ponte enojado|habla enojado|modo enfadado)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.02f, pitch = 0.88f)
+                Regex("\\b(?:voz de sorpresa|sorprendete|ponte sorprendido)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.12f, pitch = 1.05f)
                 else -> SpeechProsody()
             }
         }
