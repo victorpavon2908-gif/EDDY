@@ -250,6 +250,9 @@ class LeoPlatformVoiceEngine(
                 onError("Android no pudo capturar audio del micrófono.")
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
                 onStatus("Reiniciando micrófono…")
+            SpeechRecognizer.ERROR_SERVER,
+            SpeechRecognizer.ERROR_CLIENT ->
+                onStatus("Servicio de voz no disponible · intentando recuperar…")
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
                 onStatus("El reconocimiento necesita conexión · reintentando")
@@ -274,6 +277,7 @@ class LeoPlatformVoiceEngine(
         }
         val usablePhrases = phrases.filterNot { LeoDuplexPolicy.isEcho(it, spokenReference) }
         if (usablePhrases.isEmpty()) {
+            // Even an empty/noisy session must reopen; never dispatch an empty command.
             startListening(90L)
             return
         }
@@ -304,7 +308,11 @@ class LeoPlatformVoiceEngine(
         }
 
         if (!wakeWasAlreadyHeard) notifyWakeForCurrentSession()
-        val inlineCommand = wake.orEmpty().trim()
+        // A partial "LEO" may be followed by a final recognition that contains only
+        // the command. Preserve it rather than leaving the assistant waiting forever.
+        val inlineCommand = (wake ?: if (wakeWasAlreadyHeard) {
+            usablePhrases.firstOrNull().orEmpty()
+        } else "").trim()
         if (inlineCommand.isNotBlank()) {
             onState(State.PROCESSING)
             onCommand(inlineCommand)
@@ -321,6 +329,7 @@ class LeoPlatformVoiceEngine(
     override fun onPartialResults(partialResults: Bundle?) {
         if (!running || destroyed) return
         val phrases = recognitionPhrases(partialResults)
+        if (phrases.isEmpty()) return
         val spokenReference = LeoRealtimeTurnBus.spokenReference()
         if (speaking || busy) {
             if (phrases.any { acceptInterruption(it) }) onStatus("Te escucho…")
