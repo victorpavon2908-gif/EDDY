@@ -89,10 +89,8 @@ internal fun LeoAnimatedFace(
                 if (shut) {
                     drawPath(Path().apply { moveTo(x - 19f, 112f); quadraticBezierTo(x, if (laughing) 92f else 114f, x + 19f, 110f) }, ink, style = line)
                 } else {
-                    val height = if (surprised) 42f else 30f
+                    val height = 30f // Keep the same hollow eye outline in every expression.
                     drawOval(ink, Offset(x - 20f, 113f - height), Size(40f, height), style = line)
-                    val gaze = if (state == NikoVisualState.THINKING) 7f else if (state == NikoVisualState.LISTENING) -3f else 0f
-                    drawCircle(ink, if (surprised) 6f else 5f, Offset(x + gaze, 101f))
                 }
                 if (wry || surprised || caring || state == NikoVisualState.THINKING) {
                     drawLine(ink, Offset(x - 18f, if (wry && i == 0) 70f else 77f), Offset(x + 18f, if (caring && i == 0) 68f else 72f), 5f, StrokeCap.Round)

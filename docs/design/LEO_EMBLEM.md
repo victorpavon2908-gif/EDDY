@@ -24,7 +24,7 @@ El aviso persistente de conocimiento offline listo/opcional deja de tapar el ini
 
 ## Expresiones Android — 2026-10-13
 
-IMPLEMENTADO: `LeoAnimatedFace` mantiene la silueta negra sobre blanco a pantalla completa, con ojos, pupilas, cejas y boca independientes. Parpadea y dirige la mirada según escucha/pensamiento. Mueve la boca durante el estado real SPEAKING y deja ese movimiento al salir del estado. Es un ritmo visual, **no sincronización por fonemas ni amplitud de audio**. No cambia el reconocedor ni el TTS.
+IMPLEMENTADO: `LeoAnimatedFace` mantiene la silueta negra sobre blanco a pantalla completa, con ojos huecos, cejas y boca independientes. Parpadea; los ojos abiertos conservan siempre el mismo contorno y tamaño, sin puntos ni pupilas interiores, por indicación del usuario. Mueve la boca durante el estado real SPEAKING y deja ese movimiento al salir del estado. Es un ritmo visual, **no sincronización por fonemas ni amplitud de audio**. No cambia el reconocedor ni el TTS.
 
 `LeoFaceMood` selecciona sonrisa, risa, mueca sarcástica, sorpresa o expresión seria a partir de órdenes explícitas y señales limitadas al principio de la respuesta. Ejemplos: «LEO, reíte», «sé sarcástico», «sorprendete». No reconoce emociones generales ni añade risa audible. Evita la mueca al detectar términos sensibles o pedidos de no bromear. Estas reglas son conservadoras, no una garantía de comprensión de todos los contextos.
 
