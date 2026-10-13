@@ -54,6 +54,9 @@ jobs:
       - name: Bundle offline wake, VAD and Spanish speech recognition
         run: python3 scripts/bundle_voice_models.py
 
+      - name: Bundle offline masculine Spanish TTS
+        run: python3 scripts/bundle_offline_tts.py
+
       - name: Build requested APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
