@@ -50,19 +50,23 @@ class LeoFrozenBrainManager(context: Context) {
         return value.startsWith("$BRAIN_VERSION|")
     }
 
+    fun installedRevision(): String = runCatching {
+        File(storage.frozen, VALIDATED_MARKER).readText().trim()
+    }.getOrDefault("")
+
     fun databaseFile(): File = File(storage.frozen, DATABASE_NAME)
 
-    suspend fun ensureInstalled(onProgress: (Progress) -> Unit = {}): Boolean = installMutex.withLock {
-        withContext(Dispatchers.IO) { install(onProgress) }
+    suspend fun ensureInstalled(checkForUpdates: Boolean = false, onProgress: (Progress) -> Unit = {}): Boolean = installMutex.withLock {
+        withContext(Dispatchers.IO) { install(checkForUpdates, onProgress) }
     }
 
-    private suspend fun install(onProgress: (Progress) -> Unit): Boolean {
+    private suspend fun install(checkForUpdates: Boolean, onProgress: (Progress) -> Unit): Boolean {
         onProgress(Progress(Progress.State.CHECKING, message = "Comprobando cerebro congelado"))
         runCatching { LeoDirectoryActivation.recover(storage.frozen) }.getOrElse {
             onProgress(Progress(Progress.State.FAILED, message = "No pude recuperar el paquete anterior; no se reemplazó"))
             return false
         }
-        if (isInstalled()) {
+        if (isInstalled() && !checkForUpdates) {
             onProgress(Progress(Progress.State.READY, message = "Cerebro congelado listo"))
             return true
         }
@@ -76,11 +80,16 @@ class LeoFrozenBrainManager(context: Context) {
                 "El cerebro congelado no respeta la cuota de 500 MB"
             }
             require(isSha256(manifest.archiveSha256) && isSha256(manifest.installedSha256)) { "Hashes inválidos" }
+            if (isInstalled() && installedRevision() == "${manifest.version}|${manifest.installedSha256}") {
+                onProgress(Progress(Progress.State.READY, message = "Ya tenés la última versión del conocimiento offline"))
+                return true
+            }
             require(storage.canInstallFrozen(manifest.archiveBytes, manifest.installedBytes)) {
                 "No hay espacio seguro suficiente para instalar el cerebro de Leo"
             }
 
             val archive = File(storage.downloads, "$ARCHIVE_NAME.part")
+            LeoFrozenUpdatePolicy.preparePartial(archive, manifest.archiveSha256)
             downloadArchive(manifest, archive, onProgress)
             onProgress(Progress(Progress.State.VERIFYING, archive.length(), manifest.archiveBytes, "Verificando paquete"))
             runInterruptible {
@@ -119,6 +128,8 @@ class LeoFrozenBrainManager(context: Context) {
 
     private fun fetchManifest(): ReleaseManifest {
         val connection = URL(MANIFEST_URL).openConnection() as HttpURLConnection
+        connection.useCaches = false
+        connection.setRequestProperty("Cache-Control", "no-cache")
         connection.instanceFollowRedirects = true
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS
@@ -166,6 +177,8 @@ class LeoFrozenBrainManager(context: Context) {
         if (existing == manifest.archiveBytes && existing > 0L) return
 
         val connection = URL(ARCHIVE_URL).openConnection() as HttpURLConnection
+        connection.useCaches = false
+        connection.setRequestProperty("Cache-Control", "no-cache")
         connection.instanceFollowRedirects = true
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS

@@ -22,8 +22,6 @@ import zipfile
 from pathlib import Path
 from typing import Iterable, Iterator
 
-import pyarrow.parquet as pq
-import requests
 
 VERSION = "leo-brain-v1"
 DATASET = "wikimedia/wikipedia"
@@ -89,6 +87,7 @@ def chunks(text: str, maximum: int = 11_500, overlap: int = 320) -> Iterator[str
 
 
 def download(url: str, destination: Path) -> None:
+    import requests
     destination.parent.mkdir(parents=True, exist_ok=True)
     partial = destination.with_suffix(destination.suffix + ".part")
     existing = partial.stat().st_size if partial.exists() else 0
@@ -138,6 +137,7 @@ def seed_records(seed_path: Path) -> Iterator[tuple[str, str, str, str]]:
 
 
 def wikipedia_records(parquet_path: Path) -> Iterator[tuple[str, str, str, str]]:
+    import pyarrow.parquet as pq
     parquet = pq.ParquetFile(parquet_path)
     for batch in parquet.iter_batches(batch_size=96, columns=["id", "url", "title", "text"]):
         data = batch.to_pydict()
@@ -277,7 +277,7 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
     # Verify that the frozen index actually answers representative offline queries.
     check = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
     try:
-        for query in ("Nicaragua", "inteligencia artificial", "sistema solar"):
+        for query in ("Nicaragua", "inteligencia artificial", "sistema solar", "gallo pinto", "depurar error", "promedio eficiencia", "actualizar offline"):
             row = check.execute(
                 "SELECT count(*) FROM articles_fts WHERE articles_fts MATCH ?",
                 (query,),
@@ -291,6 +291,8 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
     internal_manifest = {
         "schema": 1,
         "version": VERSION,
+        "curriculum_sha256": sha256(seed),
+        "build_commit": os.environ.get("GITHUB_SHA", "local"),
         "database": DATABASE_NAME,
         "installed_bytes": installed_bytes,
         "installed_sha256": database_sha,
@@ -328,6 +330,8 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
     external = {
         "schema": 1,
         "version": VERSION,
+        "curriculum_sha256": sha256(seed),
+        "build_commit": os.environ.get("GITHUB_SHA", "local"),
         "archive_name": ARCHIVE_NAME,
         "archive_bytes": archive.stat().st_size,
         "archive_sha256": sha256(archive),

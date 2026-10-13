@@ -3,7 +3,7 @@ name: Build Leo 500MB Frozen Brain
 on:
   workflow_dispatch:
   push:
-    branches: [leo-v2-staging]
+    branches: [main, leo-v2-staging]
     paths:
       - '.github/workflows/leo-frozen-brain.yml'
       - 'tools/build_leo_frozen_brain.py'
@@ -31,7 +31,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: pip
 
       - name: Install frozen-brain builder dependencies
         run: |
@@ -41,7 +40,7 @@ jobs:
       - name: Syntax-check brain builder
         run: python -m py_compile tools/build_leo_frozen_brain.py
 
-      - name: Build and train 500MB frozen retrieval brain
+      - name: Build 500MB frozen knowledge index
         run: |
           python tools/build_leo_frozen_brain.py \
             --output-dir build/leo-brain-v1 \

@@ -106,6 +106,16 @@ internal fun LeoAnimatedFace(
             // Rhythm follows speaking state, not phonemes or measured audio amplitude.
             val opening = if (speaking) 7f + abs(sin(elapsed * 13f)) * 25f else if (laughing) 29f + abs(sin(elapsed * 9f)) * 9f else 0f
             when {
+                speaking -> {
+                    // Preserve the reference smile; vary only its lower curve during speech.
+                    val depth = 8f + opening
+                    drawPath(Path().apply {
+                        moveTo(149f, 144f)
+                        lineTo(219f, 144f)
+                        cubicTo(219f, 144f + depth, 149f, 144f + depth, 149f, 144f)
+                        close()
+                    }, ink, style = line)
+                }
                 surprised -> drawOval(ink, Offset(170f, 140f), Size(27f, 35f + opening * .3f), style = line)
                 wry && !speaking -> drawPath(Path().apply { moveTo(154f, 158f); quadraticBezierTo(185f, 180f, 219f, 143f) }, ink, style = line)
                 caring && !speaking -> drawPath(Path().apply { moveTo(159f, 160f); quadraticBezierTo(184f, 154f, 210f, 160f) }, ink, style = line)

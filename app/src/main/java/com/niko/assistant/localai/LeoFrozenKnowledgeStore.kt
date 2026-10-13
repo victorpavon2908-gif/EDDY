@@ -23,12 +23,15 @@ class LeoFrozenKnowledgeStore(context: Context) : Closeable {
     private val manager = LeoFrozenBrainManager(appContext)
     @Volatile private var database: SQLiteDatabase? = null
     @Volatile private var permanentlyFailed = false
+    private var openedRevision = ""
 
-    val isAvailable: Boolean get() = !permanentlyFailed && manager.isInstalled()
+    val isAvailable: Boolean get() = manager.isInstalled() &&
+        (!permanentlyFailed || manager.installedRevision() != openedRevision)
 
     @Synchronized
     fun prewarm(): Boolean = openDatabase() != null
 
+    @Synchronized
     fun recall(message: String): Hit? {
         if (WebQueryRouter.needsCurrentInformation(message)) return null
         val terms = queryTerms(message)
@@ -72,6 +75,13 @@ class LeoFrozenKnowledgeStore(context: Context) : Closeable {
 
     @Synchronized
     private fun openDatabase(): SQLiteDatabase? {
+        val revision = manager.installedRevision()
+        if (revision.isNotEmpty() && revision != openedRevision) {
+            database?.close()
+            database = null
+            permanentlyFailed = false
+            openedRevision = revision
+        }
         database?.takeIf { it.isOpen }?.let { return it }
         if (permanentlyFailed || !manager.isInstalled()) return null
         val file = manager.databaseFile()
