@@ -106,6 +106,8 @@ internal fun NikoReferenceScreen(
             state = displayState,
             enabled = autoListeningEnabled,
             immersive = true,
+            heardText = heardText,
+            responseText = responseText,
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         )
         androidx.compose.material3.IconButton(

@@ -1,7 +1,6 @@
 package com.niko.assistant.ui
 
 import android.animation.ValueAnimator
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,9 +17,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -30,16 +27,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.niko.assistant.R
 import com.niko.assistant.ui.robot.RobotActivity
 import com.niko.assistant.ui.robot.RobotMotion
 import com.niko.assistant.ui.robot.RobotMotionBus
 import com.niko.assistant.ui.robot.RobotMotionDirector
 import kotlin.math.sin
 
-/** The supplied emblem is displayed unmodified; only explicit gestures move the whole image. */
+/** Animated interpretation of the supplied emblem, preserving body gestures and voice states. */
 @Composable
-internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, enabled: Boolean = true, immersive: Boolean = false) {
+internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, enabled: Boolean = true, immersive: Boolean = false, heardText: String = "", responseText: String = "") {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val lifecycleState by lifecycle.currentStateAsState()
     val request by RobotMotionBus.requests.collectAsStateWithLifecycle()
@@ -93,10 +89,8 @@ internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, ena
         lift = 0f
     }
     Box(modifier.semantics(mergeDescendants = true) { contentDescription = description }) {
-        Image(
-            painter = painterResource(R.drawable.leo_emblem),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
+        LeoAnimatedFace(
+            state = state, enabled = enabled, input = heardText, reply = responseText,
             modifier = Modifier.fillMaxSize().padding(vertical = if (immersive) 0.dp else 32.dp, horizontal = if (immersive) 0.dp else 24.dp)
                 .graphicsLayer { rotationZ = rotation; translationY = lift }
                 .clickable(enabled = enabled, onClickLabel = "Saludar con LEO") {
