@@ -84,13 +84,19 @@ internal fun LeoAnimatedFace(
             val wry = face == LeoFaceMood.WRY
             val caring = face == LeoFaceMood.CARING
             for (i in 0..1) {
-                val x = if (i == 0) 147f else 219f
+                val x = if (i == 0) 148.5f else 219.5f
                 val shut = blink || laughing || (wry && i == 1)
                 if (shut) {
                     drawPath(Path().apply { moveTo(x - 19f, 112f); quadraticBezierTo(x, if (laughing) 92f else 114f, x + 19f, 110f) }, ink, style = line)
                 } else {
-                    val height = 30f // Keep the same hollow eye outline in every expression.
-                    drawOval(ink, Offset(x - 20f, 113f - height), Size(40f, height), style = line)
+                    // Reference eyes: an upper arch closed by a straight horizontal base.
+                    // Keep this silhouette for every open-eye expression, without pupils.
+                    drawPath(Path().apply {
+                        moveTo(x - 23.5f, 117f)
+                        cubicTo(x - 23.5f, 102.64f, x - 12.98f, 91f, x, 91f)
+                        cubicTo(x + 12.98f, 91f, x + 23.5f, 102.64f, x + 23.5f, 117f)
+                        close()
+                    }, ink, style = line)
                 }
                 if (wry || surprised || caring || state == NikoVisualState.THINKING) {
                     drawLine(ink, Offset(x - 18f, if (wry && i == 0) 70f else 77f), Offset(x + 18f, if (caring && i == 0) 68f else 72f), 5f, StrokeCap.Round)
