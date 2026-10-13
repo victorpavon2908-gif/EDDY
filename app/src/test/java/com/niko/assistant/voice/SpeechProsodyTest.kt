@@ -4,6 +4,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechProsodyTest {
+    @Test fun offlineEmotionCommandsAdjustVoiceWithoutChangingTtsEngine() {
+        val base = SpeechProsody.forInput("hola Leo")
+        val serious = SpeechProsody.forInput("Leo ponte serio")
+        val playful = SpeechProsody.forInput("Leo ponte sarcástico")
+        val happy = SpeechProsody.forInput("Leo habla alegre")
+        val scared = SpeechProsody.forInput("Leo ten miedo")
+        val surprised = SpeechProsody.forInput("Leo sorpréndete")
+        assertTrue(serious.speed < base.speed)
+        assertTrue(serious.pitch < base.pitch)
+        assertTrue(playful.pitch > serious.pitch)
+        assertTrue(happy.speed > base.speed)
+        assertTrue(scared.pitch > base.pitch)
+        assertTrue(surprised.pitch > base.pitch)
+    }
+
+    @Test fun negatedDistressDoesNotTriggerSlowSadVoice() {
+        assertEquals(SpeechProsody(), SpeechProsody.forInput("Leo, no estoy triste"))
+    }
+
     @Test fun shortRepliesStayInOneFastBlock() {
         assertEquals(listOf("Listo. Ya abrí WhatsApp."), SpeechProsody.fastStartChunks("Listo. Ya abrí WhatsApp."))
     }
