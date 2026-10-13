@@ -117,6 +117,10 @@ internal class LeoBundledOfflineTts(
                             if (written <= 0) break
                             offset += written
                         }
+                        // Drain queued audio before releasing the track to avoid clipped endings.
+                        while (epoch.get() == request && player.playbackHeadPosition < offset) {
+                            Thread.sleep(15)
+                        }
                     } finally {
                         runCatching { player.stop() }
                         player.release()
