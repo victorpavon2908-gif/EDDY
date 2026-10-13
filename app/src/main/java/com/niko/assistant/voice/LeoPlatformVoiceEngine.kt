@@ -25,6 +25,7 @@ class LeoPlatformVoiceEngine(
     private val onStatus: (String) -> Unit = {},
     private val onError: (String) -> Unit = {},
     private val onFatal: (String) -> Unit = {},
+    private val onWakeOnly: () -> Unit = {},
 ) : RecognitionListener {
     enum class State { PASSIVE, ACTIVE, PROCESSING, SPEAKING, STOPPED }
 
@@ -302,6 +303,8 @@ class LeoPlatformVoiceEngine(
             onState(State.ACTIVE)
             onStatus("Te escucho…")
             startListening(130L)
+            // A final wake-only phrase gets an acknowledgement; partial/inline commands do not.
+            if (LeoWakeAcknowledgement.shouldSpeak(wake, interruptedGeneration == listenGeneration)) onWakeOnly()
         }
     }
 

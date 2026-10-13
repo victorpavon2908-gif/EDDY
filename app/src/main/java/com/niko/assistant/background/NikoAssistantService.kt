@@ -116,6 +116,7 @@ open class NikoAssistantService : Service() {
     private val memory by lazy(LazyThreadSafetyMode.NONE) { NikoMemory(applicationContext) }
     private val webClient by lazy(LazyThreadSafetyMode.NONE) { NikoAiClient(applicationContext) }
     private val generatedToolPlanner by lazy(LazyThreadSafetyMode.NONE) { GeneratedToolPlanner(applicationContext) }
+    private val playfulDialogue = com.niko.assistant.ai.LeoPlayfulDialogue()
     private val fallbackConversation by lazy(LazyThreadSafetyMode.NONE) { NikoFallbackConversation() }
     private val proactiveScheduler by lazy(LazyThreadSafetyMode.NONE) { NikoProactiveScheduler(applicationContext, memory) }
     private val modelManager by lazy(LazyThreadSafetyMode.NONE) { NikoModelManager(applicationContext) }
@@ -405,6 +406,12 @@ open class NikoAssistantService : Service() {
         val epoch = ++localVoiceEpoch
         val engine = LeoPlatformVoiceEngine(
             context = applicationContext,
+            onWakeOnly = { serviceScope.launch {
+                if (destroyed || epoch != localVoiceEpoch || isThinking || isSpeaking) return@launch
+                val response = playfulDialogue.greeting()
+                NikoRuntimeState.setResponse(applicationContext, response)
+                speakOnly(response, continueCommand = true)
+            }},
             onState = { state -> serviceScope.launch {
                 if (destroyed || epoch != localVoiceEpoch) return@launch
                 when (state) {
@@ -588,8 +595,9 @@ open class NikoAssistantService : Service() {
                 if (destroyed || epoch != localVoiceEpoch) return@launch
                 isTranscribing = false
                 if (!isThinking && !isSpeaking) {
-                    NikoRuntimeState.setResponse(applicationContext, prompt)
-                    speakOnly(prompt, continueCommand = retry)
+                    val response = if (prompt == "Ajá.") playfulDialogue.greeting() else prompt
+                    NikoRuntimeState.setResponse(applicationContext, response)
+                    speakOnly(response, continueCommand = retry)
                 }
             } },
             onCommand = { text -> serviceScope.launch {
@@ -818,6 +826,10 @@ open class NikoAssistantService : Service() {
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
+        playfulDialogue.reply(text)?.let { answer ->
+            speakResponse(answer)
+            return
+        }
         // Conversation repair precedes research and action routing; do not search vague requests.
         com.niko.assistant.ai.LeoDialoguePolicy.style(text)?.let { style ->
             withContext(Dispatchers.IO) { memory.setResponseStyle(style) }
@@ -1209,7 +1221,7 @@ open class NikoAssistantService : Service() {
     }
 
     private suspend fun dispatchDirectCommand(command: AssistantCommand): com.niko.assistant.skills.LeoSkillResult? = when (command) {
-        AssistantCommand.Greeting -> localResult("Aquí estoy. Decime.")
+        AssistantCommand.Greeting -> localResult(playfulDialogue.greeting())
         AssistantCommand.TellTime -> localResult("Son las ${SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-NI")).format(Date())}.")
         AssistantCommand.OpenCamera -> executor.openCamera().skillResult()
         AssistantCommand.MemorySummary -> localResult(withContext(Dispatchers.IO) { memory.describeLearnedPatterns() })

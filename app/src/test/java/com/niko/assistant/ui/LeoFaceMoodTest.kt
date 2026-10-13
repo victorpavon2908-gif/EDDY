@@ -13,6 +13,11 @@ class LeoFaceMoodTest {
         assertEquals(LeoFaceMood.FRIENDLY, LeoFaceMood.resolve("Leoriete", ""))
         assertEquals(LeoFaceMood.LAUGHING, LeoFaceMood.resolve("LEO: reíte", ""))
     }
+    @Test fun explicitFearAndSadnessArePerformances() {
+        assertEquals(LeoFaceMood.AFRAID, LeoFaceMood.resolve("Hacé cara de miedo", "Uy"))
+        assertEquals(LeoFaceMood.SAD, LeoFaceMood.resolve("Hacé cara triste", "Ahí va mi expresión triste."))
+        assertEquals(LeoFaceMood.ANGRY, LeoFaceMood.resolve("Hacé cara de enojo", ""))
+    }
     @Test fun neverMocksDistress() {
         assertEquals(LeoFaceMood.CARING, LeoFaceMood.resolve("Estoy triste, contame un chiste", "Jajaja"))
     }

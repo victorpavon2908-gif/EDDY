@@ -83,6 +83,9 @@ internal fun LeoAnimatedFace(
             val surprised = face == LeoFaceMood.SURPRISED
             val wry = face == LeoFaceMood.WRY
             val caring = face == LeoFaceMood.CARING
+            val afraid = face == LeoFaceMood.AFRAID
+            val angry = face == LeoFaceMood.ANGRY
+            val sad = face == LeoFaceMood.SAD
             for (i in 0..1) {
                 val x = if (i == 0) 148.5f else 219.5f
                 val shut = blink || laughing || (wry && i == 1)
@@ -98,7 +101,11 @@ internal fun LeoAnimatedFace(
                         close()
                     }, ink, style = line)
                 }
-                if (wry || surprised || caring || state == NikoVisualState.THINKING) {
+                if (angry || afraid || sad) {
+                    val inner = if (angry) 83f else 66f
+                    val outer = if (angry) 66f else 80f
+                    drawLine(ink, Offset(x - 18f, if (i == 0) outer else inner), Offset(x + 18f, if (i == 0) inner else outer), 5f, StrokeCap.Round)
+                } else if (wry || surprised || caring || state == NikoVisualState.THINKING) {
                     drawLine(ink, Offset(x - 18f, if (wry && i == 0) 70f else 77f), Offset(x + 18f, if (caring && i == 0) 68f else 72f), 5f, StrokeCap.Round)
                 }
             }
@@ -116,6 +123,13 @@ internal fun LeoAnimatedFace(
                         close()
                     }, ink, style = line)
                 }
+                afraid -> drawPath(Path().apply {
+                    moveTo(155f, 163f); lineTo(165f, 154f); lineTo(175f, 163f)
+                    lineTo(185f, 154f); lineTo(195f, 163f); lineTo(210f, 154f)
+                }, ink, style = line)
+                angry || sad -> drawPath(Path().apply {
+                    moveTo(156f, 167f); quadraticBezierTo(183f, if (sad) 139f else 153f, 211f, 167f)
+                }, ink, style = line)
                 surprised -> drawOval(ink, Offset(170f, 140f), Size(27f, 35f + opening * .3f), style = line)
                 wry && !speaking -> drawPath(Path().apply { moveTo(154f, 158f); quadraticBezierTo(185f, 180f, 219f, 143f) }, ink, style = line)
                 caring && !speaking -> drawPath(Path().apply { moveTo(159f, 160f); quadraticBezierTo(184f, 154f, 210f, 160f) }, ink, style = line)
