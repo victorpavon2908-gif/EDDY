@@ -134,6 +134,17 @@ class LeoPlatformDuplexTest {
         assertEquals(listOf("abrí cámara"), commands)
     }
 
+    @Test fun partialWakeWithFinalCommandWithoutWakeDoesNotLoseCommand() {
+        current().triggerOnPartialResults(phrase("Leo"))
+        current().triggerOnResults(phrase("encendé la linterna"))
+        assertEquals(listOf("encendé la linterna"), commands)
+    }
+
+    @Test fun emptyResultNeverDispatchesCommand() {
+        current().triggerOnResults(Bundle())
+        assertTrue(commands.isEmpty())
+    }
+
     @Test fun stopDiscardsLateResults() {
         val old = current()
         engine.stop()
