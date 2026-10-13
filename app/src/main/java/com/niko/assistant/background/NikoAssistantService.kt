@@ -818,6 +818,18 @@ open class NikoAssistantService : Service() {
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
+        // Conversation repair precedes research and action routing; do not search vague requests.
+        com.niko.assistant.ai.LeoDialoguePolicy.style(text)?.let { style ->
+            withContext(Dispatchers.IO) { memory.setResponseStyle(style) }
+            speakResponse(if (style == "brief") "De acuerdo, voy al punto. Guardé tu preferencia por respuestas cortas."
+                else "De acuerdo. Guardé tu preferencia por respuestas detalladas.")
+            return
+        }
+        com.niko.assistant.ai.LeoDialoguePolicy.clarification(text, agent.conversation.state.recentResult)?.let {
+            speakResponse(it)
+            return
+        }
+
 
         if (com.niko.assistant.devicecontrol.LeoVisionContext.isExplicitScreenRequest(text)) {
             agent.conversation.tool("screen_accessibility")
@@ -1285,7 +1297,9 @@ open class NikoAssistantService : Service() {
             .replace(Regex("\\s*\\[\\d+\\]"), "")
             .replace(Regex("\\s+"), " ")
             .trim()
-        speakOnly(spokenText.ifBlank { finalText })
+        val voiceStyle = withContext(Dispatchers.IO) { memory.responseStyle() }
+        agent.turns.checkpoint()
+        speakOnly(com.niko.assistant.ai.LeoDialoguePolicy.researchSpeech(spokenText.ifBlank { finalText }, voiceStyle))
         recordLearningReply(finalText)
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }
     }

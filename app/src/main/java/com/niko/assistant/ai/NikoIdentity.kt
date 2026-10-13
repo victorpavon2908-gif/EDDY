@@ -47,6 +47,10 @@ object NikoIdentity {
             question in setOf("como te llamas", "cual es tu nombre", "quien eres", "quien sos", "que eres", "que sos") ->
                 "Soy Leo, tu asistente personal. Decime qué necesitás."
 
+            question in setOf("que sabes hacer", "que saves hacer", "que podes hacer", "que puedes hacer",
+                "que podes hacer por mi", "en que me podes ayudar", "cuales son tus funciones", "cuales son tus capacidades") ->
+                "Puedo buscar información en Internet, hacer cálculos, guardar recuerdos y ayudarte con tareas del teléfono como abrir aplicaciones, linterna, volumen y alarmas. También tengo herramientas como calculadora, agenda y juegos compatibles. Algunas funciones requieren conexión o permisos. Si algo no está disponible, te lo diré; no puedo convertirme en cualquier aplicación."
+
             asksAboutDeveloper(question) ->
                 "Mi desarrollador es ${LeoBrand.DEVELOPER_NAME}. Él creó y dirige el proyecto Leo."
 

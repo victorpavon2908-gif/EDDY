@@ -38,6 +38,9 @@ class NikoMemory(context: Context) {
         if (cleaned.isBlank()) return
         appendTurn("user", cleaned)
         learnFacts(cleaned)
+        com.niko.assistant.ai.LeoDialoguePolicy.style(cleaned)?.let {
+            prefs.edit().putString("response_style_v1", it).apply()
+        }
         longTerm.observeUserTurn(cleaned)
         val count = prefs.getInt(KEY_TOTAL_INTERACTIONS, 0) + 1
         prefs.edit().putInt(KEY_TOTAL_INTERACTIONS, count).apply()
@@ -45,6 +48,13 @@ class NikoMemory(context: Context) {
             archive.pruneExpiredAndExcessive(maxTurns = 1_000)
         }
     }
+
+    fun setResponseStyle(style: String) {
+        require(style in setOf("brief", "detailed"))
+        prefs.edit().putString("response_style_v1", style).apply()
+    }
+
+    fun responseStyle(): String? = prefs.getString("response_style_v1", null)
 
     fun prune(maxTurns: Int = 1_000, now: Long = System.currentTimeMillis()) {
         archive.pruneExpiredAndExcessive(maxTurns, now)

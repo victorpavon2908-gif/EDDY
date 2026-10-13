@@ -6,7 +6,7 @@ import java.text.Normalizer
 import java.util.Locale
 
 class NikoFallbackConversation {
-    fun reply(input: String, memory: NikoMemory, connectionError: String? = null): String {
+    fun reply(input: String, memory: NikoMemory, @Suppress("UNUSED_PARAMETER") connectionError: String? = null): String {
         NikoMathEngine.solve(input)?.let { result ->
             return "El resultado es $result."
         }
@@ -36,7 +36,7 @@ class NikoFallbackConversation {
                 memory.describeLearnedPatterns()
 
             else ->
-                "${connectionError ?: "Pedime una pregunta concreta para investigarla en Internet."} Puedo seguir ayudándote con órdenes del teléfono y tu memoria personal."
+                LeoDialoguePolicy.fallback()
         }
     }
 

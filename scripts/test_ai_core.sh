@@ -21,6 +21,8 @@ leo_sources=(
     app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt
     app/src/main/java/com/niko/assistant/ai/LeoBrand.kt
     app/src/main/java/com/niko/assistant/ai/NikoIdentity.kt
+    app/src/main/java/com/niko/assistant/ai/LeoDialoguePolicy.kt
+    app/src/test/java/com/niko/assistant/ai/LeoDialoguePolicyTest.kt
     app/src/main/java/com/niko/assistant/ai/NikoPersonality.kt
     app/src/main/java/com/niko/assistant/ai/ConversationContext.kt
     app/src/main/java/com/niko/assistant/ai/ConversationCoordinator.kt
@@ -56,6 +58,7 @@ java -cp "$leo_kotlin_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
 java -cp "$leo_test_dir/tests.jar:$leo_classpath" org.junit.runner.JUnitCore \
     com.niko.assistant.ai.ConversationCoordinatorTest \
     com.niko.assistant.ai.NikoIdentityTest \
+    com.niko.assistant.ai.LeoDialoguePolicyTest \
     com.niko.assistant.ai.ConversationContextTest \
     com.niko.assistant.ai.LeoNativeWebSearchTest \
     com.niko.assistant.learning.AdaptiveLearningPolicyTest \
