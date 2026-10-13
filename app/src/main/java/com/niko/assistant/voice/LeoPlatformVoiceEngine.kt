@@ -250,6 +250,9 @@ class LeoPlatformVoiceEngine(
                 onError("Android no pudo capturar audio del micrófono.")
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
                 onStatus("Reiniciando micrófono…")
+            SpeechRecognizer.ERROR_SERVER,
+            SpeechRecognizer.ERROR_CLIENT ->
+                onStatus("Servicio de voz no disponible · intentando recuperar…")
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
                 onStatus("El reconocimiento necesita conexión · reintentando")
@@ -262,17 +265,28 @@ class LeoPlatformVoiceEngine(
         if (!running || destroyed) return
         sessionOpen = false
         val phrases = recognitionPhrases(results)
-        val first = phrases.firstOrNull().orEmpty()
+        val spokenReference = LeoRealtimeTurnBus.spokenReference()
+        // Android may rank a short/echo hypothesis above the actual wake phrase.
+        // Inspect all available alternatives before deciding to ignore the user.
         if (speaking || busy) {
-            if (!acceptInterruption(first)) { startListening(90L); return }
+            val interruption = phrases.firstOrNull { LeoDuplexPolicy.canInterrupt(it, spokenReference) }
+            if (interruption == null || !acceptInterruption(interruption)) {
+                startListening(90L)
+                return
+            }
         }
-        if (LeoDuplexPolicy.isEcho(first, LeoRealtimeTurnBus.spokenReference())) {
+        val usablePhrases = phrases.filterNot { LeoDuplexPolicy.isEcho(it, spokenReference) }
+        if (usablePhrases.isEmpty()) {
+            // Even an empty/noisy session must reopen; never dispatch an empty command.
             startListening(90L)
             return
         }
 
         if (awaitingCommand || interruptedGeneration == listenGeneration) {
-            val command = (extractWakeCommand(first) ?: first).trim()
+            val preferred = usablePhrases.firstOrNull { extractWakeCommand(it)?.isNotBlank() == true }
+                ?: usablePhrases.firstOrNull { extractWakeCommand(it) == null }
+                ?: usablePhrases.first()
+            val command = (extractWakeCommand(preferred) ?: preferred).trim()
             awaitingCommand = false
             if (command.isNotBlank()) {
                 onState(State.PROCESSING)
@@ -285,7 +299,7 @@ class LeoPlatformVoiceEngine(
             return
         }
 
-        val wake = phrases.asSequence().mapNotNull(::extractWakeCommand).firstOrNull()
+        val wake = usablePhrases.asSequence().mapNotNull(::extractWakeCommand).firstOrNull()
         val wakeWasAlreadyHeard = wakeNotifiedGeneration == listenGeneration
         if (wake == null && !wakeWasAlreadyHeard) {
             onState(State.PASSIVE)
@@ -294,7 +308,11 @@ class LeoPlatformVoiceEngine(
         }
 
         if (!wakeWasAlreadyHeard) notifyWakeForCurrentSession()
-        val inlineCommand = wake.orEmpty().trim()
+        // A partial "LEO" may be followed by a final recognition that contains only
+        // the command. Preserve it rather than leaving the assistant waiting forever.
+        val inlineCommand = (wake ?: if (wakeWasAlreadyHeard) {
+            usablePhrases.firstOrNull().orEmpty()
+        } else "").trim()
         if (inlineCommand.isNotBlank()) {
             onState(State.PROCESSING)
             onCommand(inlineCommand)
@@ -310,14 +328,16 @@ class LeoPlatformVoiceEngine(
 
     override fun onPartialResults(partialResults: Bundle?) {
         if (!running || destroyed) return
-        val first = recognitionPhrases(partialResults).firstOrNull().orEmpty()
+        val phrases = recognitionPhrases(partialResults)
+        if (phrases.isEmpty()) return
+        val spokenReference = LeoRealtimeTurnBus.spokenReference()
         if (speaking || busy) {
-            if (acceptInterruption(first)) onStatus("Te escucho…")
+            if (phrases.any { acceptInterruption(it) }) onStatus("Te escucho…")
             return
         }
-        if (awaitingCommand || LeoDuplexPolicy.isEcho(first, LeoRealtimeTurnBus.spokenReference())) return
-        val wake = recognitionPhrases(partialResults)
-            .asSequence()
+        if (awaitingCommand) return
+        val wake = phrases.asSequence()
+            .filterNot { LeoDuplexPolicy.isEcho(it, spokenReference) }
             .mapNotNull(::extractWakeCommand)
             .firstOrNull()
             ?: return
