@@ -102,6 +102,38 @@ class LeoPlatformDuplexTest {
         assertFalse(engine.isRunning)
         assertEquals(1, fatalErrors)
     }
+    @Test fun wakeFromSecondaryHypothesisStillTriggersCommand() {
+        val alternatives = Bundle().apply {
+            putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION,
+                arrayListOf("lo abre cámara", "Leo abrí cámara"))
+        }
+        current().triggerOnResults(alternatives)
+        assertEquals(listOf("abrí cámara"), commands)
+    }
+
+    @Test fun commandFromSecondaryHypothesisSurvivesWakeOnlyAlternative() {
+        current().triggerOnResults(phrase("Leo"))
+        idle()
+        val alternatives = Bundle().apply {
+            putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION,
+                arrayListOf("Leo", "Leo encendé la linterna"))
+        }
+        current().triggerOnResults(alternatives)
+        assertEquals(listOf("encendé la linterna"), commands)
+    }
+
+    @Test fun partialSecondaryHypothesisCanWakeLeo() {
+        val alternatives = Bundle().apply {
+            putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION,
+                arrayListOf("lo", "Leo"))
+        }
+        current().triggerOnPartialResults(alternatives)
+        current().triggerOnError(SpeechRecognizer.ERROR_NO_MATCH)
+        idle()
+        current().triggerOnResults(phrase("abrí cámara"))
+        assertEquals(listOf("abrí cámara"), commands)
+    }
+
     @Test fun stopDiscardsLateResults() {
         val old = current()
         engine.stop()
