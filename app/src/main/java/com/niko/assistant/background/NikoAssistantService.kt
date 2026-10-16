@@ -1001,9 +1001,10 @@ open class NikoAssistantService : Service() {
                     override suspend fun infer(): com.niko.assistant.ai.NikoAiReply? {
                         val config = withContext(Dispatchers.IO) { inferenceSettings.read() } ?: return null
                         agent.turns.checkpoint()
+                        if (!inferenceSettings.isCurrent(config)) return null
                         val answer = inferenceClient.reply(config.endpoint, config.model, config.key, text) ?: return null
                         agent.turns.checkpoint()
-                        if (!inferenceSettings.enabled || inferenceSettings.endpoint != config.endpoint || inferenceSettings.model != config.model) return null
+                        if (!inferenceSettings.isCurrent(config)) return null
                         val code = answer.contains("```")
                         return NikoAiReply(
                             if (code) "Código propuesto por el modelo configurado; no ejecutado en el teléfono.\n\n$answer" else answer,
@@ -1295,10 +1296,10 @@ open class NikoAssistantService : Service() {
                     if (config == null || !config.research) original else
                         com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(original, generate@{ evidence ->
                             agent.turns.checkpoint()
-                            if (!inferenceSettings.researchAllowed) return@generate null
+                            if (!inferenceSettings.researchAllowed || !inferenceSettings.isCurrent(config)) return@generate null
                             val result = inferenceClient.reply(config.endpoint, config.model, config.key, contextualQuery, evidence)
                             agent.turns.checkpoint()
-                            if (!inferenceSettings.researchAllowed || inferenceSettings.endpoint != config.endpoint || inferenceSettings.model != config.model) null else result
+                            if (!inferenceSettings.researchAllowed || !inferenceSettings.isCurrent(config)) null else result
                         })
                 }
             }

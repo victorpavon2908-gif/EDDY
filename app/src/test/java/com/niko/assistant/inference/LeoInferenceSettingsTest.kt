@@ -26,6 +26,15 @@ class LeoInferenceSettingsTest {
         settings().clear()
         assertEquals("", settings().endpoint)
     }
+    @Test fun reactivationCannotReviveAnOldAuthorization() {
+        settings().save("https://example.com/v1/chat/completions", "model", "", true, true)
+        val previous = settings().read()!!
+        assertTrue(settings().isCurrent(previous))
+        settings().clear()
+        settings().save("https://example.com/v1/chat/completions", "model", "", true, true)
+        assertFalse(settings().isCurrent(previous))
+        assertTrue(settings().isCurrent(settings().read()!!))
+    }
     @Test fun researchRequiresSeparateConsent() {
         settings().save("https://example.com/v1/chat/completions", "model", "", true)
         assertFalse(settings().read()!!.research)

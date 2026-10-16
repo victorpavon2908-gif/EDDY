@@ -13,7 +13,7 @@ import javax.crypto.spec.GCMParameterSpec
 /** Separate opt-in configuration; legacy cloud credential retirement cannot affect it. */
 class LeoInferenceSettings(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("leo_inference_v1", Context.MODE_PRIVATE)
-    data class Config(val endpoint: String, val model: String, val key: String, val research: Boolean = false) {
+    data class Config(val endpoint: String, val model: String, val key: String, val research: Boolean = false, val revision: String = "") {
         override fun toString() = "Config(model=$model, credential=redacted)"
     }
     val enabled: Boolean get() = prefs.getBoolean("consent", false)
@@ -21,17 +21,20 @@ class LeoInferenceSettings(context: Context) {
     val endpoint: String get() = prefs.getString("endpoint", "").orEmpty()
     val model: String get() = prefs.getString("model", "").orEmpty()
     fun read(): Config? {
-        if (!enabled) return null
+        val snapshot = prefs.all
+        if (snapshot["consent"] != true) return null
         return runCatching {
+            val endpoint = snapshot["endpoint"] as? String ?: return null
+            val model = snapshot["model"] as? String ?: return null
             LeoInferenceProtocol.endpoint(endpoint)
-            val encoded = prefs.getString("secret", "").orEmpty()
+            val encoded = snapshot["secret"] as? String ?: ""
             val secret = if (encoded.isBlank()) "" else {
                 val parts = encoded.split(':'); require(parts.size == 2)
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                 cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
                 String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
             }
-            Config(endpoint, model, secret, researchAllowed)
+            Config(endpoint, model, secret, snapshot["research_consent"] == true, snapshot["revision"] as? String ?: "")
         }.getOrNull()
     }
     fun save(endpoint: String, model: String, secret: String, consent: Boolean, researchConsent: Boolean = false) {
@@ -45,10 +48,14 @@ class LeoInferenceSettings(context: Context) {
                 Base64.encodeToString(cipher.doFinal(secret.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
         }
         check(prefs.edit().putString("endpoint", endpoint.trim()).putString("model", model.trim())
-            .putString("secret", encrypted).putBoolean("consent", consent).putBoolean("research_consent", consent && researchConsent).commit())
+            .putString("secret", encrypted).putBoolean("consent", consent).putBoolean("research_consent", consent && researchConsent).putString("revision", java.util.UUID.randomUUID().toString()).commit())
     }
-    fun disable() { check(prefs.edit().putBoolean("consent", false).commit()) }
-    fun clear() { check(prefs.edit().clear().commit()) }
+    fun isCurrent(config: Config): Boolean {
+        val snapshot = prefs.all
+        return snapshot["consent"] == true && (snapshot["revision"] as? String ?: "") == config.revision
+    }
+    fun disable() { check(prefs.edit().putBoolean("consent", false).putString("revision", java.util.UUID.randomUUID().toString()).commit()) }
+    fun clear() { check(prefs.edit().clear().putString("revision", java.util.UUID.randomUUID().toString()).commit()) }
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }

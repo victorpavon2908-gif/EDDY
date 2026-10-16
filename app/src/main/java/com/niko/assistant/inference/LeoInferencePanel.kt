@@ -57,7 +57,7 @@ fun LeoInferencePanel() {
             try {
                 val config = withContext(Dispatchers.IO) { settings.read() }
                 val answer = config?.let { client.reply(it.endpoint, it.model, it.key, "Respondé solamente: LEO conectado") }
-                status = if (answer == null) "No se obtuvo una respuesta válida. Revisá servidor, modelo y clave." else "Respuesta real del servidor: ${answer.take(180)}"
+                status = if (answer == null || config == null || !settings.isCurrent(config)) "No se obtuvo una respuesta válida. Revisá servidor, modelo y clave." else "Respuesta real del servidor: ${answer.take(180)}"
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             finally { busy = false }
         }

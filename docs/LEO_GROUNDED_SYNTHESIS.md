@@ -36,7 +36,7 @@ contrastar fuentes primarias. Los tests de contrato no califican la capacidad de
 No se configuró un proveedor real ni se midió la calidad de síntesis en esta sesión.
 
 La respuesta se genera sin streaming. Se mantienen los límites y cancelación del cliente,
-y se agrega un límite solicitado de 4096 tokens de salida. La compatibilidad de ese parámetro
+y se agrega un límite solicitado de 4096 tokens de salida solo para síntesis. La compatibilidad de ese parámetro
 debe verificarse con el proveedor elegido; un rechazo conserva la búsqueda local.
 
 ## Memoria personal conectada
@@ -60,3 +60,6 @@ PENDIENTE DE VALIDACIÓN CON PROVEEDOR: síntesis generativa real, calidad y lat
 PENDIENTE DE VALIDACIÓN FÍSICA: voz/micrófono/avatar, batería, memoria y temperatura.
 Continúan pendientes el modelo emocional contextual avanzado y la actualización firmada de
 modelos con versiones seleccionables. Esta integración no representa un «100/100» global.
+
+Cada cambio de autorización genera una revisión nueva. Leer la configuración usa un snapshot;
+las respuestas de una revisión anterior se descartan aunque se reactive el mismo servidor.

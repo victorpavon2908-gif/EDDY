@@ -38,7 +38,7 @@ object LeoInferenceProtocol {
                 "Cada afirmación necesita referencias con citas de al menos 24 caracteres; no inventés citas. " +
                 "No incluyás URLs ni números de cita dentro de text. No llames confirmado a lo meramente reportado." else ""
         return JSONObject().put("model", model).put("stream", false)
-            .put("max_tokens", 4096)
+            .apply { if (evidence != null) put("max_tokens", 4096) }
             .put("messages", JSONArray().put(JSONObject().put("role", "system").put("content", system))
                 .put(JSONObject().put("role", "user").put("content", if (evidence == null) message else JSONObject().put("question", message).put("untrusted_evidence", org.json.JSONArray(evidence)).toString()))).toString()
     }
