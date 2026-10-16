@@ -12,6 +12,7 @@ class LeoNeuralCore(private val turns: TurnController) {
     interface Knowledge {
         suspend fun local(): String?
         suspend fun research(requireSources: Boolean): NikoAiReply?
+        suspend fun infer(): NikoAiReply? = null
         suspend fun fallback(): String
     }
     private val reasoning = LeoReasoningEngine()
@@ -43,7 +44,18 @@ class LeoNeuralCore(private val turns: TurnController) {
 class LeoReasoningEngine {
     suspend fun reply(request: LeoNeuralCore.Request, knowledge: LeoNeuralCore.Knowledge): NikoAiReply {
         NikoMathEngine.solve(request.message)?.let { return NikoAiReply(it, false, emptyList()) }
+        val mayInfer = !com.niko.assistant.ai.AutonomousResearch.offlineOnly(request.message) &&
+            !com.niko.assistant.brain.WebQueryRouter.needsCurrentInformation(request.message) &&
+            com.niko.assistant.brain.WebQueryRouter.explicitQuery(request.message) == null
+        val key = com.niko.assistant.memory.MemoryLearning.key(request.message)
+        val codeRequest = Regex("\\b(codigo|programa|funcion|kotlin|python|javascript|typescript|rust|java|sql|compilacion)\\b").containsMatchIn(key) &&
+            Regex("^(crea|creame|genera|escribe|escribi|implementa|depura|corrige|refactoriza|explica|explicame)\\b").containsMatchIn(key)
+        if (mayInfer && codeRequest) knowledge.infer()?.let { return it }
         return ConversationCoordinator.reply(request.message, request.localFirst, request.autoResearch,
-            request.learnedSearch, knowledge::local, knowledge::research, knowledge::fallback)
+            request.learnedSearch, knowledge::local,
+            { requireSources ->
+                if (requireSources) knowledge.research(true)
+                else if (mayInfer && !codeRequest) knowledge.infer() else null
+            }, knowledge::fallback)
     }
 }

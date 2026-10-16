@@ -1,0 +1,35 @@
+package com.niko.assistant.inference
+
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.Before
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [29], manifest = Config.NONE)
+class LeoInferenceSettingsTest {
+    private fun settings() = LeoInferenceSettings(RuntimeEnvironment.getApplication())
+    @Before fun reset() { settings().clear() }
+    @Test fun doesNotEnableItselfAndRequiresConsent() {
+        assertNull(settings().read())
+        settings().save("https://example.com/v1/chat/completions", "model", "", false)
+        assertNull(settings().read())
+    }
+    @Test fun consentPersistsAndRevocationStopsAccess() {
+        settings().save("https://example.com/v1/chat/completions", "model", "", true)
+        assertEquals("model", settings().read()!!.model)
+        settings().disable()
+        assertNull(settings().read())
+        settings().clear()
+        assertEquals("", settings().endpoint)
+    }
+    @Test fun invalidConfigurationCannotReplaceExistingOne() {
+        settings().save("https://example.com/v1/chat/completions", "model", "", true)
+        assertTrue(runCatching { settings().save("http://example.com", "other", "secret", true) }.isFailure)
+        assertEquals("model", settings().read()!!.model)
+        assertFalse(LeoInferenceSettings.Config("https://example.com", "model", "private-key").toString().contains("private-key"))
+    }
+}

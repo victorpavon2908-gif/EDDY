@@ -87,3 +87,10 @@ con exportación/edición; gestor firmado de modelos con evaluación y rollback 
 No hay entrenamiento continuo del decoder ni automodificación autónoma del APK.
 Esta entrega es una migración funcional inicial, no el cumplimiento total de los cinco
 subsistemas avanzados solicitados. Las mejoras de voz previas se conservan.
+
+## Continuación: proveedor de inferencia opcional
+
+Implementado un cliente configurable con consentimiento, Keystore, pruebas de contrato,
+selección desde el núcleo y cancelación. Ver [inferencias y límites](LEO_OPTIONAL_INFERENCE.md).
+La generación amplia requiere configurar un servidor real; no se afirma que haya un
+modelo general nuevo dentro del APK ni se certifica su calidad con fixtures HTTP.

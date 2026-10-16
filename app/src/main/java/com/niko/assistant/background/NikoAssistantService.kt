@@ -174,6 +174,8 @@ open class NikoAssistantService : Service() {
     private var commandJob: Job? = null
     private val agent = com.niko.assistant.agent.LeoAgentRuntime()
     private val emotionEngine by lazy { com.niko.assistant.cognitive.LeoEmotionEngine(playfulDialogue) }
+    private val inferenceSettings by lazy { com.niko.assistant.inference.LeoInferenceSettings(applicationContext) }
+    private val inferenceClient = com.niko.assistant.inference.LeoInferenceClient()
     private val neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
     private val taskExecutor = com.niko.assistant.agent.LeoTaskExecutor()
     private val skillRegistry by lazy {
@@ -315,6 +317,7 @@ open class NikoAssistantService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        inferenceClient.close()
         destroyed = true
         CaptureGate.pauseVoice = null
         CaptureGate.resumeVoice = null
@@ -994,6 +997,19 @@ open class NikoAssistantService : Service() {
                     override suspend fun local(): String? {
                         val context = kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
                         return localLlm.reply(text, agent.conversation.context() + "\n" + context)
+                    }
+                    override suspend fun infer(): com.niko.assistant.ai.NikoAiReply? {
+                        val config = withContext(Dispatchers.IO) { inferenceSettings.read() } ?: return null
+                        agent.turns.checkpoint()
+                        val answer = inferenceClient.reply(config.endpoint, config.model, config.key, text) ?: return null
+                        agent.turns.checkpoint()
+                        if (!inferenceSettings.enabled || inferenceSettings.endpoint != config.endpoint || inferenceSettings.model != config.model) return null
+                        val code = answer.contains("```")
+                        return NikoAiReply(
+                            if (code) "Código propuesto por el modelo configurado; no ejecutado en el teléfono.\n\n$answer" else answer,
+                            false, emptyList(),
+                            spokenText = if (code) "Preparé una propuesta de código en la respuesta. No la ejecuté ni compilé en tu teléfono." else null,
+                        )
                     }
                     override suspend fun research(requireSources: Boolean): com.niko.assistant.ai.NikoAiReply? =
                         if (requireSources) researchReply(text) else null

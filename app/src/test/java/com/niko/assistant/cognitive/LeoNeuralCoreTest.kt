@@ -13,6 +13,28 @@ class LeoNeuralCoreTest {
         override suspend fun research(requireSources: Boolean): NikoAiReply? = null
         override suspend fun fallback() = "Sin respuesta verificada"
     }
+    @Test fun codeUsesConfiguredInferenceButOfflineDoesNot() = runBlocking {
+        var calls = 0
+        val knowledge = object : Knowledge() {
+            override suspend fun infer(): NikoAiReply { calls++; return NikoAiReply("código propuesto", false, emptyList()) }
+        }
+        val core = LeoNeuralCore(TurnController())
+        assertEquals("código propuesto", core.reply(request("escribe una función en Rust"), knowledge).text)
+        core.reply(request("escribe una función en Rust sin internet"), knowledge)
+        assertEquals(1, calls)
+    }
+    @Test fun currentInformationStillRequiresRetrievedSources() = runBlocking {
+        var searched = false
+        val knowledge = object : Knowledge() {
+            override suspend fun infer(): NikoAiReply? = error("Current facts must not be invented by inference")
+            override suspend fun research(requireSources: Boolean): NikoAiReply {
+                assertTrue(requireSources); searched = true
+                return NikoAiReply("fuente recuperada", true, emptyList())
+            }
+        }
+        LeoNeuralCore(TurnController()).reply(LeoNeuralCore.Request("busca noticias de hoy", true, true, false), knowledge)
+        assertTrue(searched)
+    }
     @Test fun arithmeticIsVerifiedWithoutNetwork() = runBlocking {
         val core = LeoNeuralCore(TurnController())
         assertEquals("42", core.reply(request("6 * 7"), object : Knowledge() {
