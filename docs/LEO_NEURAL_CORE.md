@@ -94,3 +94,9 @@ Implementado un cliente configurable con consentimiento, Keystore, pruebas de co
 selección desde el núcleo y cancelación. Ver [inferencias y límites](LEO_OPTIONAL_INFERENCE.md).
 La generación amplia requiere configurar un servidor real; no se afirma que haya un
 modelo general nuevo dentro del APK ni se certifica su calidad con fixtures HTTP.
+
+## Integración de investigación y preferencias
+
+[Investigación con citas comprobadas y preferencias actuales](LEO_GROUNDED_SYNTHESIS.md):
+la síntesis generativa opcional ya se conecta a las páginas recuperadas. La calidad del modelo
+y el rendimiento físico siguen sin certificarse. Se ampliaron correcciones y sugerencias locales.

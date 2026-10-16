@@ -26,6 +26,14 @@ class LeoInferenceSettingsTest {
         settings().clear()
         assertEquals("", settings().endpoint)
     }
+    @Test fun researchRequiresSeparateConsent() {
+        settings().save("https://example.com/v1/chat/completions", "model", "", true)
+        assertFalse(settings().read()!!.research)
+        settings().save("https://example.com/v1/chat/completions", "model", "", true, true)
+        assertTrue(settings().read()!!.research)
+        settings().disable()
+        assertFalse(settings().researchAllowed)
+    }
     @Test fun invalidConfigurationCannotReplaceExistingOne() {
         settings().save("https://example.com/v1/chat/completions", "model", "", true)
         assertTrue(runCatching { settings().save("http://example.com", "other", "secret", true) }.isFailure)

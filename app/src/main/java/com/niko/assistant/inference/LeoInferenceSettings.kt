@@ -13,10 +13,11 @@ import javax.crypto.spec.GCMParameterSpec
 /** Separate opt-in configuration; legacy cloud credential retirement cannot affect it. */
 class LeoInferenceSettings(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("leo_inference_v1", Context.MODE_PRIVATE)
-    data class Config(val endpoint: String, val model: String, val key: String) {
+    data class Config(val endpoint: String, val model: String, val key: String, val research: Boolean = false) {
         override fun toString() = "Config(model=$model, credential=redacted)"
     }
     val enabled: Boolean get() = prefs.getBoolean("consent", false)
+    val researchAllowed: Boolean get() = enabled && prefs.getBoolean("research_consent", false)
     val endpoint: String get() = prefs.getString("endpoint", "").orEmpty()
     val model: String get() = prefs.getString("model", "").orEmpty()
     fun read(): Config? {
@@ -30,10 +31,10 @@ class LeoInferenceSettings(context: Context) {
                 cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
                 String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
             }
-            Config(endpoint, model, secret)
+            Config(endpoint, model, secret, researchAllowed)
         }.getOrNull()
     }
-    fun save(endpoint: String, model: String, secret: String, consent: Boolean) {
+    fun save(endpoint: String, model: String, secret: String, consent: Boolean, researchConsent: Boolean = false) {
         LeoInferenceProtocol.endpoint(endpoint)
         require(model.isNotBlank() && model.length <= 160)
         require(secret.length <= 4096 && secret.none { it.isISOControl() })
@@ -44,7 +45,7 @@ class LeoInferenceSettings(context: Context) {
                 Base64.encodeToString(cipher.doFinal(secret.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
         }
         check(prefs.edit().putString("endpoint", endpoint.trim()).putString("model", model.trim())
-            .putString("secret", encrypted).putBoolean("consent", consent).commit())
+            .putString("secret", encrypted).putBoolean("consent", consent).putBoolean("research_consent", consent && researchConsent).commit())
     }
     fun disable() { check(prefs.edit().putBoolean("consent", false).commit()) }
     fun clear() { check(prefs.edit().clear().commit()) }

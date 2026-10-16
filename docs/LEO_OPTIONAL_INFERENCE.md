@@ -58,7 +58,14 @@ razonamiento, compilación del código generado por un LLM y latencia real de es
 durante llamadas, Bluetooth o pantalla bloqueada: **PENDIENTE DE VALIDACIÓN FÍSICA**.
 No se afirma entrenamiento adicional del decoder ni automodificación del APK.
 
-La síntesis remota de investigación, el modelo emocional contextual avanzado y la
-actualización firmada/rollback seleccionable de modelos siguen siendo trabajo pendiente.
+El modelo emocional contextual avanzado y la actualización firmada/rollback seleccionable
+de modelos siguen siendo trabajo pendiente. La síntesis remota se integró posteriormente
+con consentimiento separado y controles de citas; ver la actualización al final.
 Esta incorporación resuelve el acceso configurable a inferencia; no convierte por sí
 sola a todos los subsistemas en capacidades verificadas de nivel profesional.
+
+## Actualización: síntesis con extractos
+
+La síntesis de investigación ya está conectada de manera opcional y requiere consentimiento
+adicional. Ver [contrato, pruebas y límites](LEO_GROUNDED_SYNTHESIS.md). La prueba de conexión
+sigue enviando únicamente su pregunta de comprobación, sin extractos ni recuerdos.

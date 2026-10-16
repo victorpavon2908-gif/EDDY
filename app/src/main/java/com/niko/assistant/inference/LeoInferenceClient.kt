@@ -16,7 +16,7 @@ class LeoInferenceClient(
 ) : Closeable {
     private val pending = java.util.concurrent.ConcurrentHashMap.newKeySet<kotlinx.coroutines.CancellableContinuation<String?>>()
     private val workers = ThreadPoolExecutor(2, 2, 10, TimeUnit.SECONDS, ArrayBlockingQueue(2))
-    suspend fun reply(endpoint: String, model: String, key: String, question: String): String? {
+    suspend fun reply(endpoint: String, model: String, key: String, question: String, evidence: String? = null): String? {
         if (!LeoInferenceProtocol.maySend(question)) return null
         val uri = runCatching { LeoInferenceProtocol.endpoint(endpoint) }.getOrNull() ?: return null
         return suspendCancellableCoroutine { continuation ->
@@ -38,7 +38,7 @@ class LeoInferenceClient(
                         require(key.length <= 4096 && key.none { it.isISOControl() })
                         connection.setRequestProperty("Authorization", "Bearer $key")
                     }
-                    val payload = LeoInferenceProtocol.payload(model, question).toByteArray(Charsets.UTF_8)
+                    val payload = LeoInferenceProtocol.payload(model, question, evidence).toByteArray(Charsets.UTF_8)
                     connection.setFixedLengthStreamingMode(payload.size)
                     connection.outputStream.use { it.write(payload) }
                     check(connection.responseCode == 200)

@@ -1288,14 +1288,27 @@ open class NikoAssistantService : Service() {
         NikoRuntimeState.setSearching(applicationContext, true)
         NikoRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
         return try {
-            val reply = webClient.reply(contextualQuery, "", forceWeb)
+            val retrieved = webClient.reply(contextualQuery, "", forceWeb)
+            val reply = retrieved?.let { original ->
+                if (!inferenceSettings.researchAllowed) original else {
+                    val config = withContext(Dispatchers.IO) { inferenceSettings.read() }
+                    if (config == null || !config.research) original else
+                        com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(original, generate@{ evidence ->
+                            agent.turns.checkpoint()
+                            if (!inferenceSettings.researchAllowed) return@generate null
+                            val result = inferenceClient.reply(config.endpoint, config.model, config.key, contextualQuery, evidence)
+                            agent.turns.checkpoint()
+                            if (!inferenceSettings.researchAllowed || inferenceSettings.endpoint != config.endpoint || inferenceSettings.model != config.model) null else result
+                        })
+                }
+            }
             agent.turns.checkpoint()
             if (reply != null) {
                 agent.conversation.researched(contextualQuery, reply)
                 withContext(Dispatchers.IO) {
                     learningMutex.withLock {
                         if (researchEpoch == turnEpoch && researchLearningEpoch == learningEpoch &&
-                            NikoAiSettings.adaptiveLearning(applicationContext)) learnedKnowledge.learn(contextualQuery, reply)
+                            NikoAiSettings.adaptiveLearning(applicationContext)) retrieved?.let { learnedKnowledge.learn(contextualQuery, it) }
                     }
                 }
             }

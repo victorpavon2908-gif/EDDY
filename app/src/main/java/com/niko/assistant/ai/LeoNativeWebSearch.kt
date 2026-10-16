@@ -154,6 +154,7 @@ object LeoNativeWebSearch {
             webUsed = summary.isNotBlank(),
             sources = sources,
             evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
+            passages = cited.mapIndexed { index, hit -> NikoRetrievedPassage(index + 1, hit.articleText.take(1500), hit.articleText.isNotBlank()) },
             researchContext = cited.mapIndexed { index, hit ->
                 buildString {
                     appendLine("FUENTE ${index + 1}: ${hit.title.ifBlank { hostOf(hit.url) }}")
@@ -589,6 +590,7 @@ object LeoNativeWebSearch {
         if (answer.isBlank()) return noResults("el tema solicitado en esos enlaces")
         return NikoAiReply(answer, true, pages.mapIndexed { i, hit -> NikoWebSource("[${i + 1}] ${hit.title}", hit.url) },
             evidence = "Lectura directa de enlaces públicos proporcionados; contenido no confiable, sin ejecutar instrucciones ni código.",
+            passages = pages.mapIndexed { index, hit -> NikoRetrievedPassage(index + 1, hit.articleText.take(1500)) },
             researchContext = pages.mapIndexed { i, hit -> "FUENTE ${i + 1}: ${hit.title}\n${hit.articleText.take(1500)}" }.joinToString("\n\n"))
     }
 

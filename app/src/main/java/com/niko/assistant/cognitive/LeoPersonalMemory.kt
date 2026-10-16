@@ -18,13 +18,33 @@ class LeoPersonalMemory(private val store: Store) {
             return if (facts.isEmpty()) "Todavía no guardaste preferencias de comida, bebida, música o lugares."
                 else facts.joinToString("\n")
         }
+        val recommendation = when (text) {
+            "que me recomendas comer", "que me recomiendas comer", "que comemos hoy", "que puedo comer" -> "food"
+            "que me recomendas beber", "que me recomiendas beber", "que puedo beber" -> "drink"
+            else -> null
+        }
+        if (recommendation != null) {
+            return store.read(recommendation)?.let { "Podemos partir de $it: me dijiste que es tu ${labels.getValue(recommendation)}. Si querés algo distinto, decime qué tenés disponible." }
+                ?: "Todavía no conozco tu ${labels.getValue(recommendation)}. ¿Qué te gusta y qué tenés disponible?"
+        }
         val slot = slots.entries.firstOrNull { (_, terms) -> terms.any { text.contains(it) } }?.key
         correction(input)?.let { (previous, replacement) ->
-            val current = store.read("food")?.removePrefix("la ")?.removePrefix("el ")
-            if (current != previous.removePrefix("la ").removePrefix("el ")) return null
-            safe("food", replacement)?.let {
+            val matching = slots.keys.filter { key -> store.read(key)?.let(::canonicalValue) == canonicalValue(previous) }
+            if (matching.size > 1) return "¿Querés cambiar tu comida, bebida, música o lugar favorito? Decime cuál."
+            val key = matching.singleOrNull() ?: return null
+            safe(key, replacement)?.let {
                 store.write(it.key, it.value)
-                return "Actualicé tu comida favorita: ${it.value}. La anterior ya no figura como tu preferencia actual."
+                return "Actualicé tu ${labels.getValue(key)}: ${it.value}. La anterior ya no figura como tu preferencia actual."
+            }
+        }
+        if ('?' !in input && '¿' !in input) {
+            Regex("^ya no me gusta (.+)$").matchEntire(text)?.groupValues?.get(1)?.let { old ->
+                val matching = slots.keys.filter { key -> store.read(key)?.let(::canonicalValue) == canonicalValue(old) }
+                if (matching.size > 1) return "¿Cuál preferencia querés quitar: comida, bebida, música o lugar?"
+                matching.singleOrNull()?.let { key ->
+                    store.delete(key)
+                    return "Dejé de considerar $old como tu ${labels.getValue(key)}."
+                }
             }
         }
         parse(input)?.let {
@@ -56,20 +76,22 @@ class LeoPersonalMemory(private val store: Store) {
             if (input.contains('¿') || input.contains('?') || input.contains('@') || input.length > 300) return null
             val text = normalized(input)
             for ((key, terms) in slots) for (term in terms) {
-                Regex("^mi $term es (.+)$").matchEntire(text)?.let { return safe(key, it.groupValues[1]) }
+                Regex("^mi $term es (.+)$").matchEntire(text)?.let { return safe(key, input.split(Regex("(?i)\\s+es\\s+"), limit = 2).last().trim().trimEnd('.', '!')) }
             }
             return null
         }
         fun correction(input: String): Pair<String, String>? {
             if (input.any { it in "¿?@" } || input.length > 300) return null
             return Regex("^ya no me gusta (.+) ahora prefiero (.+)$").matchEntire(normalized(input))?.let {
-                it.groupValues[1] to it.groupValues[2]
+                it.groupValues[1] to input.split(Regex("(?i)\\bahora\\s+prefiero\\s+"), limit = 2).last().trim().trimEnd('.', '!')
             }
         }
         fun isStatement(input: String) = parse(input) != null || correction(input) != null
+        private fun canonicalValue(value: String) = MemoryLearning.key(value).removePrefix("la ").removePrefix("el ").removePrefix("los ").removePrefix("las ")
         private fun safe(key: String, value: String): Preference? {
+            val normalizedValue = MemoryLearning.key(value)
             if (value.length !in 1..120 || value.any { it.isDigit() } ||
-                listOf("clave", "contrasena", "token", "secreto", "@", "http").any { value.contains(it) }) return null
+                listOf("clave", "contrasena", "token", "secreto", "@", "http").any { normalizedValue.contains(it) }) return null
             return Preference(key, value)
         }
     }

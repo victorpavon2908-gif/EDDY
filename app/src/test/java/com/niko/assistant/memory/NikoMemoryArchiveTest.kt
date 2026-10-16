@@ -36,7 +36,7 @@ class NikoMemoryArchiveTest {
         reopened.preferenceReply("ya no me gusta la pizza, ahora prefiero la lasaña")
         assertEquals(1L, count("personal_preferences"))
         NikoMemoryArchive.get(context).close()
-        assertTrue(NikoMemory(context).preferenceReply("que comida me gusta mas")!!.contains("lasana"))
+        assertTrue(NikoMemory(context).preferenceReply("que comida me gusta mas")!!.contains("lasaña"))
         NikoMemoryArchive.get(context).clearMemory()
         assertEquals(0L, count("personal_preferences"))
     }
