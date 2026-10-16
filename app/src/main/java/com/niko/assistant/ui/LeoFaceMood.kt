@@ -28,6 +28,7 @@ internal enum class LeoFaceMood {
             if (com.niko.assistant.ai.LeoExpression.asksForSelfJoke(input)) return WRY
             val sensitive = Regex("\\b(triste|muerte|murio|duelo|enfermo|enferma|dolor|emergencia|peligro|deprimido|deprimida|suicidio)\\b")
             if (sensitive.containsMatchIn(user + " " + answer)) return CARING
+            if (com.niko.assistant.cognitive.LeoEmotionClassifier.needsGentleResponse(input)) return CARING
             if (Regex("\\b(no te rias|no te burles|sin bromas|habla en serio|no hagas bromas)\\b").containsMatchIn(user)) return FRIENDLY
             return when {
                 Regex("^(rei(?:te)?|riete|sonrei|sonrie|contame un chiste|cuentame un chiste)([ .!?]|$)").containsMatchIn(user) -> LAUGHING

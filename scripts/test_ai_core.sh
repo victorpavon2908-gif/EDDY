@@ -15,6 +15,15 @@ leo_test_dir=$(mktemp -d)
 trap 'rm -f -- "$leo_test_dir/tests.jar"; rmdir -- "$leo_test_dir"' EXIT
 leo_classpath="$leo_kotlin_lib/kotlin-stdlib-2.0.21.jar:$leo_kotlin_lib/junit-4.13.2.jar:$leo_kotlin_lib/hamcrest-core-1.3.jar:$leo_kotlin_lib/kotlinx-coroutines-core-jvm-1.6.4.jar"
 leo_sources=(
+    app/src/main/java/com/niko/assistant/agent/TurnController.kt
+    app/src/main/java/com/niko/assistant/brain/NikoMathEngine.kt
+    app/src/main/java/com/niko/assistant/cognitive/LeoNeuralCore.kt
+    app/src/main/java/com/niko/assistant/cognitive/LeoPersonalMemory.kt
+    app/src/main/java/com/niko/assistant/cognitive/LeoEmotionEngine.kt
+    app/src/main/java/com/niko/assistant/cognitive/LeoEmotionClassifier.kt
+    app/src/main/java/com/niko/assistant/cognitive/LeoCodeIntelligence.kt
+    app/src/test/java/com/niko/assistant/cognitive/LeoNeuralCoreTest.kt
+    app/src/test/java/com/niko/assistant/cognitive/LeoPersonalMemoryTest.kt
     app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt
     app/src/main/java/com/niko/assistant/brain/AssistantCommand.kt
     app/src/main/java/com/niko/assistant/brain/WebQueryRouter.kt
@@ -60,6 +69,8 @@ java -cp "$leo_kotlin_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
     -no-stdlib -no-reflect -jvm-target 17 -classpath "$leo_classpath" \
     -d "$leo_test_dir/tests.jar" "${leo_sources[@]}"
 java -cp "$leo_test_dir/tests.jar:$leo_classpath" org.junit.runner.JUnitCore \
+    com.niko.assistant.cognitive.LeoNeuralCoreTest \
+    com.niko.assistant.cognitive.LeoPersonalMemoryTest \
     com.niko.assistant.ai.ConversationCoordinatorTest \
     com.niko.assistant.ai.NikoIdentityTest \
     com.niko.assistant.ai.LeoDialoguePolicyTest \

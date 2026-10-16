@@ -60,11 +60,11 @@ object NikoIdentity {
                 } else {
                     "Mi red adaptativa todavía está iniciando y aún no registra actualizaciones."
                 }
-                "Sí. Entreno de verdad una red pequeña en el teléfono: adapta sus pesos con interacciones que puedo clasificar con seguridad, y tus correcciones explícitas pueden convertirse en comandos locales reutilizables. $progress También uso un MicroGPT local ya entrenado para conversación breve y guardo preferencias y recuerdos útiles. No reentreno el modelo generativo completo en cada charla porque eso sería demasiado pesado e inestable para el teléfono."
+                "Sí. Entreno de verdad una red pequeña en el teléfono: adapta sus pesos con interacciones que puedo clasificar con seguridad, y tus correcciones explícitas pueden convertirse en comandos locales reutilizables. $progress También uso un modelo local pequeño ya entrenado para conversación breve, coordinado por LEO Neural Core y guardo preferencias y recuerdos útiles. No reentreno el modelo generativo completo en cada charla porque eso sería demasiado pesado e inestable para el teléfono."
             }
 
             asksAboutLearning(question) ->
-                "Mi aprendizaje adaptativo está desactivado ahora mismo. Sigo usando mi MicroGPT local y la memoria para lo que me enseñés explícitamente, pero no adapto el clasificador de pedidos hasta que activés Aprendizaje en Ajustes."
+                "Mi aprendizaje adaptativo está desactivado ahora mismo. Sigo usando mi LEO Neural Core local y la memoria para lo que me enseñés explícitamente, pero no adapto el clasificador de pedidos hasta que activés Aprendizaje en Ajustes."
 
             else -> null
         }

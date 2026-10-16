@@ -173,6 +173,8 @@ open class NikoAssistantService : Service() {
     private var isTranscribing = false
     private var commandJob: Job? = null
     private val agent = com.niko.assistant.agent.LeoAgentRuntime()
+    private val emotionEngine by lazy { com.niko.assistant.cognitive.LeoEmotionEngine(playfulDialogue) }
+    private val neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
     private val taskExecutor = com.niko.assistant.agent.LeoTaskExecutor()
     private val skillRegistry by lazy {
         com.niko.assistant.skills.LeoSkillRegistry().also {
@@ -826,8 +828,8 @@ open class NikoAssistantService : Service() {
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
-        playfulDialogue.reply(text)?.let { answer ->
-            speakResponse(answer)
+        neuralCore.personalReply(text, { input -> withContext(Dispatchers.IO) { memory.preferenceReply(input) } }, emotionEngine)?.let {
+            speakResearchResponse(text, it)
             return
         }
         // Conversation repair precedes research and action routing; do not search vague requests.
@@ -983,20 +985,23 @@ open class NikoAssistantService : Service() {
                 learnIntent(text, LearnedIntent.MEMORY, correctionAlias); speakResponse(it); return
             }
             val prediction = predictIntent(text)
-            val answer = ConversationCoordinator.reply(
-                message = text,
-                localFirst = NikoAiSettings.localFirst(applicationContext),
-                autoResearch = NikoAiSettings.autoResearch(applicationContext),
-                learnedSearch = prediction?.let { it.reliable && it.intent == LearnedIntent.SEARCH } == true,
-                local = {
-                    val context = kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
-                    localLlm.reply(text, agent.conversation.context() + "\n" + context)
+            val answer = neuralCore.reply(
+                com.niko.assistant.cognitive.LeoNeuralCore.Request(
+                    text, NikoAiSettings.localFirst(applicationContext), NikoAiSettings.autoResearch(applicationContext),
+                    prediction?.let { it.reliable && it.intent == LearnedIntent.SEARCH } == true,
+                ),
+                object : com.niko.assistant.cognitive.LeoNeuralCore.Knowledge {
+                    override suspend fun local(): String? {
+                        val context = kotlinx.coroutines.runInterruptible(Dispatchers.IO) { memory.contextForAi(currentMessage = text) }
+                        return localLlm.reply(text, agent.conversation.context() + "\n" + context)
+                    }
+                    override suspend fun research(requireSources: Boolean): com.niko.assistant.ai.NikoAiReply? =
+                        if (requireSources) researchReply(text) else null
+                    override suspend fun fallback(): String = withContext(Dispatchers.IO) {
+                        val error = if (AutonomousResearch.offlineOnly(text)) localLlm.lastError else webClient.lastError ?: localLlm.lastError
+                        fallbackConversation.reply(text, memory, error)
+                    }
                 },
-                cloud = { requireSources -> if (requireSources) researchReply(text) else null },
-                fallback = { withContext(Dispatchers.IO) {
-                    val error = if (AutonomousResearch.offlineOnly(text)) localLlm.lastError else webClient.lastError ?: localLlm.lastError
-                    fallbackConversation.reply(text, memory, error)
-                } },
             )
             agent.turns.checkpoint()
             val learnedLabel = if (answer.webUsed || WebQueryRouter.needsCurrentInformation(text) && AutonomousResearch.allowedFor(text)) {
@@ -1305,7 +1310,7 @@ open class NikoAssistantService : Service() {
         val evidenceNote = if (reply.webUsed) AutonomousResearch.evidenceNote(reply.sources.map { it.url }) else ""
         val displayed = if (evidenceNote.isBlank()) finalText else "$finalText\n\n$evidenceNote"
         NikoRuntimeState.setAiResponse(applicationContext, displayed, reply.webUsed, reply.sources)
-        val spokenText = finalText
+        val spokenText = (reply.spokenText ?: finalText)
             .replace(Regex("\\s*\\[\\d+\\]"), "")
             .replace(Regex("\\s+"), " ")
             .trim()

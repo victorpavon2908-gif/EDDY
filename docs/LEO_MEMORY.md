@@ -34,3 +34,7 @@ Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AU
 ## Aprendizaje continuo (2026-10-10)
 
 Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenamiento candidato con ocho casos de control: [LEO_CONTINUOUS_LEARNING.md](LEO_CONTINUOUS_LEARNING.md). La generación/instalación autónoma de código nativo no se presenta como implementada.
+
+## Integración Neural Core — 2026-10-16
+
+Ver [LEO Neural Core](LEO_NEURAL_CORE.md) para las rutas integradas, migración SQLite v3, pruebas y limitaciones. Esta integración no certifica rendimiento físico ni capacidad de razonamiento general.

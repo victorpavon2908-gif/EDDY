@@ -48,3 +48,7 @@ Nota histórica de la integración anterior (Groq ya retirado): LeoVisionContext
 Iteración de producto: [LEO_PRODUCT_READINESS.md](LEO_PRODUCT_READINESS.md) recoge control de descargas opcionales, recuperación, fallos web y aceptación física pendiente.
 
 Limpieza posterior y alcance comprobado: [LEO_CODE_CLEANUP.md](LEO_CODE_CLEANUP.md). Los hallazgos históricos de esta página no sustituyen ese estado actual.
+
+## Integración Neural Core — 2026-10-16
+
+Ver [LEO Neural Core](LEO_NEURAL_CORE.md) para las rutas integradas, migración SQLite v3, pruebas y limitaciones. Esta integración no certifica rendimiento físico ni capacidad de razonamiento general.

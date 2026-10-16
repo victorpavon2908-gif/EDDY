@@ -18,3 +18,7 @@ PENDIENTE DE VALIDACIÓN FÍSICA: wake→speech, fin de habla→ASR, primer audi
 ## Evidencia y límites
 
 Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AUTOMATIZADAMENTE PROBADO solo para los casos ejecutados en [LEO_VALIDATION.md](LEO_VALIDATION.md). Toda propiedad del teléfono permanece **PENDIENTE DE VALIDACIÓN FÍSICA**. Los contratos o tipos sin ruta productiva se indican como PLANIFICADO.
+
+## Integración Neural Core — 2026-10-16
+
+Ver [LEO Neural Core](LEO_NEURAL_CORE.md) para las rutas integradas, migración SQLite v3, pruebas y limitaciones. Esta integración no certifica rendimiento físico ni capacidad de razonamiento general.

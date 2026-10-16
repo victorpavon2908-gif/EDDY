@@ -15,5 +15,5 @@ object LeoBrand {
     private val retiredIdentity = Regex("(?i)\\b(?:niko|nico|nikko)\\b")
 
     /** Migra texto viejo o persistido para que la identidad anterior nunca reaparezca en UI/TTS. */
-    fun publicText(value: String): String = retiredIdentity.replace(value, DISPLAY_NAME)
+    fun publicText(value: String): String = retiredIdentity.replace(value, DISPLAY_NAME).replace(Regex("(?i)\\bmicrogpt\\b"), "LEO Neural Core")
 }

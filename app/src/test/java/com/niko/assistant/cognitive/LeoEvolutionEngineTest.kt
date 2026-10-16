@@ -1,0 +1,36 @@
+package com.niko.assistant.cognitive
+
+import android.database.sqlite.SQLiteDatabase
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.SQLiteMode
+import java.nio.file.Files
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [29], manifest = Config.NONE)
+@SQLiteMode(SQLiteMode.Mode.NATIVE)
+class LeoEvolutionEngineTest {
+    @Test fun acceptsReadableSearchableKnowledge() {
+        val file = Files.createTempFile("leo-knowledge", ".sqlite").toFile()
+        try {
+            SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
+                db.execSQL("CREATE TABLE articles (id INTEGER PRIMARY KEY, title TEXT, url TEXT)")
+                db.execSQL("CREATE VIRTUAL TABLE articles_fts USING fts4(title, body)")
+                db.execSQL("INSERT INTO articles VALUES (1, 'Agua', 'https://example.org/agua')")
+                db.execSQL("INSERT INTO articles_fts(docid,title,body) VALUES (1, 'Agua', 'El agua es una sustancia')")
+            }
+            LeoEvolutionEngine.validateKnowledge(file)
+        } finally { file.delete() }
+    }
+    @Test(expected = IllegalStateException::class) fun rejectsEmptyKnowledge() {
+        val file = Files.createTempFile("leo-empty", ".sqlite").toFile()
+        try {
+            SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
+                db.execSQL("CREATE TABLE articles (id INTEGER PRIMARY KEY, title TEXT, url TEXT)")
+            }
+            LeoEvolutionEngine.validateKnowledge(file)
+        } finally { file.delete() }
+    }
+}

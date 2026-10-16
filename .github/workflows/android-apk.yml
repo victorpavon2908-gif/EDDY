@@ -13,7 +13,7 @@ jobs:
   package:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'apk-request/niko-0.7.0'))
+      (github.event.ref_type == 'branch' && (startsWith(github.event.ref, 'apk-request/niko-0.7.0') || startsWith(github.event.ref, 'apk-request/leo-neural-')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -49,7 +49,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install SDK 36
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
 
       - name: Bundle offline wake, VAD and Spanish speech recognition
         run: python3 scripts/bundle_voice_models.py
@@ -66,20 +66,20 @@ jobs:
           signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           "$signer" sign --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android \
-            --out delivery/LEO-0.7.0-arm64.apk "$apk"
-          "$signer" verify --verbose --print-certs delivery/LEO-0.7.0-arm64.apk \
+            --out delivery/LEO-debug-universal.apk "$apk"
+          "$signer" verify --verbose --print-certs delivery/LEO-debug-universal.apk \
             | tee "$RUNNER_TEMP/niko-signature.txt"
           actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/niko-signature.txt")
           test "$actual" = "$(cat "$RUNNER_TEMP/niko-signing-sha256")"
           cp "$RUNNER_TEMP/niko-signing-sha256" delivery/SIGNING_CERT_SHA256
           cd delivery
-          sha256sum LEO-0.7.0-arm64.apk > SHA256SUMS
+          sha256sum LEO-debug-universal.apk > SHA256SUMS
           git rev-parse HEAD > SOURCE_COMMIT
 
       - name: Upload requested LEO APK
         uses: actions/upload-artifact@v4
         with:
-          name: LEO-0.7.0-arm64
+          name: LEO-debug-universal
           path: delivery/
           if-no-files-found: error
           retention-days: 14

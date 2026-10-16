@@ -12,4 +12,6 @@ data class NikoAiReply(
      * sirve para que el sintetizador formule una respuesta propia sin inventar datos.
      */
     val researchContext: String = "",
+    /** Optional narration for non-speech artifacts such as source code. */
+    val spokenText: String? = null,
 )

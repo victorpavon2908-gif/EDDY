@@ -33,11 +33,29 @@ class NikoMemoryArchive private constructor(context: Context) :
         db.execSQL("CREATE TABLE legacy_backup (key TEXT PRIMARY KEY, json TEXT NOT NULL)")
         db.execSQL("CREATE INDEX turn_time ON turns(timestamp)")
         createSemanticMemoryTable(db)
+        createPersonalPreferences(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createSemanticMemoryTable(db)
+        if (oldVersion < 3) createPersonalPreferences(db)
     }
+
+    private fun createPersonalPreferences(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS personal_preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)")
+    }
+
+    fun preference(key: String): String? = readableDatabase.rawQuery(
+        "SELECT value FROM personal_preferences WHERE key=?", arrayOf(key),
+    ).use { if (it.moveToFirst()) it.getString(0) else null }
+
+    fun setPreference(key: String, value: String) {
+        writableDatabase.insertWithOnConflict("personal_preferences", null, ContentValues().apply {
+            put("key", key); put("value", value); put("updated_at", System.currentTimeMillis())
+        }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun deletePreference(key: String) { writableDatabase.delete("personal_preferences", "key=?", arrayOf(key)) }
 
     private fun createSemanticMemoryTable(db: SQLiteDatabase) {
         db.execSQL(
@@ -242,7 +260,7 @@ class NikoMemoryArchive private constructor(context: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            listOf("turns", "notes", "lessons", "semantic_memory", "legacy_backup").forEach { db.delete(it, null, null) }
+            listOf("turns", "notes", "lessons", "semantic_memory", "legacy_backup", "personal_preferences").forEach { db.delete(it, null, null) }
             db.delete("metadata", "key LIKE ?", arrayOf("superseded_note:%"))
             db.setTransactionSuccessful()
         } finally {
@@ -260,7 +278,7 @@ class NikoMemoryArchive private constructor(context: Context) :
     private fun parseArray(raw: String): JSONArray = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
 
     companion object {
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         @Volatile private var instance: NikoMemoryArchive? = null
 
         fun get(context: Context): NikoMemoryArchive = instance ?: synchronized(this) {

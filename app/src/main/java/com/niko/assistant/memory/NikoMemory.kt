@@ -37,11 +37,12 @@ class NikoMemory(context: Context) {
         val cleaned = text.trim().take(8_000)
         if (cleaned.isBlank()) return
         appendTurn("user", cleaned)
-        learnFacts(cleaned)
+        val structuredPreference = com.niko.assistant.cognitive.LeoPersonalMemory.isStatement(cleaned)
+        if (!structuredPreference) learnFacts(cleaned)
         com.niko.assistant.ai.LeoDialoguePolicy.style(cleaned)?.let {
             prefs.edit().putString("response_style_v1", it).apply()
         }
-        longTerm.observeUserTurn(cleaned)
+        if (!structuredPreference) longTerm.observeUserTurn(cleaned)
         val count = prefs.getInt(KEY_TOTAL_INTERACTIONS, 0) + 1
         prefs.edit().putInt(KEY_TOTAL_INTERACTIONS, count).apply()
         if (count % 50 == 0) {
@@ -180,7 +181,18 @@ class NikoMemory(context: Context) {
         return null
     }
 
+    private val personal by lazy {
+        com.niko.assistant.cognitive.LeoPersonalMemory(object : com.niko.assistant.cognitive.LeoPersonalMemory.Store {
+            override fun read(key: String) = archive.preference(key)
+            override fun write(key: String, value: String) = archive.setPreference(key, value)
+            override fun delete(key: String) = archive.deletePreference(key)
+        })
+    }
+
+    fun preferenceReply(text: String): String? = personal.reply(text)
+
     fun personalReply(text: String): String? {
+        personal.reply(text)?.let { return it }
         val key = MemoryLearning.key(text)
         archive.answer(text)?.let { return it }
         val fact = when (key) {

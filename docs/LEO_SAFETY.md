@@ -19,3 +19,7 @@ Estado de esta iteración: IMPLEMENTADO donde se identifica una llamada real; AU
 
 
 Actualización: LeoVisionContext conecta peticiones explícitas de pantalla con observaciones reales de Accessibility, con caducidad. Sin entrada accesible no afirma visión. Offline describe etiquetas; Groq puede interpretar el texto observado, sin herramientas web. Cámara, imágenes y OCR de documentos siguen pendientes. Memoria y observaciones cloud se adjuntan como datos de usuario no confiables, nunca dentro del rol system.
+
+## Integración Neural Core — 2026-10-16
+
+Ver [LEO Neural Core](LEO_NEURAL_CORE.md) para las rutas integradas, migración SQLite v3, pruebas y limitaciones. Esta integración no certifica rendimiento físico ni capacidad de razonamiento general.

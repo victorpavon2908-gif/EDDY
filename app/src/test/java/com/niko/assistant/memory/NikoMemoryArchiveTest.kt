@@ -21,11 +21,37 @@ class NikoMemoryArchiveTest {
         // Robolectric can reuse this application's singleton across test methods.
         // Each scenario needs a fresh archive, including its migration marker.
         val db = NikoMemoryArchive.get(context).writableDatabase
-        listOf("turns", "notes", "lessons", "semantic_memory", "legacy_backup", "metadata").forEach { db.delete(it, null, null) }
+        listOf("turns", "notes", "lessons", "semantic_memory", "legacy_backup", "metadata", "personal_preferences").forEach { db.delete(it, null, null) }
         context.getSharedPreferences("eddy_memory", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @After fun closeDatabase() { NikoMemoryArchive.get(context).close() }
+
+    @Test fun typedPreferencePersistsAndReplacesAfterReopen() {
+        val memory = NikoMemory(context)
+        memory.preferenceReply("mi comida favorita es la pizza")
+        NikoMemoryArchive.get(context).close()
+        val reopened = NikoMemory(context)
+        assertTrue(reopened.preferenceReply("que comida me gusta mas")!!.contains("pizza"))
+        reopened.preferenceReply("ya no me gusta la pizza, ahora prefiero la lasaña")
+        assertEquals(1L, count("personal_preferences"))
+        NikoMemoryArchive.get(context).close()
+        assertTrue(NikoMemory(context).preferenceReply("que comida me gusta mas")!!.contains("lasana"))
+        NikoMemoryArchive.get(context).clearMemory()
+        assertEquals(0L, count("personal_preferences"))
+    }
+
+    @Test fun versionTwoMigrationPreservesExistingNotes() {
+        val archive = NikoMemoryArchive.get(context)
+        archive.rememberNote("proyecto anterior")
+        archive.writableDatabase.execSQL("DROP TABLE personal_preferences")
+        archive.writableDatabase.version = 2
+        archive.close()
+        archive.setPreference("food", "pizza")
+        assertEquals(3, archive.readableDatabase.version)
+        assertEquals("pizza", archive.preference("food"))
+        assertEquals(1L, count("notes"))
+    }
 
     @Test fun migratesExistingDataOnceAndPersistsAcrossDatabaseReopen() {
         val turn = JSONObject().put("role", "user").put("text", "Antes de la migración").put("timestamp", 1L)

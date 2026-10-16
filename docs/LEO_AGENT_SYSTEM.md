@@ -21,3 +21,7 @@ Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenam
 
 
 Actualización 2026-10-10: [Investigación y evolución controlada](LEO_RESEARCH_EVOLUTION.md) documenta lectura directa, profundidad extractiva, discrepancias, edición/versionado de herramientas y límites pendientes.
+
+## Integración Neural Core — 2026-10-16
+
+Ver [LEO Neural Core](LEO_NEURAL_CORE.md) para las rutas integradas, migración SQLite v3, pruebas y limitaciones. Esta integración no certifica rendimiento físico ni capacidad de razonamiento general.

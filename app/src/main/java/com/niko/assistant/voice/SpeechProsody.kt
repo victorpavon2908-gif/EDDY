@@ -17,7 +17,7 @@ data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
                 Regex("\\b(?:asustate|ten miedo|voz de miedo|habla asustado)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.12f, pitch = 1.04f)
                 Regex("\\b(?:enojate|ponte enojado|habla enojado|modo enfadado)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.02f, pitch = 0.88f)
                 Regex("\\b(?:voz de sorpresa|sorprendete|ponte sorprendido)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.12f, pitch = 1.05f)
-                else -> SpeechProsody()
+                else -> if (com.niko.assistant.cognitive.LeoEmotionClassifier.needsGentleResponse(input)) SpeechProsody(speed = 0.96f) else SpeechProsody()
             }
         }
 

@@ -84,6 +84,8 @@ class LeoFrozenBrainManager(context: Context) {
                 onProgress(Progress(Progress.State.READY, message = "Ya tenés la última versión del conocimiento offline"))
                 return true
             }
+            onProgress(Progress(Progress.State.VERIFYING, message =
+                "Revisión actual: ${installedRevision().substringAfter('|').take(12).ifBlank { "sin instalar" }}; nueva: ${manifest.installedSha256.take(12)}"))
             require(storage.canInstallFrozen(manifest.archiveBytes, manifest.installedBytes)) {
                 "No hay espacio seguro suficiente para instalar el cerebro de Leo"
             }
@@ -109,6 +111,7 @@ class LeoFrozenBrainManager(context: Context) {
             require(File(installing, INTERNAL_MANIFEST).isFile) { "Falta el manifiesto interno del cerebro" }
             require(File(installing, ATTRIBUTION_FILE).isFile) { "Falta la atribución del conocimiento" }
 
+            runInterruptible { com.niko.assistant.cognitive.LeoEvolutionEngine.validateKnowledge(candidate) }
             checkDownloadAllowed()
             File(installing, VALIDATED_MARKER).writeText("${manifest.version}|${manifest.installedSha256}")
             val finalDir = storage.frozen
