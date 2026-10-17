@@ -36,6 +36,7 @@ class LeoPersonalMemory(private val store: Store) {
                 store.write(it.key, it.value)
                 return "Actualicé tu ${labels.getValue(key)}: ${it.value}. La anterior ya no figura como tu preferencia actual."
             }
+            return "No cambié tu preferencia. Decime el nuevo valor sin información sensible ni suposiciones."
         }
         if ('?' !in input && '¿' !in input) {
             Regex("^ya no me gusta (.+)$").matchEntire(text)?.groupValues?.get(1)?.let { old ->
@@ -47,14 +48,22 @@ class LeoPersonalMemory(private val store: Store) {
                 }
             }
         }
+        if (assignmentValue(input)?.let { !isCertainSingleValue(it) } == true) {
+            return "No cambié tus preferencias. Decime una preferencia concreta, por ejemplo: mi comida favorita es pizza."
+        }
         parse(input)?.let {
             store.write(it.key, it.value)
             return "Recordaré que tu ${labels.getValue(it.key)} es ${it.value}. Podés corregirla o pedirme que la olvide."
         }
-        if (slot != null && text.startsWith("olvida mi ")) {
-            store.delete(slot)
-            return "Olvidé tu ${labels.getValue(slot)}."
+        val forgotten = slots.entries.singleOrNull { (_, terms) ->
+            terms.any { text == "olvida mi $it" || text == "olvida mi $it por favor" }
+        }?.key
+        if (forgotten != null && input.none { it in "¿?" }) {
+            store.delete(forgotten)
+            return "Olvidé tu ${labels.getValue(forgotten)}."
         }
+        /* No prefix matching for destructive commands: trailing text can negate
+         * or quote the request. Queries must never erase a preference. */
         val query = when {
             text == "que comida me gusta mas" -> "food"
             text.startsWith("cual es mi ") || text.startsWith("recordas mi ") -> slot
@@ -86,11 +95,25 @@ class LeoPersonalMemory(private val store: Store) {
                 it.groupValues[1] to input.split(Regex("(?i)\\bahora\\s+prefiero\\s+"), limit = 2).last().trim().trimEnd('.', '!')
             }
         }
-        fun isStatement(input: String) = parse(input) != null || correction(input) != null
+        // Reserve attempted assignments too, so rejected uncertain values do not
+        // fall through into the generic long-term learner as durable memories.
+        fun isStatement(input: String) = assignmentValue(input) != null || correction(input) != null
         private fun canonicalValue(value: String) = MemoryLearning.key(value).removePrefix("la ").removePrefix("el ").removePrefix("los ").removePrefix("las ")
+        private fun assignmentValue(input: String): String? {
+            val text = normalized(input)
+            return slots.values.flatten().firstNotNullOfOrNull { term ->
+                Regex("^mi $term es (.+)$").matchEntire(text)?.groupValues?.get(1)
+            }
+        }
+        private fun isCertainSingleValue(value: String): Boolean {
+            val text = MemoryLearning.key(value)
+            return !Regex("\\b(?:quizas|tal vez|creo que|no se|posiblemente|probablemente|puede ser)\\b").containsMatchIn(text) &&
+                !Regex("\\b(?:pero|aunque|si fuera|si fuese)\\b").containsMatchIn(text) &&
+                !slots.values.flatten().any { text.contains("mi $it") }
+        }
         private fun safe(key: String, value: String): Preference? {
             val normalizedValue = MemoryLearning.key(value)
-            if (value.length !in 1..120 || value.any { it.isDigit() } ||
+            if (!isCertainSingleValue(value) || value.length !in 1..120 || value.any { it.isDigit() } ||
                 listOf("clave", "contrasena", "token", "secreto", "@", "http").any { normalizedValue.contains(it) }) return null
             return Preference(key, value)
         }

@@ -38,3 +38,24 @@ Registro de interacciones y feedback, retiro de respuestas rechazadas y entrenam
 ## Integración Neural Core — 2026-10-16
 
 Ver [LEO Neural Core](LEO_NEURAL_CORE.md) para las rutas integradas, migración SQLite v3, pruebas y limitaciones. Esta integración no certifica rendimiento físico ni capacidad de razonamiento general.
+
+## Protección de preferencias explícitas (2026-10-17)
+
+IMPLEMENTADO: `LeoPersonalMemory` solo elimina una preferencia mediante una orden
+completa («olvidá mi comida favorita», opcionalmente «por favor»). Una pregunta,
+una cita con texto adicional o una orden con condiciones no elimina datos.
+Las asignaciones con marcadores explícitos de incertidumbre, condiciones o varias
+preferencias solicitan aclaración. Las correcciones rechazadas conservan el valor
+anterior; no se envían al aprendizaje genérico de memoria a largo plazo.
+Los nombres compuestos normales, como «arroz y frijoles», siguen admitidos.
+
+AUTOMATIZADAMENTE PROBADO: `LeoPersonalMemoryTest` cubre preguntas de borrado,
+órdenes calificadas, asignaciones inciertas y múltiples, correcciones sensibles,
+conservación del valor anterior y valores compuestos. Ejecutar
+`bash scripts/test_ai_core.sh` para reproducir la batería JVM.
+
+LIMITACIONES: es un filtro determinista conservador de expresiones explícitas,
+no un detector universal de incertidumbre. El historial de conversación conserva
+los mensajes originales según su política existente; rechazar una preferencia
+no equivale a borrar ese historial. No cambia el esquema SQLite ni migra datos.
+La comprensión de estas frases mediante voz sigue PENDIENTE DE VALIDACIÓN FÍSICA.

@@ -64,4 +64,40 @@ class LeoPersonalMemoryTest {
         assertNull(LeoPersonalMemory.parse("mi bebida favorita es contraseña secreta"))
         assertNull(LeoPersonalMemory.parse("mi comida favorita es 123456"))
     }
+    @Test fun questionsAndQualifiedForgetCommandsNeverDelete() {
+        val store = Store(); val memory = LeoPersonalMemory(store)
+        memory.reply("mi comida favorita es pizza")
+        listOf("¿Olvida mi comida favorita?", "olvida mi comida favorita pero no todavía",
+            "olvida mi comida favorita es un ejemplo", "no olvides mi comida favorita").forEach {
+            memory.reply(it)
+            assertEquals(it, "pizza", store.values["food"])
+        }
+        memory.reply("LEO, olvidá mi comida favorita, por favor")
+        assertFalse(store.values.containsKey("food"))
+    }
+    @Test fun uncertainAndCompoundFactsAskWithoutChangingMemory() {
+        val store = Store(); val memory = LeoPersonalMemory(store)
+        memory.reply("mi comida favorita es pizza")
+        listOf("mi comida favorita es quizás lasaña", "mi comida favorita es arroz pero no estoy seguro",
+            "mi comida favorita es pasta y mi bebida favorita es café").forEach {
+            assertTrue(memory.reply(it)!!.contains("No cambié"))
+            assertNull(LeoPersonalMemory.parse(it))
+            assertTrue(LeoPersonalMemory.isStatement(it))
+            assertEquals(mapOf("food" to "pizza"), store.values)
+        }
+    }
+    @Test fun unsafeOrUncertainReplacementPreservesPreviousValue() {
+        val store = Store(); val memory = LeoPersonalMemory(store)
+        memory.reply("mi bebida favorita es café")
+        listOf("ya no me gusta café ahora prefiero quizás té",
+            "ya no me gusta café ahora prefiero contraseña secreta").forEach {
+            assertTrue(memory.reply(it)!!.contains("No cambié"))
+            assertEquals("café", store.values["drink"])
+        }
+    }
+    @Test fun ordinaryCompoundFoodNamesRemainSupported() {
+        val store = Store(); val memory = LeoPersonalMemory(store)
+        memory.reply("mi comida favorita es arroz y frijoles")
+        assertEquals("arroz y frijoles", store.values["food"])
+    }
 }
