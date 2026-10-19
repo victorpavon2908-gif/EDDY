@@ -40,11 +40,21 @@ object LeoEmotionClassifier {
     private val vocabulary = counts.values.flatMap { it.keys }.toSet()
 
     fun classify(input: String): Prediction? {
-        if ('?' in input || '¿' in input || '"' in input || '«' in input) return null
-        val text = MemoryLearning.key(input).removePrefix("leo ")
-        if (!Regex("^(?:estoy|me siento|tengo|siento) ").containsMatchIn(text) ||
-            Regex("\\b(no|nunca|pero|aunque|sin)\\b").containsMatchIn(text)) return null
-        val features = text.split(' ').filter { it in vocabulary }.take(24)
+        if (input.length > 2000 || input.trimStart().startsWith("¿") ||
+            input.any { it in "\"«»“”" }) return null
+        // Only the first asserted clause describes the speaker. A later task or
+        // another person's feelings must not contribute features to this cue.
+        val clause = input.replace(Regex("(?i)^\\s*leo\\b[\\s,:]*"), "").substringBefore(',').substringBefore(';').substringBefore('.')
+            .substringBefore('!').substringBefore('\n')
+        if ('?' in clause || '¿' in clause) return null
+        val text = MemoryLearning.key(clause).removePrefix("leo ")
+        if (Regex("\\b(no|nunca|pero|aunque|sin|si|quizas|tal vez)\\b").containsMatchIn(text)) return null
+        val state = Regex("^(?:estoy|me siento|tengo|siento|me da) (.+)$")
+            .matchEntire(text)?.groupValues?.get(1) ?: return null
+        val words = state.split(' ').dropWhile { it in setOf("muy", "mucho", "mucha", "bastante", "algo", "realmente", "tan", "un", "poco") }
+        if (words.firstOrNull() !in vocabulary) return null
+        val features = words.takeWhile { it in vocabulary || it in setOf("y", "muy", "algo", "un", "poco") }
+            .filter { it in vocabulary }.take(24)
         if (features.isEmpty()) return null
         val scores = counts.map { (label, words) ->
             label to features.sumOf { ln(((words[it] ?: 0) + 1.0) / (words.values.sum() + vocabulary.size)) }

@@ -12,6 +12,7 @@ internal enum class LeoFaceMood {
             .replace(Regex("\\p{Mn}+"), "").trim()
 
         fun resolve(input: String, reply: String): LeoFaceMood {
+            if (reply == com.niko.assistant.ai.LeoPlayfulDialogue.HUMOR_DISABLED) return FRIENDLY
             val user = key(input).replace(Regex("^leo\\b[ ,:]*"), "")
             val answer = key(reply)
             com.niko.assistant.ai.LeoExpression.requested(input)?.let { requested ->

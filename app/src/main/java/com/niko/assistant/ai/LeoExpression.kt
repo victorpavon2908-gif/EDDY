@@ -45,6 +45,9 @@ enum class LeoExpression(val label: String) {
 
 /** Bounded session personality: variation without invented biographical facts or random hostility. */
 class LeoPlayfulDialogue {
+    companion object { const val HUMOR_DISABLED = "Voy a respetar tu preferencia de no hacer bromas sobre vos ni sarcasmo. Podés cambiarla diciendo: permito bromas sobre mí." }
+    @Volatile private var humorAllowed: Boolean? = null
+    fun setHumorAllowed(allowed: Boolean?) { humorAllowed = allowed }
     private var index = 0
     private var grumpy = false
     private var serious = false
@@ -56,6 +59,8 @@ class LeoPlayfulDialogue {
 
     fun reply(input: String): String? {
         val key = LeoExpression.key(input)
+        if (humorAllowed == false && (LeoExpression.asksForSelfJoke(input) ||
+                LeoExpression.requested(input) == LeoExpression.WRY)) return HUMOR_DISABLED
         if (key in setOf("responde de malas", "respondeme de malas")) { grumpy = true; serious = false; return greeting() }
         if (key in setOf("responde de buenas", "respondeme de buenas")) { grumpy = false; serious = false; return "De buenas entonces. Decime qué hacemos." }
         if (key in setOf("sin bromas", "habla en serio", "no te burles", "no te rias")) {

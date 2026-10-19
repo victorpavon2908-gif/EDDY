@@ -34,4 +34,12 @@ class LeoExpressionTest {
         assertNull(LeoPlayfulDialogue().reply("Abrí la calculadora"))
         assertNull(LeoPlayfulDialogue().reply("Buscá noticias sobre humor"))
     }
+    @org.junit.Test fun persistentHumorBoundaryOverridesSessionTeasing() {
+        val dialogue = LeoPlayfulDialogue()
+        dialogue.setHumorAllowed(false)
+        org.junit.Assert.assertEquals(LeoPlayfulDialogue.HUMOR_DISABLED, dialogue.reply("burlate de mí"))
+        org.junit.Assert.assertEquals(LeoPlayfulDialogue.HUMOR_DISABLED, dialogue.reply("sé sarcástico"))
+        dialogue.setHumorAllowed(true)
+        org.junit.Assert.assertNotEquals(LeoPlayfulDialogue.HUMOR_DISABLED, dialogue.reply("burlate de mí"))
+    }
 }

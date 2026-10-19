@@ -100,4 +100,36 @@ class LeoPersonalMemoryTest {
         memory.reply("mi comida favorita es arroz y frijoles")
         assertEquals("arroz y frijoles", store.values["food"])
     }
+    @Test fun learnsNewCategoriesAndUpdatesAliasesWithoutDuplicateCurrentFacts() {
+        val store = Store(); val memory = LeoPersonalMemory(store)
+        memory.reply("LEO, recordá que mi pasatiempo favorito es dibujar")
+        memory.reply("mi lenguaje de programación preferido es Kotlin")
+        memory.reply("ahora mi pasatiempo preferido es cocinar")
+        assertEquals("cocinar", store.values["hobby"])
+        assertEquals("Kotlin", store.values["programming_language"])
+        assertTrue(memory.reply("¿Cuál es mi pasatiempo favorito?")!!.contains("cocinar"))
+        assertFalse(memory.localContext().contains("dibujar"))
+        assertTrue(memory.localContext().contains("Kotlin"))
+        memory.reply("olvidá mi pasatiempo favorito")
+        assertFalse(memory.localContext().contains("cocinar"))
+        assertEquals(1, store.values.size)
+    }
+    @Test fun humorBoundaryIsExplicitPersistentAndReversible() {
+        val store = Store()
+        val memory = LeoPersonalMemory(store)
+        assertNull(memory.humorAllowed())
+        memory.reply("no hagas bromas sobre mí")
+        assertEquals(false, LeoPersonalMemory(store).humorAllowed())
+        memory.reply("¿Podés hacer bromas sobre mí?")
+        assertEquals(false, memory.humorAllowed())
+        memory.reply("permito bromas sobre mí")
+        assertEquals(true, memory.humorAllowed())
+        memory.reply("olvida mi preferencia de humor")
+        assertNull(memory.humorAllowed())
+    }
+    @Test fun emotionalStatementsNeverBecomePersonalPreferences() {
+        val store = Store(); val memory = LeoPersonalMemory(store)
+        listOf("estoy triste", "tengo miedo", "mi amiga está enojada").forEach { memory.reply(it) }
+        assertTrue(store.values.isEmpty())
+    }
 }

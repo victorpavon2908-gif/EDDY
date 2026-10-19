@@ -33,4 +33,8 @@ class LeoFaceMoodTest {
         assertEquals(LeoFaceMood.SURPRISED, LeoFaceMood.resolve("", "¡No me lo esperaba!"))
         assertEquals(LeoFaceMood.LAUGHING, LeoFaceMood.resolve("", "Jajaja, buena esa."))
     }
+    @Test fun refusedTeasingDoesNotAnimateMockery() {
+        assertEquals(LeoFaceMood.FRIENDLY, LeoFaceMood.resolve("burlate de mí",
+            com.niko.assistant.ai.LeoPlayfulDialogue.HUMOR_DISABLED))
+    }
 }

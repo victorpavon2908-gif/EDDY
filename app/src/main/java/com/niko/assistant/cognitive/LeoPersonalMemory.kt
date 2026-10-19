@@ -11,11 +11,39 @@ class LeoPersonalMemory(private val store: Store) {
     }
     data class Preference(val key: String, val value: String)
 
+    fun humorAllowed(): Boolean? = store.read("humor_policy")?.toBooleanStrictOrNull()
+
+    fun preferences(): List<Preference> = labels.keys.mapNotNull { key ->
+        store.read(key)?.let { Preference(key, it) }
+    }
+
+    fun localContext(): String = preferences().joinToString("\n") {
+        "${labels.getValue(it.key)}: ${it.value}"
+    }.take(1600) + when (humorAllowed()) {
+        false -> "\nPreferencia de trato: no hacer bromas sobre el usuario ni sarcasmo."
+        true -> "\nPreferencia de trato: permite bromas respetuosas sobre sí mismo."
+        null -> ""
+    }
+
     fun reply(input: String): String? {
         val text = normalized(input)
+        humorSetting(input)?.let { allowed ->
+            store.write("humor_policy", allowed.toString())
+            return if (allowed) "Guardé que permitís bromas sobre vos. Podés cambiarlo cuando querás."
+                else "Guardé que no querés bromas sobre vos ni sarcasmo. Voy a respetarlo."
+        }
+        if (text == "olvida mi preferencia de humor" && input.none { it in "¿?" }) {
+            store.delete("humor_policy")
+            return "Olvidé tu preferencia de humor."
+        }
+        if (text == "cual es mi preferencia de humor") return when (humorAllowed()) {
+            true -> "Permitís bromas sobre vos."
+            false -> "Preferís que no haga bromas sobre vos ni sarcasmo."
+            null -> "Todavía no guardaste una preferencia de humor."
+        }
         if (text == "mostra mis preferencias" || text == "muestra mis preferencias") {
             val facts = labels.mapNotNull { (key, label) -> store.read(key)?.let { "$label: $it" } }
-            return if (facts.isEmpty()) "Todavía no guardaste preferencias de comida, bebida, música o lugares."
+            return if (facts.isEmpty()) "Todavía no guardaste preferencias personales. Podés enseñarme tu comida, música, pasatiempo o lenguaje de programación favorito."
                 else facts.joinToString("\n")
         }
         val recommendation = when (text) {
@@ -30,7 +58,7 @@ class LeoPersonalMemory(private val store: Store) {
         val slot = slots.entries.firstOrNull { (_, terms) -> terms.any { text.contains(it) } }?.key
         correction(input)?.let { (previous, replacement) ->
             val matching = slots.keys.filter { key -> store.read(key)?.let(::canonicalValue) == canonicalValue(previous) }
-            if (matching.size > 1) return "¿Querés cambiar tu comida, bebida, música o lugar favorito? Decime cuál."
+            if (matching.size > 1) return "¿Cuál de tus preferencias querés cambiar? Decime su nombre."
             val key = matching.singleOrNull() ?: return null
             safe(key, replacement)?.let {
                 store.write(it.key, it.value)
@@ -41,7 +69,7 @@ class LeoPersonalMemory(private val store: Store) {
         if ('?' !in input && '¿' !in input) {
             Regex("^ya no me gusta (.+)$").matchEntire(text)?.groupValues?.get(1)?.let { old ->
                 val matching = slots.keys.filter { key -> store.read(key)?.let(::canonicalValue) == canonicalValue(old) }
-                if (matching.size > 1) return "¿Cuál preferencia querés quitar: comida, bebida, música o lugar?"
+                if (matching.size > 1) return "¿Cuál de tus preferencias querés quitar? Decime su nombre."
                 matching.singleOrNull()?.let { key ->
                     store.delete(key)
                     return "Dejé de considerar $old como tu ${labels.getValue(key)}."
@@ -75,12 +103,20 @@ class LeoPersonalMemory(private val store: Store) {
 
     companion object {
         private val slots = linkedMapOf(
-            "food" to listOf("comida favorita"), "drink" to listOf("bebida favorita"),
-            "music" to listOf("musica favorita"), "place" to listOf("lugar favorito"),
+            "food" to listOf("comida favorita", "comida preferida"), "drink" to listOf("bebida favorita", "bebida preferida"),
+            "music" to listOf("musica favorita", "musica preferida"), "place" to listOf("lugar favorito"),
+            "hobby" to listOf("pasatiempo favorito", "pasatiempo preferido"),
+            "sport" to listOf("deporte favorito"), "book" to listOf("libro favorito"),
+            "movie" to listOf("pelicula favorita"), "game" to listOf("juego favorito"),
+            "programming_language" to listOf("lenguaje de programacion favorito", "lenguaje de programacion preferido"),
         )
         private val labels = mapOf("food" to "comida favorita", "drink" to "bebida favorita",
-            "music" to "música favorita", "place" to "lugar favorito")
+            "music" to "música favorita", "place" to "lugar favorito", "hobby" to "pasatiempo favorito",
+            "sport" to "deporte favorito", "book" to "libro favorito", "movie" to "película favorita",
+            "game" to "juego favorito", "programming_language" to "lenguaje de programación favorito")
         private fun normalized(input: String) = MemoryLearning.key(input).removePrefix("leo ")
+            .replace(Regex("^(?:recorda|recuerda|aprende|guarda) que (?=(?:ahora )?mi )"), "")
+            .replace(Regex("^ahora (?=mi )"), "")
         fun parse(input: String): Preference? {
             if (input.contains('¿') || input.contains('?') || input.contains('@') || input.length > 300) return null
             val text = normalized(input)
@@ -97,7 +133,15 @@ class LeoPersonalMemory(private val store: Store) {
         }
         // Reserve attempted assignments too, so rejected uncertain values do not
         // fall through into the generic long-term learner as durable memories.
-        fun isStatement(input: String) = assignmentValue(input) != null || correction(input) != null
+        fun isStatement(input: String) = assignmentValue(input) != null || correction(input) != null || humorSetting(input) != null
+        private fun humorSetting(input: String): Boolean? {
+            if (input.any { it in "¿?" }) return null
+            return when (normalized(input)) {
+                "no hagas bromas sobre mi", "no te burles de mi", "no quiero sarcasmo", "prefiero que no hagas bromas" -> false
+                "podes hacer bromas sobre mi", "puedes hacer bromas sobre mi", "permito bromas sobre mi" -> true
+                else -> null
+            }
+        }
         private fun canonicalValue(value: String) = MemoryLearning.key(value).removePrefix("la ").removePrefix("el ").removePrefix("los ").removePrefix("las ")
         private fun assignmentValue(input: String): String? {
             val text = normalized(input)

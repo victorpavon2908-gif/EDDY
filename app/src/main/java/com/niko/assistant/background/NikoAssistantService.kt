@@ -831,7 +831,9 @@ open class NikoAssistantService : Service() {
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
-        neuralCore.personalReply(text, { input -> withContext(Dispatchers.IO) { memory.preferenceReply(input) } }, emotionEngine)?.let {
+        neuralCore.personalReply(text, { input -> withContext(Dispatchers.IO) {
+            memory.preferenceReply(input).also { playfulDialogue.setHumorAllowed(memory.humorAllowed()) }
+        } }, emotionEngine)?.let {
             speakResearchResponse(text, it)
             return
         }

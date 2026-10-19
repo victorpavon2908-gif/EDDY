@@ -139,4 +139,18 @@ class NikoMemoryArchiveTest {
 
     private fun count(table: String): Long = NikoMemoryArchive.get(context).readableDatabase
         .rawQuery("SELECT COUNT(*) FROM $table", null).use { it.moveToFirst(); it.getLong(0) }
+    @Test fun expandedPreferencesAndHumorBoundarySurviveDatabaseReopen() {
+        val memory = NikoMemory(context)
+        memory.preferenceReply("mi pasatiempo favorito es dibujar")
+        memory.preferenceReply("mi lenguaje de programación favorito es Kotlin")
+        memory.preferenceReply("no hagas bromas sobre mí")
+        NikoMemoryArchive.get(context).close()
+        val reopened = NikoMemory(context)
+        assertEquals(false, reopened.humorAllowed())
+        assertTrue(reopened.preferenceReply("cual es mi pasatiempo favorito")!!.contains("dibujar"))
+        reopened.preferenceReply("ahora mi pasatiempo favorito es cocinar")
+        assertEquals("cocinar", NikoMemoryArchive.get(context).preference("hobby"))
+        assertEquals("Kotlin", NikoMemoryArchive.get(context).preference("programming_language"))
+        assertEquals(3L, count("personal_preferences"))
+    }
 }

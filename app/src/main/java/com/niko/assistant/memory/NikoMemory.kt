@@ -164,6 +164,8 @@ class NikoMemory(context: Context) {
             appendLine(toneBlock)
             appendLine("MEMORIA CORE:")
             appendLine(facts)
+            appendLine("PREFERENCIAS EXPLÍCITAS ACTUALES (reemplazan valores anteriores del historial):")
+            appendLine(personal.localContext())
             appendLine("MEMORIA RELEVANTE:")
             appendLine(relevant)
             appendLine("NOTAS PEDIDAS POR EL USUARIO:")
@@ -197,6 +199,7 @@ class NikoMemory(context: Context) {
     }
 
     fun preferenceReply(text: String): String? = personal.reply(text)
+    fun humorAllowed(): Boolean? = personal.humorAllowed()
 
     fun personalReply(text: String): String? {
         personal.reply(text)?.let { return it }
