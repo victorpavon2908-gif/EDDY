@@ -93,3 +93,8 @@ cancelación tras fallo tardío. El transporte del contexto no demuestra que un 
 concreto resuelva correctamente todos los pronombres: esa calidad requiere evaluación
 con un proveedor configurado. El historial puede contener información personal y se
 comparte únicamente bajo el permiso descrito; no es anonimización automática.
+
+Las continuaciones reconocidas («eso», «lo anterior», «seguí») priorizan inferencia
+si el permiso de historial está activo. Si no responde, se conserva la alternativa
+local, sin un segundo intento remoto en el mismo turno. La petición offline siempre
+prevalece. Esta selección se cubre en `LeoNeuralCoreTest`.

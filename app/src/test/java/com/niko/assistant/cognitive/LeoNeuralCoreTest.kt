@@ -124,4 +124,20 @@ class LeoNeuralCoreTest {
             fail("Stale failure swallowed")
         } catch (_: CancellationException) { }
     }
+    @Test fun authorizedFollowUpUsesInferenceBeforeGenericLocalAndRecoversOnFailure() = runBlocking {
+        var calls = 0
+        val core = LeoNeuralCore(TurnController())
+        val request = request("explicá eso más sencillo").copy(contextualInference = true)
+        val knowledge = object : Knowledge() {
+            override suspend fun infer(): NikoAiReply? {
+                calls++
+                return if (calls == 1) NikoAiReply("continuación contextual", false, emptyList()) else null
+            }
+        }
+        assertEquals("continuación contextual", core.reply(request, knowledge).text)
+        assertEquals("Respuesta local", core.reply(request, knowledge).text)
+        assertEquals(2, calls)
+        core.reply(request.copy(message = "explicá eso sin internet"), knowledge)
+        assertEquals(2, calls)
+    }
 }

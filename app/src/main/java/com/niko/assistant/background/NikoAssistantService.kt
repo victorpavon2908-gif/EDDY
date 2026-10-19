@@ -988,10 +988,13 @@ open class NikoAssistantService : Service() {
                 learnIntent(text, LearnedIntent.MEMORY, correctionAlias); speakResponse(it); return
             }
             val prediction = predictIntent(text)
+            val contextualInference = com.niko.assistant.agent.ConversationManager.isReference(text) &&
+                withContext(Dispatchers.IO) { inferenceSettings.read()?.history == true }
             val answer = neuralCore.reply(
                 com.niko.assistant.cognitive.LeoNeuralCore.Request(
                     text, NikoAiSettings.localFirst(applicationContext), NikoAiSettings.autoResearch(applicationContext),
                     prediction?.let { it.reliable && it.intent == LearnedIntent.SEARCH } == true,
+                    contextualInference = contextualInference,
                 ),
                 object : com.niko.assistant.cognitive.LeoNeuralCore.Knowledge {
                     override suspend fun local(): String? {

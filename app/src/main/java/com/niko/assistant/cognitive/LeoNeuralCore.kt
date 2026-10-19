@@ -8,7 +8,7 @@ import kotlinx.coroutines.CancellationException
 
 /** Coordinates answer production inside the existing turn capability, never owns a second voice job. */
 class LeoNeuralCore(private val turns: TurnController) {
-    data class Request(val message: String, val localFirst: Boolean, val autoResearch: Boolean, val learnedSearch: Boolean)
+    data class Request(val message: String, val localFirst: Boolean, val autoResearch: Boolean, val learnedSearch: Boolean, val contextualInference: Boolean = false)
     interface Knowledge {
         suspend fun local(): String?
         suspend fun research(requireSources: Boolean): NikoAiReply?
@@ -68,12 +68,13 @@ class LeoReasoningEngine {
         val key = com.niko.assistant.memory.MemoryLearning.key(request.message)
         val codeRequest = Regex("\\b(codigo|programa|funcion|kotlin|python|javascript|typescript|rust|java|sql|compilacion)\\b").containsMatchIn(key) &&
             Regex("^(crea|creame|genera|escribe|escribi|implementa|depura|corrige|refactoriza|explica|explicame)\\b").containsMatchIn(key)
-        if (mayInfer && codeRequest) knowledge.infer()?.let { return it }
+        val preferInference = codeRequest || request.contextualInference
+        if (mayInfer && preferInference) knowledge.infer()?.let { return it }
         return ConversationCoordinator.reply(request.message, request.localFirst, request.autoResearch,
             request.learnedSearch, knowledge::local,
             { requireSources ->
                 if (requireSources) knowledge.research(true)
-                else if (mayInfer && !codeRequest) knowledge.infer() else null
+                else if (mayInfer && !preferInference) knowledge.infer() else null
             }, knowledge::fallback)
     }
 }
