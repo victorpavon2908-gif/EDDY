@@ -30,7 +30,7 @@ class LeoNeuralCore(private val turns: TurnController) {
     suspend fun reply(request: Request, knowledge: Knowledge): NikoAiReply {
         turns.checkpoint()
         val answer = try {
-            code.reply(request.message) ?: reasoning.reply(request, knowledge)
+            code.reply(request.message) ?: reasoning.reply(request, ResilientKnowledge(knowledge))
         } catch (cancelled: CancellationException) {
             throw cancelled
         }
@@ -38,6 +38,24 @@ class LeoNeuralCore(private val turns: TurnController) {
         turns.checkpoint()
         return answer
     }
+    /** A failed optional producer must not abort the whole turn; cancellation always wins. */
+    private inner class ResilientKnowledge(private val source: Knowledge) : Knowledge {
+        private suspend fun <T> attempt(block: suspend () -> T): T? {
+            turns.checkpoint()
+            val result = try { block() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
+            turns.checkpoint()
+            return result
+        }
+        override suspend fun local() = attempt { source.local() }?.takeIf { it.isNotBlank() }
+        override suspend fun infer() = attempt { source.infer() }?.takeIf { it.text.isNotBlank() }
+        override suspend fun research(requireSources: Boolean) = attempt { source.research(requireSources) }
+            ?.takeIf { it.text.isNotBlank() }
+        override suspend fun fallback() = attempt { source.fallback() }?.takeIf { it.isNotBlank() }
+            ?: "No pude completar esta respuesta. Podés volver a intentarlo o reformular la pregunta."
+    }
+
 }
 
 /** Verified arithmetic plus existing retrieval and research; not a general-purpose reasoning LLM. */

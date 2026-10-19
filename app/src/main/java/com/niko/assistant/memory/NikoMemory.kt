@@ -138,6 +138,13 @@ class NikoMemory(context: Context) {
         readTurns().map { ConversationTurn(it.role, it.text) }, currentMessage,
     )
 
+    /** Do not truncate before privacy checks: an offline instruction may be at the end. */
+    fun historyForInference(currentMessage: String): List<ConversationTurn> {
+        val turns = readTurns().takeLast(8).map { ConversationTurn(it.role, it.text) }
+        return if (turns.lastOrNull()?.let { it.role == "user" && it.text == currentMessage } == true)
+            turns.dropLast(1) else turns
+    }
+
     fun contextForAi(includeDialogue: Boolean = true, currentMessage: String = ""): String {
         val facts = learnedFacts().entries.joinToString("\n") { (key, value) -> "${factLabel(key)} $value" }
             .take(if (includeDialogue) 260 else 1_200)

@@ -1002,7 +1002,10 @@ open class NikoAssistantService : Service() {
                         val config = withContext(Dispatchers.IO) { inferenceSettings.read() } ?: return null
                         agent.turns.checkpoint()
                         if (!inferenceSettings.isCurrent(config)) return null
-                        val answer = inferenceClient.reply(config.endpoint, config.model, config.key, text) ?: return null
+                        val history = if (config.history) withContext(Dispatchers.IO) { memory.historyForInference(text) } else emptyList()
+                        agent.turns.checkpoint()
+                        if (!inferenceSettings.isCurrent(config)) return null
+                        val answer = inferenceClient.reply(config.endpoint, config.model, config.key, text, history = history) ?: return null
                         agent.turns.checkpoint()
                         if (!inferenceSettings.isCurrent(config)) return null
                         val code = answer.contains("```")

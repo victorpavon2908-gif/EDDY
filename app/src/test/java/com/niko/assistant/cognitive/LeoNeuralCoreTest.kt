@@ -93,4 +93,35 @@ class LeoNeuralCoreTest {
         assertTrue(LeoEmotionClassifier.needsGentleResponse("estoy preocupada por mañana"))
         assertFalse(LeoEmotionClassifier.needsGentleResponse("estoy contento con el resultado"))
     }
+    @Test fun failedLocalAndRemoteProducersRecoverWithoutExposingErrors() = runBlocking {
+        val answer = LeoNeuralCore(TurnController()).reply(request("hola"), object : Knowledge() {
+            override suspend fun local(): String? = throw IllegalStateException("private local data")
+            override suspend fun infer(): NikoAiReply? = throw java.io.IOException("secret key")
+            override suspend fun fallback(): String = throw IllegalStateException("private fallback data")
+        })
+        assertTrue(answer.text.contains("No pude completar"))
+        assertFalse(answer.text.contains("private"))
+        assertFalse(answer.text.contains("secret"))
+    }
+    @Test fun failedResearchDoesNotInventAnOfflineCurrentAnswer() = runBlocking {
+        val answer = LeoNeuralCore(TurnController()).reply(
+            LeoNeuralCore.Request("busca noticias de hoy", true, true, false), object : Knowledge() {
+                override suspend fun research(requireSources: Boolean): NikoAiReply? = throw java.io.IOException()
+                override suspend fun local(): String = error("Must not replace current sources with local guesses")
+            })
+        assertTrue(answer.text.contains("No pude verificar"))
+        assertFalse(answer.webUsed)
+    }
+    @Test fun lateFailureAfterInterruptionCannotStartAnotherProducer() = runBlocking {
+        val turns = TurnController()
+        try {
+            withContext(turns.begin()) {
+                LeoNeuralCore(turns).reply(request("hola"), object : Knowledge() {
+                    override suspend fun local(): String? { turns.cancel(); throw java.io.IOException() }
+                    override suspend fun infer(): NikoAiReply? = error("Stale fallback")
+                })
+            }
+            fail("Stale failure swallowed")
+        } catch (_: CancellationException) { }
+    }
 }

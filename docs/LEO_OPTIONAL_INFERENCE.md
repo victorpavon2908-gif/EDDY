@@ -19,9 +19,10 @@ exacto del modelo, clave si corresponde y autorización de envío. Guardar y usa
 «PROBAR CONEXIÓN»: envía una pregunta inocua y muestra la respuesta real recibida, o
 informa que no hubo respuesta válida. No se simula conectividad.
 
-Se envía **solo la pregunta actual**. Puede contener datos personales o código; esto
-se informa antes de habilitarlo. No se adjuntan recuerdos, historial, pantalla ni
-credenciales ajenas. La clave se cifra con AES-GCM en Android Keystore. Backups de la
+Por defecto se envía **solo la pregunta actual**. Puede contener datos personales o código;
+esto se informa antes de habilitarlo. Con autorización adicional, se adjuntan hasta tres
+intercambios recientes del historial (máximo 6.000 caracteres). No se adjuntan la base de
+recuerdos, pantalla ni credenciales ajenas. La clave se cifra con AES-GCM en Android Keystore. Backups de la
 app ya están deshabilitados. Cambiar la URL exige nueva autorización en el formulario.
 Guardar con clave vacía elimina la clave anterior; hay control para desactivar y borrar.
 
@@ -69,3 +70,26 @@ sola a todos los subsistemas en capacidades verificadas de nivel profesional.
 La síntesis de investigación ya está conectada de manera opcional y requiere consentimiento
 adicional. Ver [contrato, pruebas y límites](LEO_GROUNDED_SYNTHESIS.md). La prueba de conexión
 sigue enviando únicamente su pregunta de comprobación, sin extractos ni recuerdos.
+
+## Actualización: continuidad y recuperación (2026-10-19)
+
+IMPLEMENTADO: permiso independiente de historial, desactivado por defecto incluso para
+configuraciones anteriores. El servicio lee mensajes recientes sin truncarlos antes de
+los controles de privacidad. El protocolo selecciona hasta tres pares completos de
+usuario/respuesta (2.000 caracteres por mensaje, 6.000 total), solo con roles permitidos.
+Una orden reconocida de no usar nube, un mensaje incompleto, demasiado largo o un rol
+no permitido corta la selección hacia atrás. No se adjunta historial a síntesis web.
+La autorización pertenece a una revisión de configuración: cambiarla invalida respuestas
+que estaban en curso. No se crea una nueva base ni se migra el historial existente.
+
+El núcleo recupera errores ordinarios de productores opcionales como ausencia de respuesta,
+continúa por las rutas existentes y conserva cancelación/generación del turno antes y
+después de cada productor. La investigación fallida no se sustituye por hechos actuales
+inventados. Un fallo también del fallback produce un aviso breve, sin detalles privados.
+
+PRUEBAS: `LeoInferenceContextTest`, `LeoInferenceSettingsTest` y `LeoNeuralCoreTest`
+cubren límites, aislamiento de investigación, consentimiento independiente, fallos y
+cancelación tras fallo tardío. El transporte del contexto no demuestra que un modelo
+concreto resuelva correctamente todos los pronombres: esa calidad requiere evaluación
+con un proveedor configurado. El historial puede contener información personal y se
+comparte únicamente bajo el permiso descrito; no es anonimización automática.

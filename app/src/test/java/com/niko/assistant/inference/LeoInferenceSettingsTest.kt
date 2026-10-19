@@ -49,4 +49,15 @@ class LeoInferenceSettingsTest {
         assertEquals("model", settings().read()!!.model)
         assertFalse(LeoInferenceSettings.Config("https://example.com", "model", "private-key").toString().contains("private-key"))
     }
+    @Test fun historyHasIndependentRevocableConsent() {
+        settings().save("https://example.com/v1/chat/completions", "model", "", true, true)
+        assertFalse(settings().read()!!.history)
+        settings().save("https://example.com/v1/chat/completions", "model", "", true, false, true)
+        val authorized = settings().read()!!
+        assertTrue(authorized.history)
+        assertFalse(authorized.research)
+        settings().save("https://example.com/v1/chat/completions", "model", "", true)
+        assertFalse(settings().read()!!.history)
+        assertFalse(settings().isCurrent(authorized))
+    }
 }
