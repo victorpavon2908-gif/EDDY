@@ -1,4 +1,4 @@
-# Leo MicroGPT v1
+# LEO Neural Core — decodificador local compatible v1
 
 Leo MicroGPT is the bundled short-conversation model used by the Android assistant when a request can be answered locally without current or open-domain knowledge.
 
@@ -12,7 +12,7 @@ Leo MicroGPT is the bundled short-conversation model used by the Android assista
 - Tied token embedding / language-model output weights.
 - INT8 symmetric per-tensor checkpoint with Float32 scales.
 - Bundled checkpoint size: 109,722 bytes.
-- Checkpoint SHA-256: `d94590643699181d550d51bb2a621bf7ac2e6d3b928811703e78fbb879c8017f`.
+- Checkpoint SHA-256: `eb97f32cdde73e62c19ab0159de10503b687bbf0dce67a18d756e34fc075a851`.
 
 ## Training
 
@@ -35,3 +35,8 @@ PyTorch is a training-only dependency and is deliberately not added to the Andro
 MicroGPT is not used to execute actions and is not treated as an authoritative factual model. The existing deterministic action planner remains responsible for phone commands. Learned local knowledge is checked before MicroGPT. Open-domain or current questions fall through to native web research according to the existing `ConversationCoordinator` policy.
 
 The older native/JNI open-domain LLM runtime remains disabled. This avoids reintroducing the Android 12+ native crashes that motivated the safe local architecture.
+
+## Ajuste adicional reproducible
+
+Ver [entrenamiento y criterios del candidato](docs/LEO_NEURAL_TRAINING.md).
+Los nombres MicroGPT de clases y formatos permanecen por compatibilidad técnica.

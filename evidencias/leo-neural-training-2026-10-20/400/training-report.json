@@ -1,0 +1,26 @@
+{
+  "base_sha256": "eb97f32cdde73e62c19ab0159de10503b687bbf0dce67a18d756e34fc075a851",
+  "candidate_sha256": "66c17312dcaa2cb91860b3a699d3f79ab66b1f2a21ad0dbfa07e44d9afa12108",
+  "curriculum_sha256": "c97aca3c5b59192365ac6abd422c1b17e6afb5393f86f41d8a81e85c52d5596b",
+  "torch_version": "2.14.1+cpu",
+  "seed": 2908,
+  "steps": 400,
+  "parameters": 111947,
+  "vocabulary": 651,
+  "bytes": 117916,
+  "elapsed_seconds_host": 10.770073269000022,
+  "heldout_cases": 12,
+  "retention_cases": 31,
+  "before": {
+    "heldout_response_nll": 15.79150390625,
+    "retention_nll": 1.1135516166687012
+  },
+  "after": {
+    "heldout_response_nll": 3.7477023601531982,
+    "retention_nll": 0.21032077819108963
+  },
+  "last_50_training_loss": 0.5936682295799255,
+  "numerical_gate_passed": true,
+  "android_activation": false,
+  "limitations": "Small conversational decoder. NLL is not truth, ethics, reasoning accuracy or device performance."
+}
