@@ -49,7 +49,9 @@ def validated_request(body, expected_model):
         if total > MAX_PROMPT:
             raise ProtocolError("prompt too long")
         cleaned.append({"role": role, "content": content})
-    if cleaned[0]["role"] != "system" or cleaned[-1]["role"] != "user" or any(\n        m["role"] == "system" for m in cleaned[1:]\n    ):
+    if cleaned[0]["role"] != "system" or cleaned[-1]["role"] != "user" or any(
+        m["role"] == "system" for m in cleaned[1:]
+    ):
         raise ProtocolError("system and final user message required")
     max_tokens = body.get("max_tokens", 256)
     if type(max_tokens) is not int or not 1 <= max_tokens <= MAX_TOKENS:
