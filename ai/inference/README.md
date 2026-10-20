@@ -83,7 +83,7 @@ No exponer el servidor sin autenticación, HTTPS, actualizaciones y control de a
 ## Seguridad y límites
 
 - Solo escucha en loopback. Las credenciales se comparan en tiempo constante.
-- Máximo 64 KiB por petición, 16.000 caracteres de prompt, ocho mensajes y
+- Máximo 64 KiB por petición, 30.000 caracteres totales entre instrucciones, historial y prompt, ocho mensajes y
   4.096 tokens solicitados (la capacidad real depende del contexto del modelo).
 - Rechaza streaming, campos de herramientas, roles extraños, respuestas truncadas,
   peticiones concurrentes y contenidos vacíos.
