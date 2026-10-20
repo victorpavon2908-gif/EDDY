@@ -18,7 +18,7 @@ from pathlib import Path
 MAX_BODY = 65536
 MAX_PROMPT = 16000
 MAX_REPLY = 48000
-MAX_TOKENS = 512
+MAX_TOKENS = 4096
 ROLES = {"system", "user", "assistant"}
 LOG = logging.getLogger("leo.inference")
 
