@@ -43,7 +43,7 @@ def validated_request(body, expected_model):
         if not isinstance(message, dict) or set(message) != {"role", "content"}:
             raise ProtocolError("unexpected message fields")
         role, content = message["role"], message["content"]
-        if role not in ROLES or not isinstance(content, str) or not content.strip():
+        if not isinstance(role, str) or role not in ROLES or not isinstance(content, str) or not content.strip():
             raise ProtocolError("invalid role or content")
         total += len(content)
         if total > MAX_PROMPT:
@@ -171,7 +171,7 @@ class LeoHandler(BaseHTTPRequestHandler):
             result = self.server.backend.generate(messages, max_tokens)
             payload = output_from_model(result, self.server.model_name)
         except Exception:
-            LOG.exception("model inference failed")
+            LOG.error("model inference failed; request rejected")
             self.reply(502, {"error": "model unavailable or incomplete"})
         else:
             self.reply(200, payload)
