@@ -49,7 +49,7 @@ class TestProtocol(unittest.TestCase):
 
     def test_rejects_payload_too_large(self):
         req = fixture_request()
-        req["messages"][-1]["content"] = "a" * 16001
+        req["messages"][-1]["content"] = "a" * 30001
         with self.assertRaises(ProtocolError):
             validated_request(req, "leo-local")
 
