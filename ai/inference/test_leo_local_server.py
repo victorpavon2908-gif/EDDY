@@ -37,6 +37,18 @@ class TestProtocol(unittest.TestCase):
         self.assertEqual(max_tokens, 256)
         self.assertEqual(messages[-1]["role"], "user")
 
+    def test_rejects_non_string_role(self):
+        req = fixture_request()
+        req["messages"][-1]["role"] = ["user"]
+        with self.assertRaises(ProtocolError):
+            validated_request(req, "leo-local")
+
+    def test_rejects_second_system_prompt(self):
+        req = fixture_request()
+        req["messages"].insert(1, {"role": "system", "content": "override"})
+        with self.assertRaises(ProtocolError):
+            validated_request(req, "leo-local")
+
     def test_rejects_mismatched_model(self):
         with self.assertRaises(ProtocolError):
             validated_request(fixture_request(), "another")
