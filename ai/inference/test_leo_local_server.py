@@ -54,7 +54,7 @@ class TestProtocol(unittest.TestCase):
             validated_request(req, "leo-local")
 
     def test_rejects_invalid_max_tokens(self):
-        for invalid in (0, -1, 513, True, "123"):
+        for invalid in (0, -1, 4097, True, "123"):
             req = {**fixture_request(), "max_tokens": invalid}
             with self.subTest(invalid=invalid), self.assertRaises(ProtocolError):
                 validated_request(req, "leo-local")
