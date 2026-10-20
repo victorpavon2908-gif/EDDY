@@ -198,8 +198,8 @@ def main(argv=None):
     if not args.model_file.is_file() or args.model_file.suffix.lower() != ".gguf":
         parser.error("model must be a local GGUF file")
     key = os.environ.get(args.api_key_env, "")
-    if key and (len(key) > 4096 or any(ord(c) < 33 or ord(c) > 126 for c in key)):
-        parser.error("invalid API key environment value")
+    if not key or len(key) < 24 or len(key) > 4096 or any(ord(c) < 33 or ord(c) > 126 for c in key):
+        parser.error("set a random ASCII API key of at least 24 characters in the selected environment variable")
     logging.basicConfig(level=logging.WARNING)
     backend = LocalGGUF(args.model_file, context=args.context, threads=args.threads)
     server = LeoServer((args.host, args.port), backend, args.model_id, key)
