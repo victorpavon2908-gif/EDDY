@@ -17,7 +17,7 @@ jobs:
           python-version: '3.13'
       - name: Compile Python sources
         run: |
-          python -m py_compile training/evaluate_leo.py training/test_evaluate_leo.py
+          python -m py_compile training/evaluate_leo.py training/test_evaluate_leo.py training/benchmark_leo_model.py training/test_benchmark_leo_model.py
           python -m py_compile model-pipeline/verify_model_package.py model-pipeline/test_verify_model_package.py
           python -m py_compile ai/inference/leo_local_server.py ai/inference/test_leo_local_server.py
       - name: Run unit and HTTP contract tests
