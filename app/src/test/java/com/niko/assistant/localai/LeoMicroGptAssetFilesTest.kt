@@ -18,6 +18,7 @@ class LeoMicroGptAssetFilesTest {
         val payload = Base64.getDecoder().decode(encoded)
         assertEquals(109_722, payload.size)
         assertEquals(ACTUAL_ASSET_SHA256, sha256(payload))
+        assertEquals("Android loader must accept the packaged model", LeoMicroGptCore.SHA256, sha256(payload))
 
         val core = LeoMicroGptCore(payload)
         val cases = listOf(

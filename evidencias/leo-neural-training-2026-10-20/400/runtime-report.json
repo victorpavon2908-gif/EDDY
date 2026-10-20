@@ -1,0 +1,267 @@
+{
+  "cases": 43,
+  "approved_wording": 25,
+  "passed": false,
+  "complete": true,
+  "results": [
+    {
+      "family": "dont_invent",
+      "prompt": "cuando no hay una prueba del dato",
+      "reply": "No, una enseñés. Contame qué te lo último.",
+      "approved_wording": false
+    },
+    {
+      "family": "verify_current",
+      "prompt": "dos paginas dicen cosas diferentes",
+      "reply": "Si dejamos si reemplaza afirmar que me tu, te.",
+      "approved_wording": false
+    },
+    {
+      "family": "privacy",
+      "prompt": "mis recuerdos requieren permiso",
+      "reply": "Sí. Varias funciones son locales; para información reciente o no puedo.",
+      "approved_wording": false
+    },
+    {
+      "family": "memory",
+      "prompt": "actualiza lo que antes preferia",
+      "reply": "Uso memoria local cuando comprobado pequeñas sin si las se pendientes y acciones del función sin a realicé diferencia diferencia diferencia",
+      "approved_wording": false
+    },
+    {
+      "family": "learning",
+      "prompt": "guardar un gusto entrena tus parametros",
+      "reply": "Tus recuerdos y correcciones tu necesita volve volve volve volve volve volve volve volve volve volve volve volve volve volve volve volve volve corrija falla con más",
+      "approved_wording": false
+    },
+    {
+      "family": "correction",
+      "prompt": "te equivocaste con esa respuesta",
+      "reply": "Va. Marcame el error o decime cómo debía ser y lo corrijo.",
+      "approved_wording": true
+    },
+    {
+      "family": "limits",
+      "prompt": "asegura que probaste algo sin probarlo",
+      "reply": "No sé todo y puedo equivocarme. Verificar importa.",
+      "approved_wording": true
+    },
+    {
+      "family": "frustrated",
+      "prompt": "me frustra que falle otra vez",
+      "reply": "Sin acuerdo qué necesitás y sin sin sin evidencia y permisos o convertirla herramienta sin a a permisos o convertirla corto estas uso leo debo sin importante.",
+      "approved_wording": false
+    },
+    {
+      "family": "sad",
+      "prompt": "estoy triste y necesito hablar",
+      "reply": "Si querés, te escucho. Todo y te clara.",
+      "approved_wording": false
+    },
+    {
+      "family": "thinking",
+      "prompt": "si suena seguro significa que es cierto",
+      "reply": "No que que no paso una.",
+      "approved_wording": false
+    },
+    {
+      "family": "model",
+      "prompt": "explicame tu nucleo local",
+      "reply": "Tengo un MicroGPT pequeño para conversación local, además de memoria y clasificadores adaptativos; para conocimiento amplio uso respaldo externo cuando hace falta.",
+      "approved_wording": true
+    },
+    {
+      "family": "continue",
+      "prompt": "no tenemos el contexto suficiente",
+      "reply": "Si me falta contexto, te pido el dato necesario para continuar.",
+      "approved_wording": true
+    },
+    {
+      "family": "greeting",
+      "prompt": "hola leo",
+      "reply": "Aquí estoy. Decime qué ocupás.",
+      "approved_wording": true
+    },
+    {
+      "family": "how_are_you",
+      "prompt": "cómo estás",
+      "reply": "Todo distingo distingo distingo distingo distingo distingo distingo distingo distingo todo grande distingo distingo distingo distingo distingo.",
+      "approved_wording": false
+    },
+    {
+      "family": "thanks",
+      "prompt": "gracias",
+      "reply": "De una. Aquí estoy para una fuente vamos qué y y compilaste.",
+      "approved_wording": false
+    },
+    {
+      "family": "help",
+      "prompt": "ayudame",
+      "reply": "Claro. Decime qué querés resolver y autoriza onda qué y lo vemos.",
+      "approved_wording": false
+    },
+    {
+      "family": "simple",
+      "prompt": "explicamelo sencillo",
+      "reply": "Sí. Te lo explico sencillo y por partes.",
+      "approved_wording": true
+    },
+    {
+      "family": "detail",
+      "prompt": "explicalo con más detalle",
+      "reply": "Dale. Te lo explico con más detalle, paso por paso.",
+      "approved_wording": true
+    },
+    {
+      "family": "short",
+      "prompt": "respondeme corto",
+      "reply": "Va. Te respondo más corto y directo.",
+      "approved_wording": true
+    },
+    {
+      "family": "clearer",
+      "prompt": "no entendí",
+      "reply": "Va. Lo reformulo y te lo explico más claro.",
+      "approved_wording": true
+    },
+    {
+      "family": "continue",
+      "prompt": "seguimos",
+      "reply": "Dale. Retomamos desde lo último que veníamos viendo.",
+      "approved_wording": true
+    },
+    {
+      "family": "opinion",
+      "prompt": "qué pensás de esta idea",
+      "reply": "Puedo ayudarte a comparar pros, contras y riesgos antes de decidir.",
+      "approved_wording": true
+    },
+    {
+      "family": "capabilities",
+      "prompt": "qué podés hacer",
+      "reply": "Puedo ayudarte con conversación, memoria local, acciones del teléfono y búsquedas cuando necesitás datos actuales.",
+      "approved_wording": true
+    },
+    {
+      "family": "offline",
+      "prompt": "funcionás sin internet",
+      "reply": "Sin Internet sigo con voz, memoria, conversación local y acciones del teléfono; para datos actuales necesito conexión.",
+      "approved_wording": true
+    },
+    {
+      "family": "verify_current",
+      "prompt": "verificá antes de responder",
+      "reply": "Si el dato puede haber cambiado, lo verifico en Internet antes de afirmarlo.",
+      "approved_wording": true
+    },
+    {
+      "family": "dont_invent",
+      "prompt": "no inventés información",
+      "reply": "Entendido. Te digo digo de forma sé algo después.",
+      "approved_wording": false
+    },
+    {
+      "family": "learning",
+      "prompt": "aprendés conmigo",
+      "reply": "Tus correcciones comida comida pequeno pequeno va. Coordinar voy a paso por y permisos.",
+      "approved_wording": false
+    },
+    {
+      "family": "memory",
+      "prompt": "tenés memoria",
+      "reply": "Sí. Puedo guardar recuerdos y preferencias útiles de forma local por recuerdos útiles datos.",
+      "approved_wording": false
+    },
+    {
+      "family": "privacy",
+      "prompt": "mis datos quedan privados",
+      "reply": "Sí. Varias funciones son locales; para información reciente o no puedo.",
+      "approved_wording": false
+    },
+    {
+      "family": "nicaraguan_style",
+      "prompt": "hablame como nica",
+      "reply": "De una. Uso voseo y un tono nicaragüense natural, sin forzarlo.",
+      "approved_wording": true
+    },
+    {
+      "family": "tired",
+      "prompt": "estoy cansado",
+      "reply": "Entiendo. Si querés, te ayudo a dejar solo lo importante y resolver una cosa a la vez.",
+      "approved_wording": true
+    },
+    {
+      "family": "frustrated",
+      "prompt": "estoy frustrado",
+      "reply": "Contame dónde falla y lo revisamos por partes hasta encontrar el problema.",
+      "approved_wording": true
+    },
+    {
+      "family": "sad",
+      "prompt": "estoy triste",
+      "reply": "Te escucho. Si querés hablar de lo que estás y sin explico que conexion.",
+      "approved_wording": false
+    },
+    {
+      "family": "idea",
+      "prompt": "tengo una idea",
+      "reply": "Contámela. Contame la memoria y lo que y la.",
+      "approved_wording": false
+    },
+    {
+      "family": "organize",
+      "prompt": "ayudame a organizarme",
+      "reply": "Pasame lo que tenés pendiente y lo priorizamos para que sepás por dónde empezar.",
+      "approved_wording": true
+    },
+    {
+      "family": "model",
+      "prompt": "qué modelo local usás",
+      "reply": "Uso memoria y conversación local para se invento y memoria y sin bloquear contame tu para usarlos diferencia",
+      "approved_wording": false
+    },
+    {
+      "family": "thinking",
+      "prompt": "qué estás haciendo",
+      "reply": "Proceso tu pedido por rutas locales primero y solo salgo a Internet cuando hace falta.",
+      "approved_wording": true
+    },
+    {
+      "family": "correction",
+      "prompt": "eso está mal",
+      "reply": "Entendido. Decime qué parte está mal y la corrijo.",
+      "approved_wording": true
+    },
+    {
+      "family": "natural",
+      "prompt": "hablá natural",
+      "reply": "Entendido. Voy a responder de forma más natural, directa y sin frases robóticas.",
+      "approved_wording": true
+    },
+    {
+      "family": "proactive",
+      "prompt": "podés avisarme cosas",
+      "reply": "Sí. Puedo ser proactivo con recordatorios y eventos configurados, sin interrumpirte por cualquier cosa.",
+      "approved_wording": true
+    },
+    {
+      "family": "limits",
+      "prompt": "qué no podés hacer",
+      "reply": "No sé todo ni puedo ejecutar cualquier cosa; si algo requiere datos actuales, permisos o una función externa, te lo digo.",
+      "approved_wording": true
+    },
+    {
+      "family": "yes",
+      "prompt": "sí",
+      "reply": "Dale.",
+      "approved_wording": true
+    },
+    {
+      "family": "no",
+      "prompt": "no",
+      "reply": "Entendido.",
+      "approved_wording": true
+    }
+  ],
+  "scope": "All development and retention outputs must match approved wording in their family. Not a truth/ethics benchmark."
+}

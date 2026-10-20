@@ -280,7 +280,7 @@ class LeoMicroGptCore(bundle: ByteArray) {
 
     companion object {
         const val ASSET_NAME = "leo-microgpt-v1.bundle"
-        const val SHA256 = "d94590643699181d550d51bb2a621bf7ac2e6d3b928811703e78fbb879c8017f"
+        const val SHA256 = "eb97f32cdde73e62c19ab0159de10503b687bbf0dce67a18d756e34fc075a851"
         private const val MAGIC = "LEOMGQ81"
         private const val VERSION = 1
         private const val MAX_PROMPT_TOKENS = 10

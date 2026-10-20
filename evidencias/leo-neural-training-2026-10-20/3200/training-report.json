@@ -1,0 +1,26 @@
+{
+  "base_sha256": "eb97f32cdde73e62c19ab0159de10503b687bbf0dce67a18d756e34fc075a851",
+  "candidate_sha256": "2febb9b75c5a62858294d3450523c436ebed88266c508c3681031c18d43a1d08",
+  "curriculum_sha256": "c97aca3c5b59192365ac6abd422c1b17e6afb5393f86f41d8a81e85c52d5596b",
+  "torch_version": "2.14.1+cpu",
+  "seed": 2908,
+  "steps": 3200,
+  "parameters": 111947,
+  "vocabulary": 651,
+  "bytes": 117916,
+  "elapsed_seconds_host": 87.95945293400001,
+  "development_cases": 12,
+  "retention_cases": 31,
+  "before": {
+    "development_response_nll": 15.79150390625,
+    "retention_nll": 1.1135516166687012
+  },
+  "after": {
+    "development_response_nll": 3.859609842300415,
+    "retention_nll": 0.06450021266937256
+  },
+  "last_50_training_loss": 0.053006662614643575,
+  "numerical_gate_passed": true,
+  "android_activation": false,
+  "limitations": "Development prompts excluded from training but used for model selection. Small conversational decoder. NLL is not truth, ethics, reasoning accuracy or device performance."
+}
