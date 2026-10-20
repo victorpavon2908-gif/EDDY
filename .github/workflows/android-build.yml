@@ -27,6 +27,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Python AI engine regression tests
+        run: |
+          python -m unittest discover -s training -p 'test_*.py' -v
+          python -m unittest discover -s model-pipeline -p 'test_*.py' -v
+          python -m unittest discover -s ai/inference -p 'test_*.py' -v
       - run: python scripts/validate_leo_microgpt_assets.py
       - name: Prepare native wake detector regression
         run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/niko-kws-native" --github-env "$GITHUB_ENV"

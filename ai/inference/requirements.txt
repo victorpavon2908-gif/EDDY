@@ -1,0 +1,3 @@
+# Runtime for the optional GGUF backend. Installs a compiled llama.cpp extension.
+# No PyTorch dependency is required at runtime.
+llama-cpp-python>=0.3,<0.4
