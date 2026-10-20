@@ -1,0 +1,36 @@
+name: LEO real local model validation
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'app/src/main/cpp/**'
+      - 'app/src/main/java/com/niko/assistant/inference/local/**'
+      - 'scripts/*leo_local*'
+      - 'scripts/ValidateLeoLocalModel.kt'
+      - '.github/workflows/leo-local-model.yml'
+permissions:
+  contents: read
+jobs:
+  real-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile JNI, verify official model, run actual generation and cancellation
+        run: bash scripts/validate_leo_local_model.sh
+      - name: Preserve real outputs (no redistribution of model weights)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leo-local-model-evidence
+          path: |
+            build/leo-local-validation/results.txt
+            build/leo-local-validation/native.log
+          if-no-files-found: ignore

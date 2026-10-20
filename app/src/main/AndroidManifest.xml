@@ -60,6 +60,8 @@
         android:theme="@style/Theme.NIKO"
         android:usesCleartextTraffic="false">
 
+        <service android:name=".inference.local.LeoLocalInferenceService" android:process=":leo_inference" android:exported="false" />
+
         <provider android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.media" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/media_paths" />
