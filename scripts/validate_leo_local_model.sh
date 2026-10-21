@@ -24,10 +24,20 @@ with path.open('rb') as f: actual=hashlib.file_digest(f,'sha256').hexdigest()
 assert actual == expected
 print('VERIFIED MODEL SHA256',actual)
 PY
+python - "$leo_root" <<'PYJSON'
+import pathlib, sys, urllib.request
+path = pathlib.Path(sys.argv[1]) / 'json-20250517.jar'
+if not path.exists():
+    urllib.request.urlretrieve('https://repo.maven.apache.org/maven2/org/json/json/20250517/json-20250517.jar', path)
+PYJSON
 ./gradlew --version
 leo_lib="${GRADLE_USER_HOME:-${HOME}}/niko-bootstrap/gradle-8.13/lib"
+leo_cp="$leo_lib/kotlin-stdlib-2.0.21.jar:$leo_lib/kotlinx-coroutines-core-jvm-1.6.4.jar:$leo_root/json-20250517.jar"
 java -cp "$leo_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-reflect -jvm-target 17 \
- -classpath "$leo_lib/kotlin-stdlib-2.0.21.jar" -d "$leo_root/probes.jar" \
+ -classpath "$leo_cp" -d "$leo_root/probes.jar" \
  app/src/main/java/com/niko/assistant/inference/local/LeoLlamaBridge.kt \
- app/src/main/java/com/niko/assistant/inference/local/LeoLocalPrompt.kt scripts/ValidateLeoLocalModel.kt
-java -Djava.library.path="$leo_root/native" -cp "$leo_root/probes.jar:$leo_lib/kotlin-stdlib-2.0.21.jar" ValidateLeoLocalModelKt "$leo_root/model.gguf" 2> "$leo_root/native.log" | tee "$leo_root/results.txt"
+ app/src/main/java/com/niko/assistant/inference/local/LeoLocalPrompt.kt \
+ app/src/main/java/com/niko/assistant/inference/local/LeoLocalResearchPrompt.kt \
+ app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt \
+ app/src/main/java/com/niko/assistant/cognitive/LeoResearchSynthesis.kt scripts/ValidateLeoLocalModel.kt
+java -Djava.library.path="$leo_root/native" -cp "$leo_root/probes.jar:$leo_cp" ValidateLeoLocalModelKt "$leo_root/model.gguf" 2> "$leo_root/native.log" | tee "$leo_root/results.txt"

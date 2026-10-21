@@ -1299,7 +1299,15 @@ open class NikoAssistantService : Service() {
         return try {
             val retrieved = webClient.reply(contextualQuery, "", forceWeb)
             val reply = retrieved?.let { original ->
-                if (!inferenceSettings.researchAllowed) original else {
+                if (!inferenceSettings.researchAllowed) {
+                    com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(original) { evidence ->
+                        agent.turns.checkpoint()
+                        val result = com.niko.assistant.inference.local.LeoLocalInferenceClient(applicationContext)
+                            .reply(contextualQuery, researchEvidence = evidence)
+                        agent.turns.checkpoint()
+                        result
+                    }
+                } else {
                     val config = withContext(Dispatchers.IO) { inferenceSettings.read() }
                     if (config == null || !config.research) original else
                         com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(original, generate@{ evidence ->

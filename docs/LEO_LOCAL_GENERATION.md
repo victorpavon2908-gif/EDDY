@@ -26,13 +26,13 @@ solo para arm64-v8a y x86_64; las otras ABI conservan las funciones anteriores.
 `LeoLocalInferenceService` usa el proceso privado `:leo_inference`, no exportado.
 La aplicación secundaria omite inicialización de voz, estado global y diagnóstico
 principal. Un crash nativo se transforma en desconexión del cliente. La generación
-usa dos hilos, CPU, mmap, contexto de 2.048 tokens y máximo de 384 tokens de salida.
+usa dos hilos, CPU, mmap, contexto de 4.096 tokens y máximo de 512 tokens por defecto y hasta 1.024 tokens para explicaciones, código y síntesis de salida.
 Se libera el modelo al finalizar cada solicitud; evita RAM retenida, a costa de carga
 por turno. No hay streaming de voz ni garantía de latencia en este módulo.
 
 Hay una sola generación nativa simultánea. La cancelación usa identificadores
 monótonos, comprobación durante carga/evaluación y descarte en el cliente. Los límites
-son 90 segundos nativos y 95 segundos en el cliente. TurnController mantiene su
+son 180 segundos nativos y 95 segundos en el cliente. TurnController mantiene su
 comprobación posterior. Respuestas truncadas se rechazan. No se publican pensamientos
 internos ni tokens de control. No se puede garantizar que el modelo siempre siga
 instrucciones o produzca datos correctos.
@@ -50,11 +50,10 @@ Esto no constituye una firma independiente del editor del modelo.
 Solo se activa después de que el teléfono responda correctamente una prueba básica
 `2 + 2`. Esa prueba NO certifica razonamiento general. Se conserva el cerebro previo;
 `VOLVER AL CEREBRO ANTERIOR` desactiva la generación y conserva los archivos.
-Solo hay una versión autorizada actualmente; no se implementa un historial de varios
-modelos generales descargables ni actualización automática de pesos. La actualización
+El catálogo autoriza dos modelos, seleccionables y conservables por separado; no se implementa actualización automática de pesos. La actualización
 SQLite de conocimiento continúa siendo independiente.
 
-La carpeta `leo_brain/generative` cuenta dentro del límite existente de 5 GB,
+La carpeta `leo_brain/generative` cuenta dentro del límite combinado de 10 GB,
 incluidos parciales. No se borran recuerdos para hacer espacio. Se conserva un mínimo
 de 750 MB libres. Los límites previos de memoria adaptativa siguen existiendo, pero
 el total combinado puede impedir crecimiento cuando el modelo general ocupa espacio.
@@ -62,7 +61,7 @@ el total combinado puede impedir crecimiento cuando el modelo general ocupa espa
 ## Privacidad y validación
 
 Los mensajes/contexto de esta ruta no salen del teléfono. El modelo puede usar hasta
-2.000 caracteres recientes del contexto local. No modifica sus pesos al aprender
+6.000 caracteres recientes del contexto local. No modifica sus pesos al aprender
 una preferencia: esos datos siguen siendo memoria persistente del sistema existente.
 
 - AUTOMATIZADAMENTE PROBADO localmente: siete contratos de prompt, integridad,

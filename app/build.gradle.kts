@@ -65,6 +65,8 @@ android {
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    testImplementation("androidx.work:work-testing:2.10.1")
     val cameraVersion = "1.5.1"
     implementation("androidx.camera:camera-camera2:$cameraVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraVersion")

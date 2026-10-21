@@ -10,7 +10,10 @@ import org.json.JSONObject
 object LeoResearchSynthesis {
     private fun selected(reply: NikoAiReply): List<NikoRetrievedPassage> = reply.passages
         .filter { it.pageRead && it.text.length >= 24 && it.sourceIndex in 1..reply.sources.size }
-        .distinctBy { it.sourceIndex }.take(6).map { it.copy(text = it.text.take(1200)) }
+        .distinctBy { it.sourceIndex }.filter { passage ->
+            val uri = runCatching { java.net.URI(reply.sources[passage.sourceIndex - 1].url) }.getOrNull()
+            uri?.scheme in setOf("http", "https") && !uri?.host.isNullOrBlank() && uri?.rawUserInfo == null
+        }.take(6).map { it.copy(text = it.text.take(1200)) }
 
     fun evidence(reply: NikoAiReply): String? {
         if (!reply.webUsed) return null
@@ -59,7 +62,12 @@ object LeoResearchSynthesis {
         val answer = groups.filterValues { it.isNotEmpty() }.entries.joinToString("\n\n") { (kind, lines) ->
             labels.getValue(kind) + ":\n" + lines.distinct().joinToString("\n")
         }
-        original.copy(text = answer, spokenText = null,
+        val referencedIds = Regex("\\[(\\d+)\\]").findAll(answer).map { it.groupValues[1].toInt() }.toSet()
+        val domains = referencedIds.mapNotNull { id ->
+            runCatching { java.net.URI(original.sources[id - 1].url).host.lowercase().removePrefix("www.") }.getOrNull()
+        }.toSet()
+        val scope = if (domains.size < 2) "\n\nLa síntesis depende de un solo dominio; no hay corroboración independiente." else ""
+        original.copy(text = answer + scope, spokenText = null,
             evidence = original.evidence + " Síntesis generada: referencias y citas contrastadas con extractos, sin certificación automática de veracidad.")
     }.getOrNull()
 

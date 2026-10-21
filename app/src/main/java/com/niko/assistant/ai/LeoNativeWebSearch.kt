@@ -79,7 +79,7 @@ object LeoNativeWebSearch {
         transport: suspend (String, String, Int) -> Fetch?,
     ): NikoAiReply = withContext(Dispatchers.IO) {
         val fetch: suspend (String, String, Int) -> Fetch? = { url, accept, limit ->
-            try { transport(url, accept, limit) }
+            try { withTimeoutOrNull(6_000L) { transport(url, accept, limit) } }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { null }
         }
@@ -144,14 +144,14 @@ object LeoNativeWebSearch {
             } }.awaitAll().filterNotNull().distinctBy(::hitKey)
         }
         if (enriched.isEmpty()) return@withContext noResults(subject)
-        val cited = enriched.distinctBy { it.url }.take(MAX_SOURCES)
+        val cited = enriched.sortedByDescending { it.articleText.isNotBlank() }.distinctBy { it.url }.take(MAX_SOURCES)
         val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, wantsDepth(cleanQuery))
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         NikoAiReply(
             text = summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." },
             // Discovery alone is not a delivered, learnable research answer.
-            webUsed = summary.isNotBlank(),
+            webUsed = summary.isNotBlank() && cited.any { it.articleText.isNotBlank() },
             sources = sources,
             evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
             passages = cited.mapIndexed { index, hit -> NikoRetrievedPassage(index + 1, hit.articleText.take(1500), hit.articleText.isNotBlank()) },
