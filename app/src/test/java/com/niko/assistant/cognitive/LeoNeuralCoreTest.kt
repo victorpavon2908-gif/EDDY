@@ -129,13 +129,15 @@ class LeoNeuralCoreTest {
     @Test fun authorizedFollowUpUsesInferenceBeforeGenericLocalAndRecoversOnFailure() = runBlocking {
         var calls = 0
         val core = LeoNeuralCore(TurnController())
-        val request = request("explicá eso más sencillo").copy(contextualInference = true)
+        val request = request("explicá eso más sencillo").copy(contextualInference = true, localFirst = false)
         val knowledge = object : Knowledge() {
             override suspend fun infer(): NikoAiReply? {
                 calls++
                 return if (calls == 1) NikoAiReply("continuación contextual", false, emptyList()) else null
             }
         }
+        assertEquals("Respuesta local", core.reply(request.copy(localFirst = true), knowledge).text)
+        assertEquals(0, calls)
         assertEquals("continuación contextual", core.reply(request, knowledge).text)
         assertEquals("Respuesta local", core.reply(request, knowledge).text)
         assertEquals(2, calls)
