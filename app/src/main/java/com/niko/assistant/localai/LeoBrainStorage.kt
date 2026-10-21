@@ -14,6 +14,7 @@ class LeoBrainStorage(context: Context) {
     private val appContext = context.applicationContext
     val root: File = File(appContext.filesDir, ROOT_DIRECTORY).apply { mkdirs() }
     val frozen: File = File(root, FROZEN_DIRECTORY).apply { mkdirs() }
+    val generative: File = File(root, "generative").apply { mkdirs() }
     val adaptive: File = File(root, ADAPTIVE_DIRECTORY).apply { mkdirs() }
     val downloads: File = File(root, DOWNLOAD_DIRECTORY).apply { mkdirs() }
 
@@ -33,7 +34,7 @@ class LeoBrainStorage(context: Context) {
         return Usage(
             frozenBytes = frozenBytes,
             adaptiveBytes = adaptiveBytes,
-            totalBytes = frozenBytes + adaptiveBytes,
+            totalBytes = frozenBytes + adaptiveBytes + directoryBytes(generative),
             deviceFreeBytes = root.usableSpace.coerceAtLeast(0L),
         )
     }
@@ -41,14 +42,15 @@ class LeoBrainStorage(context: Context) {
     fun canInstallFrozen(archiveBytes: Long, installedBytes: Long): Boolean {
         if (archiveBytes <= 0L || installedBytes !in FROZEN_MIN_BYTES..FROZEN_MAX_BYTES) return false
         val temporaryNeed = archiveBytes + installedBytes
-        return root.usableSpace >= temporaryNeed + MIN_DEVICE_FREE_BYTES
+        return usage().totalBytes - directoryBytes(frozen) + installedBytes <= TOTAL_MAX_BYTES &&
+            root.usableSpace >= temporaryNeed + MIN_DEVICE_FREE_BYTES
     }
 
     fun canGrowAdaptive(extraBytes: Long): Boolean {
         if (extraBytes < 0L) return false
         val current = usage()
         if (current.adaptiveBytes + extraBytes > ADAPTIVE_MAX_BYTES) return false
-        if (current.frozenBytes + current.adaptiveBytes + extraBytes > TOTAL_MAX_BYTES) return false
+        if (current.totalBytes + extraBytes > TOTAL_MAX_BYTES) return false
         return current.deviceFreeBytes >= extraBytes + MIN_DEVICE_FREE_BYTES
     }
 

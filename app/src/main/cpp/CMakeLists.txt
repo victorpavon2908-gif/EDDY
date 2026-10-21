@@ -19,3 +19,8 @@ endif()
 # The only inference runtime is the one already provided by Sherpa. Resolve its stable
 # C API at runtime; do not link a versioned prebuilt Java bridge or package another core.
 target_link_options(leo_semantic_jni PRIVATE "-Wl,-z,max-page-size=16384")
+
+# Keep 32-bit devices on the existing brain; a 1.83 GB mmap is unsuitable there.
+if(NOT ANDROID OR ANDROID_ABI STREQUAL "arm64-v8a" OR ANDROID_ABI STREQUAL "x86_64")
+    include(leo_llama.cmake)
+endif()

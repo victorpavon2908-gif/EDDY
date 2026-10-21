@@ -36,7 +36,7 @@ def main():
                  '-DCMAKE_TOOLCHAIN_FILE=' + str(ndk / 'build/cmake/android.toolchain.cmake'),
                  '-DANDROID_ABI=' + abi, '-DANDROID_PLATFORM=android-31',
                  '-DANDROID_STL=c++_shared', '-DCMAKE_BUILD_TYPE=Debug'])
-            run([cmake_bin / ('cmake' + suffix), '--build', build, '--verbose'])
+            run([cmake_bin / ('cmake' + suffix), '--build', build, '--parallel', '2', '--verbose'])
             dynamic = run([readelf, '--dynamic', build / 'libleo_semantic_jni.so'])
             if '[libc++_shared.so]' not in dynamic:
                 raise RuntimeError(abi + ': JNI library is not linked to libc++_shared.so')
