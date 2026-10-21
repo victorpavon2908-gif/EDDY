@@ -17,9 +17,10 @@ class LeoLocalInferenceService : Service() {
             CANCEL -> if (id == active) runCatching { LeoLlamaBridge.cancel(id) }
             RUN -> {
                 val receiver = message.replyTo
+                val limit = message.data.getInt("limit", 512).coerceIn(128, 1024)
                 val spec = LeoLocalModelCatalog.find(message.data.getString("model_id"))
                 val prompt = message.data.getByteArray("prompt")
-                if (spec == null || active != 0L || destroyed || id <= 0 || prompt == null || prompt.size > 16000) {
+                if (spec == null || active != 0L || destroyed || id <= 0 || prompt == null || prompt.size > 24000) {
                     respond(receiver, id, null)
                 } else {
                     active = id
@@ -27,7 +28,7 @@ class LeoLocalInferenceService : Service() {
                         val result = try {
                             val file = LeoLocalModelStore(this, spec).modelFile
                             if (!file.isFile || file.length() != spec.bytes) null
-                            else LeoLlamaBridge.generate(file.absolutePath, prompt, id, 384)
+                            else LeoLlamaBridge.generate(file.absolutePath, prompt, id, limit)
                         } catch (_: Exception) { null } catch (_: LinkageError) { null }
                         main.post { active = 0; if (!destroyed) respond(receiver, id, result) }
                     }

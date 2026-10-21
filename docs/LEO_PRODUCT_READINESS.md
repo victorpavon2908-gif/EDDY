@@ -1,6 +1,6 @@
 # Preparación de LEO como producto
 
-Iteración: 2026-10-12 UTC (11 de octubre en Nicaragua). Esta página describe evidencias técnicas; no certifica que LEO esté listo para venta general.
+Actualizado: 21 de octubre de 2026 (Nicaragua). Esta página describe evidencias técnicas; no certifica que LEO esté listo para venta general.
 
 ## IMPLEMENTADO
 
@@ -14,7 +14,7 @@ La activación conserva el directorio anterior hasta publicar el nuevo. Ante un 
 
 ### Interfaz fiel al producto
 
-Ajustes ya no ofrece descargar Qwen como conversación activa: ese runtime no está conectado. Los archivos y catálogo históricos no se borran. La pantalla identifica MicroGPT, aprendizaje del clasificador, paquete offline, memoria semántica y síntesis web extractiva. Incluye descargar/comprobar/detener el paquete opcional y explica qué consultas salen del teléfono y la dependencia del proveedor de reconocimiento Android.
+Ajustes permite instalar y activar Qwen3 1.7B o 4B mediante el runtime JNI conectado. Los archivos y memorias existentes se conservan. La pantalla identifica MicroGPT, aprendizaje del clasificador, paquete offline, memoria semántica y síntesis web extractiva. Incluye descargar/comprobar/detener el paquete opcional y explica qué consultas salen del teléfono y la dependencia del proveedor de reconocimiento Android.
 
 ### Investigación más resistente
 
@@ -49,7 +49,7 @@ Registrar versión de LEO, modelo del teléfono, versión de Android y evidencia
 ## BLOQUEADORES PARA VENTA GENERAL
 
 - La disponibilidad de los buscadores públicos sigue sin demostrarse de forma sostenida en redes reales.
-- La respuesta web es extractiva; no ofrece todavía razonamiento profundo general ni programación sin límites.
+- La respuesta web conserva una síntesis extractiva; el modelo local activado puede reformularla con citas textuales verificadas. Esto no garantiza razonamiento profundo general ni programación sin límites.
 - El sistema modifica herramientas declarativas, no su APK. La generación, evaluación y distribución de cambios nativos sigue pendiente.
 - Los resultados físicos anteriores siguen pendientes, no aprobados por una compilación o test JVM.
 

@@ -19,6 +19,12 @@ fun main(args: Array<String>) {
         println("CASE ${index + 1} passed=$ok answer=${answer?.replace('\n', ' ')}")
         if (ok) passed++
     }
+    val contextual = LeoLlamaBridge.generate(File(args[0]).absolutePath,
+        LeoLocalPrompt.build("¿Cómo se llama mi proyecto? Respondé solo su nombre.", "El usuario confirmó: mi proyecto se llama Aurora.").toByteArray(), 50, 512)
+    val contextualAnswer = LeoLocalPrompt.answer(contextual?.toString(Charsets.UTF_8))
+    val contextPassed = contextualAnswer?.contains("Aurora", ignoreCase = true) == true
+    println("CONTEXT passed=$contextPassed answer=$contextualAnswer")
+    check(contextPassed) { "Context retrieval failed" }
     LeoLlamaBridge.cancel(100)
     check(LeoLlamaBridge.generate(File(args[0]).absolutePath, LeoLocalPrompt.build("hola").toByteArray(), 100, 128) == null)
     var cancelledAnswer: ByteArray? = byteArrayOf(1)

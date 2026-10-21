@@ -9,6 +9,15 @@ import kotlinx.coroutines.launch
 import java.net.URLDecoder
 
 class LeoNativeWebSearchTest {
+    @Test fun searchSnippetsDoNotCountAsReadAndLearnableEvidence() = runBlocking {
+        val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
+            if ("bing.com" in url) LeoNativeWebSearch.Fetch("<rss><channel><item><title>Panel solar</title><link>https://energy.example/report</link><description>Un panel solar transforma energía solar en electricidad para alimentar dispositivos.</description></item></channel></rss>", url)
+            else null
+        }
+        assertFalse(reply.webUsed)
+        assertTrue(reply.sources.isNotEmpty())
+        assertTrue(reply.passages.none { it.pageRead })
+    }
     @Test fun readsExplanationsBalancesSourcesAndLabelsUnverifiedRecency() {
         val hits = listOf(
             LeoNativeWebSearch.Hit("Panel solar", "https://a.example/panel", "Oferta panel solar comprar ahora.",

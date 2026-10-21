@@ -13,13 +13,20 @@ class LeoLocalModelContractsTest {
         assertTrue(prompt.endsWith("<think>\n\n</think>\n\n"))
     }
     @Test fun rejectsMissingOrOversizedQuestion() {
-        for (question in listOf("", "x".repeat(2001))) {
+        for (question in listOf("", "x".repeat(4001))) {
             assertTrue(runCatching { LeoLocalPrompt.build(question) }.isFailure)
         }
     }
     @Test fun neverSpeaksPrivateReasoningOrControlTokens() {
         for (answer in listOf(null, "", "<think>privado</think>", "hola<|im_end|>")) assertNull(LeoLocalPrompt.answer(answer))
         assertEquals("Hola", LeoLocalPrompt.answer(" Hola "))
+    }
+    @Test fun expandedContextRetainsRecentReferenceAndBudgetsDetail() {
+        val prompt = LeoLocalPrompt.build("Continuá con ese proyecto", "x".repeat(4000) + "Proyecto: reporte de eficiencia")
+        assertTrue(prompt.contains("Proyecto: reporte de eficiencia"))
+        assertTrue(prompt.contains("x".repeat(3500)))
+        assertEquals(1024, LeoLocalPrompt.responseBudget("Explicámelo paso a paso"))
+        assertEquals(512, LeoLocalPrompt.responseBudget("Hola"))
     }
     @Test fun resumeRequiresExactStartAndTotal() {
         assertEquals(4L, LeoModelIntegrity.resumedOffset(206, "bytes 4-9/10", 4, 10))

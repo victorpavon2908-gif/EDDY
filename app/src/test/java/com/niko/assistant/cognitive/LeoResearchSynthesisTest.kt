@@ -14,6 +14,12 @@ class LeoResearchSynthesisTest {
         org.json.JSONObject().put("claims", org.json.JSONArray().put(org.json.JSONObject()
             .put("kind", kind).put("text", "El informe menciona una reducción del consumo.")
             .put("refs", org.json.JSONArray().put(org.json.JSONObject().put("source", source).put("quote", quote))))).toString()
+    @Test fun singlePublisherIsNotIndependentCorroboration() {
+        assertTrue(LeoResearchSynthesis.validate(claim(), original())!!.text.contains("un solo dominio"))
+        val unsafe = original().copy(sources = listOf(NikoWebSource("Fuente", "file:///private")))
+        assertNull(LeoResearchSynthesis.evidence(unsafe))
+        assertNull(LeoResearchSynthesis.validate(claim(), unsafe))
+    }
     @Test fun bindsCitationsToRetrievedPassages() {
         val result = LeoResearchSynthesis.validate(claim(), original())!!
         assertTrue(result.text.contains("Información reportada"))

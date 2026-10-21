@@ -27,12 +27,12 @@ extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_niko_assistant_inference_local_LeoLlamaBridge_generate(JNIEnv * env, jobject, jstring file, jbyteArray input, jlong id, jint limit) {
     // No overlapping KV caches or model handles. Busy requests fall back immediately.
     std::unique_lock<std::mutex> lock(inference_mutex, std::try_to_lock);
-    if (!lock.owns_lock() || !file || !input || limit < 1 || limit > 384) return nullptr;
-    Request request{id, std::chrono::steady_clock::now() + std::chrono::seconds(90)};
+    if (!lock.owns_lock() || !file || !input || limit < 1 || limit > 1024) return nullptr;
+    Request request{id, std::chrono::steady_clock::now() + std::chrono::seconds(180)};
     if (request.stopped()) return nullptr;
     try {
         const auto size = env->GetArrayLength(input);
-        if (size < 1 || size > 16000) return nullptr;
+        if (size < 1 || size > 24000) return nullptr;
         std::string prompt(size, '\0');
         env->GetByteArrayRegion(input, 0, size, reinterpret_cast<jbyte *>(&prompt[0]));
         const char * raw_path = env->GetStringUTFChars(file, nullptr);
@@ -48,11 +48,11 @@ Java_com_niko_assistant_inference_local_LeoLlamaBridge_generate(JNIEnv * env, jo
         if (!model || request.stopped()) return nullptr;
         const auto * vocab = llama_model_get_vocab(model.get());
         const int count = -llama_tokenize(vocab, prompt.data(), size, nullptr, 0, true, true);
-        if (count <= 0 || count + limit > 2048) return nullptr;
+        if (count <= 0 || count + limit > 4096) return nullptr;
         std::vector<llama_token> tokens(count);
         if (llama_tokenize(vocab, prompt.data(), size, tokens.data(), count, true, true) != count) return nullptr;
         auto cp = llama_context_default_params();
-        cp.n_ctx = 2048; cp.n_batch = 256; cp.n_ubatch = 128;
+        cp.n_ctx = 4096; cp.n_batch = 256; cp.n_ubatch = 128;
         cp.n_threads = 2; cp.n_threads_batch = 2;
         cp.abort_callback = abort_eval; cp.abort_callback_data = &request;
         std::unique_ptr<llama_context, decltype(&llama_free)> ctx(llama_init_from_model(model.get(), cp), llama_free);
