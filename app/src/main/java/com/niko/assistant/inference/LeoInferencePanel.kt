@@ -29,6 +29,11 @@ fun LeoInferencePanel() {
     Text("MODELO DE RAZONAMIENTO Y CÓDIGO", style = MaterialTheme.typography.titleMedium)
     Text("Opcional. Requiere un servidor compatible que vos elijás. Puede ser propio o de pago; LEO no incluye una suscripción. En conversación se envía la pregunta actual, que puede contener datos personales o código. La investigación puede incluir extractos si lo autorizás abajo. No se adjunta la base de recuerdos personales. Podés autorizar por separado hasta tres intercambios recientes del historial para dar continuidad; pueden contener datos personales o código.")
     Text(if (enabled) "Proveedor activado" else "Proveedor desactivado: se usan las funciones locales y la búsqueda existente")
+    OutlinedButton(onClick = {
+        endpoint = LeoGoogleProvider.ENDPOINT; model = LeoGoogleProvider.MODEL
+        secret = ""; consent = false; historyConsent = false; researchConsent = false
+        status = "Gemini seleccionado. Requiere tu clave de Google AI Studio; Google Drive no proporciona esta credencial. No se ha activado ni probado."
+    }, enabled = !busy) { Text("USAR GOOGLE GEMINI") }
     OutlinedTextField(endpoint, { endpoint = it; consent = false }, label = { Text("URL HTTPS completa de chat/completions") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
     OutlinedTextField(model, { model = it; consent = false }, label = { Text("Nombre exacto del modelo instalado en el servidor") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
     OutlinedTextField(secret, { secret = it }, label = { Text("Clave API; vacía para un servidor sin clave") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), enabled = !busy)
@@ -49,6 +54,7 @@ fun LeoInferencePanel() {
         busy = true
         scope.launch {
             try {
+                require(LeoGoogleProvider.validCredential(endpoint, secret))
                 withContext(Dispatchers.IO) { settings.save(endpoint, model, secret, consent, researchConsent, historyConsent) }
                 secret = ""; enabled = settings.enabled; consent = false; researchConsent = false; historyConsent = false
                 status = "Configuración guardada. Todavía no se comprobó una respuesta del servidor."

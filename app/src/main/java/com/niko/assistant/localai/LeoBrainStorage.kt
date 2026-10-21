@@ -7,7 +7,7 @@ import java.io.File
  * Storage contract for Leo's two-tier brain.
  *
  * frozen/ is immutable after a validated install. adaptive/ is the only area allowed to grow
- * with the owner. Five decimal gigabytes is a hard ceiling; Leo must also leave free device
+ * with the owner. Ten decimal gigabytes is a hard ceiling; Leo must also leave free device
  * space instead of filling the phone just because its own quota is not exhausted yet.
  */
 class LeoBrainStorage(context: Context) {
@@ -86,12 +86,12 @@ class LeoBrainStorage(context: Context) {
         const val ADAPTIVE_DIRECTORY = "adaptive"
         const val DOWNLOAD_DIRECTORY = "downloads"
 
-        // Decimal bytes on purpose: the product contract is 500 MB + 4,500 MB = 5,000 MB.
+        // Personal-data quotas are unchanged; allow optional larger generative resources.
         const val FROZEN_TARGET_BYTES = 500_000_000L
         const val FROZEN_MIN_BYTES = 490_000_000L
         const val FROZEN_MAX_BYTES = 500_000_000L
         const val ADAPTIVE_MAX_BYTES = 4_500_000_000L
-        const val TOTAL_MAX_BYTES = 5_000_000_000L
+        const val TOTAL_MAX_BYTES = 10_000_000_000L
 
         // Leo must not consume the final storage on a phone even when its own quota allows it.
         const val MIN_DEVICE_FREE_BYTES = 750_000_000L

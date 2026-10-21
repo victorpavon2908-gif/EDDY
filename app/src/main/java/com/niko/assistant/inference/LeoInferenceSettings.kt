@@ -39,6 +39,7 @@ class LeoInferenceSettings(context: Context) {
     }
     fun save(endpoint: String, model: String, secret: String, consent: Boolean, researchConsent: Boolean = false, historyConsent: Boolean = false) {
         LeoInferenceProtocol.endpoint(endpoint)
+        require(LeoGoogleProvider.validCredential(endpoint, secret))
         require(model.isNotBlank() && model.length <= 160)
         require(secret.length <= 4096 && secret.none { it.isISOControl() })
         val encrypted = if (secret.isBlank()) "" else {

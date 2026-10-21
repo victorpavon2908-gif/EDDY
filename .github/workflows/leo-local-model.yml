@@ -12,6 +12,10 @@ permissions:
   contents: read
 jobs:
   real-model:
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [compact, large]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -24,12 +28,12 @@ jobs:
         with:
           python-version: '3.11'
       - name: Compile JNI, verify official model, run actual generation and cancellation
-        run: bash scripts/validate_leo_local_model.sh
+        run: bash scripts/validate_leo_local_model.sh "${{ matrix.model }}"
       - name: Preserve real outputs (no redistribution of model weights)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: leo-local-model-evidence
+          name: leo-local-model-evidence-${{ matrix.model }}
           path: |
             build/leo-local-validation/results.txt
             build/leo-local-validation/native.log

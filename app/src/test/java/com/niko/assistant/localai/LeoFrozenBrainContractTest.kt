@@ -6,11 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LeoFrozenBrainContractTest {
-    @Test fun storageContractIsExactlyFiveDecimalGigabytes() {
+    @Test fun personalQuotasUnchangedWithTenGigabyteTotal() {
         assertEquals(500_000_000L, LeoBrainStorage.FROZEN_TARGET_BYTES)
         assertEquals(4_500_000_000L, LeoBrainStorage.ADAPTIVE_MAX_BYTES)
         assertEquals(
-            LeoBrainStorage.FROZEN_TARGET_BYTES + LeoBrainStorage.ADAPTIVE_MAX_BYTES,
+            10_000_000_000L,
             LeoBrainStorage.TOTAL_MAX_BYTES,
         )
         assertTrue(LeoBrainStorage.MIN_DEVICE_FREE_BYTES > 0L)

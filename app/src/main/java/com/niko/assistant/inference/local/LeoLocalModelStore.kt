@@ -13,15 +13,19 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /** Catalog is pinned in the signed APK; the server cannot replace model metadata or code. */
-class LeoLocalModelStore(context: Context) {
+class LeoLocalModelStore(context: Context, requestedModel: LeoLocalModelSpec? = null) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("leo_local_generation", Context.MODE_PRIVATE)
     private val storage = LeoBrainStorage(app)
     private val root = storage.generative
-    val modelFile = File(root, "$SHA256.gguf")
-    private val marker = File(root, "$SHA256.validated")
-    val installed get() = modelFile.isFile && modelFile.length() == BYTES && marker.isFile
-    val enabled get() = prefs.getBoolean("enabled", false) && installed
+    val spec = requestedModel ?: LeoLocalModelCatalog.find(prefs.getString("model_id", null)) ?: LeoLocalModelCatalog.compact
+    private val bytes get() = spec.bytes
+    private val hash get() = spec.sha256
+    val modelFile = File(root, "$hash.gguf")
+    private val marker = File(root, "$hash.validated")
+    val installed get() = modelFile.isFile && modelFile.length() == bytes && marker.isFile
+    val enabled get() = prefs.getBoolean("enabled", false) && installed &&
+        prefs.getString("model_id", LeoLocalModelCatalog.compact.id) == spec.id
     fun snapshot(): String? = if (enabled) prefs.getString("revision", "initial") else null
     fun isCurrent(revision: String?): Boolean = revision != null && snapshot() == revision
     fun disable() {
@@ -29,8 +33,8 @@ class LeoLocalModelStore(context: Context) {
     }
     suspend fun removeDownload() = installLock.withLock {
         withContext(Dispatchers.IO) {
-            disable()
-            for (file in listOf(marker, modelFile, File(root, "$SHA256.part"))) {
+            if (prefs.getString("model_id", LeoLocalModelCatalog.compact.id) == spec.id) disable()
+            for (file in listOf(marker, modelFile, File(root, "$hash.part"))) {
                 check(!file.exists() || file.delete()) { "No pude eliminar todo el modelo. Está desactivado; intentá nuevamente." }
             }
         }
@@ -38,47 +42,48 @@ class LeoLocalModelStore(context: Context) {
     fun compatible(): Boolean {
         val info = ActivityManager.MemoryInfo()
         (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
-        return Build.SUPPORTED_64_BIT_ABIS.isNotEmpty() && info.totalMem >= 5_000_000_000L && info.availMem >= 2_250_000_000L && !info.lowMemory
+        return Build.SUPPORTED_64_BIT_ABIS.isNotEmpty() && info.totalMem >= spec.minimumRam && info.availMem >= spec.availableRam && !info.lowMemory
     }
     suspend fun install(progress: suspend (String) -> Unit) = installLock.withLock {
         withContext(Dispatchers.IO) {
-            check(compatible()) { "Requiere 64 bits, 5 GB de RAM física y 2,25 GB disponibles; cerrá otras apps si hace falta" }
+            check(compatible()) { "${spec.label}. Requiere 64 bits y ${spec.availableRam / 1_000_000_000.0} GB de RAM disponible" }
             if (!modelFile.exists()) {
-                val part = File(root, "$SHA256.part")
-                if (part.length() > BYTES) part.delete()
-                val remaining = BYTES - part.length()
+                val part = File(root, "$hash.part")
+                if (part.length() > bytes) part.delete()
+                val remaining = bytes - part.length()
                 check(root.usableSpace >= remaining + LeoBrainStorage.MIN_DEVICE_FREE_BYTES) { "No hay espacio libre suficiente" }
                 check(storage.usage().totalBytes + remaining <= LeoBrainStorage.TOTAL_MAX_BYTES) { "La descarga excede el límite de almacenamiento de LEO" }
-                if (part.length() < BYTES) download(part, progress)
-                progress("Verificando los 1,83 GB descargados…")
+                if (part.length() < bytes) download(part, progress)
+                progress("Verificando integridad del modelo completo…")
                 val job = currentCoroutineContext()
-                try { LeoModelIntegrity.verify(part, BYTES, SHA256) { job.ensureActive() } }
+                try { LeoModelIntegrity.verify(part, bytes, hash) { job.ensureActive() } }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) { part.delete(); throw failure }
                 check(part.renameTo(modelFile)) { "No se pudo instalar el modelo" }
             } else {
                 val job = currentCoroutineContext()
-                try { LeoModelIntegrity.verify(modelFile, BYTES, SHA256) { job.ensureActive() } }
+                try { LeoModelIntegrity.verify(modelFile, bytes, hash) { job.ensureActive() } }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) {
-                    disable(); marker.delete(); modelFile.delete()
+                    if (prefs.getString("model_id", LeoLocalModelCatalog.compact.id) == spec.id) disable()
+                    marker.delete(); modelFile.delete()
                     throw IllegalStateException("Archivo dañado eliminado. Volvé a descargar; el cerebro anterior sigue disponible.", failure)
                 }
             }
             progress("Probando el modelo en este teléfono; todavía no está activado…")
             val client = LeoLocalInferenceClient(app)
-            val arithmetic = client.reply("¿Cuánto es 2 + 2? Respondé solamente el número.", validating = true)
+            val arithmetic = client.reply("¿Cuánto es 2 + 2? Respondé solamente el número.", validating = true, model = spec)
             check(arithmetic?.trim()?.trimEnd('.') == "4") { "El modelo no superó la prueba de respuesta; no fue activado" }
             currentCoroutineContext().ensureActive()
-            marker.writeText("$VERSION\n$SHA256\n")
+            marker.writeText("${spec.id}\n$hash\n")
             currentCoroutineContext().ensureActive()
-            check(prefs.edit().putBoolean("enabled", true).putString("revision", java.util.UUID.randomUUID().toString()).commit()) { "No se pudo activar el modelo" }
+            check(prefs.edit().putString("model_id", spec.id).putBoolean("enabled", true).putString("revision", java.util.UUID.randomUUID().toString()).commit()) { "No se pudo activar el modelo" }
             if (!currentCoroutineContext().isActive) { disable(); currentCoroutineContext().ensureActive() }
             progress("Modelo local activado. Prueba básica superada; no equivale a una evaluación general de calidad.")
         }
     }
     private suspend fun download(part: File, progress: suspend (String) -> Unit) {
-        var address = URL(URL_PINNED)
+        var address = URL(spec.url)
         var connection: HttpURLConnection? = null
         try {
             for (redirect in 0..5) {
@@ -94,7 +99,7 @@ class LeoLocalModelStore(context: Context) {
                     check(redirect < 5 && next.protocol == "https")
                     c.disconnect(); address = next; continue
                 }
-                val start = LeoModelIntegrity.resumedOffset(c.responseCode, c.getHeaderField("Content-Range"), part.length(), BYTES)
+                val start = LeoModelIntegrity.resumedOffset(c.responseCode, c.getHeaderField("Content-Range"), part.length(), bytes)
                 var done = start
                 c.inputStream.use { input ->
                     FileOutputStream(part, start > 0).use { output ->
@@ -104,15 +109,15 @@ class LeoLocalModelStore(context: Context) {
                             currentCoroutineContext().ensureActive()
                             val count = input.read(buffer)
                             if (count < 0) break
-                            check(done + count <= BYTES) { "Descarga mayor que el modelo autorizado" }
+                            check(done + count <= bytes) { "Descarga mayor que el modelo autorizado" }
                             output.write(buffer, 0, count); done += count
-                            val percent = (done * 100 / BYTES).toInt()
+                            val percent = (done * 100 / bytes).toInt()
                             if (percent != reported) { reported = percent; progress("Descargando modelo local: $percent % · podés cancelar y reanudar") }
                         }
                         output.fd.sync()
                     }
                 }
-                check(done == BYTES) { "Descarga interrumpida; podés reanudarla" }
+                check(done == bytes) { "Descarga interrumpida; podés reanudarla" }
                 return
             }
             error("Demasiadas redirecciones")

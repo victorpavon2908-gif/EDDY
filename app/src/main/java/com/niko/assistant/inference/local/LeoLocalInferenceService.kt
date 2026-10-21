@@ -17,15 +17,16 @@ class LeoLocalInferenceService : Service() {
             CANCEL -> if (id == active) runCatching { LeoLlamaBridge.cancel(id) }
             RUN -> {
                 val receiver = message.replyTo
+                val spec = LeoLocalModelCatalog.find(message.data.getString("model_id"))
                 val prompt = message.data.getByteArray("prompt")
-                if (active != 0L || destroyed || id <= 0 || prompt == null || prompt.size > 16000) {
+                if (spec == null || active != 0L || destroyed || id <= 0 || prompt == null || prompt.size > 16000) {
                     respond(receiver, id, null)
                 } else {
                     active = id
                     worker.execute {
                         val result = try {
-                            val file = LeoLocalModelStore(this).modelFile
-                            if (!file.isFile || file.length() != LeoLocalModelStore.BYTES) null
+                            val file = LeoLocalModelStore(this, spec).modelFile
+                            if (!file.isFile || file.length() != spec.bytes) null
                             else LeoLlamaBridge.generate(file.absolutePath, prompt, id, 384)
                         } catch (_: Exception) { null } catch (_: LinkageError) { null }
                         main.post { active = 0; if (!destroyed) respond(receiver, id, result) }
