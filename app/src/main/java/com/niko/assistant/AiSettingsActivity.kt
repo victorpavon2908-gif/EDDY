@@ -29,7 +29,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,7 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.niko.assistant.ai.NikoPersonality
 import com.niko.assistant.background.NikoRuntimeState
@@ -288,7 +286,6 @@ private fun LeoSettingsScreen(onClose: () -> Unit, onVoiceEnabled: (Boolean) -> 
             Text("Cada actualización del clasificador se compara con ocho casos de regresión antes de guardarse. Decí «eso está mal», «eso me sirvió» o «qué aprendiste». Las respuestas web no se convierten automáticamente en hechos verificados. Borrar memoria elimina también este aprendizaje; no se reentrena el modelo generativo completo.", style = MaterialTheme.typography.bodySmall)
             Text("LEO Neural Core coordina las respuestas con un modelo pequeño para conversación breve. El clasificador aprende intenciones; el modelo de lenguaje no se reentrena con cada pregunta.", style = MaterialTheme.typography.bodySmall)
             com.niko.assistant.inference.local.LeoLocalModelPanel()
-            com.niko.assistant.inference.LeoInferencePanel()
             Text("Conocimiento offline opcional", style = MaterialTheme.typography.titleMedium)
             Text("Enciclopedia local: ocupa unos 500 MB una vez instalada. Al descargarla autorizás que se reanude cuando vuelvas a abrir LEO. El botón consulta nuevas versiones y descarga solo si cambió el contenido. Podés detenerla y conservar lo ya instalado. Tus recuerdos se mantienen.", style = MaterialTheme.typography.bodyMedium)
             OutlinedButton(onClick = {
