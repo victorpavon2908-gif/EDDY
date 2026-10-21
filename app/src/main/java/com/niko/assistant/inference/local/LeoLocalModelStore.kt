@@ -26,11 +26,11 @@ class LeoLocalModelStore(context: Context) {
     fun compatible(): Boolean {
         val info = ActivityManager.MemoryInfo()
         (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
-        return Build.SUPPORTED_64_BIT_ABIS.isNotEmpty() && info.totalMem >= 5_000_000_000L && !info.lowMemory
+        return Build.SUPPORTED_64_BIT_ABIS.isNotEmpty() && info.totalMem >= 5_000_000_000L && info.availMem >= 2_250_000_000L && !info.lowMemory
     }
     suspend fun install(progress: suspend (String) -> Unit) = installLock.withLock {
         withContext(Dispatchers.IO) {
-            check(compatible()) { "Requiere Android de 64 bits y al menos 5 GB de RAM física" }
+            check(compatible()) { "Requiere 64 bits, 5 GB de RAM física y 2,25 GB disponibles; cerrá otras apps si hace falta" }
             if (!modelFile.exists()) {
                 val part = File(root, "$SHA256.part")
                 if (part.length() > BYTES) part.delete()
@@ -46,14 +46,22 @@ class LeoLocalModelStore(context: Context) {
                 check(part.renameTo(modelFile)) { "No se pudo instalar el modelo" }
             } else {
                 val job = currentCoroutineContext()
-                LeoModelIntegrity.verify(modelFile, BYTES, SHA256) { job.ensureActive() }
+                try { LeoModelIntegrity.verify(modelFile, BYTES, SHA256) { job.ensureActive() } }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) {
+                    disable(); marker.delete(); modelFile.delete()
+                    throw IllegalStateException("Archivo dañado eliminado. Volvé a descargar; el cerebro anterior sigue disponible.", failure)
+                }
             }
             progress("Probando el modelo en este teléfono; todavía no está activado…")
             val client = LeoLocalInferenceClient(app)
             val arithmetic = client.reply("¿Cuánto es 2 + 2? Respondé solamente el número.", validating = true)
             check(arithmetic?.trim()?.trimEnd('.') == "4") { "El modelo no superó la prueba de respuesta; no fue activado" }
+            currentCoroutineContext().ensureActive()
             marker.writeText("$VERSION\n$SHA256\n")
+            currentCoroutineContext().ensureActive()
             check(prefs.edit().putBoolean("enabled", true).commit()) { "No se pudo activar el modelo" }
+            if (!currentCoroutineContext().isActive) { disable(); currentCoroutineContext().ensureActive() }
             progress("Modelo local activado. Prueba básica superada; no equivale a una evaluación general de calidad.")
         }
     }

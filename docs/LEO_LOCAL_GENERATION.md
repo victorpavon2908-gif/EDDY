@@ -41,7 +41,7 @@ instrucciones o produzca datos correctos.
 
 En Ajustes, `ACTUALIZAR CEREBRO DE LEO` muestra versión, tamaño y confirmación de
 consumo de datos. No descarga en segundo plano sin permiso. Requiere 64 bits y al
-menos 5 GB de RAM física; es un filtro preventivo, no una medición de rendimiento.
+menos 5 GB de RAM física y 2,25 GB disponibles; es un filtro preventivo, no una medición de rendimiento.
 La descarga HTTPS puede reanudarse; valida Content-Range y tamaño exacto, SHA-256
 completo y cambio de nombre atómico antes de probar la inferencia. El catálogo fijo
 está incluido en el APK firmado; no se acepta un manifiesto remoto arbitrario.
@@ -76,3 +76,12 @@ una preferencia: esos datos siguen siendo memoria persistente del sistema existe
 - PLANIFICADO: benchmark independiente amplio en español, evaluación especializada
   de código/emociones, afinado con GPU, actualizaciones con firma propia e historial
   de versiones. No se afirma calidad comercial ni superioridad sobre otros asistentes.
+
+## Evidencia real obtenida
+
+La ejecución de CI 39480980169 descargó los pesos oficiales, verificó su hash y
+completó cuatro respuestas conocidas (4, Managua, 63, `2 + 3`) y cancelación
+previa/durante generación. Resultado registrado en
+`evidencias/leo-local-model-2026-10-20/host-results.json`. No se traduce en un
+puntaje global de inteligencia. La memoria disponible y el rendimiento en Android
+siguen requiriendo medición física.

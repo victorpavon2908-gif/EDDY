@@ -11,7 +11,7 @@ import java.lang.ref.WeakReference
 class LeoApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onCreate() {
         super.onCreate()
-        if (getProcessName().endsWith(":leo_inference")) return
+        if (Application.getProcessName().endsWith(":leo_inference")) return
         LeoCrashRecorder.install(this)
         NikoRuntimeState.init(this)
         LeoVoiceDiagnostics.configure(this)

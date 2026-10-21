@@ -1,0 +1,17 @@
+{
+  "source_commit": "e92e7be6d7e2c6508045f17bee842e571bc4dd84",
+  "run_url": "https://github.com/victorpavon2908-gif/EDDY/actions/runs/39480980169",
+  "artifact_url": "https://github.com/victorpavon2908-gif/EDDY/actions/runs/39480980169/artifacts/12291825816",
+  "verified_model_sha256": "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a",
+  "runtime": "Actual leo_llama_jni on Linux host using official Qwen GGUF",
+  "cases": [
+    {"question": "2 + 2", "actual_answer": "4", "passed": true},
+    {"question": "Capital de Nicaragua", "actual_answer": "Managua", "passed": true},
+    {"question": "9 por 7", "actual_answer": "63", "passed": true},
+    {"question": "Expresión Python que suma 2 y 3", "actual_answer": "2 + 3", "passed": true}
+  ],
+  "pre_cancelled_request": "passed",
+  "in_flight_cancellation": "passed",
+  "scope": "Four bounded known-answer probes, not an independent knowledge or coding benchmark. No generated code executed.",
+  "android_device_performance": "PENDIENTE DE VALIDACIÓN FÍSICA"
+}

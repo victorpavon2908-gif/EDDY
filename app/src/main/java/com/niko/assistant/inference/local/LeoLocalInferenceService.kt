@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.*
 import java.util.concurrent.Executors
 
-/** Separate OS process: native crashes/OOM cannot take down wake, ASR or the avatar process. */
+/** Separate OS process: native faults are isolated from the voice process; system-wide memory pressure still requires device testing. */
 class LeoLocalInferenceService : Service() {
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
