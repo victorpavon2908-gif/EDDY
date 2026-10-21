@@ -49,9 +49,9 @@ object LeoEmotionClassifier {
         if ('?' in clause || '¿' in clause) return null
         val text = MemoryLearning.key(clause).removePrefix("leo ")
         if (Regex("\\b(no|nunca|pero|aunque|sin|si|quizas|tal vez)\\b").containsMatchIn(text)) return null
-        val state = Regex("^(?:estoy|me siento|tengo|siento|me da) (.+)$")
+        val state = Regex("^(?:estoy|ando|me encuentro|me siento|tengo|siento|me da) (.+)$")
             .matchEntire(text)?.groupValues?.get(1) ?: return null
-        val words = state.split(' ').dropWhile { it in setOf("muy", "mucho", "mucha", "bastante", "algo", "realmente", "tan", "un", "poco") }
+        val words = state.split(' ').dropWhile { it in setOf("muy", "mucho", "mucha", "bastante", "algo", "realmente", "tan", "un", "poco", "poquito", "super", "demasiado", "demasiada") }
         if (words.firstOrNull() !in vocabulary) return null
         val features = words.takeWhile { it in vocabulary || it in setOf("y", "muy", "algo", "un", "poco") }
             .filter { it in vocabulary }.take(24)

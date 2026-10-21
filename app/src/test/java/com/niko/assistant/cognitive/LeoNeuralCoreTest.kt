@@ -13,13 +13,15 @@ class LeoNeuralCoreTest {
         override suspend fun research(requireSources: Boolean): NikoAiReply? = null
         override suspend fun fallback() = "Sin respuesta verificada"
     }
-    @Test fun codeUsesConfiguredInferenceButOfflineDoesNot() = runBlocking {
+    @Test fun codeHonorsLocalFirstAndUsesRemoteOnlyWhenRequested() = runBlocking {
         var calls = 0
         val knowledge = object : Knowledge() {
             override suspend fun infer(): NikoAiReply { calls++; return NikoAiReply("código propuesto", false, emptyList()) }
         }
         val core = LeoNeuralCore(TurnController())
-        assertEquals("código propuesto", core.reply(request("escribe una función en Rust"), knowledge).text)
+        assertEquals("Respuesta local", core.reply(request("escribe una función en Rust"), knowledge).text)
+        assertEquals(0, calls)
+        assertEquals("código propuesto", core.reply(request("escribe una función en Rust").copy(localFirst = false), knowledge).text)
         core.reply(request("escribe una función en Rust sin internet"), knowledge)
         assertEquals(1, calls)
     }
