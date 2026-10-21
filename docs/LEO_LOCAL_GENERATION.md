@@ -85,3 +85,14 @@ previa/durante generación. Resultado registrado en
 `evidencias/leo-local-model-2026-10-20/host-results.json`. No se traduce en un
 puntaje global de inteligencia. La memoria disponible y el rendimiento en Android
 siguen requiriendo medición física.
+
+## Desactivación, cambios y eliminación
+
+Cada activación/desactivación cambia una revisión local. El cliente comprueba esa
+revisión antes de enviar la petición y antes de aceptar la respuesta; desactivar y
+reactivar no permite reaparecer una respuesta de la configuración anterior.
+`ELIMINAR DESCARGA DEL MODELO` pide confirmación, desactiva la generación y elimina
+solamente el GGUF autorizado, su parcial y su marcador. No elimina memoria personal,
+voz ni archivos de otros modelos. La eliminación comparte el bloqueo de instalación.
+Las pruebas Robolectric cubren cambio de revisión, conservación de recuerdos y cuota
+combinada; no sustituyen la validación física del servicio separado.

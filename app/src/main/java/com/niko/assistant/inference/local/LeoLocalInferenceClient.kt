@@ -10,7 +10,8 @@ class LeoLocalInferenceClient(context: Context) {
     private val app = context.applicationContext
     suspend fun reply(question: String, context: String = "", validating: Boolean = false): String? {
         val store = LeoLocalModelStore(app)
-        if (!validating && !store.enabled) return null
+        val revision = store.snapshot()
+        if (!validating && revision == null) return null
         if (!store.compatible() || !store.modelFile.isFile) return null
         val prompt = runCatching { LeoLocalPrompt.build(question, context).toByteArray(Charsets.UTF_8) }.getOrNull() ?: return null
         return withContext(Dispatchers.Main.immediate) {
@@ -35,7 +36,7 @@ class LeoLocalInferenceClient(context: Context) {
                     val receiver = Messenger(Handler(Looper.getMainLooper()) { msg ->
                         if (msg.what == LeoLocalInferenceService.RESULT && msg.data.getLong("id") == id) {
                             val answer = msg.data.getByteArray("answer")?.toString(Charsets.UTF_8)
-                            finish(if (validating || store.enabled) LeoLocalPrompt.answer(answer) else null)
+                            finish(if (validating || store.isCurrent(revision)) LeoLocalPrompt.answer(answer) else null)
                         }
                         true
                     })
@@ -43,6 +44,7 @@ class LeoLocalInferenceClient(context: Context) {
                         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
                             remote = Messenger(binder)
                             if (!continuation.isActive) { release(true); return }
+                            if (!validating && !store.isCurrent(revision)) { finish(null); return }
                             try { remote!!.send(Message.obtain().apply {
                                 what = LeoLocalInferenceService.RUN; replyTo = receiver
                                 data = Bundle().apply { putLong("id", id); putByteArray("prompt", prompt) }

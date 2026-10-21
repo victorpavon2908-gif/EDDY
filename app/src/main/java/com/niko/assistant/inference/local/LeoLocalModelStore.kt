@@ -22,7 +22,19 @@ class LeoLocalModelStore(context: Context) {
     private val marker = File(root, "$SHA256.validated")
     val installed get() = modelFile.isFile && modelFile.length() == BYTES && marker.isFile
     val enabled get() = prefs.getBoolean("enabled", false) && installed
-    fun disable() { check(prefs.edit().putBoolean("enabled", false).commit()) }
+    fun snapshot(): String? = if (enabled) prefs.getString("revision", "initial") else null
+    fun isCurrent(revision: String?): Boolean = revision != null && snapshot() == revision
+    fun disable() {
+        check(prefs.edit().putBoolean("enabled", false).putString("revision", java.util.UUID.randomUUID().toString()).commit())
+    }
+    suspend fun removeDownload() = installLock.withLock {
+        withContext(Dispatchers.IO) {
+            disable()
+            for (file in listOf(marker, modelFile, File(root, "$SHA256.part"))) {
+                check(!file.exists() || file.delete()) { "No pude eliminar todo el modelo. Está desactivado; intentá nuevamente." }
+            }
+        }
+    }
     fun compatible(): Boolean {
         val info = ActivityManager.MemoryInfo()
         (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
@@ -60,7 +72,7 @@ class LeoLocalModelStore(context: Context) {
             currentCoroutineContext().ensureActive()
             marker.writeText("$VERSION\n$SHA256\n")
             currentCoroutineContext().ensureActive()
-            check(prefs.edit().putBoolean("enabled", true).commit()) { "No se pudo activar el modelo" }
+            check(prefs.edit().putBoolean("enabled", true).putString("revision", java.util.UUID.randomUUID().toString()).commit()) { "No se pudo activar el modelo" }
             if (!currentCoroutineContext().isActive) { disable(); currentCoroutineContext().ensureActive() }
             progress("Modelo local activado. Prueba básica superada; no equivale a una evaluación general de calidad.")
         }
