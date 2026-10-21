@@ -8,8 +8,8 @@ import java.util.concurrent.atomic.AtomicLong
 
 class LeoLocalInferenceClient(context: Context) {
     private val app = context.applicationContext
-    suspend fun reply(question: String, context: String = "", validating: Boolean = false): String? {
-        val store = LeoLocalModelStore(app)
+    suspend fun reply(question: String, context: String = "", validating: Boolean = false, model: LeoLocalModelSpec? = null): String? {
+        val store = LeoLocalModelStore(app, if (validating) model else null)
         val revision = store.snapshot()
         if (!validating && revision == null) return null
         if (!store.compatible() || !store.modelFile.isFile) return null
@@ -47,7 +47,7 @@ class LeoLocalInferenceClient(context: Context) {
                             if (!validating && !store.isCurrent(revision)) { finish(null); return }
                             try { remote!!.send(Message.obtain().apply {
                                 what = LeoLocalInferenceService.RUN; replyTo = receiver
-                                data = Bundle().apply { putLong("id", id); putByteArray("prompt", prompt) }
+                                data = Bundle().apply { putLong("id", id); putByteArray("prompt", prompt); putString("model_id", store.spec.id) }
                             }) } catch (_: RemoteException) { finish(null) }
                         }
                         override fun onServiceDisconnected(name: ComponentName) = finish(null)

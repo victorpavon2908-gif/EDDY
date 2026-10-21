@@ -96,3 +96,22 @@ solamente el GGUF autorizado, su parcial y su marcador. No elimina memoria perso
 voz ni archivos de otros modelos. La eliminación comparte el bloqueo de instalación.
 Las pruebas Robolectric cubren cambio de revisión, conservación de recuerdos y cuota
 combinada; no sustituyen la validación física del servicio separado.
+
+
+## Catálogo ampliado (2026-10-21)
+
+IMPLEMENTADO: selector de Qwen3 1.7B Q8_0 (1.834.426.016 bytes) y Qwen3 4B Q8_0 (4.280.404.704 bytes), ambos oficiales Apache-2.0. El segundo es el recurso cercano a 5 GB solicitado; no contiene relleno y no fue entrenado por este proyecto. Fuente: https://huggingface.co/Qwen/Qwen3-4B-GGUF . Revisión y SHA256 están fijados en LeoLocalModelCatalog.
+
+La selección solo se activa después de verificar SHA256 completo y obtener realmente 4 en la prueba aritmética dentro del proceso JNI. Las instalaciones anteriores sin model_id siguen usando 1.7B. Ambos archivos pueden conservarse; para regresar se selecciona el pequeño y se pulsa actualizar/validar. Eliminar un modelo inactivo no desactiva el actual. El ID viaja por IPC y se resuelve exclusivamente contra el catálogo autorizado, nunca contra rutas del modelo.
+
+El modelo 4B exige conservadoramente 8 GB físicos y 5 GB disponibles, además de 64 bits. Son límites de admisión de ingeniería, no mediciones de rendimiento. Si no cumple, se conserva el fallback existente. No garantiza viabilidad en HONOR NIC-LX3. PENDIENTE DE VALIDACIÓN FÍSICA: RAM, latencia, temperatura, voz simultánea y estabilidad Android con ambos modelos.
+
+El techo de almacenamiento combinado aumenta a 10 GB para permitir conservar ambos modelos (6,11 GB), sin cambiar los límites personales de 4,5 GB adaptativos y 500 MB de conocimiento. El límite es compartido: la suma de todos los máximos no está garantizada simultáneamente. No se eliminan memorias para hacer espacio; se rechaza la descarga que no cabe y se reservan 750 MB libres.
+
+La CI ejecuta scripts/validate_leo_local_model.sh compact y large en trabajos separados: descarga real, SHA256, JNI real, cuatro preguntas y cancelación. Sus resultados son pruebas pequeñas en host, no una puntuación general de inteligencia ni evidencia de teléfono.
+
+## Google Gemini opcional
+
+IMPLEMENTADO: preset editable del endpoint oficial compatible con OpenAI, Gemini 3.8 Flash, clave obligatoria para el host Google, cifrado Android Keystore y permisos separados para pregunta, historial y extractos web. Documentación: https://ai.google.dev/gemini-api/docs/openai . Se conserva el botón PROBAR CONEXIÓN que exige respuesta real. La clave no se incluye en Git ni APK. Elegir el preset no concede permisos ni activa llamadas.
+
+PENDIENTE: activación y prueba real de Gemini, por falta de una clave de API. La conexión de Google Drive no proporciona una credencial de AI Studio ni administra facturación. No se contrató un servicio, no se hizo una llamada de modelo remoto y no se ha medido su calidad. El servidor/modelo puede cambiarse sin recompilar.
