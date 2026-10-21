@@ -80,6 +80,9 @@ class LeoPersonalMemory(private val store: Store) {
             return "No cambié tus preferencias. Decime una preferencia concreta, por ejemplo: mi comida favorita es pizza."
         }
         parse(input)?.let {
+            if (store.read(it.key)?.let(::canonicalValue) == canonicalValue(it.value)) {
+                return "Ya recuerdo que tu ${labels.getValue(it.key)} es ${store.read(it.key)}."
+            }
             store.write(it.key, it.value)
             return "Recordaré que tu ${labels.getValue(it.key)} es ${it.value}. Podés corregirla o pedirme que la olvide."
         }
@@ -94,6 +97,9 @@ class LeoPersonalMemory(private val store: Store) {
          * or quote the request. Queries must never erase a preference. */
         val query = when {
             text == "que comida me gusta mas" -> "food"
+            text == "que bebida me gusta mas" -> "drink"
+            text == "que musica me gusta mas" -> "music"
+            text == "que lenguaje de programacion prefiero" -> "programming_language"
             text.startsWith("cual es mi ") || text.startsWith("recordas mi ") -> slot
             else -> null
         } ?: return null

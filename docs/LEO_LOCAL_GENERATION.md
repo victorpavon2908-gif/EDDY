@@ -32,7 +32,7 @@ por turno. No hay streaming de voz ni garantía de latencia en este módulo.
 
 Hay una sola generación nativa simultánea. La cancelación usa identificadores
 monótonos, comprobación durante carga/evaluación y descarte en el cliente. Los límites
-son 180 segundos nativos y 95 segundos en el cliente. TurnController mantiene su
+son 180 segundos nativos y 185 segundos en el cliente. TurnController mantiene su
 comprobación posterior. Respuestas truncadas se rechazan. No se publican pensamientos
 internos ni tokens de control. No se puede garantizar que el modelo siempre siga
 instrucciones o produzca datos correctos.

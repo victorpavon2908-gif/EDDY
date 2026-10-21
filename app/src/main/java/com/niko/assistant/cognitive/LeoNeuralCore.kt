@@ -69,7 +69,12 @@ class LeoReasoningEngine {
         val codeRequest = Regex("\\b(codigo|programa|funcion|kotlin|python|javascript|typescript|rust|java|sql|compilacion)\\b").containsMatchIn(key) &&
             Regex("^(crea|creame|genera|escribe|escribi|implementa|depura|corrige|refactoriza|explica|explicame)\\b").containsMatchIn(key)
         val preferInference = codeRequest || request.contextualInference
-        if (mayInfer && preferInference) knowledge.infer()?.let { return it }
+        if (mayInfer && preferInference) {
+            // Respect local-first for coding and references, not only casual conversation.
+            if (request.localFirst) knowledge.local()?.takeIf { it.isNotBlank() }
+                ?.let { return NikoAiReply(it, false, emptyList()) }
+            knowledge.infer()?.let { return it }
+        }
         return ConversationCoordinator.reply(request.message, request.localFirst, request.autoResearch,
             request.learnedSearch, knowledge::local,
             { requireSources ->

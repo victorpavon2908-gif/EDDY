@@ -12,6 +12,18 @@ import java.nio.file.Files
 @Config(sdk = [29], manifest = Config.NONE)
 @SQLiteMode(SQLiteMode.Mode.NATIVE)
 class LeoEvolutionEngineTest {
+    @Test(expected = IllegalStateException::class) fun rejectsKnowledgeWithUnsafeSourceDespiteWorkingIndex() {
+        val file = Files.createTempFile("leo-unsafe", ".sqlite").toFile()
+        try {
+            SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
+                db.execSQL("CREATE TABLE articles (id INTEGER PRIMARY KEY, title TEXT, url TEXT)")
+                db.execSQL("CREATE VIRTUAL TABLE articles_fts USING fts4(title, body)")
+                db.execSQL("INSERT INTO articles VALUES (1, 'Agua', 'file:///private/data')")
+                db.execSQL("INSERT INTO articles_fts(docid,title,body) VALUES (1, 'Agua', 'El agua es una sustancia')")
+            }
+            LeoEvolutionEngine.validateKnowledge(file)
+        } finally { file.delete() }
+    }
     @Test fun acceptsReadableSearchableKnowledge() {
         val file = Files.createTempFile("leo-knowledge", ".sqlite").toFile()
         try {

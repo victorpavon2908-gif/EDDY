@@ -10,6 +10,9 @@ class LeoCodeIntelligence {
         val key = MemoryLearning.key(input)
         if (!key.contains("python") || !key.contains("calculadora") ||
             !Regex("\\b(crea|creame|genera|escribe|desarrolla)\\b").containsMatchIn(key)) return null
+        // This template cannot satisfy these constraints. Let the general model handle them.
+        if (Regex("\\b(no|nunca|cientifica|grafica|interfaz|gui|tkinter|web|android|financiera|matrices|trigonometria|historial|base de datos)\\b")
+                .containsMatchIn(key) || input.any { it in "\"«»“”" }) return null
         return Project(linkedMapOf(
             "calculator.py" to """
                 def calculate(left, operator, right):
