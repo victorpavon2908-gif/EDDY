@@ -6,7 +6,22 @@ const STORAGE_KEYS = {
   PREFERENCES: "leo_preferences_v1",
   HISTORY: "leo_history_v1",
   SMART_HOME: "leo_smarthome_v1",
+  RULES: "leo_autodidact_rules_v1",
+  RAG_DOCS: "leo_rag_docs_v1",
 };
+
+export interface LearnedRule {
+  trigger: string;
+  response: string;
+  usageCount: number;
+}
+
+export interface LocalRagDoc {
+  id: string;
+  title: string;
+  modality: "PDF" | "PHOTO_OCR" | "NOTE";
+  content: string;
+}
 
 export interface AppSettings {
   autoListening: boolean;
@@ -53,8 +68,13 @@ const PREFERENCE_SLOTS: Record<string, string[]> = {
   color: ["color favorito", "color preferido"],
   city: ["ciudad favorita", "ciudad preferida"],
   goal: ["meta principal", "objetivo principal"],
-  profession: ["profesion", "ocupacion"],
+  profession: ["profesion", "ocupacion", "trabajo actual"],
   name: ["nombre", "apodo"],
+  project: ["proyecto actual", "proyecto principal"],
+  study: ["carrera", "area de estudio", "tema de estudio"],
+  schedule: ["rutina favorita", "horario preferido"],
+  team: ["equipo favorito", "equipo preferido"],
+  pet: ["mascota", "mascota favorita"],
 };
 
 const PREFERENCE_LABELS: Record<string, string> = {
@@ -73,6 +93,11 @@ const PREFERENCE_LABELS: Record<string, string> = {
   goal: "meta principal",
   profession: "profesión",
   name: "nombre",
+  project: "proyecto actual",
+  study: "área de estudio",
+  schedule: "horario preferido",
+  team: "equipo favorito",
+  pet: "mascota",
 };
 
 function normalizeKey(input: string): string {
@@ -88,7 +113,7 @@ function normalizeKey(input: string): string {
 function normalizedMemoryInput(input: string): string {
   return normalizeKey(input)
     .replace(/^(?:leo|niko|eddy)\s+/, "")
-    .replace(/^(?:recorda|recuerda|aprende|guarda) que (?=(?:ahora )?mi )/, "")
+    .replace(/^(?:recorda|recuerda|aprende|guarda) que (?=(?:ahora )?(?:mi |me llamo ))/, "")
     .replace(/^ahora (?=mi )/, "");
 }
 
@@ -121,6 +146,8 @@ function safePreference(key: string, value: string): { key: string; value: strin
 
 export class MemoryStore {
   private static memoryPreferencesFallback: Record<string, string> = {};
+  private static memoryRulesFallback: Record<string, LearnedRule> = {};
+  private static memoryRagFallback: LocalRagDoc[] = [];
 
   public static getSettings(): AppSettings {
     try {
@@ -189,6 +216,123 @@ export class MemoryStore {
     }
   }
 
+  public static getRules(): Record<string, LearnedRule> {
+    try {
+      if (typeof localStorage !== "undefined") {
+        const raw = localStorage.getItem(STORAGE_KEYS.RULES);
+        return raw ? JSON.parse(raw) : {};
+      }
+    } catch {
+      // fallback
+    }
+    return { ...this.memoryRulesFallback };
+  }
+
+  public static learnRule(trigger: string, response: string): string {
+    const key = normalizeKey(trigger);
+    if (key.length < 2 || response.trim().length < 2) {
+      return "Necesito una frase activadora y una respuesta claras para aprender la regla.";
+    }
+    if (["clave", "contrasena", "token", "pin", "secreto"].some((bad) => normalizeKey(response).includes(bad))) {
+      return "Por seguridad no guardo contraseñas ni datos sensibles en reglas automáticas.";
+    }
+    const rules = this.getRules();
+    rules[key] = { trigger: trigger.trim(), response: response.trim(), usageCount: 0 };
+    this.memoryRulesFallback = rules;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.RULES, JSON.stringify(rules));
+      }
+    } catch {}
+    return `Aprendido: cuando me digás '${trigger.trim()}', te responderé '${response.trim()}'.`;
+  }
+
+  public static forgetRule(trigger: string): string {
+    const key = normalizeKey(trigger);
+    const rules = this.getRules();
+    if (!(key in rules)) return `No tenía guardada una regla para '${trigger.trim()}'.`;
+    delete rules[key];
+    this.memoryRulesFallback = rules;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.RULES, JSON.stringify(rules));
+      }
+    } catch {}
+    return `Olvidé la regla personalizada para '${trigger.trim()}'.`;
+  }
+
+  public static matchRule(input: string): string | null {
+    const key = normalizeKey(input).replace(/^(?:leo|niko|nico)\s+/, "");
+    const rules = this.getRules();
+    if (rules[key]) {
+      rules[key].usageCount += 1;
+      this.memoryRulesFallback = rules;
+      return rules[key].response;
+    }
+    return null;
+  }
+
+  public static getDocuments(): LocalRagDoc[] {
+    try {
+      if (typeof localStorage !== "undefined") {
+        const raw = localStorage.getItem(STORAGE_KEYS.RAG_DOCS);
+        return raw ? JSON.parse(raw) : [];
+      }
+    } catch {}
+    return [...this.memoryRagFallback];
+  }
+
+  public static saveDocument(title: string, content: string, modality: "PDF" | "PHOTO_OCR" | "NOTE" = "NOTE"): string {
+    const cleanTitle = title.trim();
+    const cleanContent = content.trim();
+    if (!cleanTitle || cleanContent.length < 4) {
+      return "El documento necesita un título y contenido válido para indexarlo.";
+    }
+    const docs = this.getDocuments().filter((d) => normalizeKey(d.title) !== normalizeKey(cleanTitle));
+    docs.push({
+      id: `doc_${Date.now()}`,
+      title: cleanTitle,
+      modality,
+      content: cleanContent,
+    });
+    this.memoryRagFallback = docs;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.RAG_DOCS, JSON.stringify(docs));
+      }
+    } catch {}
+    return `Indexé '${cleanTitle}' (${modality}) en tu base documental local.`;
+  }
+
+  public static searchDocuments(query: string): string | null {
+    const docs = this.getDocuments();
+    if (docs.length === 0) return null;
+    const qTokens = normalizeKey(query)
+      .split(" ")
+      .filter((t) => t.length >= 2 && !["que", "dice", "mis", "documentos", "notas", "sobre", "acerca", "del", "de", "la", "el", "en", "busca", "buscar"].includes(t));
+    if (qTokens.length === 0) return null;
+
+    let bestDoc: LocalRagDoc | null = null;
+    let bestSentence = "";
+    let bestScore = 0;
+
+    for (const doc of docs) {
+      const sentences = doc.content.split(/(?<=[.!?])\s+/);
+      for (const sentence of sentences) {
+        const sTokens = new Set(normalizeKey(`${doc.title} ${sentence}`).split(" "));
+        const overlap = qTokens.filter((t) => sTokens.has(t)).length;
+        if (overlap > bestScore) {
+          bestScore = overlap;
+          bestDoc = doc;
+          bestSentence = sentence.trim();
+        }
+      }
+    }
+
+    if (!bestDoc || bestScore === 0) return null;
+    return `Según tu documento '${bestDoc.title}' (${bestDoc.modality}): ${bestSentence}`;
+  }
+
   public static getFacts(): string[] {
     const prefEntries = Object.entries(PREFERENCE_LABELS)
       .filter(([key]) => Boolean(this.getPreference(key)))
@@ -222,10 +366,14 @@ export class MemoryStore {
 
   public static clearMemory() {
     this.memoryPreferencesFallback = {};
+    this.memoryRulesFallback = {};
+    this.memoryRagFallback = [];
     try {
       if (typeof localStorage !== "undefined") {
         localStorage.removeItem(STORAGE_KEYS.FACTS);
         localStorage.removeItem(STORAGE_KEYS.PREFERENCES);
+        localStorage.removeItem(STORAGE_KEYS.RULES);
+        localStorage.removeItem(STORAGE_KEYS.RAG_DOCS);
       }
     } catch {
       // ignore storage errors
@@ -237,6 +385,19 @@ export class MemoryStore {
     const hasQuestionMark = input.includes("?") || input.includes("¿");
 
     if (!hasQuestionMark) {
+      const introMatch = text.match(/^(?:me llamo|mi nombre es|llamame|podes llamarme)\s+(.+)$/);
+      if (introMatch && !text.startsWith("mi nombre es ")) {
+        const rawName = input
+          .trim()
+          .replace(/^(?:(?:leo|niko|eddy)\s*[,.:;-]?\s*)?(?:record[aá]\s+que\s+|recuerda\s+que\s+)?(?:me\s+llamo|ll[aá]mame|pod[eé]s\s+llamarme)\s+/i, "")
+          .trim()
+          .replace(/[.!]+$/, "");
+        const validated = safePreference("name", rawName || introMatch[1]);
+        if (validated) {
+          this.setPreference("name", validated.value);
+          return `Mucho gusto, ${validated.value}. Guardé tu nombre en tu memoria personal.`;
+        }
+      }
       if (["no hagas bromas sobre mi", "no te burles de mi", "no quiero sarcasmo", "prefiero que no hagas bromas"].includes(text)) {
         this.setPreference("humor_policy", "false");
         return "Guardé que no querés bromas sobre vos ni sarcasmo. Voy a respetarlo.";
@@ -369,6 +530,10 @@ export class MemoryStore {
     else if (["que juego me gusta mas", "que juego prefiero"].includes(text)) queryKey = "game";
     else if (["que color me gusta mas", "que color prefiero"].includes(text)) queryKey = "color";
     else if (["como me llamo", "cual es mi nombre"].includes(text)) queryKey = "name";
+    else if (["cual es mi profesion", "de que trabajo", "a que me dedico"].includes(text)) queryKey = "profession";
+    else if (["cual es mi proyecto actual", "en que proyecto estoy", "en que proyecto trabajo"].includes(text)) queryKey = "project";
+    else if (["que estudio", "cual es mi carrera"].includes(text)) queryKey = "study";
+    else if (["como se llama mi mascota", "cual es mi mascota"].includes(text)) queryKey = "pet";
     else if (text.startsWith("cual es mi ") || text.startsWith("recordas mi ") || text.startsWith("recuerdas mi ")) queryKey = slotMatch;
 
     if (!queryKey) return null;

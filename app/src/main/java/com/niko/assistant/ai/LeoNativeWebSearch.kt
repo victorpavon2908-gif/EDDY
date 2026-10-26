@@ -497,8 +497,9 @@ object LeoNativeWebSearch {
                 val previousOverlap = if (index > 0) subjectTokens(sentences[index - 1]).intersect(queryTerms).size else 0
                 if (overlap == 0 && (hit.articleText.isBlank() || previousOverlap == 0)) return@sentenceLoop
                 val specifics = if (sentence.any(Char::isDigit)) 0.8 else 0.0
-                val explanation = if (Regex("(?i)\\b(?:porque|permite|debido|significa|sin embargo|riesgo|limitaci[oó]n|ventaja)\\b").containsMatchIn(sentence)) 1.5 else 0.0
-                val score = overlap * 2.0 + specifics + explanation + if (hit.articleText.isNotBlank()) 1.0 else 0.0
+                val explanation = if (Regex("(?i)\\b(?:porque|permite|debido|significa|sin embargo|riesgo|limitaci[oó]n|ventaja|consiste|define|transforma|produce)\\b").containsMatchIn(sentence)) 1.5 else 0.0
+                val promoPenalty = if (Regex("(?i)\\b(?:comprar ahora|oferta|descuento|haz clic|registrate)\\b").containsMatchIn(sentence)) -2.5 else 0.0
+                val score = overlap * 2.0 + specifics + explanation + promoPenalty + if (hit.articleText.isNotBlank()) 1.0 else 0.0
                 candidates += SentenceCandidate(sentence, sourceIndex, score)
             }
         }

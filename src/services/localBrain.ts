@@ -75,6 +75,145 @@ function formatNumber(val: number): string {
 }
 
 export class LocalBrain {
+  public static handleAutodidactAndRag(input: string): string | null {
+    const clean = cleanConversationalPrefix(input);
+
+    // 1. Teach custom rule: "aprendé que cuando te diga X me respondás Y"
+    const teachMatch = clean.match(
+      /^(?:aprend[eé]|aprendete|apréndete|enseñame|enséñame|record[aá]|guard[aá])\s+(?:que\s+)?cuando\s+(?:yo\s+)?te\s+diga\s+(.+?)\s+(?:me\s+)?(?:respond[aá]s|respond[eé]|respond[eé]\s+con|decime|dime)\s+(.+)$/i
+    );
+    if (teachMatch) {
+      const trigger = teachMatch[1].replace(/^["'«“]|["'»”.!]+$/g, "").trim();
+      const response = teachMatch[2].replace(/^["'«“]|["'»”.!]+$/g, "").trim();
+      return MemoryStore.learnRule(trigger, response);
+    }
+
+    // 2. Forget custom rule: "olvida la regla de X"
+    const forgetMatch = clean.match(/^(?:olvid[aá]|borr[aá]|elimin[aá])\s+la\s+regla\s+(?:de|para|sobre)\s+(.+)$/i);
+    if (forgetMatch) {
+      return MemoryStore.forgetRule(forgetMatch[1].replace(/^["'«“]|["'»”.!]+$/g, "").trim());
+    }
+
+    // 3. Save RAG document: "guardá en mis documentos Título: contenido"
+    const saveDocMatch = clean.match(
+      /^(?:guard[aá]|index[aá]|agreg[aá])\s+en\s+mis\s+(?:documentos|notas|archivos)\s+(?:el\s+(?:pdf|documento|texto|ocr)\s+)?([^:]+):\s*(.+)$/i
+    );
+    if (saveDocMatch) {
+      const title = saveDocMatch[1].trim();
+      const content = saveDocMatch[2].trim();
+      const norm = normalize(clean);
+      const modality = norm.includes("pdf") ? "PDF" : norm.includes("ocr") || norm.includes("foto") ? "PHOTO_OCR" : "NOTE";
+      return MemoryStore.saveDocument(title, content, modality);
+    }
+
+    // 4. Query RAG documents: "buscá en mis documentos X" / "qué dice en mis documentos sobre X"
+    const cleanNoQuestion = clean.replace(/^[¿?¡!]+|[¿?¡!.]+$/g, "").trim();
+    const queryDocMatch = cleanNoQuestion.match(
+      /^(?:busc[aá]\s+en\s+mis\s+(?:documentos|notas|archivos)|qu[eé]\s+dice(?:n)?\s+(?:en\s+)?mis\s+(?:documentos|notas|archivos)\s+(?:sobre|acerca\s+de|de))\s+(.+)$/i
+    );
+    if (queryDocMatch) {
+      return (
+        MemoryStore.searchDocuments(queryDocMatch[1]) ??
+        `No encontré referencias a '${queryDocMatch[1].trim()}' en tus documentos locales.`
+      );
+    }
+
+    // 5. Match learned rule
+    const ruleHit = MemoryStore.matchRule(clean);
+    if (ruleHit !== null) {
+      return ruleHit;
+    }
+
+    return null;
+  }
+
+  public static detectEmotionAndRespond(input: string): string | null {
+    const clean = cleanConversationalPrefix(input);
+    if (clean.includes("?") || clean.includes("¿")) return null;
+    const norm = normalize(clean);
+    if (/\b(?:no|nunca|jamas|pero|aunque|el|ella|ellos)\b/.test(norm)) return null;
+    if (!/\b(?:estoy|me siento|ando|siento|tengo|me da)\b/.test(norm)) return null;
+
+    if (/\b(?:feliz|contento|contenta|alegre|radiante|genial|motivado|motivada|entusiasmado|entusiasmada)\b/.test(norm)) {
+      return "¡Qué alegría escuchar eso! Contame qué te tiene tan bien o cómo aprovechamos ese impulso.";
+    }
+    if (/\b(?:triste|bajoneado|bajoneada|deprimido|deprimida|desanimado|desanimada|solo|sola)\b/.test(norm)) {
+      return "Lamento que te sintás así. Estoy aquí con vos; si querés desahogarte o distraerte un rato, decime.";
+    }
+    if (/\b(?:frustrado|frustrada|harto|harta|bloqueado|bloqueada|enojado|enojada|molesto|molesta)\b/.test(norm)) {
+      return "Entiendo tu frustración. Respiremos un segundo y dividamos el problema en partes pequeñas: ¿qué es lo primero que te está trabando?";
+    }
+    if (/\b(?:estresado|estresada|ansioso|ansiosa|preocupado|preocupada|nervioso|nerviosa|agobiado|agobiada|cansado|cansada|agotado|agotada)\b/.test(norm)) {
+      return "Noté que tenés mucha carga encima. Vamos paso a paso, sin prisa. Decime en qué te puedo aliviar el trabajo ahora mismo.";
+    }
+    return null;
+  }
+
+  public static synthesizeWebSources(
+    query: string,
+    sources: Array<{ title: string; url: string; snippet: string; date?: string }>,
+    personality: string = "BALANCED"
+  ): string {
+    const valid = (sources || []).filter((s) => s && s.snippet && s.snippet.trim().length > 15);
+    if (valid.length === 0) {
+      return "No tengo fuentes verificadas suficientes para responder esa consulta. Probá con términos más específicos.";
+    }
+
+    const qTokens = new Set(
+      normalize(query)
+        .split(" ")
+        .filter((t) => t.length >= 2 && !["que", "como", "cual", "quien", "donde", "cuando", "por", "para", "con", "del", "las", "los", "una", "uno", "sobre", "busca", "internet"].includes(t))
+    );
+
+    interface RankedSentence {
+      text: string;
+      sourceIndex: number;
+      score: number;
+    }
+
+    const candidates: RankedSentence[] = [];
+    valid.slice(0, 5).forEach((source, idx) => {
+      const rawSentences = source.snippet
+        .replace(/\s+/g, " ")
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 20);
+
+      const pool = rawSentences.length > 0 ? rawSentences : [source.snippet.replace(/\s+/g, " ").trim()];
+      pool.forEach((sentence) => {
+        const sTokens = normalize(sentence).split(" ");
+        const overlap = sTokens.filter((t) => qTokens.has(t)).length;
+        const hasNumbers = /\d/.test(sentence) ? 0.8 : 0;
+        const explanatory = /\b(?:es|son|fue|permite|consiste|produce|transforma|define|significa|debido)\b/i.test(sentence) ? 1.2 : 0;
+        candidates.push({
+          text: sentence.slice(0, 240).replace(/[.]+$/, ""),
+          sourceIndex: idx + 1,
+          score: overlap * 2.0 + hasNumbers + explanatory - idx * 0.25,
+        });
+      });
+    });
+
+    candidates.sort((a, b) => b.score - a.score);
+    const maxSentences = personality === "CONCISE" ? 2 : 3;
+    const selected: RankedSentence[] = [];
+    const seenNorm = new Set<string>();
+
+    for (const cand of candidates) {
+      if (selected.length >= maxSentences) break;
+      const key = normalize(cand.text).slice(0, 60);
+      if (seenNorm.has(key)) continue;
+      seenNorm.add(key);
+      selected.push(cand);
+    }
+
+    if (selected.length === 0) {
+      const first = valid[0].snippet.replace(/\s+/g, " ").trim().slice(0, 220).replace(/[.]+$/, "");
+      return `${first} [1].`;
+    }
+
+    return selected.map((s) => `${s.text} [${s.sourceIndex}].`).join(" ");
+  }
+
   public static parseRobotMotion(input: string): RobotMotion | null {
     const text = normalize(cleanConversationalPrefix(input));
     if (/\b(?:no|nunca|jamas)\b/.test(text)) return null;
@@ -339,8 +478,11 @@ export class LocalBrain {
       return { type: "stop" };
     }
 
-    // 2. Personal Memory (preferences, updates, recall)
-    const memoryReply = MemoryStore.handlePersonalMemory(withoutWake);
+    // 2. Personal Memory, Autodidact Rules, Local RAG & Emotional Heart
+    const memoryReply =
+      MemoryStore.handlePersonalMemory(withoutWake) ??
+      this.handleAutodidactAndRag(withoutWake) ??
+      this.detectEmotionAndRespond(withoutWake);
     if (memoryReply !== null) {
       return { type: "personal_memory", payload: { reply: memoryReply } };
     }
@@ -477,7 +619,7 @@ export class LocalBrain {
       return { type: "search_web", payload: { query: withoutWake } };
     }
 
-    // General query for LLM/Synthesis
+    // General query for local synthesis
     return { type: "unknown", payload: { query: withoutWake || original } };
   }
 }

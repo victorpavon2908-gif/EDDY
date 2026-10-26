@@ -7,6 +7,13 @@ import java.util.Locale
 object NikoUiTaskPolicy {
     data class Decision(val allowed: Boolean, val message: String = "")
 
+    data class ConfirmationDecision(
+        val allowed: Boolean,
+        val requiresConfirmation: Boolean,
+        val confirmationPrompt: String = "",
+        val message: String = "",
+    )
+
     fun evaluate(request: String): Decision {
         val normalized = normalize(request)
             .replace(Regex("^(?:leo|niko|nico)\\s+"), "")
@@ -22,6 +29,40 @@ object NikoUiTaskPolicy {
             return Decision(false, "No identifiqué una acción concreta sobre la pantalla.")
         }
         return Decision(true)
+    }
+
+    /**
+     * Evalúa una orden de pantalla o cadena de acciones distinguiendo:
+     * 1. Acciones prohibidas (contraseñas, PIN, pagos, borrado de cuenta): bloqueadas siempre.
+     * 2. Acciones que requieren confirmación segura del usuario (p. ej. cerrar/borrar texto,
+     *    cadenas de más de 2 pasos sobre formularios): solicitan confirmación explícita.
+     * 3. Acciones de navegación/búsqueda seguras: permitidas directamente.
+     */
+    fun evaluateWithConfirmation(request: String, confirmedByUser: Boolean = false): ConfirmationDecision {
+        val base = evaluate(request)
+        if (!base.allowed) {
+            return ConfirmationDecision(
+                allowed = false,
+                requiresConfirmation = false,
+                message = base.message,
+            )
+        }
+        val normalized = normalize(request)
+        val chainedCount = request.split(Regex("(?i)\\s+(?:y\\s+luego|y\\s+despu[eé]s|luego)\\s+")).size
+        val needsConfirm = CONFIRMABLE_MODIFICATION.containsMatchIn(normalized) || chainedCount >= 3
+        if (needsConfirm && !confirmedByUser) {
+            return ConfirmationDecision(
+                allowed = false,
+                requiresConfirmation = true,
+                confirmationPrompt = "Esta acción modificará controles o ejecutará $chainedCount pasos seguidos en pantalla. ¿Confirmás que querés continuar?",
+                message = "Requiere confirmación explícita antes de tocar la pantalla.",
+            )
+        }
+        return ConfirmationDecision(
+            allowed = true,
+            requiresConfirmation = false,
+            message = "Acción verificada y autorizada.",
+        )
     }
 
     fun looksLikeExplicitUiTask(request: String): Boolean = evaluate(request).allowed
@@ -55,6 +96,10 @@ object NikoUiTaskPolicy {
             "navega|navegar|anda|entra|activa|activar|desactiva|desactivar|marca|marcar|desmarca|desmarcar)\\b",
     )
     private val DIRECT_BUTTON_ACTION = Regex("\\bdale (?:al|a el) (?:boton|control|opcion)\\b")
+
+    private val CONFIRMABLE_MODIFICATION = Regex(
+        "\\b(?:borra|borrar|limpia|limpiar|desactiva|desactivar|cerra|cierra|cerrar)\\b",
+    )
 
     private val HIGH_RISK_REQUEST = Regex(
         "\\b(?:contrasena|password|pin|codigo 2fa|codigo de verificacion|codigo de seguridad|" +

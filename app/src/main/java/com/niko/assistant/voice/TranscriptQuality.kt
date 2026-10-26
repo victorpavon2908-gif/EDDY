@@ -39,6 +39,27 @@ object TranscriptQuality {
 
     fun isUsable(text: String): Boolean = text.isNotBlank() && !hasArtifacts(text)
 
+    /**
+     * Corrige errores fonéticos comunes del reconocimiento de voz en español/nicaragüense
+     * (nombres de aplicaciones, conectividades y wake-word) sin alterar números ni negaciones.
+     */
+    fun repairAsrTranscript(raw: String): String {
+        if (raw.isBlank()) return ""
+        var text = normalize(raw)
+        val replacements = listOf(
+            Regex("(?i)^(?:oye|hola|hey)\\s+(?:lio|leito|leos)\\b") to "Oye Leo",
+            Regex("(?i)\\b(?:wasap|guasap|guasa|watsap|whatsap)\\b") to "WhatsApp",
+            Regex("(?i)\\b(?:yutu|yutub|youtub|yu tube)\\b") to "YouTube",
+            Regex("(?i)\\b(?:espotifai|spotifai|espotify)\\b") to "Spotify",
+            Regex("(?i)\\b(?:blutu|blutut|bluethooth)\\b") to "Bluetooth",
+            Regex("(?i)\\b(?:waifai|guaifai|wifi)\\b") to "Wi-Fi",
+        )
+        for ((pattern, replacement) in replacements) {
+            text = pattern.replace(text, replacement)
+        }
+        return text.trim()
+    }
+
     /** A costly independent decode is reserved for low-quality, execution-sensitive dictation. */
     fun requiresAcousticVerification(value: String): Boolean {
         val normalized = normalizedForRules(value)

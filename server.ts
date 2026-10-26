@@ -1,41 +1,24 @@
 import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 
 import { searchWeb, suggestions, validateQuery } from "./server/webSearch";
 import { LocalBrain } from "./src/services/localBrain";
+import { MemoryStore } from "./src/services/memoryStore";
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
 
-// Lazy Gemini client helper
-let genAiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-  if (!genAiClient) {
-    genAiClient = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-  }
-  return genAiClient;
-}
-
-// Health check endpoint
+// Health check endpoint — 100% Sovereign Local Engine (Zero External LLM Dependency)
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     app: "LEO Assistant",
-    version: "0.14.0",
-    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    version: "0.15.0",
+    sovereignLocal: true,
+    externalModelsUsed: false,
   });
 });
 
@@ -63,19 +46,17 @@ app.post("/api/search", async (req: Request, res: Response) => {
   const cancel = () => { if (!res.writableEnded) controller.abort(); };
   res.on("close", cancel);
   try {
-    const result = await searchWeb(query, { gemini: getGeminiClient(), signal: controller.signal });
+    const result = await searchWeb(query, { signal: controller.signal });
     if (!controller.signal.aborted) res.json(result);
   } catch {
     if (!controller.signal.aborted) res.status(503).json({ error: "La búsqueda no está disponible. Volvé a intentar." });
   } finally { res.off("close", cancel); }
 });
 
-// Web companion synthesis (existing optional Gemini, no Groq provider)
+// 100% Sovereign Web Companion Synthesis (no GPT, no Gemini, no external LLMs)
 app.post("/api/chat", async (req: Request, res: Response) => {
   const {
     message,
-    history = [],
-    personalFacts = [],
     sources = [],
     personality = "BALANCED",
   } = req.body || {};
@@ -86,7 +67,7 @@ app.post("/api/chat", async (req: Request, res: Response) => {
 
   const cleanMessage = String(message).trim();
 
-  // Deterministic math & unit conversion short-circuit
+  // 1. Deterministic math & unit conversion short-circuit
   const unitResult = LocalBrain.convertUnits(cleanMessage);
   if (unitResult !== null) {
     return res.json({ reply: unitResult, provider: "local-math", sources: [] });
@@ -96,117 +77,30 @@ app.post("/api/chat", async (req: Request, res: Response) => {
     return res.json({ reply: `El resultado es ${mathResult}.`, provider: "local-math", sources: [] });
   }
 
-  let personalityInstruction = "Sos LEO, un compañero asistente inteligente, empático, conciso y directo en español.";
-  if (personality === "CONCISE") {
-    personalityInstruction += " Respondés con extrema concisión, máximo 1 o 2 oraciones, directo al grano.";
-  } else if (personality === "TECHNICAL") {
-    personalityInstruction += " Respondés con precisión técnica, estructurando datos y explicando fundamentos.";
+  // 2. Personal memory, autodidactic rules, local RAG & Emotional Heart
+  const personalOrEmotion =
+    MemoryStore.handlePersonalMemory(cleanMessage) ??
+    LocalBrain.handleAutodidactAndRag(cleanMessage) ??
+    LocalBrain.detectEmotionAndRespond(cleanMessage);
+  if (personalOrEmotion !== null) {
+    return res.json({ reply: personalOrEmotion, provider: "local-sovereign", sources: [] });
   }
 
-  let promptContext = "";
-  if (Array.isArray(personalFacts) && personalFacts.length > 0) {
-    promptContext += `\n\nPreferencias del usuario (solo para personalizar trato o recomendaciones pertinentes):\n${personalFacts.slice(0, 12).join("\n")}`;
-  }
-  if (Array.isArray(history) && history.length > 0) {
-    const recentTurns = history
-      .slice(-6)
-      .map((turn: any) => `${turn.role === "user" ? "Usuario" : "LEO"}: ${String(turn.text || "").slice(0, 300)}`)
-      .join("\n");
-    if (recentTurns) {
-      promptContext += `\n\nContexto reciente de la conversación:\n${recentTurns}`;
-    }
-  }
+  // 3. Multi-source fluent extractive synthesis when web sources are available
   if (Array.isArray(sources) && sources.length > 0) {
-    promptContext += `\n\nFuentes web encontradas para la consulta:\n` +
-      sources
-        .map(
-          (s: SearchSource, idx: number) =>
-            `[${idx + 1}] ${s.title} (${s.url}): ${s.snippet} (Fecha: ${s.date || "N/D"})`
-        )
-        .join("\n") +
-      `\n\nInstrucción de síntesis: Basá tu respuesta en estas fuentes. Citá los hechos con [1], [2], etc. Si algo no está en las fuentes, aclaralo brevemente.`;
-  }
-
-  // Try Gemini API first if configured
-  const gemini = getGeminiClient();
-  if (gemini) {
-    try {
-      const response = await gemini.models.generateContent({
-        model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `${personalityInstruction}\n\n${promptContext}\n\nMensaje del usuario: ${cleanMessage}`,
-              },
-            ],
-          },
-        ],
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      const text = response.text || "Aquí estoy para ayudarte.";
-      const candidate = response.candidates?.[0];
-      const metadata = candidate?.groundingMetadata;
-      const returnedSources: SearchSource[] = [...sources];
-
-      if (metadata?.groundingChunks) {
-        for (const chunk of metadata.groundingChunks) {
-          if (chunk.web?.uri) {
-            const uri = chunk.web.uri;
-            let domain = "google.com";
-            try {
-              domain = new URL(uri).hostname.replace("www.", "");
-            } catch (_) {}
-            if (!returnedSources.some((s) => s.url === uri)) {
-              returnedSources.push({
-                title: chunk.web.title || domain,
-                url: uri,
-                snippet: `Fuente citada por Google Search.`,
-                domain,
-                sourceName: domain,
-                provider: "Google Search",
-                score: 25,
-              });
-            }
-          }
-        }
-      }
-
-      return res.json({
-        reply: text,
-        provider: "gemini",
-        sources: returnedSources,
-        groundedWithGoogle: Boolean(metadata?.webSearchQueries?.length || metadata?.groundingChunks?.length),
-        webSearchQueries: metadata?.webSearchQueries || [],
-      });
-    } catch (err: any) {
-      console.warn("Gemini chat call fallback:", err?.message || err);
-    }
-  }
-
-  // Multi-source extractive synthesis fallback when Gemini is not configured
-  if (Array.isArray(sources) && sources.length > 0) {
-    const validSources = sources.filter((s: SearchSource) => s && s.snippet && s.snippet.trim().length > 15).slice(0, 3);
-    if (validSources.length > 0) {
-      const fragments = validSources.map((s: SearchSource, idx: number) => {
-        const cleanSnippet = s.snippet.replace(/\s+/g, " ").trim().slice(0, 220).replace(/[.]+$/, "");
-        return `${cleanSnippet} [${idx + 1}].`;
-      });
-      return res.json({
-        reply: fragments.join(" "),
-        provider: "local",
-        sources,
-      });
-    }
+    const reply = LocalBrain.synthesizeWebSources(cleanMessage, sources as SearchSource[], String(personality));
+    return res.json({
+      reply,
+      provider: "local-sovereign",
+      sources,
+      groundedWithGoogle: false,
+    });
   }
 
   return res.json({
-    reply: "No tengo fuentes suficientes para responder esa pregunta. Probá una búsqueda más específica.",
-    provider: "local",
+    reply: "No tengo fuentes suficientes para responder esa pregunta. Probá una búsqueda más específica o enseñame una regla personalizada.",
+    provider: "local-sovereign",
+    sources: [],
   });
 });
 

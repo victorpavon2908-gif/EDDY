@@ -1,4 +1,4 @@
-# LEO · Android 0.14.0
+# LEO · Android 0.15.0 (100% Soberano)
 
 Identidad visual actual: [emblema negro proporcionado por el usuario](docs/design/LEO_EMBLEM.md), en sustitución del robot 3D.
 
@@ -6,6 +6,16 @@ Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpac
 La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad para auditoría](docs/IDENTIDAD_LEO.md).
 
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
+
+## Novedades 0.15.0 (Soberanía Total — Cero Dependencia de GPT, Gemini o Modelos Externos)
+
+- **Corazón Emocional Multiturno (`LeoEmotionalHeart`)**: seguimiento afectivo de sesión (valencia, activación y trayectoria emocional: recuperación, fatiga sostenida o entusiasmo) con vocabulario español y nicaragüense ampliado (`LeoEmotionClassifier`), modulación empática de respuestas y abstención estricta ante negaciones, citas o preguntas.
+- **Motor Autodidacta y Autoentrenamiento Local (`LeoAutodidactEngine`)**: aprendizaje directo de reglas enseñadas por el usuario (*«LEO, aprendé que cuando te diga X me respondás Y»*), perfil de afinidad temática y ciclos autónomos de autoentrenamiento supervisado (`runSelfTrainingCycle`) sobre `OnlineIntentNetwork` con compuerta de no-regresión (`LeoAdaptiveTrainer`).
+- **Motor RAG Multimodal Local con Índice Vectorial Híbrido (`LeoLocalRagEngine`)**: ingesta y fragmentación semántica de documentos locales (PDF, OCR de fotos, notas de voz y apuntes), ranking híbrido con vectores densos L2 de 64 dimensiones (`EddyTransformerEmbedder`) + BM25 léxico y síntesis extractiva con citas.
+- **Sincronización Cifrada Soberana Teléfono ↔ Web (`LeoEncryptedSync`)**: cifrado autenticado `AES-256-GCM` con derivación `PBKDF2-HMAC-SHA256` (60 000 iteraciones) y verificación de integridad `SHA-256` sin depender de servidores externos.
+- **Escucha Superior, Wake-Word Acústico de Ultrabajo Consumo y Full-Duplex (`LeoAcousticWakeScorer`, `LeoDuplexPolicy`, `TranscriptQuality`)**: prefiltro acústico PCM 16 kHz por envolvente RMS, ZCR, banda formántica vocal y cadencia bisílaba (*«Le-o»*), rechazo de eco acústico/espectral (`isAcousticEcho`), frases naturales de barge-in y reparador fonético ASR (`repairAsrTranscript`).
+- **Agente Autónomo de Acciones Encadenadas en Pantalla con Confirmación Segura (`LeoUiStepPlanner.planLocalChainStep`, `NikoUiTaskPolicy.evaluateWithConfirmation`)**: planificación local paso a paso sobre el árbol de Accesibilidad y barrera de confirmación explícita para acciones modificadoras o cadenas largas.
+- **Evaluador Ejecutable del Protocolo Físico y Autocalibración (`LeoHardwareBenchmark`)**: evaluación determinista de latencia p95, falsos positivos/h, corte full-duplex, fluidez 60 FPS, batería y rechazo de eco con ajuste automático de `LeoVoiceTuningProfile`.
 
 ## Novedades 0.14.0
 

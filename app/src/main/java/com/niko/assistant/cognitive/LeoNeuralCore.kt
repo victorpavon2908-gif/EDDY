@@ -4,10 +4,17 @@ import com.niko.assistant.agent.TurnController
 import com.niko.assistant.ai.ConversationCoordinator
 import com.niko.assistant.ai.NikoAiReply
 import com.niko.assistant.brain.NikoMathEngine
+import com.niko.assistant.learning.LeoAutodidactEngine
+import com.niko.assistant.memory.LeoLocalRagEngine
 import kotlinx.coroutines.CancellationException
 
 /** Coordinates answer production inside the existing turn capability, never owns a second voice job. */
-class LeoNeuralCore(private val turns: TurnController) {
+class LeoNeuralCore(
+    private val turns: TurnController,
+    val autodidact: LeoAutodidactEngine = LeoAutodidactEngine(),
+    val rag: LeoLocalRagEngine = LeoLocalRagEngine(),
+    val emotionalHeart: LeoEmotionalHeart = LeoEmotionalHeart(),
+) {
     data class Request(val message: String, val localFirst: Boolean, val autoResearch: Boolean, val learnedSearch: Boolean, val contextualInference: Boolean = false)
     interface Knowledge {
         suspend fun local(): String?
@@ -21,6 +28,8 @@ class LeoNeuralCore(private val turns: TurnController) {
     suspend fun personalReply(message: String, memory: suspend (String) -> String?, emotion: LeoEmotionEngine): NikoAiReply? {
         turns.checkpoint()
         val answer = memory(message)?.let { NikoAiReply(it, false, emptyList()) }
+            ?: autodidact.interact(message)?.let { NikoAiReply(it, false, emptyList()) }
+            ?: rag.handleCommand(message)?.let { NikoAiReply(it, false, emptyList()) }
             ?: emotion.reply(message)?.let { NikoAiReply(it.text, false, emptyList()) }
             ?: code.reply(message)
         turns.checkpoint()
@@ -30,7 +39,10 @@ class LeoNeuralCore(private val turns: TurnController) {
     suspend fun reply(request: Request, knowledge: Knowledge): NikoAiReply {
         turns.checkpoint()
         val answer = try {
-            code.reply(request.message) ?: reasoning.reply(request, ResilientKnowledge(knowledge))
+            autodidact.interact(request.message)?.let { NikoAiReply(it, false, emptyList()) }
+                ?: rag.handleCommand(request.message)?.let { NikoAiReply(it, false, emptyList()) }
+                ?: code.reply(request.message)
+                ?: reasoning.reply(request, ResilientKnowledge(knowledge))
         } catch (cancelled: CancellationException) {
             throw cancelled
         }

@@ -15,26 +15,26 @@ object LeoEmotionClassifier {
     data class Prediction(val emotion: Emotion, val score: Double)
     // Authored for LEO; intentionally tiny pilot corpus. No external model or license assumption.
     private val corpus = linkedMapOf(
-        Emotion.JOY to "feliz contento contenta alegre alegría felicidad",
-        Emotion.SADNESS to "triste triste tristeza desanimado desanimada llorando",
-        Emotion.EXCITEMENT to "entusiasmado entusiasmada emocionado emocionada ilusionado ilusionada",
-        Emotion.FRUSTRATION to "frustrado frustrada frustración atascado atascada impotencia",
-        Emotion.ANGER to "enojado enojada enfadado enfadada irritado irritada furioso furiosa",
-        Emotion.FEAR to "miedo miedo asustado asustada aterrado aterrada temor",
-        Emotion.SURPRISE to "sorprendido sorprendida asombrado asombrada impactado impactada",
-        Emotion.CONFUSION to "confundido confundida perdido perdida desconcertado desconcertada",
+        Emotion.JOY to "feliz contento contenta alegre alegría felicidad radiante genial",
+        Emotion.SADNESS to "triste triste tristeza desanimado desanimada llorando bajoneado bajoneada deprimido",
+        Emotion.EXCITEMENT to "entusiasmado entusiasmada emocionado emocionada ilusionado ilusionada motivado motivada",
+        Emotion.FRUSTRATION to "frustrado frustrada frustración atascado atascada impotencia harto harta bloqueado",
+        Emotion.ANGER to "enojado enojada enfadado enfadada irritado irritada furioso furiosa molesto molesta",
+        Emotion.FEAR to "miedo miedo asustado asustada aterrado aterrada temor pánico",
+        Emotion.SURPRISE to "sorprendido sorprendida asombrado asombrada impactado impactada increíble",
+        Emotion.CONFUSION to "confundido confundida perdido perdida desconcertado desconcertada enredado",
         Emotion.SHAME to "vergüenza avergonzado avergonzada apenado apenada",
         Emotion.INSECURITY to "inseguro insegura incapaz insuficiente dudoso dudosa",
-        Emotion.CURIOSITY to "curioso curiosa curiosidad intrigado intrigada",
+        Emotion.CURIOSITY to "curioso curiosa curiosidad intrigado intrigada interesado interesada",
         Emotion.BOREDOM to "aburrido aburrida aburrimiento tedio",
-        Emotion.TIREDNESS to "cansado cansada agotado agotada exhausto exhausta sueño",
-        Emotion.WORRY to "preocupado preocupada preocupación angustiado angustiada",
-        Emotion.AMUSEMENT to "divertido divertida divertido divertida divertido risa risa",
-        Emotion.AFFECTION to "cariñoso cariñosa cariño afecto amor",
+        Emotion.TIREDNESS to "cansado cansada agotado agotada exhausto exhausta sueño rendido rendida",
+        Emotion.WORRY to "preocupado preocupada preocupación angustiado angustiada estresado estresada agobiado",
+        Emotion.AMUSEMENT to "divertido divertida divertido divertida divertido risa risa gracioso",
+        Emotion.AFFECTION to "cariñoso cariñosa cariño afecto amor agradecido agradecida",
         Emotion.PRIDE to "orgulloso orgullosa orgullo",
-        Emotion.SATISFACTION to "satisfecho satisfecha satisfecho satisfecha realizado realizada",
-        Emotion.DISAPPOINTMENT to "decepcionado decepcionada decepción defraudado defraudada",
-        Emotion.NERVOUSNESS to "nervioso nerviosa nervios nerviosismo inquieto inquieta",
+        Emotion.SATISFACTION to "satisfecho satisfecha satisfecho satisfecha realizado realizada aliviado aliviada tranquilo",
+        Emotion.DISAPPOINTMENT to "decepcionado decepcionada decepción defraudado defraudada desilusionado",
+        Emotion.NERVOUSNESS to "nervioso nerviosa nervios nerviosismo inquieto inquieta ansioso ansiosa",
     )
     private val counts = corpus.mapValues { (_, examples) -> MemoryLearning.key(examples).split(' ').groupingBy { it }.eachCount() }
     private val vocabulary = counts.values.flatMap { it.keys }.toSet()
@@ -49,7 +49,7 @@ object LeoEmotionClassifier {
         if ('?' in clause || '¿' in clause) return null
         val text = MemoryLearning.key(clause).removePrefix("leo ")
         if (Regex("\\b(no|nunca|pero|aunque|sin|si|quizas|tal vez)\\b").containsMatchIn(text)) return null
-        val state = Regex("^(?:estoy|ando|me encuentro|me siento|tengo|siento|me da) (.+)$")
+        val state = Regex("^(?:estoy|ando|sigo|ya estoy|me encuentro|me siento|tengo|siento|me da) (.+)$")
             .matchEntire(text)?.groupValues?.get(1) ?: return null
         val words = state.split(' ').dropWhile { it in setOf("muy", "mucho", "mucha", "bastante", "algo", "realmente", "tan", "un", "poco", "poquito", "super", "demasiado", "demasiada") }
         if (words.firstOrNull() !in vocabulary) return null

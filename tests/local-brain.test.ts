@@ -64,4 +64,52 @@ test('personal memory stores, updates, recalls and forgets preferences safely', 
   const forget = LocalBrain.understand('olvida mi comida favorita');
   assert.equal(forget.type, 'personal_memory');
   assert.equal(MemoryStore.getPreference('food'), null);
+
+  const intro = LocalBrain.understand('Leo, me llamo Mario');
+  assert.equal(intro.type, 'personal_memory');
+  assert.equal(MemoryStore.getPreference('name'), 'Mario');
+
+  const project = LocalBrain.understand('mi proyecto actual es LEO Soberano');
+  assert.equal(project.type, 'personal_memory');
+  assert.ok(LocalBrain.understand('¿En qué proyecto estoy?').payload.reply.includes('LEO Soberano'));
+});
+
+test('autodidact rules, local RAG documents, emotional heart and web synthesis work locally', () => {
+  MemoryStore.clearMemory();
+
+  const teach = LocalBrain.understand('Leo, aprendé que cuando te diga código alfa me respondás protocolo soberano activo');
+  assert.equal(teach.type, 'personal_memory');
+  assert.ok(teach.payload.reply.includes('Aprendido'));
+
+  const triggered = LocalBrain.understand('Leo, código alfa');
+  assert.equal(triggered.type, 'personal_memory');
+  assert.equal(triggered.payload.reply, 'protocolo soberano activo');
+
+  const ragSave = LocalBrain.understand('guardá en mis documentos el PDF Manual Solar: El inversor híbrido convierte corriente continua en alterna a 220 voltios.');
+  assert.equal(ragSave.type, 'personal_memory');
+  assert.ok(ragSave.payload.reply.includes('Manual Solar'));
+
+  const ragQuery = LocalBrain.understand('¿Qué dice en mis documentos sobre el inversor híbrido?');
+  assert.equal(ragQuery.type, 'personal_memory');
+  assert.ok(ragQuery.payload.reply.includes('220 voltios'));
+
+  const emotion = LocalBrain.understand('me siento frustrado con este problema');
+  assert.equal(emotion.type, 'personal_memory');
+  assert.ok(emotion.payload.reply.includes('frustración'));
+  assert.equal(LocalBrain.detectEmotionAndRespond('no estoy triste'), null);
+
+  const synthesis = LocalBrain.synthesizeWebSources('energía solar en Nicaragua', [
+    {
+      title: 'Energía solar en Nicaragua',
+      url: 'https://energia.example/ni',
+      snippet: 'La energía solar permite generar electricidad limpia en zonas rurales de Nicaragua con alta radiación.',
+    },
+    {
+      title: 'Reporte técnico',
+      url: 'https://reporte.example/solar',
+      snippet: 'Los paneles fotovoltaicos reducen el costo eléctrico hasta un 40 por ciento.',
+    },
+  ]);
+  assert.ok(synthesis.includes('[1]'));
+  assert.ok(synthesis.includes('electricidad limpia'));
 });

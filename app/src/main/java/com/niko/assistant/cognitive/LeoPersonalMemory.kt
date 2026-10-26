@@ -41,7 +41,7 @@ class LeoPersonalMemory(private val store: Store) {
             false -> "Preferís que no haga bromas sobre vos ni sarcasmo."
             null -> "Todavía no guardaste una preferencia de humor."
         }
-        if (text in setOf("mostra mis preferencias", "muestra mis preferencias", "cuales son mis preferencias", "que preferencias mias tenes guardadas")) {
+        if (text in setOf("mostra mis preferencias", "muestra mis preferencias", "cuales son mis preferencias", "que preferencias mias tenes guardadas", "que sabes sobre mis gustos")) {
             val facts = labels.mapNotNull { (key, label) -> store.read(key)?.let { "$label: $it" } }
             return if (facts.isEmpty()) "Todavía no guardaste preferencias personales. Podés enseñarme tu comida, música, pasatiempo o lenguaje de programación favorito."
                 else facts.joinToString("\n")
@@ -110,6 +110,9 @@ class LeoPersonalMemory(private val store: Store) {
             text in setOf("que juego me gusta mas", "que juego prefiero") -> "game"
             text in setOf("que color me gusta mas", "que color prefiero") -> "color"
             text in setOf("como me llamo", "cual es mi nombre") -> "name"
+            text in setOf("cual es mi profesion", "de que trabajo", "a que me dedico") -> "profession"
+            text in setOf("en que proyecto estoy", "cual es mi proyecto actual", "cual es mi proyecto principal") -> "project"
+            text in setOf("que estudio", "cual es mi carrera") -> "study"
             text.startsWith("cual es mi ") || text.startsWith("recordas mi ") || text.startsWith("recuerdas mi ") -> slot
             else -> null
         } ?: return null
@@ -133,6 +136,11 @@ class LeoPersonalMemory(private val store: Store) {
             "city" to listOf("ciudad favorita", "ciudad preferida"),
             "goal" to listOf("meta principal", "objetivo principal"),
             "profession" to listOf("profesion", "ocupacion"),
+            "project" to listOf("proyecto actual", "proyecto principal"),
+            "study" to listOf("carrera", "area de estudio"),
+            "schedule" to listOf("rutina favorita", "horario preferido"),
+            "team" to listOf("equipo favorito", "equipo preferido"),
+            "pet" to listOf("mascota"),
             "name" to listOf("nombre", "apodo"),
         )
         private val labels = mapOf(
@@ -150,6 +158,11 @@ class LeoPersonalMemory(private val store: Store) {
             "city" to "ciudad favorita",
             "goal" to "meta principal",
             "profession" to "profesión",
+            "project" to "proyecto actual",
+            "study" to "carrera",
+            "schedule" to "rutina favorita",
+            "team" to "equipo favorito",
+            "pet" to "mascota",
             "name" to "nombre",
         )
         private fun normalized(input: String) = MemoryLearning.key(input).removePrefix("leo ")
@@ -158,6 +171,10 @@ class LeoPersonalMemory(private val store: Store) {
         fun parse(input: String): Preference? {
             if (input.contains('¿') || input.contains('?') || input.contains('@') || input.length > 300) return null
             val text = normalized(input)
+            Regex("^(?:me llamo|llamame) ([a-zA-ZáéíóúÁÉÍÓÚñÑ ]{2,40})$").matchEntire(text)?.let {
+                val rawName = input.replace(Regex("(?i)^(?:leo[,\\s]+)?(?:me llamo|ll[aá]mame)\\s+"), "").trim().trimEnd('.', '!')
+                return safe("name", rawName)
+            }
             for ((key, terms) in slots) for (term in terms) {
                 Regex("^mi $term es (.+)$").matchEntire(text)?.let {
                     return safe(key, input.split(Regex("(?i)\\s+es\\s+"), limit = 2).last().trim().trimEnd('.', '!'))
