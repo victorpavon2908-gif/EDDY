@@ -79,7 +79,7 @@ object LeoNativeWebSearch {
         transport: suspend (String, String, Int) -> Fetch?,
     ): NikoAiReply = withContext(Dispatchers.IO) {
         val fetch: suspend (String, String, Int) -> Fetch? = { url, accept, limit ->
-            try { withTimeoutOrNull(6_000L) { transport(url, accept, limit) } }
+            try { withTimeoutOrNull(8_000L) { transport(url, accept, limit) } }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { null }
         }
@@ -148,7 +148,18 @@ object LeoNativeWebSearch {
         val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, wantsDepth(cleanQuery))
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
-        val finalText = summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." }
+        // Explain the difference between discovered links and articles actually read.
+        val readCount = cited.count { it.articleText.isNotBlank() }
+        val finalText = if (readCount == 0) {
+            buildString {
+                append("Encontré fuentes relacionadas con $subject, pero no pude abrir los artículos completos. ")
+                append("Estos son extractos públicos del buscador, no información comprobada:\\n\\n")
+                append(summary.ifBlank {
+                    cited.take(3).joinToString("\\n") { "• ${it.title}: ${it.snippet.take(220)}" }
+                })
+                append("\\n\\nAbrí las fuentes para verificar los detalles o volvé a intentar la búsqueda.")
+            }
+        } else summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." }
         NikoAiReply(
             text = finalText,
             // Discovery alone is not a delivered, learnable research answer.
@@ -742,7 +753,7 @@ object LeoNativeWebSearch {
     private const val HTML_ACCEPT = "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5"
     private const val PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.8,text/plain;q=0.7,*/*;q=0.2"
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Mobile Safari/537.36 LEO/1.0"
-    private const val SEARCH_BUDGET_MS = 20_000L
+    private const val SEARCH_BUDGET_MS = 28_000L
     private const val CONNECT_TIMEOUT_MS = 4_000
     private const val READ_TIMEOUT_MS = 4_000
     private const val MAX_QUERY_CHARS = 500
