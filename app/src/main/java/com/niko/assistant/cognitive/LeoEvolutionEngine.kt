@@ -18,11 +18,18 @@ object LeoEvolutionEngine {
                     val title = cursor.getString(0)
                     val url = cursor.getString(1)
                     val uri = runCatching { java.net.URI(url.orEmpty()) }.getOrNull()
+                    // Built-in first-party lessons use leo://seed/<slug>, which is
+                    // deliberately not a public webpage. They are safe only under
+                    // this exact namespace; arbitrary custom schemes remain rejected.
+                    val officialSeed = uri?.scheme == "leo" &&
+                        uri.host == "seed" && uri.port == -1 && uri.rawUserInfo == null &&
+                        uri.rawQuery == null && uri.rawFragment == null &&
+                        Regex("^/[a-z0-9][a-z0-9-]{0,80}$").matches(uri.path.orEmpty())
+                    val publicSource = uri?.scheme in setOf("http", "https") &&
+                        !uri?.host.isNullOrBlank() && uri?.rawUserInfo == null
                     check(
                         !title.isNullOrBlank() && title.length <= 1000 &&
-                            uri?.scheme in setOf("http", "https") &&
-                            !uri?.host.isNullOrBlank() &&
-                            uri?.rawUserInfo == null,
+                            (officialSeed || publicSource),
                     ) {
                         "El conocimiento candidato contiene títulos o referencias inválidas"
                     }
