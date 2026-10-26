@@ -153,11 +153,11 @@ object LeoNativeWebSearch {
         val finalText = if (readCount == 0) {
             buildString {
                 append("Encontré fuentes relacionadas con $subject, pero no pude abrir los artículos completos. ")
-                append("Estos son extractos públicos del buscador, no información comprobada:\\n\\n")
+                append("Estos son extractos públicos del buscador, no información comprobada:\n\n")
                 append(summary.ifBlank {
-                    cited.take(3).joinToString("\\n") { "• ${it.title}: ${it.snippet.take(220)}" }
+                    cited.take(3).joinToString("\n") { "• ${it.title}: ${it.snippet.take(220)}" }
                 })
-                append("\\n\\nAbrí las fuentes para verificar los detalles o volvé a intentar la búsqueda.")
+                append("\n\nAbrí las fuentes para verificar los detalles o volvé a intentar la búsqueda.")
             }
         } else summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." }
         NikoAiReply(
