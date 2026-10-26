@@ -48,12 +48,12 @@ Java_com_niko_assistant_inference_local_LeoLlamaBridge_generate(JNIEnv * env, jo
         if (!model || request.stopped()) return nullptr;
         const auto * vocab = llama_model_get_vocab(model.get());
         const int count = -llama_tokenize(vocab, prompt.data(), size, nullptr, 0, true, true);
-        if (count <= 0 || count + limit > 4096) return nullptr;
+        if (count <= 0 || count + limit > 2048) return nullptr;
         std::vector<llama_token> tokens(count);
         if (llama_tokenize(vocab, prompt.data(), size, tokens.data(), count, true, true) != count) return nullptr;
         auto cp = llama_context_default_params();
-        cp.n_ctx = 4096; cp.n_batch = 256; cp.n_ubatch = 128;
-        cp.n_threads = 2; cp.n_threads_batch = 2;
+        cp.n_ctx = 2048; cp.n_batch = 256; cp.n_ubatch = 128;
+        cp.n_threads = 4; cp.n_threads_batch = 4;
         cp.abort_callback = abort_eval; cp.abort_callback_data = &request;
         std::unique_ptr<llama_context, decltype(&llama_free)> ctx(llama_init_from_model(model.get(), cp), llama_free);
         if (!ctx) return nullptr;

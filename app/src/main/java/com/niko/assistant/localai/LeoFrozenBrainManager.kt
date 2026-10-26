@@ -66,6 +66,9 @@ class LeoFrozenBrainManager(context: Context) {
             onProgress(Progress(Progress.State.FAILED, message = "No pude recuperar el paquete anterior; no se reemplazó"))
             return false
         }
+        if (!isInstalled()) {
+            runCatching { recoverPendingInstalling(onProgress) }
+        }
         if (isInstalled() && !checkForUpdates) {
             onProgress(Progress(Progress.State.READY, message = "Cerebro congelado listo"))
             return true
@@ -86,28 +89,42 @@ class LeoFrozenBrainManager(context: Context) {
             }
             onProgress(Progress(Progress.State.VERIFYING, message =
                 "Revisión actual: ${installedRevision().substringAfter('|').take(12).ifBlank { "sin instalar" }}; nueva: ${manifest.installedSha256.take(12)}"))
-            require(storage.canInstallFrozen(manifest.archiveBytes, manifest.installedBytes)) {
-                "No hay espacio seguro suficiente para instalar el cerebro de Leo"
-            }
-
-            val archive = File(storage.downloads, "$ARCHIVE_NAME.part")
-            LeoFrozenUpdatePolicy.preparePartial(archive, manifest.archiveSha256)
-            downloadArchive(manifest, archive, onProgress)
-            onProgress(Progress(Progress.State.VERIFYING, archive.length(), manifest.archiveBytes, "Verificando paquete"))
-            runInterruptible {
-                LeoDownloadIntegrity.requireValidArchive(archive, manifest.archiveBytes, manifest.archiveSha256, ::sha256)
-            }
 
             val installing = File(storage.root, "${LeoBrainStorage.FROZEN_DIRECTORY}.installing")
-            makeWritable(installing)
-            installing.deleteRecursively()
-            require(installing.mkdirs()) { "No se pudo preparar la instalación cerebral" }
-            onProgress(Progress(Progress.State.INSTALLING, 0L, manifest.installedBytes, "Instalando cerebro congelado"))
-            runInterruptible { unzipSafely(archive, installing, manifest.installedBytes, onProgress) }
+            val archive = File(storage.downloads, "$ARCHIVE_NAME.part")
+            val existingCandidate = File(installing, DATABASE_NAME)
+            val canReuseExtracted = existingCandidate.isFile &&
+                existingCandidate.length() == manifest.installedBytes &&
+                File(installing, INTERNAL_MANIFEST).isFile &&
+                File(installing, ATTRIBUTION_FILE).isFile &&
+                runCatching { runInterruptible { sha256(existingCandidate) } == manifest.installedSha256 }.getOrDefault(false)
+
+            if (!canReuseExtracted) {
+                require(storage.canInstallFrozen(manifest.archiveBytes, manifest.installedBytes)) {
+                    "No hay espacio seguro suficiente para instalar el cerebro de Leo"
+                }
+                LeoFrozenUpdatePolicy.preparePartial(archive, manifest.archiveSha256)
+                downloadArchive(manifest, archive, onProgress)
+                onProgress(Progress(Progress.State.VERIFYING, archive.length(), manifest.archiveBytes, "Verificando paquete"))
+                runInterruptible {
+                    LeoDownloadIntegrity.requireValidArchive(archive, manifest.archiveBytes, manifest.archiveSha256, ::sha256)
+                }
+
+                makeWritable(installing)
+                installing.deleteRecursively()
+                require(installing.mkdirs()) { "No se pudo preparar la instalación cerebral" }
+                onProgress(Progress(Progress.State.INSTALLING, 0L, manifest.installedBytes, "Instalando cerebro congelado"))
+                runInterruptible { unzipSafely(archive, installing, manifest.installedBytes, onProgress) }
+            } else {
+                makeWritable(installing)
+                onProgress(Progress(Progress.State.VERIFYING, manifest.installedBytes, manifest.installedBytes, "Activando paquete ya extraído"))
+            }
 
             val candidate = File(installing, DATABASE_NAME)
             require(candidate.isFile && candidate.length() == manifest.installedBytes) { "Tamaño instalado del cerebro no coincide" }
-            require(runInterruptible { sha256(candidate) } == manifest.installedSha256) { "SHA-256 del cerebro instalado no coincide" }
+            if (!canReuseExtracted) {
+                require(runInterruptible { sha256(candidate) } == manifest.installedSha256) { "SHA-256 del cerebro instalado no coincide" }
+            }
             require(File(installing, INTERNAL_MANIFEST).isFile) { "Falta el manifiesto interno del cerebro" }
             require(File(installing, ATTRIBUTION_FILE).isFile) { "Falta la atribución del conocimiento" }
 
@@ -127,6 +144,25 @@ class LeoFrozenBrainManager(context: Context) {
             onProgress(Progress(Progress.State.FAILED, message = error.message ?: "No se pudo instalar el cerebro congelado"))
             false
         }
+    }
+
+    private fun recoverPendingInstalling(onProgress: (Progress) -> Unit): Boolean {
+        val installing = File(storage.root, "${LeoBrainStorage.FROZEN_DIRECTORY}.installing")
+        val candidate = File(installing, DATABASE_NAME)
+        if (!candidate.isFile || candidate.length() !in LeoBrainStorage.FROZEN_MIN_BYTES..LeoBrainStorage.FROZEN_MAX_BYTES) return false
+        if (!File(installing, INTERNAL_MANIFEST).isFile || !File(installing, ATTRIBUTION_FILE).isFile) return false
+        onProgress(Progress(Progress.State.VERIFYING, candidate.length(), candidate.length(), "Recuperando cerebro local descargado"))
+        makeWritable(installing)
+        com.niko.assistant.cognitive.LeoEvolutionEngine.validateKnowledge(candidate)
+        val digest = sha256(candidate)
+        File(installing, VALIDATED_MARKER).writeText("$BRAIN_VERSION|$digest")
+        val finalDir = storage.frozen
+        makeWritable(finalDir)
+        LeoDirectoryActivation.activate(installing, finalDir)
+        setFrozenReadOnly(finalDir)
+        File(storage.downloads, "$ARCHIVE_NAME.part").delete()
+        onProgress(Progress(Progress.State.READY, candidate.length(), candidate.length(), "Cerebro congelado listo"))
+        return true
     }
 
     private fun fetchManifest(): ReleaseManifest {

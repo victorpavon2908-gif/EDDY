@@ -175,6 +175,13 @@ class AiSettingsActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        runCatching {
+            startService(UpgradeIdentity.assistantService(this).apply { action = NikoAssistantService.ACTION_HIDE_BUBBLE })
+        }
+    }
+
     override fun onDestroy() {
         runCatching { unregisterReceiver(runtimeStateReceiver) }
         super.onDestroy()
@@ -245,6 +252,7 @@ private fun LeoSettingsScreen(
             accessibilityConnected = NikoAccessibilityService.instance != null
             speakerInstalled = modelManager.isInstalled(NikoModelCatalog.speaker)
             whisperInstalled = modelManager.isInstalled(NikoModelCatalog.whisperAsr)
+            offlineInstalled = offlineKnowledge.isInstalled()
             delay(500L)
         }
     }

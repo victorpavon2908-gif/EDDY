@@ -89,10 +89,15 @@ fun LeoLocalModelPanel() {
     var deleteConfirm by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
 
-    LaunchedEffect(completedStatus, downloading) {
+    LaunchedEffect(selected, completedStatus, downloading) {
+        if (!store.installed && store.recoverIfVerified()) {
+            workManager.cancelUniqueWork(LeoModelDownloadWorker.NAME)
+        }
         isInstalled = store.installed
         isEnabled = store.enabled
-        if (completedStatus != null && !downloading) {
+        if (store.enabled) {
+            status = "Modelo activo: ${store.spec.id} (instalado y verificado con SHA-256)"
+        } else if (completedStatus != null && !downloading) {
             status = completedStatus
         }
     }

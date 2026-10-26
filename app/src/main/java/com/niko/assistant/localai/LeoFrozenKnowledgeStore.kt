@@ -86,7 +86,8 @@ class LeoFrozenKnowledgeStore(context: Context) : Closeable {
         if (permanentlyFailed || !manager.isInstalled()) return null
         val file = manager.databaseFile()
         return runCatching {
-            SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY).also { opened ->
+            val flags = SQLiteDatabase.OPEN_READONLY or SQLiteDatabase.NO_LOCALIZED_COLLATORS
+            SQLiteDatabase.openDatabase(file.absolutePath, null, flags).also { opened ->
                 // A frozen brain is never allowed to create a journal or mutate its FTS index.
                 runCatching { opened.rawQuery("PRAGMA query_only=ON", null).close() }
                 database = opened

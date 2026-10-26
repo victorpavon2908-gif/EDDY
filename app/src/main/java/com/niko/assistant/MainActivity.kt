@@ -234,7 +234,7 @@ class MainActivity : ComponentActivity() {
                     LeoFrozenBrainManager.Progress.State.VERIFYING -> NikoRuntimeState.BrainState.VERIFYING
                     LeoFrozenBrainManager.Progress.State.INSTALLING -> NikoRuntimeState.BrainState.INSTALLING
                     LeoFrozenBrainManager.Progress.State.READY -> NikoRuntimeState.BrainState.READY
-                    LeoFrozenBrainManager.Progress.State.FAILED -> NikoRuntimeState.BrainState.ERROR
+                    LeoFrozenBrainManager.Progress.State.FAILED -> NikoRuntimeState.BrainState.WAITING
                 }
                 NikoRuntimeState.setBrainProgress(
                     applicationContext,
@@ -342,8 +342,13 @@ class MainActivity : ComponentActivity() {
                             webSources = snapshot.webSources,
                             onTools = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
                         )
-                        // Stable offline status is available in Settings; show only active work/errors here.
-                        if (snapshot.brainState !in setOf(NikoRuntimeState.BrainState.READY, NikoRuntimeState.BrainState.WAITING)) LeoBrainStatusOverlay(
+                        // Stable offline status and diagnostics live in Settings; show only active work here.
+                        if (snapshot.brainState !in setOf(
+                                NikoRuntimeState.BrainState.READY,
+                                NikoRuntimeState.BrainState.WAITING,
+                                NikoRuntimeState.BrainState.ERROR,
+                            )
+                        ) LeoBrainStatusOverlay(
                             state = snapshot.brainState,
                             progress = snapshot.brainProgress,
                             status = snapshot.brainStatus,

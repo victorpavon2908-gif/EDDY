@@ -17,7 +17,7 @@ class LeoLocalInferenceService : Service() {
             CANCEL -> if (id == active) runCatching { LeoLlamaBridge.cancel(id) }
             RUN -> {
                 val receiver = message.replyTo
-                val limit = message.data.getInt("limit", 512).coerceIn(128, 1024)
+                val limit = message.data.getInt("limit", 512).coerceIn(16, 1024)
                 val spec = LeoLocalModelCatalog.find(message.data.getString("model_id"))
                 val prompt = message.data.getByteArray("prompt")
                 if (spec == null || active != 0L || destroyed || id <= 0 || prompt == null || prompt.size > 24000) {

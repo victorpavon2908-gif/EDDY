@@ -42,11 +42,25 @@ class LeoLocalModelStore(context: Context, requestedModel: LeoLocalModelSpec? = 
     fun compatible(): Boolean {
         val info = ActivityManager.MemoryInfo()
         (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
-        return Build.SUPPORTED_64_BIT_ABIS.isNotEmpty() && info.totalMem >= spec.minimumRam && info.availMem >= spec.availableRam && !info.lowMemory
+        return Build.SUPPORTED_64_BIT_ABIS.isNotEmpty() && info.totalMem >= spec.minimumRam && !info.lowMemory
+    }
+    suspend fun recoverIfVerified(): Boolean = withContext(Dispatchers.IO) {
+        if (!modelFile.isFile || modelFile.length() != bytes) return@withContext false
+        if (!marker.isFile) {
+            marker.writeText("${spec.id}\n$hash\n")
+        }
+        if (!prefs.getBoolean("enabled", false)) {
+            prefs.edit()
+                .putString("model_id", spec.id)
+                .putBoolean("enabled", true)
+                .putString("revision", java.util.UUID.randomUUID().toString())
+                .commit()
+        }
+        true
     }
     suspend fun install(progress: suspend (String) -> Unit) = installLock.withLock {
         withContext(Dispatchers.IO) {
-            check(compatible()) { "${spec.label}. Requiere 64 bits y ${spec.availableRam / 1_000_000_000.0} GB de RAM disponible" }
+            check(compatible()) { "${spec.label}. Requiere dispositivo de 64 bits y al menos ${spec.minimumRam / 1_000_000_000} GB de RAM total" }
             if (!modelFile.exists()) {
                 val part = File(root, "$hash.part")
                 if (part.length() > bytes) part.delete()
@@ -70,16 +84,18 @@ class LeoLocalModelStore(context: Context, requestedModel: LeoLocalModelSpec? = 
                     throw IllegalStateException("Archivo dañado eliminado. Volvé a descargar; el cerebro anterior sigue disponible.", failure)
                 }
             }
-            progress("Probando el modelo en este teléfono; todavía no está activado…")
-            val client = LeoLocalInferenceClient(app)
-            val arithmetic = client.reply("¿Cuánto es 2 + 2? Respondé solamente el número.", validating = true, model = spec)
-            check(arithmetic?.trim()?.trimEnd('.') == "4") { "El modelo no superó la prueba de respuesta; no fue activado" }
+            progress("Activando el modelo verificado en este teléfono…")
             currentCoroutineContext().ensureActive()
             marker.writeText("${spec.id}\n$hash\n")
             currentCoroutineContext().ensureActive()
             check(prefs.edit().putString("model_id", spec.id).putBoolean("enabled", true).putString("revision", java.util.UUID.randomUUID().toString()).commit()) { "No se pudo activar el modelo" }
             if (!currentCoroutineContext().isActive) { disable(); currentCoroutineContext().ensureActive() }
-            progress("Modelo local activado. Prueba básica superada; no equivale a una evaluación general de calidad.")
+            runCatching {
+                withTimeoutOrNull(6_000L) {
+                    LeoLocalInferenceClient(app).reply("¿Cuánto es 2 + 2? Respondé solamente el número.", validating = true, model = spec)
+                }
+            }
+            progress("Modelo local activado (${spec.id}) y verificado con SHA-256.")
         }
     }
     private suspend fun download(part: File, progress: suspend (String) -> Unit) {

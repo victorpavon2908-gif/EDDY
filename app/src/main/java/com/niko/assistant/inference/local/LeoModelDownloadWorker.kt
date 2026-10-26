@@ -26,7 +26,9 @@ class LeoModelDownloadWorker(context: Context, parameters: WorkerParameters) : C
             else retryOrFail("Tiempo agotado; el archivo parcial se conserva.")
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: IOException) { retryOrFail("Conexión interrumpida; descarga parcial conservada.") }
-        catch (_: Exception) { Result.failure(workDataOf(STATUS to "No se pudo validar o activar. Revisá RAM y espacio, y reintentá desde Ajustes.")) }
+        catch (error: Exception) {
+            Result.failure(workDataOf(STATUS to (error.message ?: "No se pudo validar o activar. Revisá RAM y espacio, y reintentá desde Ajustes.")))
+        }
     }
     private fun retryOrFail(message: String): Result = if (runAttemptCount < 3) Result.retry()
         else Result.failure(workDataOf(STATUS to message))
@@ -51,6 +53,6 @@ class LeoModelDownloadWorker(context: Context, parameters: WorkerParameters) : C
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).setRequiresStorageNotLow(true).build())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build()
         fun enqueue(context: Context, model: LeoLocalModelSpec) = WorkManager.getInstance(context)
-            .enqueueUniqueWork(NAME, ExistingWorkPolicy.KEEP, request(model))
+            .enqueueUniqueWork(NAME, ExistingWorkPolicy.REPLACE, request(model))
     }
 }
