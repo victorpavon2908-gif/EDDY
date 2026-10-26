@@ -8,7 +8,15 @@ const STORAGE_KEYS = {
   SMART_HOME: "leo_smarthome_v1",
   RULES: "leo_autodidact_rules_v1",
   RAG_DOCS: "leo_rag_docs_v1",
+  TIMELINE: "leo_timeline_v1",
 };
+
+export interface EpisodicEvent {
+  kind: string;
+  topic: string;
+  summary: string;
+  timestampMs: number;
+}
 
 export interface LearnedRule {
   trigger: string;
@@ -148,6 +156,44 @@ export class MemoryStore {
   private static memoryPreferencesFallback: Record<string, string> = {};
   private static memoryRulesFallback: Record<string, LearnedRule> = {};
   private static memoryRagFallback: LocalRagDoc[] = [];
+  private static memoryTimelineFallback: EpisodicEvent[] = [];
+
+  public static recordEpisode(kind: string, topic: string, summary: string) {
+    const events = this.getTimeline();
+    events.push({ kind, topic, summary, timestampMs: Date.now() });
+    const trimmed = events.slice(-50);
+    this.memoryTimelineFallback = trimmed;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.TIMELINE, JSON.stringify(trimmed));
+      }
+    } catch {}
+  }
+
+  public static getTimeline(): EpisodicEvent[] {
+    try {
+      if (typeof localStorage !== "undefined") {
+        const raw = localStorage.getItem(STORAGE_KEYS.TIMELINE);
+        return raw ? JSON.parse(raw) : [];
+      }
+    } catch {}
+    return [...this.memoryTimelineFallback];
+  }
+
+  public static getTimelineSummary(): string {
+    const events = this.getTimeline();
+    if (events.length === 0) {
+      return "Todavía no tengo episodios registrados en esta sesión. A medida que ejecutemos protocolos o investiguemos temas, los guardaré en tu línea de tiempo.";
+    }
+    return (
+      "Esto es lo más reciente en tu línea de tiempo:\n" +
+      events
+        .slice(-4)
+        .reverse()
+        .map((e, i) => `${i + 1}. [${e.kind}] ${e.topic}: ${e.summary}`)
+        .join("\n")
+    );
+  }
 
   public static getSettings(): AppSettings {
     try {
@@ -368,12 +414,14 @@ export class MemoryStore {
     this.memoryPreferencesFallback = {};
     this.memoryRulesFallback = {};
     this.memoryRagFallback = [];
+    this.memoryTimelineFallback = [];
     try {
       if (typeof localStorage !== "undefined") {
         localStorage.removeItem(STORAGE_KEYS.FACTS);
         localStorage.removeItem(STORAGE_KEYS.PREFERENCES);
         localStorage.removeItem(STORAGE_KEYS.RULES);
         localStorage.removeItem(STORAGE_KEYS.RAG_DOCS);
+        localStorage.removeItem(STORAGE_KEYS.TIMELINE);
       }
     } catch {
       // ignore storage errors
@@ -574,7 +622,11 @@ export class MemoryStore {
     const entities = this.getSmartHome().map((e) =>
       e.id === id ? { ...e, state: newState } : e
     );
-    localStorage.setItem(STORAGE_KEYS.SMART_HOME, JSON.stringify(entities));
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(STORAGE_KEYS.SMART_HOME, JSON.stringify(entities));
+      }
+    } catch {}
     return entities;
   }
 }

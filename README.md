@@ -16,6 +16,11 @@ Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el
 - **Escucha Superior, Wake-Word Acústico de Ultrabajo Consumo y Full-Duplex (`LeoAcousticWakeScorer`, `LeoDuplexPolicy`, `TranscriptQuality`)**: prefiltro acústico PCM 16 kHz por envolvente RMS, ZCR, banda formántica vocal y cadencia bisílaba (*«Le-o»*), rechazo de eco acústico/espectral (`isAcousticEcho`), frases naturales de barge-in y reparador fonético ASR (`repairAsrTranscript`).
 - **Agente Autónomo de Acciones Encadenadas en Pantalla con Confirmación Segura (`LeoUiStepPlanner.planLocalChainStep`, `NikoUiTaskPolicy.evaluateWithConfirmation`)**: planificación local paso a paso sobre el árbol de Accesibilidad y barrera de confirmación explícita para acciones modificadoras o cadenas largas.
 - **Evaluador Ejecutable del Protocolo Físico y Autocalibración (`LeoHardwareBenchmark`)**: evaluación determinista de latencia p95, falsos positivos/h, corte full-duplex, fluidez 60 FPS, batería y rechazo de eco con ajuste automático de `LeoVoiceTuningProfile`.
+- **Evolución «Eddy Lab Rats» (`LeoEddyPersona`, `LeoLabProtocols`, `LeoLiveVisionAnalyzer`, `LeoEpisodicTimeline`)**:
+  - **Personalidad Dinámica (`LeoEddyPersona`)**: conmutación por voz entre *Modo Eddy Clásico* (ingenioso y leal, respetando límites de humor y estados emocionales), *Modo Misión / Centro de Mando* y *Modo Enfoque Empático*, con prosodia expresiva vinculada al pulso del emblema.
+  - **Macro-Protocolos Biónicos y Conciencia de Sensores (`LeoLabProtocols`)**: ejecución encadenada con una sola orden (*Protocolo Estudio*, *Protocolo Nocturno*, *Protocolo Emergencia*, *Protocolo Laboratorio* y protocolos personalizados) más alertas proactivas por sensores físicos (oscuridad en lux, golpe/caída en G, temperatura de batería y nivel crítico).
+  - **Ojos de Eddy — Visión en Vivo y Escáner OCR Local (`LeoLiveVisionAnalyzer`)**: descripción de escena en tiempo real (personas, objetos, iluminación y texto OCR) e indexación directa en la base RAG local (*«escaneá este documento»*).
+  - **Memoria Episódica Autobiográfica y Destilador Cognitivo (`LeoEpisodicTimeline`)**: línea de tiempo de actividades (*«¿qué hicimos hoy?»*, *«¿en qué quedamos?»*) y destilación continua de investigaciones en fichas permanentes para uso offline.
 
 ## Novedades 0.14.0
 

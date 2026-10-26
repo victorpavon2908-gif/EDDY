@@ -77,9 +77,10 @@ app.post("/api/chat", async (req: Request, res: Response) => {
     return res.json({ reply: `El resultado es ${mathResult}.`, provider: "local-math", sources: [] });
   }
 
-  // 2. Personal memory, autodidactic rules, local RAG & Emotional Heart
+  // 2. Personal memory, Eddy Lab Rats protocols/persona, autodidactic rules, local RAG & Emotional Heart
   const personalOrEmotion =
     MemoryStore.handlePersonalMemory(cleanMessage) ??
+    LocalBrain.handleEddyLabRatsFeatures(cleanMessage) ??
     LocalBrain.handleAutodidactAndRag(cleanMessage) ??
     LocalBrain.detectEmotionAndRespond(cleanMessage);
   if (personalOrEmotion !== null) {

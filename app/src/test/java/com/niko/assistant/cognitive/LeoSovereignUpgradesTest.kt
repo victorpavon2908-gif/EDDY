@@ -1,6 +1,9 @@
 package com.niko.assistant.cognitive
 
+import com.niko.assistant.actions.LeoLabProtocols
 import com.niko.assistant.agent.TurnController
+import com.niko.assistant.ai.NikoAiReply
+import com.niko.assistant.devicecontrol.LeoLiveVisionAnalyzer
 import com.niko.assistant.devicecontrol.LeoUiAction
 import com.niko.assistant.devicecontrol.LeoUiSnapshot
 import com.niko.assistant.devicecontrol.LeoUiStep
@@ -8,6 +11,7 @@ import com.niko.assistant.devicecontrol.LeoUiStepPlanner
 import com.niko.assistant.devicecontrol.NikoUiTaskPolicy
 import com.niko.assistant.learning.LeoAutodidactEngine
 import com.niko.assistant.memory.LeoEncryptedSync
+import com.niko.assistant.memory.LeoEpisodicTimeline
 import com.niko.assistant.memory.LeoLocalRagEngine
 import com.niko.assistant.voice.LeoAcousticWakeScorer
 import com.niko.assistant.voice.LeoDuplexPolicy
@@ -248,5 +252,72 @@ class LeoSovereignUpgradesTest {
 
         val step3 = planner.planLocalChainStep(task, snap, history = "CLICK|node_1\nTYPE|node_2|Managua")
         assertTrue(step3 is LeoUiStep.Done)
+    }
+
+    @Test
+    fun eddyPersonaLabProtocolsLiveVisionAndEpisodicTimelineWorkTogether() = runBlocking {
+        val core = LeoNeuralCore(TurnController())
+        val dummyKnowledge = object : LeoNeuralCore.Knowledge {
+            override suspend fun local(): String? = "respuesta local"
+            override suspend fun research(requireSources: Boolean): NikoAiReply? =
+                NikoAiReply("Los paneles solares bifaciales incrementan la captación un 15 por ciento.", true, emptyList())
+            override suspend fun fallback() = "fallback"
+        }
+
+        // 1. Eddy Persona switch & styling
+        val missionSwitch = core.reply(LeoNeuralCore.Request("Leo, activa modo misión", true, false, false), dummyKnowledge)
+        assertTrue(missionSwitch.text.contains("CENTRO DE MANDO LEO"))
+        assertEquals(LeoEddyPersona.PersonaMode.MISSION_CONTROL, core.persona.mode)
+
+        val eddySwitch = core.reply(LeoNeuralCore.Request("activa modo eddy", true, false, false), dummyKnowledge)
+        assertTrue(eddySwitch.text.contains("Modo Eddy activado"))
+        assertEquals("Pan comido, Mario: Calculado.", core.persona.styleReply("Calculado.", userName = "Mario", humorAllowed = true, distressed = false))
+        assertEquals("Calculado.", core.persona.styleReply("Calculado.", userName = "Mario", humorAllowed = false, distressed = false))
+        assertEquals("Calculado.", core.persona.styleReply("Calculado.", userName = "Mario", humorAllowed = true, distressed = true))
+
+        // 2. Lab Protocols & Sensor Awareness
+        val nightReply = core.reply(LeoNeuralCore.Request("Leo, protocolo nocturno", true, false, false), dummyKnowledge)
+        assertTrue(nightReply.text.contains("PROTOCOLO NOCTURNO ACTIVO"))
+        assertEquals("night", core.protocols.lastExecutedProtocolId)
+
+        val alerts = core.protocols.evaluateEnvironment(
+            LeoLabProtocols.SensorSnapshot(ambientLux = 1.2f, batteryTempC = 43.0f, batteryPercent = 9, accelMagnitudeG = 3.8f)
+        )
+        assertEquals(4, alerts.size)
+        assertTrue(alerts.any { it.code == "IMPACT_DETECTED" })
+        assertTrue(alerts.any { it.code == "THERMAL_WARNING" })
+
+        // 3. Live Vision ("Ojos de Eddy") & OCR indexing into RAG
+        core.vision.updateFrame(
+            LeoLiveVisionAnalyzer.CameraFrameObservation(
+                meanLuminance = 140f,
+                ocrBlocks = listOf("Voltaje nominal: 48V DC", "Corriente máxima: 60 amperios"),
+                detectedObjects = listOf("inversor solar", "tablero eléctrico"),
+                facesCount = 1,
+                timestampMs = 12345L,
+            )
+        )
+        val sceneReply = core.reply(LeoNeuralCore.Request("¿Qué estás viendo?", true, false, false), dummyKnowledge)
+        assertTrue(sceneReply.text.contains("1 persona"))
+        assertTrue(sceneReply.text.contains("inversor solar"))
+        assertTrue(sceneReply.text.contains("48V DC"))
+
+        val scanReply = core.reply(LeoNeuralCore.Request("escaneá este documento", true, false, false), dummyKnowledge)
+        assertTrue(scanReply.text.contains("Escaneé e indexé"))
+        val ragLookup = core.rag.answer("¿Cuál es la corriente máxima del tablero?")
+        assertNotNull(ragLookup)
+        assertTrue(ragLookup!!.contains("60 amperios"))
+
+        // 4. Continuous Knowledge Distillation & Episodic Timeline
+        core.timeline.distillKnowledge("paneles bifaciales", "Los paneles solares bifaciales incrementan la captación un 15 por ciento.")
+        val timelineReply = core.reply(LeoNeuralCore.Request("¿Qué hicimos hoy?", true, false, false), dummyKnowledge)
+        assertTrue(timelineReply.text.contains("Protocolo Nocturno"))
+        assertTrue(timelineReply.text.contains("paneles bifaciales"))
+
+        val serialized = core.timeline.exportSerialized()
+        val restoredTimeline = LeoEpisodicTimeline()
+        restoredTimeline.importSerialized(serialized)
+        assertEquals(1, restoredTimeline.distilledFactsCount)
+        assertTrue(restoredTimeline.recentEpisodes().isNotEmpty())
     }
 }

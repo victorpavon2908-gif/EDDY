@@ -1,10 +1,13 @@
 package com.niko.assistant.cognitive
 
+import com.niko.assistant.actions.LeoLabProtocols
 import com.niko.assistant.agent.TurnController
 import com.niko.assistant.ai.ConversationCoordinator
 import com.niko.assistant.ai.NikoAiReply
 import com.niko.assistant.brain.NikoMathEngine
+import com.niko.assistant.devicecontrol.LeoLiveVisionAnalyzer
 import com.niko.assistant.learning.LeoAutodidactEngine
+import com.niko.assistant.memory.LeoEpisodicTimeline
 import com.niko.assistant.memory.LeoLocalRagEngine
 import kotlinx.coroutines.CancellationException
 
@@ -14,6 +17,10 @@ class LeoNeuralCore(
     val autodidact: LeoAutodidactEngine = LeoAutodidactEngine(),
     val rag: LeoLocalRagEngine = LeoLocalRagEngine(),
     val emotionalHeart: LeoEmotionalHeart = LeoEmotionalHeart(),
+    val persona: LeoEddyPersona = LeoEddyPersona(),
+    val protocols: LeoLabProtocols = LeoLabProtocols(),
+    val timeline: LeoEpisodicTimeline = LeoEpisodicTimeline(rag),
+    val vision: LeoLiveVisionAnalyzer = LeoLiveVisionAnalyzer(rag),
 ) {
     data class Request(val message: String, val localFirst: Boolean, val autoResearch: Boolean, val learnedSearch: Boolean, val contextualInference: Boolean = false)
     interface Knowledge {
@@ -28,6 +35,13 @@ class LeoNeuralCore(
     suspend fun personalReply(message: String, memory: suspend (String) -> String?, emotion: LeoEmotionEngine): NikoAiReply? {
         turns.checkpoint()
         val answer = memory(message)?.let { NikoAiReply(it, false, emptyList()) }
+            ?: persona.handleCommand(message)?.let { NikoAiReply(it, false, emptyList()) }
+            ?: protocols.handleCommand(message)?.let { exec ->
+                timeline.recordEpisode(LeoEpisodicTimeline.EpisodeKind.PROTOCOL_EXECUTED, exec.protocol.name, exec.message)
+                NikoAiReply(exec.message, false, emptyList())
+            }
+            ?: vision.handleVisualCommand(message)?.let { NikoAiReply(it, false, emptyList()) }
+            ?: timeline.handleCommand(message)?.let { NikoAiReply(it, false, emptyList()) }
             ?: autodidact.interact(message)?.let { NikoAiReply(it, false, emptyList()) }
             ?: rag.handleCommand(message)?.let { NikoAiReply(it, false, emptyList()) }
             ?: emotion.reply(message)?.let { NikoAiReply(it.text, false, emptyList()) }
@@ -39,10 +53,21 @@ class LeoNeuralCore(
     suspend fun reply(request: Request, knowledge: Knowledge): NikoAiReply {
         turns.checkpoint()
         val answer = try {
-            autodidact.interact(request.message)?.let { NikoAiReply(it, false, emptyList()) }
+            persona.handleCommand(request.message)?.let { NikoAiReply(it, false, emptyList()) }
+                ?: protocols.handleCommand(request.message)?.let { exec ->
+                    timeline.recordEpisode(LeoEpisodicTimeline.EpisodeKind.PROTOCOL_EXECUTED, exec.protocol.name, exec.message)
+                    NikoAiReply(exec.message, false, emptyList())
+                }
+                ?: vision.handleVisualCommand(request.message)?.let { NikoAiReply(it, false, emptyList()) }
+                ?: timeline.handleCommand(request.message)?.let { NikoAiReply(it, false, emptyList()) }
+                ?: autodidact.interact(request.message)?.let { NikoAiReply(it, false, emptyList()) }
                 ?: rag.handleCommand(request.message)?.let { NikoAiReply(it, false, emptyList()) }
                 ?: code.reply(request.message)
-                ?: reasoning.reply(request, ResilientKnowledge(knowledge))
+                ?: reasoning.reply(request, ResilientKnowledge(knowledge)).also { produced ->
+                    if (produced.webUsed && produced.text.isNotBlank()) {
+                        timeline.distillKnowledge(request.message, produced.text)
+                    }
+                }
         } catch (cancelled: CancellationException) {
             throw cancelled
         }

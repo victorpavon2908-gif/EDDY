@@ -75,6 +75,62 @@ function formatNumber(val: number): string {
 }
 
 export class LocalBrain {
+  public static handleEddyLabRatsFeatures(input: string): string | null {
+    const clean = cleanConversationalPrefix(input);
+    const norm = normalize(clean);
+
+    // 1. Eddy Lab Rats Persona Modes
+    if (["activa modo eddy", "modo eddy", "ponete en modo eddy", "actua como eddy"].includes(norm)) {
+      MemoryStore.setPreference("eddy_persona_mode", "EDDY_CLASSIC");
+      return "¡Modo Eddy activado! Ingenio al 100 %, sistemas biónicos en línea y cero dependencia de la nube. ¿Qué misión tenemos hoy?";
+    }
+    if (["activa modo mision", "modo mision", "modo laboratorio", "centro de mando"].includes(norm)) {
+      MemoryStore.setPreference("eddy_persona_mode", "MISSION_CONTROL");
+      return "[CENTRO DE MANDO LEO] Modo Misión activado. Telemetría, protocolos de laboratorio y respuesta táctica listos.";
+    }
+    if (["activa modo enfoque", "modo enfoque", "modo serio", "modo empatico"].includes(norm)) {
+      MemoryStore.setPreference("eddy_persona_mode", "EMPATHIC_FOCUS");
+      return "Modo Enfoque Empático activado. Respuestas claras, serenas y directas sin distracciones.";
+    }
+    if (["en que modo estas", "cual es tu modo actual", "que personalidad tenes activa"].includes(norm)) {
+      const currentMode = MemoryStore.getPreference("eddy_persona_mode") || "EDDY_CLASSIC";
+      return `Estoy operando en modo ${currentMode}, 100 % soberano en tu dispositivo.`;
+    }
+
+    // 2. Bionic Lab Protocols (Smart Lab)
+    if (["protocolo estudio", "activa protocolo estudio", "activa el protocolo estudio", "protocolo concentracion"].includes(norm)) {
+      const msg = "[PROTOCOLO ESTUDIO ACTIVO] No molestar activado, volumen al 25 %, luz de escritorio encendida y bloc de notas listo.";
+      MemoryStore.recordEpisode("Protocolo", "Protocolo Estudio", msg);
+      return msg;
+    }
+    if (["protocolo nocturno", "activa protocolo nocturno", "activa el protocolo nocturno", "protocolo descanso"].includes(norm)) {
+      MemoryStore.updateSmartHomeEntity("light.living_room", false);
+      MemoryStore.updateSmartHomeEntity("lock.front_door", true);
+      const msg = "[PROTOCOLO NOCTURNO ACTIVO] Brillo al 10 %, silencio activado, luces apagadas y cerradura principal asegurada.";
+      MemoryStore.recordEpisode("Protocolo", "Protocolo Nocturno", msg);
+      return msg;
+    }
+    if (["protocolo emergencia", "activa protocolo emergencia", "alerta roja", "protocolo seguridad"].includes(norm)) {
+      MemoryStore.updateSmartHomeEntity("light.living_room", true);
+      MemoryStore.updateSmartHomeEntity("lock.front_door", true);
+      const msg = "[ALERTA ROJA · PROTOCOLO EMERGENCIA] Linterna encendida, brillo y volumen al 100 % y accesos asegurados.";
+      MemoryStore.recordEpisode("Protocolo", "Protocolo Emergencia", msg);
+      return msg;
+    }
+    if (["protocolo laboratorio", "activa protocolo laboratorio", "estado del laboratorio", "diagnostico bionico"].includes(norm)) {
+      const msg = "[DIAGNÓSTICO DE LABORATORIO] Sensores acústicos, memoria vectorial RAG y red neuronal local operando al 100 % sin conexión a la nube.";
+      MemoryStore.recordEpisode("Diagnóstico", "Estado del Laboratorio", msg);
+      return msg;
+    }
+
+    // 3. Episodic Timeline Queries
+    if (["que hicimos hoy", "en que quedamos", "en que estabamos trabajando", "resumen de mi actividad", "mostrame mi linea de tiempo"].includes(norm)) {
+      return MemoryStore.getTimelineSummary();
+    }
+
+    return null;
+  }
+
   public static handleAutodidactAndRag(input: string): string | null {
     const clean = cleanConversationalPrefix(input);
 
@@ -478,9 +534,10 @@ export class LocalBrain {
       return { type: "stop" };
     }
 
-    // 2. Personal Memory, Autodidact Rules, Local RAG & Emotional Heart
+    // 2. Personal Memory, Eddy Lab Rats Protocols/Persona, Autodidact Rules, Local RAG & Emotional Heart
     const memoryReply =
       MemoryStore.handlePersonalMemory(withoutWake) ??
+      this.handleEddyLabRatsFeatures(withoutWake) ??
       this.handleAutodidactAndRag(withoutWake) ??
       this.detectEmotionAndRespond(withoutWake);
     if (memoryReply !== null) {

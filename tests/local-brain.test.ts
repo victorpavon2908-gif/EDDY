@@ -112,4 +112,16 @@ test('autodidact rules, local RAG documents, emotional heart and web synthesis w
   ]);
   assert.ok(synthesis.includes('[1]'));
   assert.ok(synthesis.includes('electricidad limpia'));
+
+  const eddyMode = LocalBrain.understand('Leo, activa modo misión');
+  assert.equal(eddyMode.type, 'personal_memory');
+  assert.ok(eddyMode.payload.reply.includes('CENTRO DE MANDO LEO'));
+
+  const nightProto = LocalBrain.understand('Leo, protocolo nocturno');
+  assert.equal(nightProto.type, 'personal_memory');
+  assert.ok(nightProto.payload.reply.includes('PROTOCOLO NOCTURNO ACTIVO'));
+
+  const timeline = LocalBrain.understand('¿Qué hicimos hoy?');
+  assert.equal(timeline.type, 'personal_memory');
+  assert.ok(timeline.payload.reply.includes('Protocolo Nocturno'));
 });
