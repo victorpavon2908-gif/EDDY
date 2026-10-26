@@ -23,15 +23,16 @@ class LeoNeuralCore(
     val protocols: LeoLabProtocols = LeoLabProtocols(),
     val timeline: LeoEpisodicTimeline = LeoEpisodicTimeline(rag),
     val vision: LeoLiveVisionAnalyzer = LeoLiveVisionAnalyzer(rag),
+    val consciousness: LeoLivingConsciousness = LeoLivingConsciousness(),
     val store: LeoSovereignStore? = null,
     val hardwareRunner: LeoHardwareProtocolRunner? = null,
 ) {
     init {
-        store?.restoreAll(autodidact, rag, timeline, persona)
+        store?.restoreAll(autodidact, rag, timeline, persona, consciousness)
     }
 
     private fun persistState() {
-        store?.saveAll(autodidact, rag, timeline, persona)
+        store?.saveAll(autodidact, rag, timeline, persona, consciousness)
     }
 
     data class Request(val message: String, val localFirst: Boolean, val autoResearch: Boolean, val learnedSearch: Boolean, val contextualInference: Boolean = false)
@@ -48,6 +49,10 @@ class LeoNeuralCore(
         turns.checkpoint()
         val answer = memory(message)?.let { NikoAiReply(it, false, emptyList()) }
             ?: persona.handleCommand(message)?.let {
+                persistState()
+                NikoAiReply(it, false, emptyList())
+            }
+            ?: consciousness.interact(message, emotionalHeart)?.let {
                 persistState()
                 NikoAiReply(it, false, emptyList())
             }
@@ -83,6 +88,10 @@ class LeoNeuralCore(
                 persistState()
                 NikoAiReply(it, false, emptyList())
             }
+                ?: consciousness.interact(request.message, emotionalHeart)?.let {
+                    persistState()
+                    NikoAiReply(it, false, emptyList())
+                }
                 ?: protocols.handleCommand(request.message)?.let { exec ->
                     hardwareRunner?.execute(exec)
                     timeline.recordEpisode(LeoEpisodicTimeline.EpisodeKind.PROTOCOL_EXECUTED, exec.protocol.name, exec.message)

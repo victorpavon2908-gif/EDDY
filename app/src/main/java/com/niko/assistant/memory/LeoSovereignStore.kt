@@ -1,6 +1,7 @@
 package com.niko.assistant.memory
 
 import com.niko.assistant.cognitive.LeoEddyPersona
+import com.niko.assistant.cognitive.LeoLivingConsciousness
 import com.niko.assistant.learning.LeoAutodidactEngine
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -28,12 +29,14 @@ class LeoSovereignStore(
         rag: LeoLocalRagEngine,
         timeline: LeoEpisodicTimeline,
         persona: LeoEddyPersona,
+        consciousness: LeoLivingConsciousness? = null,
     ) {
         val payload = listOf(
             b64(autodidact.exportJson()),
             b64(rag.exportJson()),
             b64(timeline.exportSerialized()),
             b64(persona.exportState()),
+            b64(consciousness?.exportState().orEmpty()),
         ).joinToString("|")
 
         memorySnapshot = payload
@@ -56,6 +59,7 @@ class LeoSovereignStore(
         rag: LeoLocalRagEngine,
         timeline: LeoEpisodicTimeline,
         persona: LeoEddyPersona,
+        consciousness: LeoLivingConsciousness? = null,
     ): Boolean {
         val raw = runCatching {
             val file = storageDir?.let { File(it, FILE_NAME) }
@@ -75,6 +79,9 @@ class LeoSovereignStore(
             rag.importJson(unb64(parts[1]))
             timeline.importSerialized(unb64(parts[2]))
             persona.importState(unb64(parts[3]))
+            if (parts.size >= 5 && parts[4].isNotBlank()) {
+                consciousness?.importState(unb64(parts[4]))
+            }
             true
         }.getOrDefault(false)
     }

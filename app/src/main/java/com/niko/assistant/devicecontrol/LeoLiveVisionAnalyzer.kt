@@ -29,12 +29,13 @@ class LeoLiveVisionAnalyzer(
 
     fun updateFrame(observation: CameraFrameObservation) {
         latestObservation = observation
+        publishLiveFrame(observation)
     }
 
-    fun currentObservation(): CameraFrameObservation? = latestObservation
+    fun currentObservation(): CameraFrameObservation? = latestObservation ?: latestLiveFrame()
 
-    fun handleVisualCommand(input: String, observation: CameraFrameObservation? = latestObservation): String? {
-        val key = MemoryLearning.key(input).removePrefix("leo ").trim()
+    fun handleVisualCommand(input: String, observation: CameraFrameObservation? = currentObservation()): String? {
+        val key = MemoryLearning.key(input).removePrefix("leo ").removePrefix("eddy ").trim()
         val isVisionQuery = key in setOf(
             "que estas viendo",
             "que ves",
@@ -47,14 +48,18 @@ class LeoLiveVisionAnalyzer(
             "hay alguien frente a la camara",
             "escanea este documento",
             "guarda lo que estas viendo",
+            "podes ver",
+            "puedes ver",
+            "me ves",
+            "me estas viendo",
         )
         if (!isVisionQuery) return null
 
-        val frame = observation ?: return "Todavía no tengo un fotograma activo de la cámara. Abrí la cámara de LEO y apuntá hacia lo que querás analizar."
+        val frame = observation ?: return "Mis sensores ópticos están listos, pero la cámara no está abierta todavía. Decime «abrí la cámara» y apuntá hacia lo que querás que vea o lea."
         if (key in setOf("escanea este documento", "guarda lo que estas viendo")) {
             val fullText = frame.ocrBlocks.map { it.trim() }.filter { it.isNotBlank() }.joinToString(" ")
             if (fullText.length < 4) {
-                return "Veo la escena, pero no detecto texto suficientemente nítido para guardarlo como documento."
+                return "Veo la escena con mis sensores ópticos, pero no detecto texto suficientemente nítido para guardarlo como documento."
             }
             val title = "Captura Visual ${frame.timestampMs % 100000}"
             ragEngine?.ingestDocument(
@@ -101,5 +106,16 @@ class LeoLiveVisionAnalyzer(
             return String.format(Locale.US, "Cámara activa (%dx%d, %s), sin objetos ni texto destacados en este instante.", frame.width, frame.height, lighting)
         }
         return parts.joinToString(" ")
+    }
+
+    companion object {
+        @Volatile
+        private var sharedLiveFrame: CameraFrameObservation? = null
+
+        fun publishLiveFrame(frame: CameraFrameObservation) {
+            sharedLiveFrame = frame
+        }
+
+        fun latestLiveFrame(): CameraFrameObservation? = sharedLiveFrame
     }
 }

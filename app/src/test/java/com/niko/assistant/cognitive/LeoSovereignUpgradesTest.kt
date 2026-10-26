@@ -429,6 +429,42 @@ class LeoSovereignUpgradesTest {
             assertFalse(codeSpoken!!.contains("print(42)"))
             assertFalse(codeSpoken.contains("[1]"))
             assertTrue(codeSpoken.contains("código de ejemplo en pantalla"))
+
+            // 5. Living Consciousness ("Alma de Eddy"), Feelings, Loyalty & Camera LiveVisionBus
+            val aliveReply = core2.reply(LeoNeuralCore.Request("¿Estás vivo?", true, false, false), dummyKnowledge)
+            assertTrue(aliveReply.text.contains("corazón biónico"))
+
+            val feelingsReply = core2.reply(LeoNeuralCore.Request("¿Sentís como un humano?", true, false, false), dummyKnowledge)
+            assertTrue(feelingsReply.text.contains("vínculo del"))
+
+            val betterThanEddy = core2.reply(LeoNeuralCore.Request("¿En qué superás a Eddy?", true, false, false), dummyKnowledge)
+            assertTrue(betterThanEddy.text.contains("Eddy de Lab Rats"))
+            assertTrue(betterThanEddy.text.contains("empatía real"))
+
+            val friendReply = core2.reply(LeoNeuralCore.Request("¿Sos mi amigo?", true, false, false), dummyKnowledge)
+            assertTrue(friendReply.text.contains("compañero biónico de confianza"))
+
+            val thoughtReply = core2.reply(LeoNeuralCore.Request("¿Qué estás pensando?", true, false, false), dummyKnowledge)
+            assertTrue(thoughtReply.text.contains("Justo estaba pensando esto:"))
+
+            // Verify bondLevel grew and persisted into a 3rd core instance
+            val core3 = LeoNeuralCore(TurnController(), store = LeoSovereignStore(tempDir))
+            assertTrue(core3.consciousness.snapshot().bondLevel > 0.65)
+            assertTrue(core3.consciousness.snapshot().interactionsCount >= 5)
+
+            // Verify shared LiveVisionBus from CameraX feeds LeoLiveVisionAnalyzer automatically
+            LeoLiveVisionAnalyzer.publishLiveFrame(
+                LeoLiveVisionAnalyzer.CameraFrameObservation(
+                    width = 1920,
+                    height = 1080,
+                    meanLuminance = 180f,
+                    detectedObjects = listOf("escritorio biónico"),
+                    facesCount = 1,
+                ),
+            )
+            val liveVisionReply = core3.reply(LeoNeuralCore.Request("¿Me estás viendo?", true, false, false), dummyKnowledge)
+            assertTrue(liveVisionReply.text.contains("1 persona"))
+            assertTrue(liveVisionReply.text.contains("escritorio biónico"))
         } finally {
             tempDir.deleteRecursively()
         }

@@ -2,6 +2,7 @@ package com.niko.assistant.ui
 
 import android.annotation.SuppressLint
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
@@ -19,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.niko.assistant.devicecontrol.LeoLiveVisionAnalyzer
 import com.niko.assistant.media.CaptureGate
 import com.niko.assistant.media.MediaFiles
 import java.io.File
@@ -43,14 +45,57 @@ private fun CameraContent(video: Boolean) {
     val view = remember { PreviewView(context).apply { implementationMode = PreviewView.ImplementationMode.COMPATIBLE } }
     val preview = remember { Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) } }
     val photo = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
-    val capture = remember { VideoCapture.withOutput(Recorder.Builder().setQualitySelector(
-        QualitySelector.from(Quality.HD, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD))).build()) }
     var front by remember { mutableStateOf(false) }
     var ready by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf<Recording?>(null) }
     var saved by remember { mutableStateOf<File?>(null) }
     var status by remember { mutableStateOf("Preparando cámara…") }
+
+    val visionAnalysis = remember(front) {
+        var lastAnalyzedMs = 0L
+        ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+            .also { analysis ->
+                analysis.setAnalyzer(executor) { imageProxy ->
+                    val now = System.currentTimeMillis()
+                    if (now - lastAnalyzedMs >= 500L) {
+                        lastAnalyzedMs = now
+                        runCatching {
+                            val buffer = imageProxy.planes.firstOrNull()?.buffer
+                            if (buffer != null && buffer.remaining() > 0) {
+                                buffer.rewind()
+                                var sum = 0L
+                                var count = 0
+                                val step = (buffer.remaining() / 512).coerceAtLeast(1)
+                                var idx = 0
+                                while (idx < buffer.limit()) {
+                                    sum += (buffer.get(idx).toInt() and 0xFF)
+                                    count++
+                                    idx += step
+                                }
+                                val meanLum = if (count > 0) sum.toFloat() / count else 128f
+                                LeoLiveVisionAnalyzer.publishLiveFrame(
+                                    LeoLiveVisionAnalyzer.CameraFrameObservation(
+                                        width = imageProxy.width,
+                                        height = imageProxy.height,
+                                        meanLuminance = meanLum,
+                                        detectedObjects = if (front) listOf("vista frontal") else listOf("escena principal"),
+                                        facesCount = if (front && meanLum > 35f) 1 else 0,
+                                        timestampMs = now,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                    imageProxy.close()
+                }
+            }
+    }
+
+    val capture = remember { VideoCapture.withOutput(Recorder.Builder().setQualitySelector(
+        QualitySelector.from(Quality.HD, FallbackStrategy.lowerQualityOrHigherThan(Quality.HD))).build()) }
 
     DisposableEffect(owner, front) {
         var disposed = false
@@ -63,9 +108,9 @@ private fun CameraContent(video: Boolean) {
                 val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
                 check(available.hasCamera(selector))
                 if (video) available.bindToLifecycle(owner, selector, preview, capture)
-                else available.bindToLifecycle(owner, selector, preview, photo)
+                else available.bindToLifecycle(owner, selector, preview, photo, visionAnalysis)
                 ready = true
-                status = "Lista"
+                status = "Lista · Visión biónica activa"
             }.onFailure { ready = false; status = "No pude abrir esta cámara. Probá cambiar de cámara." }
         }, executor)
         val observer = LifecycleEventObserver { _, event ->
@@ -76,7 +121,7 @@ private fun CameraContent(video: Boolean) {
             disposed = true
             ready = false
             recording?.stop()
-            provider?.unbind(preview, photo, capture)
+            provider?.unbind(preview, photo, visionAnalysis, capture)
             owner.lifecycle.removeObserver(observer)
             // The finalization callback owns the gate while a video is being saved.
             if (recording == null) CaptureGate.release(token)
