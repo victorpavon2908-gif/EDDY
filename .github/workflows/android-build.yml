@@ -28,6 +28,8 @@ jobs:
         with:
           python-version: '3.13'
       - run: python scripts/validate_leo_microgpt_assets.py
+      - name: Python tools and bundled user guide
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Prepare native wake detector regression
         run: python scripts/prepare_kws_native_test.py --destination "$RUNNER_TEMP/niko-kws-native" --github-env "$GITHUB_ENV"
       - name: Prepare trained semantic model regression

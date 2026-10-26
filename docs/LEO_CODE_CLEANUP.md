@@ -1,3 +1,5 @@
+> Nota de vigencia (2026-10-26): la aplicación web fue retirada. Sus comandos npm y resultados en este documento son históricos; la validación vigente se realiza sobre Android.
+
 # Limpieza de código LEO — 2026-10-12
 
 Base: `89d80c78e7d2fc28edabf4bed6a0599391b6235a`. Rama: `main`.

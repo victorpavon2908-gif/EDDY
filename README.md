@@ -1,8 +1,12 @@
-# LEO · Android 0.15.0 (100% Soberano)
+# EDDY / LEO · Android
 
 Identidad visual actual: [emblema negro proporcionado por el usuario](docs/design/LEO_EMBLEM.md), en sustitución del robot 3D.
 
-Aplicación móvil nativa para Android 12 o superior, escrita en Kotlin y Jetpack Compose.
+Aplicación móvil nativa para Android 12 o superior. El proyecto se centra exclusivamente en dispositivos Android; la aplicación web y su servidor se retiraron. La interfaz actual usa Kotlin y Jetpack Compose. La migración del cerebro a Python sigue pendiente; los scripts de preparación y entrenamiento ya usan Python.
+
+**Guía para nuevos usuarios:** [manual completo](docs/MANUAL_USUARIO_LEO.md), disponible sin conexión desde Inicio → Guía y Ajustes → Guía para nuevos usuarios.
+
+**Ajustes:** accesos por categoría, preferencias inmediatas, descargas con errores recuperables y guía integrada. La búsqueda en Internet nativa de Android se mantiene.
 La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad para auditoría](docs/IDENTIDAD_LEO.md).
 
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
@@ -12,7 +16,7 @@ Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el
 - **Corazón Emocional Multiturno (`LeoEmotionalHeart`)**: seguimiento afectivo de sesión (valencia, activación y trayectoria emocional: recuperación, fatiga sostenida o entusiasmo) con vocabulario español y nicaragüense ampliado (`LeoEmotionClassifier`), modulación empática de respuestas y abstención estricta ante negaciones, citas o preguntas.
 - **Motor Autodidacta y Autoentrenamiento Local (`LeoAutodidactEngine`)**: aprendizaje directo de reglas enseñadas por el usuario (*«LEO, aprendé que cuando te diga X me respondás Y»*), perfil de afinidad temática y ciclos autónomos de autoentrenamiento supervisado (`runSelfTrainingCycle`) sobre `OnlineIntentNetwork` con compuerta de no-regresión (`LeoAdaptiveTrainer`).
 - **Motor RAG Multimodal Local con Índice Vectorial Híbrido (`LeoLocalRagEngine`)**: ingesta y fragmentación semántica de documentos locales (PDF, OCR de fotos, notas de voz y apuntes), ranking híbrido con vectores densos L2 de 64 dimensiones (`EddyTransformerEmbedder`) + BM25 léxico y síntesis extractiva con citas.
-- **Sincronización Cifrada Soberana Teléfono ↔ Web (`LeoEncryptedSync`)**: cifrado autenticado `AES-256-GCM` con derivación `PBKDF2-HMAC-SHA256` (60 000 iteraciones) y verificación de integridad `SHA-256` sin depender de servidores externos.
+- **Formato de intercambio cifrado local (`LeoEncryptedSync`)**: cifrado autenticado `AES-256-GCM` con derivación `PBKDF2-HMAC-SHA256` (60 000 iteraciones) y verificación de integridad `SHA-256` sin depender de servidores externos.
 - **Escucha Superior, Wake-Word Acústico de Ultrabajo Consumo y Full-Duplex (`LeoAcousticWakeScorer`, `LeoDuplexPolicy`, `TranscriptQuality`)**: prefiltro acústico PCM 16 kHz por envolvente RMS, ZCR, banda formántica vocal y cadencia bisílaba (*«Le-o»*), rechazo de eco acústico/espectral (`isAcousticEcho`), frases naturales de barge-in y reparador fonético ASR (`repairAsrTranscript`).
 - **Agente Autónomo de Acciones Encadenadas en Pantalla con Confirmación Segura (`LeoUiStepPlanner.planLocalChainStep`, `NikoUiTaskPolicy.evaluateWithConfirmation`)**: planificación local paso a paso sobre el árbol de Accesibilidad y barrera de confirmación explícita para acciones modificadoras o cadenas largas.
 - **Evaluador Ejecutable del Protocolo Físico y Autocalibración (`LeoHardwareBenchmark`)**: evaluación determinista de latencia p95, falsos positivos/h, corte full-duplex, fluidez 60 FPS, batería y rechazo de eco con ajuste automático de `LeoVoiceTuningProfile`.
@@ -27,13 +31,14 @@ Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el
 - Diseño perla y verde oscuro, controles más legibles y respuesta completa seleccionable con todas sus fuentes.
 - Conversación espontánea opcional en Ajustes: LEO puede iniciar una charla y deja hasta 12 segundos para responder sin repetir su nombre.
 - Interpretación del contexto y síntesis web mejoradas; acepta respuestas breves con citas y valida estrictamente sus referencias.
-- El robot 3D del complemento web se carga por separado del inicio.
-- **Motor matemático, científico y conversor determinista local** (`NikoMathEngine` y `LocalBrain` web): soporte nativo para funciones científicas (`sqrt`, `cbrt`, `sin`, `cos`, `tan`, `log`, `ln`, `abs`, factoriales), constantes (`pi`, `e`), porcentajes compuestos, descuentos, números en español y conversión de unidades en lenguaje natural (longitud, masa, temperatura, volumen, datos, tiempo y velocidad).
+- **Motor matemático, científico y conversor determinista local** (`NikoMathEngine`): soporte nativo para funciones científicas (`sqrt`, `cbrt`, `sin`, `cos`, `tan`, `log`, `ln`, `abs`, factoriales), constantes (`pi`, `e`), porcentajes compuestos, descuentos, números en español y conversión de unidades en lenguaje natural (longitud, masa, temperatura, volumen, datos, tiempo y velocidad).
 - **Inteligencia de código local ampliada** (`LeoCodeIntelligence`): generación y auditoría estática local para 7 arquitecturas verificadas (calculadora en Python, conversor de unidades en Python, gestor de tareas en Python, repositorio CRUD SQLite parametrizado en Python, validador de contraseñas en Python, reintento exponencial con corrutinas en Kotlin y caché LRU genérica $O(1)$ en TypeScript).
-- **Memoria personal determinista y paridad web** (`LeoPersonalMemory` / `MemoryStore`): soporte ampliado de categorías personales (nombre, profesión, color, ciudad, meta, comida, bebida, pasatiempo, lenguaje de programación, música, lectura, cine, deporte) con reemplazo sin duplicados, retractación explícita, resumen de preferencias y paridad entre Android y el complemento web.
+- **Memoria personal determinista** (`LeoPersonalMemory`): soporte ampliado de categorías personales (nombre, profesión, color, ciudad, meta, comida, bebida, pasatiempo, lenguaje de programación, música, lectura, cine, deporte) con reemplazo sin duplicados, retractación explícita, resumen de preferencias.
 - **Currículum offline ampliado** (`brain/leo_seed_knowledge.jsonl`): 60 entradas verificadas de conocimiento local offline en español, programación, arquitectura Android/Kotlin, algoritmos, seguridad y geografía de Nicaragua.
 
 Ver [alcance, pruebas y límites de esta revisión](docs/LEO_014_VALIDATION.md).
+
+Ver [estado de preparación móvil y validación pendiente](docs/EDDY_MOBILE_READINESS.md).
 
 ## Abrir y validar
 
@@ -54,7 +59,7 @@ Los commits ejecutan pruebas Android y Lint; no generan APK. Las descargas inici
 
 ## Recuperación y mejoras 0.12.0
 
-Se recuperó la aplicación nativa desde `66930d1`, conservando las mejoras posteriores de la versión web como complemento independiente. Gradle vuelve a validar Android, sin redirigir sus tareas a npm.
+Se recuperó la aplicación nativa desde `66930d1`. Gradle valida Android. El complemento web histórico se retiró el 26 de octubre de 2026.
 
 - Eliminada la ruta de JDK de una computadora Windows que impedía ejecutar Gradle en otras máquinas.
 - Actualizaciones de preferencias por eventos, sin consultas cada 500 ms.
@@ -66,9 +71,9 @@ Se recuperó la aplicación nativa desde `66930d1`, conservando las mejoras post
 
 Ver [validación de esta revisión](docs/ANDROID_012_VALIDATION.md). Consumo, latencia del micrófono y funcionamiento físico siguen pendientes de prueba en un teléfono.
 
-## Complemento web y evidencias
+## Evidencias de Android
 
-El código React se conserva para no perder trabajo previo; sus pruebas no equivalen a pruebas Android. Ver [documentación web](docs/WEB_COMPANION.md).
+Los informes históricos pueden contener resultados de la aplicación web retirada. No representan componentes activos ni validación móvil.
 
 - [Métricas y evidencia](evidencias/README.md)
 - [Protocolo físico](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md)

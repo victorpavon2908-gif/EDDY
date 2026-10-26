@@ -1,3 +1,5 @@
+> Nota de vigencia (2026-10-26): la aplicación web fue retirada. Sus comandos npm y resultados en este documento son históricos; la validación vigente se realiza sobre Android.
+
 # LEO: investigación nativa sin Groq — 2026-10-10
 
 ## IMPLEMENTADO

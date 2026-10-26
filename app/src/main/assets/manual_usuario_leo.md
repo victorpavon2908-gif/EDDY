@@ -68,9 +68,6 @@ Los archivos multimedia son privados de la app; exportalos antes de desinstalar.
 - **No graba foto/audio/video**: concedé permisos correspondientes y asegurate de que otra app no esté utilizando cámara/micrófono.
 - **Respuesta desactualizada**: solicitá búsqueda web explícita; las respuestas offline no son datos en tiempo real.
 
-## Diferencias con la versión web
-La versión web usa el micrófono y las voces disponibles del navegador. Necesita permiso de micrófono y un navegador compatible; no garantiza escucha con la pestaña cerrada. Los ajustes web se aplican al pulsar Guardar. El reconocimiento de propietario CAMPPlus y los modelos Android no están implementados en el navegador. La memoria del navegador es independiente de la del teléfono.
-
 ## 8. Límites y validación
 Los módulos se identificaron en el código fuente del proyecto. La descarga completa de ~500 MB, los buscadores y los módulos multimedia requieren pruebas en Android real para dar por confirmado su funcionamiento en cada dispositivo. LEO no garantiza infalibilidad, autonomía irrestricta ni acceso a contenido privado de terceros.
 

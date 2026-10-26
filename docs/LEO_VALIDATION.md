@@ -1,3 +1,5 @@
+> Nota de vigencia (2026-10-26): la aplicación web fue retirada. Sus comandos npm y resultados en este documento son históricos; la validación vigente se realiza sobre Android.
+
 # LEO: validación reproducible de la iteración 2026-10-06
 
 Base: e59c274. Los resultados históricos de otras fechas no se reutilizan como evidencia de este commit.

@@ -13,8 +13,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import kotlin.math.roundToInt
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.niko.assistant.ui.LeoUserGuideDialog
 import androidx.compose.foundation.BorderStroke
@@ -224,7 +225,7 @@ private fun LeoSettingsScreen(
     val scope = rememberCoroutineScope()
     var showGuide by rememberSaveable { mutableStateOf(false) }
     val sectionNames = listOf("Voz", "Mi voz", "Reconocimiento", "Personalidad e Internet", "Permisos", "Descargas offline", "Privacidad")
-    val sectionAnchors = remember { List(7) { BringIntoViewRequester() } }
+    val sectionOffsets = remember { IntArray(7) }
     val settingsScroll = rememberScrollState()
     val modelManager = remember { NikoModelManager(context) }
     val ownerVoice = remember { NikoVoiceProfile(context) }
@@ -437,7 +438,7 @@ private fun LeoSettingsScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         labels.forEachIndexed { column, label ->
                             OutlinedButton(
-                                onClick = { scope.launch { sectionAnchors[row * 2 + column].bringIntoView() } },
+                                onClick = { scope.launch { settingsScroll.animateScrollTo(sectionOffsets[row * 2 + column]) } },
                                 modifier = Modifier.weight(1f),
                             ) { Text(label) }
                         }
@@ -447,7 +448,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 1: ACTIVACIÓN POR VOZ Y ESCUCHA ──
-            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[0]))
+            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[0] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.Mic,
                 badge = "VOZ EN VIVO",
@@ -521,7 +522,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 2: RECONOCIMIENTO DE MI VOZ (HUELLA VOCAL) ──
-            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[1]))
+            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[1] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.RecordVoiceOver,
                 badge = if (enrolled) "HUELLA ACTIVA" else "SEGURIDAD VOCAL",
@@ -685,7 +686,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 3: SEGUNDO OÍDO LOCAL (WHISPER ASR) ──
-            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[2]))
+            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[2] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.GraphicEq,
                 badge = if (whisperInstalled) "INSTALADO ✓" else "PRECISIÓN ACÚSTICA",
@@ -719,7 +720,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 4: PERSONALIDAD, CONCIENCIA Y APRENDIZAJE ──
-            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[3]))
+            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[3] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.AutoAwesome,
                 badge = "ALMA BIÓNICA",
@@ -838,7 +839,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 5: BURBUJA FLOTANTE, PERMISOS Y HARDWARE ──
-            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[4]))
+            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[4] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.SettingsSuggest,
                 badge = "SISTEMA Y PANTALLA",
@@ -956,7 +957,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 6: CEREBRO OFFLINE, MODELOS LLM Y MEMORIA SEMÁNTICA ──
-            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[5]))
+            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[5] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.Memory,
                 badge = "100 % SOBERANO",
@@ -1136,7 +1137,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 7: PRIVACIDAD, WEB Y MEMORIA PERSONAL ──
-            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[6]))
+            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[6] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.Security,
                 badge = "TUS DATOS",

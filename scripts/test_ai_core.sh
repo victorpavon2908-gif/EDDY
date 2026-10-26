@@ -1,91 +1,27 @@
 #!/usr/bin/env bash
-# Offline JVM regressions for identity, routing and native web research.
+# Run the core regression suite against the real Android source set.
+# Requires JDK 17 and Android SDK 36; does not generate an APK.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-
-leo_kotlin_lib="${LEO_KOTLIN_LIB_DIR:-${GRADLE_USER_HOME:-${HOME}}/niko-bootstrap/gradle-8.13/lib}"
-for jar in kotlin-compiler-embeddable-2.0.21.jar kotlin-stdlib-2.0.21.jar junit-4.13.2.jar hamcrest-core-1.3.jar kotlinx-coroutines-core-jvm-1.6.4.jar; do
-    if [[ ! -f "$leo_kotlin_lib/$jar" ]]; then
-        printf 'Missing %s. Set LEO_KOTLIN_LIB_DIR to the Gradle 8.13 lib directory.\n' "$jar" >&2
-        exit 1
-    fi
-done
-
-leo_test_dir=$(mktemp -d)
-trap 'rm -f -- "$leo_test_dir/tests.jar"; rmdir -- "$leo_test_dir"' EXIT
-leo_classpath="$leo_kotlin_lib/kotlin-stdlib-2.0.21.jar:$leo_kotlin_lib/junit-4.13.2.jar:$leo_kotlin_lib/hamcrest-core-1.3.jar:$leo_kotlin_lib/kotlinx-coroutines-core-jvm-1.6.4.jar"
-leo_sources=(
-    app/src/main/java/com/niko/assistant/agent/TurnController.kt
-    app/src/main/java/com/niko/assistant/brain/NikoMathEngine.kt
-    app/src/main/java/com/niko/assistant/cognitive/LeoNeuralCore.kt
-    app/src/main/java/com/niko/assistant/cognitive/LeoPersonalMemory.kt
-    app/src/main/java/com/niko/assistant/cognitive/LeoEmotionEngine.kt
-    app/src/main/java/com/niko/assistant/cognitive/LeoEmotionClassifier.kt
-    app/src/main/java/com/niko/assistant/cognitive/LeoCodeIntelligence.kt
-    app/src/test/java/com/niko/assistant/cognitive/LeoEmotionClassifierTest.kt
-    app/src/test/java/com/niko/assistant/cognitive/LeoNeuralCoreTest.kt
-    app/src/test/java/com/niko/assistant/cognitive/LeoPersonalMemoryTest.kt
-    app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt
-    app/src/main/java/com/niko/assistant/brain/AssistantCommand.kt
-    app/src/main/java/com/niko/assistant/brain/WebQueryRouter.kt
-    app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt
-    app/src/main/java/com/niko/assistant/ai/LeoBrand.kt
-    app/src/main/java/com/niko/assistant/ai/NikoIdentity.kt
-    app/src/main/java/com/niko/assistant/ai/LeoDialoguePolicy.kt
-    app/src/main/java/com/niko/assistant/ai/LeoExpression.kt
-    app/src/main/java/com/niko/assistant/voice/LeoWakeAcknowledgement.kt
-    app/src/test/java/com/niko/assistant/voice/LeoWakeAcknowledgementTest.kt
-    app/src/test/java/com/niko/assistant/ai/LeoExpressionTest.kt
-    app/src/test/java/com/niko/assistant/ai/LeoDialoguePolicyTest.kt
-    app/src/main/java/com/niko/assistant/ai/NikoPersonality.kt
-    app/src/main/java/com/niko/assistant/ai/ConversationContext.kt
-    app/src/main/java/com/niko/assistant/ai/ConversationCoordinator.kt
-    app/src/main/java/com/niko/assistant/ai/AutonomousResearch.kt
-    app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt
-    app/src/main/java/com/niko/assistant/learning/AdaptiveLearningPolicy.kt
-    app/src/main/java/com/niko/assistant/learning/InteractionCorrection.kt
-    app/src/main/java/com/niko/assistant/learning/LearnedActionCodec.kt
-    app/src/main/java/com/niko/assistant/learning/LearnedActionStore.kt
-    app/src/main/java/com/niko/assistant/learning/LeoIntentTrainingCorpus.kt
-    app/src/main/java/com/niko/assistant/learning/LeoAdaptiveTrainer.kt
-    app/src/main/java/com/niko/assistant/learning/OnlineIntentNetwork.kt
-    app/src/main/java/com/niko/assistant/localai/LeoDirectoryActivation.kt
-    app/src/main/java/com/niko/assistant/localai/LeoDownloadIntegrity.kt
-    app/src/test/java/com/niko/assistant/ai/ConversationCoordinatorTest.kt
-    app/src/test/java/com/niko/assistant/ai/NikoIdentityTest.kt
-    app/src/test/java/com/niko/assistant/ai/ConversationContextTest.kt
-    app/src/test/java/com/niko/assistant/ai/LeoNativeWebSearchTest.kt
-    app/src/test/java/com/niko/assistant/learning/AdaptiveLearningPolicyTest.kt
-    app/src/test/java/com/niko/assistant/learning/InteractionCorrectionTest.kt
-    app/src/test/java/com/niko/assistant/learning/LearnedActionCodecTest.kt
-    app/src/test/java/com/niko/assistant/learning/LearnedActionStoreTest.kt
-    app/src/test/java/com/niko/assistant/learning/LeoIntentTrainingCorpusTest.kt
-    app/src/test/java/com/niko/assistant/learning/LeoAdaptiveTrainerTest.kt
-    app/src/test/java/com/niko/assistant/learning/OnlineIntentNetworkTest.kt
-    app/src/test/java/com/niko/assistant/localai/LeoDirectoryActivationTest.kt
-    app/src/test/java/com/niko/assistant/localai/LeoDownloadIntegrityTest.kt
+leo_test_filters=(
+    --tests com.niko.assistant.cognitive.LeoEmotionClassifierTest
+    --tests com.niko.assistant.cognitive.LeoNeuralCoreTest
+    --tests com.niko.assistant.cognitive.LeoPersonalMemoryTest
+    --tests com.niko.assistant.ai.ConversationCoordinatorTest
+    --tests com.niko.assistant.ai.NikoIdentityTest
+    --tests com.niko.assistant.ai.LeoDialoguePolicyTest
+    --tests com.niko.assistant.ai.LeoExpressionTest
+    --tests com.niko.assistant.voice.LeoWakeAcknowledgementTest
+    --tests com.niko.assistant.ai.ConversationContextTest
+    --tests com.niko.assistant.ai.LeoNativeWebSearchTest
+    --tests com.niko.assistant.learning.AdaptiveLearningPolicyTest
+    --tests com.niko.assistant.learning.InteractionCorrectionTest
+    --tests com.niko.assistant.learning.LearnedActionCodecTest
+    --tests com.niko.assistant.learning.LearnedActionStoreTest
+    --tests com.niko.assistant.learning.LeoIntentTrainingCorpusTest
+    --tests com.niko.assistant.learning.LeoAdaptiveTrainerTest
+    --tests com.niko.assistant.learning.OnlineIntentNetworkTest
+    --tests com.niko.assistant.localai.LeoDirectoryActivationTest
+    --tests com.niko.assistant.localai.LeoDownloadIntegrityTest
 )
-
-java -cp "$leo_kotlin_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
-    -no-stdlib -no-reflect -jvm-target 17 -classpath "$leo_classpath" \
-    -d "$leo_test_dir/tests.jar" "${leo_sources[@]}"
-java -cp "$leo_test_dir/tests.jar:$leo_classpath" org.junit.runner.JUnitCore \
-    com.niko.assistant.cognitive.LeoEmotionClassifierTest \
-    com.niko.assistant.cognitive.LeoNeuralCoreTest \
-    com.niko.assistant.cognitive.LeoPersonalMemoryTest \
-    com.niko.assistant.ai.ConversationCoordinatorTest \
-    com.niko.assistant.ai.NikoIdentityTest \
-    com.niko.assistant.ai.LeoDialoguePolicyTest \
-    com.niko.assistant.ai.LeoExpressionTest \
-    com.niko.assistant.voice.LeoWakeAcknowledgementTest \
-    com.niko.assistant.ai.ConversationContextTest \
-    com.niko.assistant.ai.LeoNativeWebSearchTest \
-    com.niko.assistant.learning.AdaptiveLearningPolicyTest \
-    com.niko.assistant.learning.InteractionCorrectionTest \
-    com.niko.assistant.learning.LearnedActionCodecTest \
-    com.niko.assistant.learning.LearnedActionStoreTest \
-    com.niko.assistant.learning.LeoIntentTrainingCorpusTest \
-    com.niko.assistant.learning.LeoAdaptiveTrainerTest \
-    com.niko.assistant.learning.OnlineIntentNetworkTest \
-    com.niko.assistant.localai.LeoDirectoryActivationTest \
-    com.niko.assistant.localai.LeoDownloadIntegrityTest
+exec ./gradlew :app:testDebugUnitTest "${leo_test_filters[@]}" "$@"

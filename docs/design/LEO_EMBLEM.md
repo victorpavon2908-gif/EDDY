@@ -1,3 +1,5 @@
+> Nota de vigencia (2026-10-26): la aplicación web fue retirada. Sus comandos npm y resultados en este documento son históricos; la validación vigente se realiza sobre Android.
+
 # Identidad visual LEO — 2026-10-12
 
 Se sustituye el robot 3D por la imagen `Eddy.webp` proporcionada por el usuario. Las copias Android (`drawable-nodpi/leo_emblem.webp`) y web (`public/leo_emblem.webp`) conservan exactamente los bytes de la referencia, sin redibujo ni recorte en esos archivos. Desde la incorporación de expresiones, el personaje principal Android se dibuja con Canvas según esa silueta; los iconos y la web conservan la imagen estática. El nombre público sigue siendo LEO.
