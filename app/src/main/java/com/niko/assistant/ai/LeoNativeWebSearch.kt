@@ -150,7 +150,9 @@ object LeoNativeWebSearch {
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         // Explain the difference between discovered links and articles actually read.
         val readCount = cited.count { it.articleText.isNotBlank() }
-        val finalText = if (readCount == 0) {
+        val finalText = if (readCount == 0 && cited.all { it.snippet.isBlank() }) {
+            "Encontré enlaces sobre $subject, pero no pude extraer texto de las páginas ni extractos del buscador. Abrí las fuentes o reintentá la búsqueda."
+        } else if (readCount == 0) {
             buildString {
                 append("Encontré fuentes relacionadas con $subject, pero no pude abrir los artículos completos. ")
                 append("Estos son extractos públicos del buscador, no información comprobada:\n\n")

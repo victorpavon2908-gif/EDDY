@@ -90,9 +90,8 @@ class LeoSovereignStore(
     fun clear() {
         memorySnapshot = ""
         val dir = storageDir ?: return
-        runCatching {
-            File(dir, FILE_NAME).delete()
-            File(dir, "$FILE_NAME.tmp").delete()
+        listOf(File(dir, FILE_NAME), File(dir, "$FILE_NAME.tmp")).forEach { file ->
+            check(!file.exists() || file.delete()) { "No se pudo borrar ${file.name}" }
         }
     }
 

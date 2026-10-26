@@ -51,7 +51,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   localFirst: true,
   autoResearch: true,
   ownerVoiceOnly: false,
-  ownerEnrolled: true,
+  ownerEnrolled: false,
   firstRunCompleted: true,
 };
 
@@ -199,23 +199,36 @@ export class MemoryStore {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
       const stored = raw ? JSON.parse(raw) : {};
-      if ("groqApiKey" in stored) {
+      if (stored && typeof stored === "object" && "groqApiKey" in stored) {
         delete stored.groqApiKey;
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(stored));
       }
-      return { ...DEFAULT_SETTINGS, ...stored };
+      const source = stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+      const result = { ...DEFAULT_SETTINGS };
+      for (const key of ["autoListening", "localFirst", "autoResearch", "firstRunCompleted"] as const) {
+        if (typeof source[key] === "boolean") result[key] = source[key];
+      }
+      for (const [key, min, max] of [["voiceRate", 0.75, 1.5], ["voicePitch", 0.8, 1.3]] as const) {
+        if (typeof source[key] === "number" && Number.isFinite(source[key])) result[key] = Math.min(max, Math.max(min, source[key]));
+      }
+      if (["BALANCED", "CONCISE", "TECHNICAL"].includes(source.personality)) result.personality = source.personality;
+      // The web companion has no speaker verification; retire simulated enrollment flags.
+      result.ownerEnrolled = false;
+      result.ownerVoiceOnly = false;
+      return result;
     } catch {
-      return DEFAULT_SETTINGS;
+      return { ...DEFAULT_SETTINGS };
     }
   }
 
-  public static saveSettings(settings: Partial<AppSettings>) {
+  public static saveSettings(settings: Partial<AppSettings>): boolean {
     try {
       const current = this.getSettings();
       const updated = { ...current, ...settings };
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
-    } catch (e) {
-      console.warn("Failed to save settings:", e);
+      return true;
+    } catch {
+      return false;
     }
   }
 

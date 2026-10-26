@@ -134,32 +134,7 @@ internal fun NikoReferenceScreen(
             }
         }
     }
-    if (helpOpen) ModalBottomSheet(
-        onDismissRequest = { helpOpen = false },
-        containerColor = Color(0xFFF4F1EB),
-    ) {
-        Column(
-            Modifier.fillMaxWidth().fillMaxHeight(0.78f)
-                .verticalScroll(rememberScrollState()).navigationBarsPadding().padding(22.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("GUÍA BÁSICA DE LEO", style = MaterialTheme.typography.headlineSmall)
-            Text("1. Activá el micrófono desde Ajustes. Decí «LEO» y hablá con naturalidad.")
-            Text("2. Para buscar información actual decí «LEO, buscá en internet...» y consultá las fuentes en Conversación y controles.")
-            Text("3. En Ajustes podés instalar la enciclopedia offline (~500 MB) para consultas generales sin conexión.")
-            Text("4. Abrí Herramientas para calculadora, conversor, reloj, cronómetro, temporizador, notas, cámara, video, grabadora y música.")
-            Text("5. Configurá voz, memoria, aprendizaje, conversación espontánea y permisos en Ajustes.")
-            Text("6. La enciclopedia no tiene noticias actuales. Las búsquedas web pueden fallar por conexión o bloqueos de sitios.")
-            TextButton(onClick = {
-                runCatching {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
-                        "https://github.com/victorpavon2908-gif/EDDY/blob/main/docs/MANUAL_USUARIO_LEO.md"
-                    )))
-                }
-            }) { Text("Abrir manual completo con ejemplos") }
-            TextButton(onClick = { helpOpen = false }) { Text("Volver a LEO") }
-        }
-    }
+    if (helpOpen) LeoUserGuideDialog(onClose = { helpOpen = false })
     if (controlsOpen) ModalBottomSheet(
         onDismissRequest = { controlsOpen = false },
         containerColor = Color(0xFFF4F1EB),

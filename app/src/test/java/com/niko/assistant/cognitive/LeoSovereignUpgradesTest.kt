@@ -474,4 +474,17 @@ class LeoSovereignUpgradesTest {
             tempDir.deleteRecursively()
         }
     }
+    @org.junit.Test(expected = IllegalStateException::class)
+    fun clearingStoreReportsUndeletableData() {
+        val directory = java.nio.file.Files.createTempDirectory("leo-clear-failure").toFile()
+        try {
+            val blocked = java.io.File(directory, "leo_sovereign_state.dat")
+            blocked.mkdirs()
+            java.io.File(blocked, "child").writeText("must not be silently ignored")
+            LeoSovereignStore(directory).clear()
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }

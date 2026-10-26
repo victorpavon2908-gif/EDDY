@@ -13,6 +13,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.niko.assistant.ui.LeoUserGuideDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -177,7 +181,7 @@ class AiSettingsActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        runCatching {
+        if (NikoVoiceSettings.enabled(this) && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) runCatching {
             startService(UpgradeIdentity.assistantService(this).apply { action = NikoAssistantService.ACTION_HIDE_BUBBLE })
         }
     }
@@ -218,6 +222,10 @@ private fun LeoSettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var showGuide by rememberSaveable { mutableStateOf(false) }
+    val sectionNames = listOf("Voz", "Mi voz", "Reconocimiento", "Personalidad e Internet", "Permisos", "Descargas offline", "Privacidad")
+    val sectionAnchors = remember { List(7) { BringIntoViewRequester() } }
+    val settingsScroll = rememberScrollState()
     val modelManager = remember { NikoModelManager(context) }
     val ownerVoice = remember { NikoVoiceProfile(context) }
     val offlineKnowledge = remember { LeoFrozenBrainManager(context) }
@@ -319,6 +327,10 @@ private fun LeoSettingsScreen(
                 } else {
                     "No se pudo completar la descarga. Comprobá tu conexión y espacio libre."
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                modelStatus = "No pude preparar el modelo. Revisá conexión y espacio libre; podés reintentar."
             } finally {
                 preparing = false
             }
@@ -335,7 +347,7 @@ private fun LeoSettingsScreen(
                 .fillMaxSize()
                 .systemBarsPadding()
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(settingsScroll)
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -348,7 +360,7 @@ private fun LeoSettingsScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Surface(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(48.dp)
                             .clickable(onClick = onClose),
                         shape = CircleShape,
                         color = DarkCardBg,
@@ -366,14 +378,14 @@ private fun LeoSettingsScreen(
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "LEO · CONFIGURACIÓN",
+                            text = "EDDY / LEO · AJUSTES",
                             color = DarkEmerald,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.6.sp,
                         )
                         Text(
-                            text = "Centro de Control Biónico",
+                            text = "Tu asistente, a tu manera",
                             color = DarkTextPrimary,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
@@ -412,7 +424,30 @@ private fun LeoSettingsScreen(
                 )
             }
 
+            DarkSettingsCard(
+                icon = Icons.Rounded.SettingsSuggest,
+                badge = "EMPEZÁ AQUÍ",
+                title = "Configuración rápida",
+                subtitle = "Los cambios se guardan al instante. Elegí una categoría para ir directamente a sus controles.",
+            ) {
+                Button(onClick = { showGuide = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Guía para nuevos usuarios · disponible sin conexión")
+                }
+                sectionNames.chunked(2).forEachIndexed { row, labels ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        labels.forEachIndexed { column, label ->
+                            OutlinedButton(
+                                onClick = { scope.launch { sectionAnchors[row * 2 + column].bringIntoView() } },
+                                modifier = Modifier.weight(1f),
+                            ) { Text(label) }
+                        }
+                        if (labels.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+
             // ── SECCIÓN 1: ACTIVACIÓN POR VOZ Y ESCUCHA ──
+            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[0]))
             DarkSettingsCard(
                 icon = Icons.Rounded.Mic,
                 badge = "VOZ EN VIVO",
@@ -486,6 +521,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 2: RECONOCIMIENTO DE MI VOZ (HUELLA VOCAL) ──
+            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[1]))
             DarkSettingsCard(
                 icon = Icons.Rounded.RecordVoiceOver,
                 badge = if (enrolled) "HUELLA ACTIVA" else "SEGURIDAD VOCAL",
@@ -649,6 +685,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 3: SEGUNDO OÍDO LOCAL (WHISPER ASR) ──
+            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[2]))
             DarkSettingsCard(
                 icon = Icons.Rounded.GraphicEq,
                 badge = if (whisperInstalled) "INSTALADO ✓" else "PRECISIÓN ACÚSTICA",
@@ -682,6 +719,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 4: PERSONALIDAD, CONCIENCIA Y APRENDIZAJE ──
+            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[3]))
             DarkSettingsCard(
                 icon = Icons.Rounded.AutoAwesome,
                 badge = "ALMA BIÓNICA",
@@ -800,6 +838,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 5: BURBUJA FLOTANTE, PERMISOS Y HARDWARE ──
+            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[4]))
             DarkSettingsCard(
                 icon = Icons.Rounded.SettingsSuggest,
                 badge = "SISTEMA Y PANTALLA",
@@ -917,6 +956,7 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 6: CEREBRO OFFLINE, MODELOS LLM Y MEMORIA SEMÁNTICA ──
+            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[5]))
             DarkSettingsCard(
                 icon = Icons.Rounded.Memory,
                 badge = "100 % SOBERANO",
@@ -985,7 +1025,7 @@ private fun LeoSettingsScreen(
                                             }
                                             offlineInstalled = offlineKnowledge.isInstalled()
                                         } catch (cancelled: CancellationException) {
-                                            offlineStatus = "Descarga detenida. El avance parcial se conserva para más adelante."
+                                            offlineStatus = "Descarga detenida. Podés reintentar desde esta pantalla."
                                             throw cancelled
                                         } catch (_: Exception) {
                                             offlineStatus = "No pude completar la descarga. Revisá tu conexión y espacio libre."
@@ -1017,7 +1057,6 @@ private fun LeoSettingsScreen(
                                         LeoOfflineKnowledgeSettings.allowDownload(context, false)
                                         offlineAllowed = false
                                         offlineJob?.cancel()
-                                        offlineJob = null
                                         offlineStatus = "Descargas automáticas detenidas. El conocimiento ya instalado se conserva."
                                     },
                                     shape = RoundedCornerShape(12.dp),
@@ -1097,14 +1136,15 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 7: PRIVACIDAD, WEB Y MEMORIA PERSONAL ──
+            Spacer(Modifier.height(1.dp).bringIntoViewRequester(sectionAnchors[6]))
             DarkSettingsCard(
                 icon = Icons.Rounded.Security,
                 badge = "TUS DATOS",
                 title = "Investigación Web y Privacidad Soberana",
-                subtitle = "Tus recuerdos, tu vínculo con LEO y tu aprendizaje viven exclusivamente en el almacenamiento interno de este teléfono.",
+                subtitle = "La memoria personal se guarda en este teléfono. Las consultas web se envían a proveedores y páginas públicas.",
             ) {
                 DarkInfoBox(
-                    title = "BÚSQUEDA WEB SIN RASTREO DE CUENTA",
+                    title = "BÚSQUEDA WEB Y FUENTES",
                     body = "Cuando activás la investigación web, LEO consulta y sintetiza artículos públicos citando las fuentes reales sin usar llaves de API ni cuentas externas.",
                 )
 
@@ -1160,6 +1200,8 @@ private fun LeoSettingsScreen(
         }
     }
 
+    if (showGuide) LeoUserGuideDialog(onClose = { showGuide = false })
+
     if (showClearMemoryDialog) {
         AlertDialog(
             onDismissRequest = { showClearMemoryDialog = false },
@@ -1176,9 +1218,16 @@ private fun LeoSettingsScreen(
                 TextButton(
                     onClick = {
                         showClearMemoryDialog = false
-                        runCatching { NikoMemory(context).clearAll() }
-                        runCatching { LeoSovereignStore(context.filesDir).clear() }
-                        memoryFeedback = "✓ Memoria personal y aprendizaje reiniciados correctamente."
+                        memoryFeedback = "Borrando memoria…"
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                val personal = runCatching { NikoMemory(context).clearAll() }
+                                val sovereign = runCatching { LeoSovereignStore(context.filesDir).clear() }
+                                personal.isSuccess && sovereign.isSuccess
+                            }
+                            memoryFeedback = if (result) "Memoria personal y aprendizaje reiniciados."
+                                else "No se pudo borrar toda la memoria. Revisá el almacenamiento y reintentá."
+                        }
                     },
                 ) {
                     Text("SÍ, BORRAR MEMORIA", color = DarkDanger, fontWeight = FontWeight.Bold)

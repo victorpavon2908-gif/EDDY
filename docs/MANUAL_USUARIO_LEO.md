@@ -1,14 +1,24 @@
-# Manual básico de LEO / EDDY — Android
+# Guía de EDDY / LEO para nuevos usuarios — Android
 
 Guía de uso desde la primera apertura. Describe las funciones presentes en el código; su funcionamiento concreto depende de permisos, modelo instalado, conexión y compatibilidad del teléfono.
 
 ## 1. Primer inicio
-1. Abrí LEO. Concedé **micrófono** para conversar y la detección de la palabra **«LEO»**. Sin permiso, la escucha no funciona.
-2. Entrá al icono de **Ajustes** (arriba a la derecha) y activá **Escuchar la palabra «LEO»**. El botón de reinicio de micrófono puede ayudar si no te oye.
+1. Abrí LEO en un teléfono con Android 12 o posterior, conexión estable y espacio libre. La primera apertura descarga y verifica los módulos necesarios; esperá a que finalice. Si falla, usá Reintentar. Concedé **micrófono** para conversar y la detección de la palabra **«LEO»**. Sin permiso, la escucha no funciona.
+2. La guía completa está en **Inicio → Guía** y **Ajustes → Guía para nuevos usuarios**, incluso sin conexión. Podés buscar por palabra y copiar el texto. Entrá al icono de **Ajustes** (arriba a la derecha) y activá **Escuchar la palabra «LEO»**. El botón de reinicio de micrófono puede ayudar si no te oye.
 3. **Mi voz** permite registrar tu voz y activar el modo de propietario; el comportamiento varía con el entorno y nunca reemplaza la seguridad de Android.
 4. **Pantalla / accesibilidad** y **burbuja flotante** necesitan permisos separados y opcionales. Revisá lo que concedés.
 5. Volvé al inicio. Decí «LEO» y formulá una pregunta normal. Tras responder puede mantenerse una ventana de conversación breve si está activada.
 6. Usá **Conversación y controles** para leer la respuesta completa y sus enlaces, o **Herramientas** para cambiar de modo sin hablar.
+
+## Ajustes: dónde encontrar cada opción
+Los cambios de Android se guardan al instante. Los botones de Configuración rápida te llevan a cada sección sin interrumpir descargas en curso.
+- **Voz**: encender o pausar escucha, conversación espontánea, reinicio y diagnóstico.
+- **Mi voz**: instalar el identificador, registrar cuatro frases y limitar las respuestas a tu voz. No es un bloqueo de seguridad.
+- **Reconocimiento**: instalar o comprobar el segundo reconocedor local.
+- **Personalidad e Internet**: estilo de respuesta, prioridad local, investigación automática y aprendizaje.
+- **Permisos**: burbuja, accesibilidad y lectura de sensores. Android administra estos permisos; concedelos solo para las funciones que uses.
+- **Descargas offline**: modelo local, enciclopedia y memoria semántica. Revisá el estado de cada uno; descargar uno no instala los demás. Mantené Ajustes abierto durante las descargas que se ejecutan en esa pantalla.
+- **Privacidad**: explicación de consultas web y borrado de memoria con confirmación. No hay botón de deshacer.
 
 ## 2. Hablar y conversar
 - «LEO, ¿qué podés hacer?», «LEO, explicame qué es la energía eólica», «LEO, ayudame con matemáticas».
@@ -57,6 +67,9 @@ Los archivos multimedia son privados de la app; exportalos antes de desinstalar.
 - **No descarga la enciclopedia**: verificá permisos/red/almacenamiento, reintentá desde Ajustes y comprobá que la instalación marque «lista».
 - **No graba foto/audio/video**: concedé permisos correspondientes y asegurate de que otra app no esté utilizando cámara/micrófono.
 - **Respuesta desactualizada**: solicitá búsqueda web explícita; las respuestas offline no son datos en tiempo real.
+
+## Diferencias con la versión web
+La versión web usa el micrófono y las voces disponibles del navegador. Necesita permiso de micrófono y un navegador compatible; no garantiza escucha con la pestaña cerrada. Los ajustes web se aplican al pulsar Guardar. El reconocimiento de propietario CAMPPlus y los modelos Android no están implementados en el navegador. La memoria del navegador es independiente de la del teléfono.
 
 ## 8. Límites y validación
 Los módulos se identificaron en el código fuente del proyecto. La descarga completa de ~500 MB, los buscadores y los módulos multimedia requieren pruebas en Android real para dar por confirmado su funcionamiento en cada dispositivo. LEO no garantiza infalibilidad, autonomía irrestricta ni acceso a contenido privado de terceros.
