@@ -108,11 +108,23 @@ class LeoPersonalMemoryTest {
         assertEquals("cocinar", store.values["hobby"])
         assertEquals("Kotlin", store.values["programming_language"])
         assertTrue(memory.reply("¿Cuál es mi pasatiempo favorito?")!!.contains("cocinar"))
+        assertTrue(memory.reply("¿En qué lenguaje programo?")!!.contains("Kotlin"))
         assertFalse(memory.localContext().contains("dibujar"))
         assertTrue(memory.localContext().contains("Kotlin"))
         memory.reply("olvidá mi pasatiempo favorito")
         assertFalse(memory.localContext().contains("cocinar"))
         assertEquals(1, store.values.size)
+    }
+    @Test fun supportsNameColorAndSummaryQueries() {
+        val store = Store(); val memory = LeoPersonalMemory(store)
+        memory.reply("mi nombre es Mario")
+        memory.reply("mi color favorito es azul")
+        assertEquals("Mario", store.values["name"])
+        assertEquals("azul", store.values["color"])
+        assertTrue(memory.reply("¿Cómo me llamo?")!!.contains("Mario"))
+        val summary = memory.reply("¿Cuáles son mis preferencias?")!!
+        assertTrue(summary.contains("Mario"))
+        assertTrue(summary.contains("azul"))
     }
     @Test fun humorBoundaryIsExplicitPersistentAndReversible() {
         val store = Store()

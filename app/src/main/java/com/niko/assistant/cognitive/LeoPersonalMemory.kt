@@ -41,14 +41,18 @@ class LeoPersonalMemory(private val store: Store) {
             false -> "Preferís que no haga bromas sobre vos ni sarcasmo."
             null -> "Todavía no guardaste una preferencia de humor."
         }
-        if (text == "mostra mis preferencias" || text == "muestra mis preferencias") {
+        if (text in setOf("mostra mis preferencias", "muestra mis preferencias", "cuales son mis preferencias", "que preferencias mias tenes guardadas")) {
             val facts = labels.mapNotNull { (key, label) -> store.read(key)?.let { "$label: $it" } }
             return if (facts.isEmpty()) "Todavía no guardaste preferencias personales. Podés enseñarme tu comida, música, pasatiempo o lenguaje de programación favorito."
                 else facts.joinToString("\n")
         }
         val recommendation = when (text) {
             "que me recomendas comer", "que me recomiendas comer", "que comemos hoy", "que puedo comer" -> "food"
-            "que me recomendas beber", "que me recomiendas beber", "que puedo beber" -> "drink"
+            "que me recomendas beber", "que me recomiendas beber", "que puedo beber", "que puedo tomar" -> "drink"
+            "que me recomendas leer", "que me recomiendas leer", "que puedo leer" -> "book"
+            "que me recomendas ver", "que me recomiendas ver", "que pelicula vemos" -> "movie"
+            "que me recomendas escuchar", "que me recomiendas escuchar", "que musica ponemos" -> "music"
+            "que me recomendas jugar", "que me recomiendas jugar" -> "game"
             else -> null
         }
         if (recommendation != null) {
@@ -96,11 +100,17 @@ class LeoPersonalMemory(private val store: Store) {
         /* No prefix matching for destructive commands: trailing text can negate
          * or quote the request. Queries must never erase a preference. */
         val query = when {
-            text == "que comida me gusta mas" -> "food"
-            text == "que bebida me gusta mas" -> "drink"
-            text == "que musica me gusta mas" -> "music"
-            text == "que lenguaje de programacion prefiero" -> "programming_language"
-            text.startsWith("cual es mi ") || text.startsWith("recordas mi ") -> slot
+            text in setOf("que comida me gusta mas", "que comida prefiero", "que me gusta comer") -> "food"
+            text in setOf("que bebida me gusta mas", "que bebida prefiero", "que me gusta beber", "que me gusta tomar") -> "drink"
+            text in setOf("que musica me gusta mas", "que musica prefiero", "que musica escucho") -> "music"
+            text in setOf("que lenguaje de programacion prefiero", "que lenguaje de programacion me gusta mas", "en que lenguaje programo") -> "programming_language"
+            text in setOf("que deporte me gusta mas", "que deporte prefiero") -> "sport"
+            text in setOf("que libro me gusta mas", "que libro prefiero") -> "book"
+            text in setOf("que pelicula me gusta mas", "que pelicula prefiero") -> "movie"
+            text in setOf("que juego me gusta mas", "que juego prefiero") -> "game"
+            text in setOf("que color me gusta mas", "que color prefiero") -> "color"
+            text in setOf("como me llamo", "cual es mi nombre") -> "name"
+            text.startsWith("cual es mi ") || text.startsWith("recordas mi ") || text.startsWith("recuerdas mi ") -> slot
             else -> null
         } ?: return null
         return store.read(query)?.let { "Tu ${labels.getValue(query)} es $it." }
@@ -109,17 +119,39 @@ class LeoPersonalMemory(private val store: Store) {
 
     companion object {
         private val slots = linkedMapOf(
-            "food" to listOf("comida favorita", "comida preferida"), "drink" to listOf("bebida favorita", "bebida preferida"),
-            "music" to listOf("musica favorita", "musica preferida"), "place" to listOf("lugar favorito"),
+            "food" to listOf("comida favorita", "comida preferida"),
+            "drink" to listOf("bebida favorita", "bebida preferida"),
+            "music" to listOf("musica favorita", "musica preferida"),
+            "place" to listOf("lugar favorito", "lugar preferido"),
             "hobby" to listOf("pasatiempo favorito", "pasatiempo preferido"),
-            "sport" to listOf("deporte favorito"), "book" to listOf("libro favorito"),
-            "movie" to listOf("pelicula favorita"), "game" to listOf("juego favorito"),
+            "sport" to listOf("deporte favorito", "deporte preferido"),
+            "book" to listOf("libro favorito", "libro preferido"),
+            "movie" to listOf("pelicula favorita", "pelicula preferida"),
+            "game" to listOf("juego favorito", "juego preferido"),
             "programming_language" to listOf("lenguaje de programacion favorito", "lenguaje de programacion preferido"),
+            "color" to listOf("color favorito", "color preferido"),
+            "city" to listOf("ciudad favorita", "ciudad preferida"),
+            "goal" to listOf("meta principal", "objetivo principal"),
+            "profession" to listOf("profesion", "ocupacion"),
+            "name" to listOf("nombre", "apodo"),
         )
-        private val labels = mapOf("food" to "comida favorita", "drink" to "bebida favorita",
-            "music" to "música favorita", "place" to "lugar favorito", "hobby" to "pasatiempo favorito",
-            "sport" to "deporte favorito", "book" to "libro favorito", "movie" to "película favorita",
-            "game" to "juego favorito", "programming_language" to "lenguaje de programación favorito")
+        private val labels = mapOf(
+            "food" to "comida favorita",
+            "drink" to "bebida favorita",
+            "music" to "música favorita",
+            "place" to "lugar favorito",
+            "hobby" to "pasatiempo favorito",
+            "sport" to "deporte favorito",
+            "book" to "libro favorito",
+            "movie" to "película favorita",
+            "game" to "juego favorito",
+            "programming_language" to "lenguaje de programación favorito",
+            "color" to "color favorito",
+            "city" to "ciudad favorita",
+            "goal" to "meta principal",
+            "profession" to "profesión",
+            "name" to "nombre",
+        )
         private fun normalized(input: String) = MemoryLearning.key(input).removePrefix("leo ")
             .replace(Regex("^(?:recorda|recuerda|aprende|guarda) que (?=(?:ahora )?mi )"), "")
             .replace(Regex("^ahora (?=mi )"), "")
@@ -127,7 +159,9 @@ class LeoPersonalMemory(private val store: Store) {
             if (input.contains('¿') || input.contains('?') || input.contains('@') || input.length > 300) return null
             val text = normalized(input)
             for ((key, terms) in slots) for (term in terms) {
-                Regex("^mi $term es (.+)$").matchEntire(text)?.let { return safe(key, input.split(Regex("(?i)\\s+es\\s+"), limit = 2).last().trim().trimEnd('.', '!')) }
+                Regex("^mi $term es (.+)$").matchEntire(text)?.let {
+                    return safe(key, input.split(Regex("(?i)\\s+es\\s+"), limit = 2).last().trim().trimEnd('.', '!'))
+                }
             }
             return null
         }

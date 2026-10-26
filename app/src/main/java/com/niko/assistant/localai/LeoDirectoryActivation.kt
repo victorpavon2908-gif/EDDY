@@ -15,7 +15,9 @@ internal object LeoDirectoryActivation {
     }
 
     fun activate(candidate: File, active: File, rename: (File, File) -> Boolean = { from, to -> from.renameTo(to) }) {
-        require(candidate.isDirectory && candidate.canonicalFile != active.canonicalFile && candidate.parentFile.canonicalFile == active.parentFile.canonicalFile)
+        val candidateParent = candidate.parentFile?.canonicalFile
+        val activeParent = active.parentFile?.canonicalFile
+        require(candidate.isDirectory && candidate.canonicalFile != active.canonicalFile && candidateParent != null && candidateParent == activeParent)
         recover(active)
         val previous = backup(active)
         check(!previous.exists() || previous.deleteRecursively()) { "No pude limpiar la copia anterior" }

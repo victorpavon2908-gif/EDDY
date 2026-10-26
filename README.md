@@ -13,6 +13,10 @@ Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el
 - Conversación espontánea opcional en Ajustes: LEO puede iniciar una charla y deja hasta 12 segundos para responder sin repetir su nombre.
 - Interpretación del contexto y síntesis web mejoradas; acepta respuestas breves con citas y valida estrictamente sus referencias.
 - El robot 3D del complemento web se carga por separado del inicio.
+- **Motor matemático, científico y conversor determinista local** (`NikoMathEngine` y `LocalBrain` web): soporte nativo para funciones científicas (`sqrt`, `cbrt`, `sin`, `cos`, `tan`, `log`, `ln`, `abs`, factoriales), constantes (`pi`, `e`), porcentajes compuestos, descuentos, números en español y conversión de unidades en lenguaje natural (longitud, masa, temperatura, volumen, datos, tiempo y velocidad).
+- **Inteligencia de código local ampliada** (`LeoCodeIntelligence`): generación y auditoría estática local para 7 arquitecturas verificadas (calculadora en Python, conversor de unidades en Python, gestor de tareas en Python, repositorio CRUD SQLite parametrizado en Python, validador de contraseñas en Python, reintento exponencial con corrutinas en Kotlin y caché LRU genérica $O(1)$ en TypeScript).
+- **Memoria personal determinista y paridad web** (`LeoPersonalMemory` / `MemoryStore`): soporte ampliado de categorías personales (nombre, profesión, color, ciudad, meta, comida, bebida, pasatiempo, lenguaje de programación, música, lectura, cine, deporte) con reemplazo sin duplicados, retractación explícita, resumen de preferencias y paridad entre Android y el complemento web.
+- **Currículum offline ampliado** (`brain/leo_seed_knowledge.jsonl`): 60 entradas verificadas de conocimiento local offline en español, programación, arquitectura Android/Kotlin, algoritmos, seguridad y geografía de Nicaragua.
 
 Ver [alcance, pruebas y límites de esta revisión](docs/LEO_014_VALIDATION.md).
 

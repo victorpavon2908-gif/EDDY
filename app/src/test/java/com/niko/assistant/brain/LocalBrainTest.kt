@@ -231,10 +231,38 @@ class LocalBrainTest {
     }
 
     @Test
-    fun createsTimerInMinutes() {
+    fun createsNaturalSpanishAlarms() {
+        assertEquals(
+            AssistantCommand.SetAlarm(12, 0, "Alarma creada por LEO"),
+            brain.understand("pon una alarma al mediodía"),
+        )
+        assertEquals(
+            AssistantCommand.SetAlarm(0, 0, "Alarma creada por LEO"),
+            brain.understand("pon una alarma a la medianoche"),
+        )
+        assertEquals(
+            AssistantCommand.SetAlarm(18, 30, "Alarma creada por LEO"),
+            brain.understand("pon una alarma a las 6 y media de la tarde"),
+        )
+        assertEquals(
+            AssistantCommand.SetAlarm(8, 15, "Alarma creada por LEO"),
+            brain.understand("pon una alarma a las 8 y cuarto de la mañana"),
+        )
+    }
+
+    @Test
+    fun createsTimerInMinutesAndFractions() {
         assertEquals(
             AssistantCommand.SetTimer(180, "Temporizador creado por LEO"),
             brain.understand("pon un temporizador de 3 minutos"),
+        )
+        assertEquals(
+            AssistantCommand.SetTimer(1800, "Temporizador creado por LEO"),
+            brain.understand("pon un temporizador de media hora"),
+        )
+        assertEquals(
+            AssistantCommand.SetTimer(900, "Temporizador creado por LEO"),
+            brain.understand("pon un temporizador de un cuarto de hora"),
         )
     }
 
@@ -283,10 +311,18 @@ class LocalBrainTest {
     }
 
     @Test
-    fun setsMediaVolume() {
+    fun setsMediaVolumeAndNaturalExpressions() {
         assertEquals(
             AssistantCommand.SetVolume(45),
             brain.understand("poné el volumen al 45%"),
+        )
+        assertEquals(
+            AssistantCommand.SetVolume(100),
+            brain.understand("poné el volumen al máximo"),
+        )
+        assertEquals(
+            AssistantCommand.SetVolume(50),
+            brain.understand("poné el volumen a la mitad"),
         )
     }
 
@@ -299,10 +335,22 @@ class LocalBrainTest {
     }
 
     @Test
-    fun setsBrightness() {
+    fun setsBrightnessAndNaturalExpressions() {
         assertEquals(
             AssistantCommand.SetBrightness(40),
             brain.understand("brillo al 40%"),
+        )
+        assertEquals(
+            AssistantCommand.SetBrightness(100),
+            brain.understand("brillo al máximo"),
+        )
+        assertEquals(
+            AssistantCommand.SetBrightness(50),
+            brain.understand("brillo a la mitad"),
+        )
+        assertEquals(
+            AssistantCommand.SetBrightness(10),
+            brain.understand("brillo al mínimo"),
         )
     }
 

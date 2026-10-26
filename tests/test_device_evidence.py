@@ -21,7 +21,7 @@ class EvidenceCollectorTest(unittest.TestCase):
             self.assertTrue(result['capture_complete'])
             self.assertEqual('PENDIENTE DE VALIDACIÓN FÍSICA', result['status'])
             self.assertEqual(10, len(result['records']))
-            self.assertEqual(result['status'], json.loads((out / 'manifest.json').read_text())['status'])
+            self.assertEqual(result['status'], json.loads((out / 'manifest.json').read_text(encoding='utf-8'))['status'])
             self.assertTrue(all(len(r['sha256']) == 64 for r in result['records']))
 
     def test_timeout_preserves_error_evidence(self):

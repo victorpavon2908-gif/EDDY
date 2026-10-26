@@ -62,6 +62,7 @@ export interface AssistantCommand {
     | "robot_motion"
     | "smart_home"
     | "math"
+    | "personal_memory"
     | "memory_summary"
     | "clear_memory"
     | "stop";

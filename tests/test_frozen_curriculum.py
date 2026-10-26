@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class FrozenCurriculumTest(unittest.TestCase):
     def test_seed_integrity_and_practical_retrieval(self):
         seed = ROOT / 'brain/leo_seed_knowledge.jsonl'
-        items = [json.loads(line) for line in seed.read_text().splitlines() if line.strip()]
+        items = [json.loads(line) for line in seed.read_text(encoding='utf-8').splitlines() if line.strip()]
         self.assertEqual(len(items), len({item['url'] for item in items}))
         self.assertTrue(all(len(item['text']) >= 80 for item in items))
         with tempfile.TemporaryDirectory() as tmp:
@@ -28,6 +28,8 @@ class FrozenCurriculumTest(unittest.TestCase):
                     '"actualizar" "offline"': 'Actualizar conocimiento offline',
                     '"tarea" "interrumpida"': 'Continuar tarea interrumpida',
                     '"fuentes" "contradicciones"': 'Detectar contradicciones entre fuentes',
+                    '"corrutinas" "kotlin"': 'Cancelación de corrutinas en Kotlin',
+                    '"cocibolca" "ometepe"': 'Geografía y lagos de Nicaragua',
                 }
                 for query, expected in cases.items():
                     with self.subTest(query=query):

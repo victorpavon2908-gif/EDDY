@@ -62,6 +62,7 @@ class LeoNeuralCore(private val turns: TurnController) {
 class LeoReasoningEngine {
     suspend fun reply(request: LeoNeuralCore.Request, knowledge: LeoNeuralCore.Knowledge): NikoAiReply {
         NikoMathEngine.solve(request.message)?.let { return NikoAiReply(it, false, emptyList()) }
+        NikoMathEngine.convertUnits(request.message)?.let { return NikoAiReply(it, false, emptyList()) }
         val mayInfer = !com.niko.assistant.ai.AutonomousResearch.offlineOnly(request.message) &&
             !com.niko.assistant.brain.WebQueryRouter.needsCurrentInformation(request.message) &&
             com.niko.assistant.brain.WebQueryRouter.explicitQuery(request.message) == null

@@ -259,6 +259,8 @@ class LocalBrain {
         if (!containsAny(text, "volumen", "sonido")) return null
         val percent = Regex("""\b(100|[1-9]?\d)\s*%""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
         if (percent != null) return AssistantCommand.SetVolume(percent)
+        if (containsAny(text, "al maximo", "al tope", "todo el volumen")) return AssistantCommand.SetVolume(100)
+        if (containsAny(text, "a la mitad", "medio volumen")) return AssistantCommand.SetVolume(50)
         return when {
             containsAny(text, "silencio", "mutea", "mute", "quita el sonido") -> AssistantCommand.AdjustVolume(VolumeDirection.MUTE)
             containsAny(text, "sube", "subi", "subir", "aumenta", "mas volumen") -> AssistantCommand.AdjustVolume(VolumeDirection.UP)
@@ -269,6 +271,9 @@ class LocalBrain {
 
     private fun parseBrightness(text: String): AssistantCommand.SetBrightness? {
         if (!containsAny(text, "brillo", "luminosidad")) return null
+        if (containsAny(text, "al maximo", "al tope", "todo el brillo")) return AssistantCommand.SetBrightness(100)
+        if (containsAny(text, "a la mitad", "medio brillo")) return AssistantCommand.SetBrightness(50)
+        if (containsAny(text, "al minimo", "minimo brillo")) return AssistantCommand.SetBrightness(10)
         val percent = Regex("""\b(100|[1-9]?\d)\s*%""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return null
         return AssistantCommand.SetBrightness(percent)
     }
@@ -341,6 +346,8 @@ class LocalBrain {
 
     private fun parseTimer(text: String): AssistantCommand.SetTimer? {
         if (!containsAny(text, "temporizador", "cronometro", "cuenta regresiva")) return null
+        if (text.contains("media hora")) return AssistantCommand.SetTimer(1800, "Temporizador creado por LEO")
+        if (text.contains("cuarto de hora")) return AssistantCommand.SetTimer(900, "Temporizador creado por LEO")
         val hours = Regex("""(\d+)\s*(?:hora|horas|h)\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
         val minutes = Regex("""(\d+)\s*(?:minuto|minutos|min)\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
         val seconds = Regex("""(\d+)\s*(?:segundo|segundos|seg)\b""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
@@ -352,10 +359,16 @@ class LocalBrain {
 
     private fun parseAlarm(text: String): AssistantCommand.SetAlarm? {
         if (!containsAny(text, "alarma", "despiertame", "despertarme")) return null
-        val match = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm|a m|p m)?""").find(text) ?: return null
+        if (text.contains("mediodia")) return AssistantCommand.SetAlarm(12, 0, "Alarma creada por LEO")
+        if (text.contains("medianoche")) return AssistantCommand.SetAlarm(0, 0, "Alarma creada por LEO")
+        val match = Regex("""(\d{1,2})(?::(\d{2})|\s+y\s+(media|cuarto))?\s*(am|pm|a m|p m)?""").find(text) ?: return null
         var hour = match.groupValues[1].toIntOrNull() ?: return null
-        val minute = match.groupValues.getOrNull(2)?.toIntOrNull() ?: 0
-        val meridiem = match.groupValues.getOrNull(3).orEmpty().replace(" ", "")
+        val minute = when (match.groupValues.getOrNull(3)) {
+            "media" -> 30
+            "cuarto" -> 15
+            else -> match.groupValues.getOrNull(2)?.toIntOrNull() ?: 0
+        }
+        val meridiem = match.groupValues.getOrNull(4).orEmpty().replace(" ", "")
         if ((meridiem == "pm" || text.contains("noche") || text.contains("tarde")) && hour in 1..11) hour += 12
         if ((meridiem == "am" || text.contains("manana") || text.contains("madrugada")) && hour == 12) hour = 0
         if (hour !in 0..23 || minute !in 0..59) return null
@@ -393,7 +406,7 @@ class LocalBrain {
         private val WHATSAPP_NAME = Regex("\\b(?:whats?\\s*app|wats?\\s*ap+p?|guasap|wasap|wasa)\\b")
         private val MESSAGE_ORDER = Regex("^(?:envia(?:me|le|r)?|manda(?:me|le|r)?|escrib[iíe](?:me|le)?|redacta)\\b")
         private val MESSAGE_BODY = Regex(
-            "(?:\\b(?:diciendo|que diga|que dig[aá]s|con el texto|con mensaje|dile que|decile que|as[ií])\\b\\s*|:\\s*)",
+            "(?:\\b(?:diciendo|que diga|que dig[aá]s|con el texto|con mensaje|dile que|decile que|as[ií])(?=\\s|$|[,.!?;:])\\s*|:\\s*)",
             RegexOption.IGNORE_CASE,
         )
 

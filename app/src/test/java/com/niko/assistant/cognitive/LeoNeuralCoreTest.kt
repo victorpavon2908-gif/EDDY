@@ -37,10 +37,13 @@ class LeoNeuralCoreTest {
         LeoNeuralCore(TurnController()).reply(LeoNeuralCore.Request("busca noticias de hoy", true, true, false), knowledge)
         assertTrue(searched)
     }
-    @Test fun arithmeticIsVerifiedWithoutNetwork() = runBlocking {
+    @Test fun arithmeticAndUnitConversionsAreVerifiedWithoutNetwork() = runBlocking {
         val core = LeoNeuralCore(TurnController())
         assertEquals("42", core.reply(request("6 * 7"), object : Knowledge() {
             override suspend fun local(): String? = error("Arithmetic must not generate an answer")
+        }).text)
+        assertEquals("100 °C equivalen a 212 °F.", core.reply(request("convertí 100 grados celsius a fahrenheit"), object : Knowledge() {
+            override suspend fun local(): String? = error("Unit conversion must not require local fallback")
         }).text)
     }
     @Test fun obsoleteProducerCannotPublish() = runBlocking {
@@ -66,24 +69,46 @@ class LeoNeuralCoreTest {
     @Test fun localCodeHasFilesAndSeparateNarration() {
         val code = LeoCodeIntelligence()
         assertEquals(setOf("calculator.py", "test_calculator.py"), code.project("creame una calculadora en Python")!!.files.keys)
+        assertEquals(setOf("unit_converter.py", "test_unit_converter.py"), code.project("crea un conversor de unidades en Python")!!.files.keys)
+        assertEquals(setOf("todo_manager.py", "test_todo_manager.py"), code.project("crea un gestor de tareas en Python")!!.files.keys)
+        assertEquals(setOf("sqlite_notes.py", "test_sqlite_notes.py"), code.project("crea un crud sqlite en Python")!!.files.keys)
+        assertEquals(setOf("RetryPolicy.kt"), code.project("implementa un retry con backoff en Kotlin")!!.files.keys)
+        assertEquals(setOf("lruCache.ts"), code.project("implementa una cache LRU en TypeScript")!!.files.keys)
         assertFalse(code.reply("creame una calculadora en Python")!!.spokenText!!.contains("def "))
         assertNull(code.project("creame una aplicación bancaria en Rust"))
     }
     @Test fun generatedPythonProjectActuallyPassesItsTests() {
-        val directory = java.nio.file.Files.createTempDirectory("leo-code-test").toFile()
-        try {
-            LeoCodeIntelligence().project("crea una calculadora en Python")!!.files.forEach { (name, source) ->
-                java.io.File(directory, name).writeText(source)
-            }
-            val process = ProcessBuilder("python3", "-m", "unittest", "-v").directory(directory)
-                .redirectErrorStream(true).start()
+        val prompts = listOf(
+            "crea una calculadora en Python",
+            "crea un conversor de unidades en Python",
+            "crea un gestor de tareas en Python",
+            "crea un crud sqlite en Python",
+            "crea un validador de contraseñas en Python",
+        )
+        for (prompt in prompts) {
+            val directory = java.nio.file.Files.createTempDirectory("leo-code-test").toFile()
             try {
-                assertTrue("Python test timeout", process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
-                val output = process.inputStream.bufferedReader().readText()
-                assertEquals(output, 0, process.exitValue())
-                assertTrue(output, output.contains("Ran 3 tests"))
-            } finally { process.destroyForcibly() }
-        } finally { directory.deleteRecursively() }
+                LeoCodeIntelligence().project(prompt)!!.files.forEach { (name, source) ->
+                    java.io.File(directory, name).writeText(source)
+                }
+                fun runPython(binary: String): Pair<Int, String>? = try {
+                    val proc = ProcessBuilder(binary, "-m", "unittest", "-v").directory(directory)
+                        .redirectErrorStream(true).start()
+                    try {
+                        assertTrue("Python test timeout for $prompt", proc.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
+                        val out = proc.inputStream.bufferedReader().readText()
+                        proc.exitValue() to out
+                    } finally {
+                        proc.destroyForcibly()
+                    }
+                } catch (_: java.io.IOException) {
+                    null
+                }
+                val result = runPython("python3")?.takeIf { it.first == 0 } ?: runPython("python")!!
+                assertEquals(result.second, 0, result.first)
+                assertTrue(result.second, result.second.contains("Ran 3 tests"))
+            } finally { directory.deleteRecursively() }
+        }
     }
     @Test fun emotionAbstainsOnNegationQuotesAndActing() {
         for (text in listOf("no estoy triste", "estoy no triste", "¿estoy triste?", "él está triste", "pon cara de miedo", "estoy triste pero feliz", "estoy programando")) {

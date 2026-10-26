@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
 import { searchWeb, suggestions, validateQuery } from "./server/webSearch";
+import { LocalBrain } from "./src/services/localBrain";
 
 const app = express();
 const PORT = 3000;
@@ -33,7 +34,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     app: "LEO Assistant",
-    version: "0.11.0",
+    version: "0.14.0",
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
   });
 });
@@ -74,12 +75,25 @@ app.post("/api/chat", async (req: Request, res: Response) => {
   const {
     message,
     history = [],
+    personalFacts = [],
     sources = [],
     personality = "BALANCED",
   } = req.body || {};
 
   if (!message) {
     return res.status(400).json({ error: "Message is required" });
+  }
+
+  const cleanMessage = String(message).trim();
+
+  // Deterministic math & unit conversion short-circuit
+  const unitResult = LocalBrain.convertUnits(cleanMessage);
+  if (unitResult !== null) {
+    return res.json({ reply: unitResult, provider: "local-math", sources: [] });
+  }
+  const mathResult = LocalBrain.evaluateMath(cleanMessage);
+  if (mathResult !== null) {
+    return res.json({ reply: `El resultado es ${mathResult}.`, provider: "local-math", sources: [] });
   }
 
   let personalityInstruction = "Sos LEO, un compañero asistente inteligente, empático, conciso y directo en español.";
@@ -90,6 +104,18 @@ app.post("/api/chat", async (req: Request, res: Response) => {
   }
 
   let promptContext = "";
+  if (Array.isArray(personalFacts) && personalFacts.length > 0) {
+    promptContext += `\n\nPreferencias del usuario (solo para personalizar trato o recomendaciones pertinentes):\n${personalFacts.slice(0, 12).join("\n")}`;
+  }
+  if (Array.isArray(history) && history.length > 0) {
+    const recentTurns = history
+      .slice(-6)
+      .map((turn: any) => `${turn.role === "user" ? "Usuario" : "LEO"}: ${String(turn.text || "").slice(0, 300)}`)
+      .join("\n");
+    if (recentTurns) {
+      promptContext += `\n\nContexto reciente de la conversación:\n${recentTurns}`;
+    }
+  }
   if (Array.isArray(sources) && sources.length > 0) {
     promptContext += `\n\nFuentes web encontradas para la consulta:\n` +
       sources
@@ -112,7 +138,7 @@ app.post("/api/chat", async (req: Request, res: Response) => {
             role: "user",
             parts: [
               {
-                text: `${personalityInstruction}\n\n${promptContext}\n\nMensaje del usuario: ${message}`,
+                text: `${personalityInstruction}\n\n${promptContext}\n\nMensaje del usuario: ${cleanMessage}`,
               },
             ],
           },
@@ -162,16 +188,26 @@ app.post("/api/chat", async (req: Request, res: Response) => {
     }
   }
 
-  // Smart local offline synthesis fallback
-  let localReply = "";
-  if (sources.length > 0) {
-    const topSource = sources[0];
-    localReply = `Según ${topSource.domain}, ${topSource.snippet.slice(0, 180)} [1]. Consulté ${sources.length} fuentes web.`;
-  } else {
-    localReply = `No tengo fuentes suficientes para responder esa pregunta. Probá una búsqueda más específica.`;
+  // Multi-source extractive synthesis fallback when Gemini is not configured
+  if (Array.isArray(sources) && sources.length > 0) {
+    const validSources = sources.filter((s: SearchSource) => s && s.snippet && s.snippet.trim().length > 15).slice(0, 3);
+    if (validSources.length > 0) {
+      const fragments = validSources.map((s: SearchSource, idx: number) => {
+        const cleanSnippet = s.snippet.replace(/\s+/g, " ").trim().slice(0, 220).replace(/[.]+$/, "");
+        return `${cleanSnippet} [${idx + 1}].`;
+      });
+      return res.json({
+        reply: fragments.join(" "),
+        provider: "local",
+        sources,
+      });
+    }
   }
 
-  return res.json({ reply: localReply, provider: "local" });
+  return res.json({
+    reply: "No tengo fuentes suficientes para responder esa pregunta. Probá una búsqueda más específica.",
+    provider: "local",
+  });
 });
 
 // Smart Home simulation / proxy endpoint

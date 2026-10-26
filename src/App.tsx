@@ -153,6 +153,12 @@ export const App: React.FC = () => {
         return;
       }
 
+      // Handle Personal Memory (preferences, updates, recall)
+      if (cmd.type === "personal_memory") {
+        speakResponse(cmd.payload?.reply || "Listo.");
+        return;
+      }
+
       // Handle Robot Motion
       if (cmd.type === "robot_motion") {
         const motion: RobotMotion = cmd.payload?.motion || "WAVE";
@@ -204,10 +210,14 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Handle Math
+      // Handle Math & Unit Conversions
       if (cmd.type === "math") {
         const res = cmd.payload?.result;
-        speakResponse(`El resultado es ${res}.`);
+        if (cmd.payload?.unitConversion) {
+          speakResponse(String(res));
+        } else {
+          speakResponse(`El resultado es ${res}.`);
+        }
         return;
       }
 
@@ -349,12 +359,16 @@ export const App: React.FC = () => {
 
       // Query AI / Synthesis API
       try {
+        const history = MemoryStore.getHistory();
+        const personalFacts = MemoryStore.getFacts();
         const chatResp = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]),
           body: JSON.stringify({
             message: text,
+            history: history.slice(-6),
+            personalFacts,
             sources: currentSources,
             personality: settings.personality,
           }),
@@ -368,7 +382,19 @@ export const App: React.FC = () => {
             setSources(chatData.sources);
             setWebUsed(true);
           }
-          speakResponse(chatData.reply || "Listo.");
+          const replyText = chatData.reply || "Listo.";
+          MemoryStore.saveHistory([
+            ...history,
+            { id: `${Date.now()}-u`, role: "user", text, timestamp: Date.now() },
+            {
+              id: `${Date.now()}-a`,
+              role: "assistant",
+              text: replyText,
+              timestamp: Date.now(),
+              sources: chatData.sources || currentSources,
+            },
+          ]);
+          speakResponse(replyText);
         } else {
           speakResponse("Tuve un inconveniente al consultar la red, pero aquí estoy.");
         }
@@ -602,3 +628,4 @@ export const App: React.FC = () => {
     </div>
   );
 };
+export default App;

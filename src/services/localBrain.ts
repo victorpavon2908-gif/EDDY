@@ -1,4 +1,5 @@
 import { AssistantCommand, NikoUiMode, RobotMotion } from "../types";
+import { MemoryStore } from "./memoryStore";
 
 // Strip Spanish accents and lowercase
 export function normalize(text: string): string {
@@ -16,6 +17,61 @@ function cleanConversationalPrefix(raw: string): string {
     .trim()
     .replace(/^(?:oye\s+|hola\s+|hey\s+)?(?:leo|niko|nico)\b[,\s.:;!¿?¡-]*/i, "")
     .trim();
+}
+
+const WORD_NUMBERS: Record<string, string> = {
+  cero: "0", un: "1", uno: "1", una: "1", dos: "2", tres: "3", cuatro: "4",
+  cinco: "5", seis: "6", siete: "7", ocho: "8", nueve: "9", diez: "10",
+  once: "11", doce: "12", trece: "13", catorce: "14", quince: "15",
+  dieciseis: "16", diecisiete: "17", dieciocho: "18", diecinueve: "19",
+  veinte: "20", veinticinco: "25", treinta: "30", cuarenta: "40",
+  cincuenta: "50", sesenta: "60", setenta: "70", ochenta: "80",
+  noventa: "90", cien: "100", mil: "1000",
+};
+
+interface UnitSpec {
+  symbol: string;
+  category: "LENGTH" | "MASS" | "TEMPERATURE" | "VOLUME" | "DATA" | "TIME" | "SPEED";
+  toBaseFactor: number;
+  aliases: string[];
+}
+
+const UNIT_SPECS: UnitSpec[] = [
+  { symbol: "km", category: "LENGTH", toBaseFactor: 1000, aliases: ["km", "kms", "kilometro", "kilometros"] },
+  { symbol: "m", category: "LENGTH", toBaseFactor: 1, aliases: ["m", "mts", "metro", "metros"] },
+  { symbol: "cm", category: "LENGTH", toBaseFactor: 0.01, aliases: ["cm", "cms", "centimetro", "centimetros"] },
+  { symbol: "mm", category: "LENGTH", toBaseFactor: 0.001, aliases: ["mm", "milimetro", "milimetros"] },
+  { symbol: "mi", category: "LENGTH", toBaseFactor: 1609.344, aliases: ["mi", "milla", "millas"] },
+  { symbol: "ft", category: "LENGTH", toBaseFactor: 0.3048, aliases: ["ft", "pie", "pies"] },
+  { symbol: "in", category: "LENGTH", toBaseFactor: 0.0254, aliases: ["in", "pulgada", "pulgadas"] },
+  { symbol: "yd", category: "LENGTH", toBaseFactor: 0.9144, aliases: ["yd", "yarda", "yardas"] },
+  { symbol: "kg", category: "MASS", toBaseFactor: 1, aliases: ["kg", "kgs", "kilo", "kilos", "kilogramo", "kilogramos"] },
+  { symbol: "g", category: "MASS", toBaseFactor: 0.001, aliases: ["g", "gr", "gramo", "gramos"] },
+  { symbol: "lb", category: "MASS", toBaseFactor: 0.45359237, aliases: ["lb", "lbs", "libra", "libras"] },
+  { symbol: "oz", category: "MASS", toBaseFactor: 0.028349523125, aliases: ["oz", "onza", "onzas"] },
+  { symbol: "°C", category: "TEMPERATURE", toBaseFactor: 1, aliases: ["c", "celsius", "centigrado", "centigrados"] },
+  { symbol: "°F", category: "TEMPERATURE", toBaseFactor: 1, aliases: ["f", "fahrenheit"] },
+  { symbol: "K", category: "TEMPERATURE", toBaseFactor: 1, aliases: ["k", "kelvin"] },
+  { symbol: "L", category: "VOLUME", toBaseFactor: 1, aliases: ["l", "lt", "lts", "litro", "litros"] },
+  { symbol: "mL", category: "VOLUME", toBaseFactor: 0.001, aliases: ["ml", "mililitro", "mililitros"] },
+  { symbol: "gal", category: "VOLUME", toBaseFactor: 3.785411784, aliases: ["gal", "galon", "galones"] },
+  { symbol: "KB", category: "DATA", toBaseFactor: 1 / 1024, aliases: ["kb", "kilobyte", "kilobytes"] },
+  { symbol: "MB", category: "DATA", toBaseFactor: 1, aliases: ["mb", "mega", "megas", "megabyte", "megabytes"] },
+  { symbol: "GB", category: "DATA", toBaseFactor: 1024, aliases: ["gb", "giga", "gigas", "gigabyte", "gigabytes"] },
+  { symbol: "TB", category: "DATA", toBaseFactor: 1024 * 1024, aliases: ["tb", "tera", "teras", "terabyte", "terabytes"] },
+  { symbol: "s", category: "TIME", toBaseFactor: 1, aliases: ["s", "seg", "segundo", "segundos"] },
+  { symbol: "min", category: "TIME", toBaseFactor: 60, aliases: ["min", "mins", "minuto", "minutos"] },
+  { symbol: "h", category: "TIME", toBaseFactor: 3600, aliases: ["h", "hr", "hrs", "hora", "horas"] },
+  { symbol: "días", category: "TIME", toBaseFactor: 86400, aliases: ["d", "dia", "dias"] },
+  { symbol: "km/h", category: "SPEED", toBaseFactor: 1 / 3.6, aliases: ["km/h", "kmh", "kilometros por hora"] },
+  { symbol: "mph", category: "SPEED", toBaseFactor: 0.44704, aliases: ["mph", "millas por hora"] },
+  { symbol: "m/s", category: "SPEED", toBaseFactor: 1, aliases: ["m/s", "metros por segundo"] },
+];
+
+function formatNumber(val: number): string {
+  if (!Number.isFinite(val)) return "";
+  if (Math.abs(val - Math.round(val)) < 1e-9) return `${Math.round(val)}`;
+  return `${Number(val.toFixed(4))}`;
 }
 
 export class LocalBrain {
@@ -62,43 +118,195 @@ export class LocalBrain {
     return null;
   }
 
+  public static convertUnits(expr: string): string | null {
+    const clean = expr
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/^(?:oye\s+|hola\s+|hey\s+)?(?:leo|niko|nico)\b[,\s.:;!¿?¡-]*/i, "")
+      .replace(/[¿?!.:;]+$/g, "")
+      .trim();
+
+    const directMatch = clean.match(
+      /^(?:converti(?:r|me)?|convierte|cuanto(?:s|as)?\s+(?:es|son|equivale(?:n)?)|pasa(?:r|me)?|transforma(?:r)?|calcula(?:r|me)?)?\s*(-?\d+(?:[.,]\d+)?)\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)\s+(?:a|en)\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)$/
+    );
+    const reverseMatch = !directMatch
+      ? clean.match(
+          /^cuanto(?:s|as)?\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)\s+(?:son|hay\s+en|tiene(?:n)?|equivalen?\s+a)\s+(-?\d+(?:[.,]\d+)?)\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)$/
+        )
+      : null;
+
+    let rawAmount = "";
+    let rawFrom = "";
+    let rawTo = "";
+    if (directMatch) {
+      rawAmount = directMatch[1];
+      rawFrom = directMatch[2];
+      rawTo = directMatch[3];
+    } else if (reverseMatch) {
+      rawTo = reverseMatch[1];
+      rawAmount = reverseMatch[2];
+      rawFrom = reverseMatch[3];
+    } else {
+      return null;
+    }
+
+    const amount = parseFloat(rawAmount.replace(",", "."));
+    if (!Number.isFinite(amount)) return null;
+    const fromUnit = UNIT_SPECS.find((u) => u.aliases.includes(rawFrom.trim()));
+    const toUnit = UNIT_SPECS.find((u) => u.aliases.includes(rawTo.trim()));
+    if (!fromUnit || !toUnit || fromUnit.category !== toUnit.category) return null;
+
+    let converted: number;
+    if (fromUnit.category === "TEMPERATURE") {
+      const celsius =
+        fromUnit.symbol === "°C"
+          ? amount
+          : fromUnit.symbol === "°F"
+          ? ((amount - 32) * 5) / 9
+          : amount - 273.15;
+      converted =
+        toUnit.symbol === "°C"
+          ? celsius
+          : toUnit.symbol === "°F"
+          ? (celsius * 9) / 5 + 32
+          : celsius + 273.15;
+    } else {
+      converted = (amount * fromUnit.toBaseFactor) / toUnit.toBaseFactor;
+    }
+    if (!Number.isFinite(converted)) return null;
+    return `${formatNumber(amount)} ${fromUnit.symbol} equivalen a ${formatNumber(converted)} ${toUnit.symbol}.`;
+  }
+
   public static evaluateMath(expr: string): string | null {
     // Preserve operators and decimal separators; general text normalization removes them.
-    const norm = expr.toLowerCase().normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "").replace(/(\d),(?=\d)/g, "$1.").trim();
+    const norm = expr
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/(\d),(?=\d)/g, "$1.")
+      .replace(/^(?:(?:leo|niko|nico)\s*[,.:;-]?\s*)?(?:por\s+favor\s+)?(?:cuanto\s+es|cuanto\s+da|calcula(?:me)?|calcular|resuelve|resolver|resultado\s+de|dime\s+cuanto\s+es|decime\s+cuanto\s+es)\s+/, "")
+      .replace(/[¿?.:;]+$/g, "")
+      .trim();
+
+    // Discount: "descuento del 15% a 200"
+    const discountMatch = norm.match(
+      /^(?:el\s+)?descuento\s+de(?:l)?\s+(-?\d+(?:\.\d+)?)\s*(?:%|por\s+ciento)\s+(?:a|de|sobre|en)\s+(-?\d+(?:\.\d+)?)$/
+    );
+    if (discountMatch) {
+      const pct = parseFloat(discountMatch[1]);
+      const base = parseFloat(discountMatch[2]);
+      return formatNumber(base - (pct / 100) * base);
+    }
+
+    // What percent: "qué porcentaje es 30 de 150"
+    const whatPctMatch = norm.match(
+      /^(?:que\s+porcentaje|que\s+tanto\s+por\s+ciento)\s+es\s+(-?\d+(?:\.\d+)?)\s+de\s+(-?\d+(?:\.\d+)?)$/
+    );
+    if (whatPctMatch) {
+      const part = parseFloat(whatPctMatch[1]);
+      const whole = parseFloat(whatPctMatch[2]);
+      if (whole === 0) return null;
+      return formatNumber((part / whole) * 100);
+    }
+
+    // Compound percentage: "200 menos 15%" / "200 más el 15 por ciento"
+    const compoundPct = norm.match(
+      /^(-?\d+(?:\.\d+)?)\s*(\+|mas|-|menos)\s*(?:el\s+)?(-?\d+(?:\.\d+)?)\s*(?:%|por\s+ciento)$/
+    );
+    if (compoundPct) {
+      const base = parseFloat(compoundPct[1]);
+      const op = compoundPct[2];
+      const pct = parseFloat(compoundPct[3]);
+      const delta = (pct / 100) * base;
+      return formatNumber(op === "-" || op === "menos" ? base - delta : base + delta);
+    }
 
     // Percentage: "20 por ciento de 150"
-    const pctMatch = norm.match(/(\d+(?:\.\d+)?)\s*(?:%|por ciento)\s*de\s*(\d+(?:\.\d+)?)/);
+    const pctMatch = norm.match(/^(?:el\s+)?(\d+(?:\.\d+)?)\s*(?:%|por ciento)\s*de\s*(\d+(?:\.\d+)?)$/);
     if (pctMatch) {
       const p = parseFloat(pctMatch[1]);
       const total = parseFloat(pctMatch[2]);
       const res = (p / 100) * total;
-      return `${res}`;
+      return formatNumber(res);
+    }
+
+    // Scientific single functions: cube root, trig, log, factorial, abs
+    const cbrtMatch = norm.match(/^raiz\s+cubica\s+de\s+(-?\d+(?:\.\d+)?)$/);
+    if (cbrtMatch) return formatNumber(Math.cbrt(parseFloat(cbrtMatch[1])));
+
+    const sinMatch = norm.match(/^seno\s+de\s+(-?\d+(?:\.\d+)?)$/);
+    if (sinMatch) return formatNumber(Math.sin((parseFloat(sinMatch[1]) * Math.PI) / 180));
+
+    const cosMatch = norm.match(/^coseno\s+de\s+(-?\d+(?:\.\d+)?)$/);
+    if (cosMatch) return formatNumber(Math.cos((parseFloat(cosMatch[1]) * Math.PI) / 180));
+
+    const tanMatch = norm.match(/^tangente\s+de\s+(-?\d+(?:\.\d+)?)$/);
+    if (tanMatch) {
+      const deg = parseFloat(tanMatch[1]);
+      if (Math.abs((((deg % 180) + 180) % 180) - 90) < 1e-9) return null;
+      return formatNumber(Math.tan((deg * Math.PI) / 180));
+    }
+
+    const logMatch = norm.match(/^logaritmo\s+de\s+(\d+(?:\.\d+)?)$/);
+    if (logMatch) {
+      const val = parseFloat(logMatch[1]);
+      return val > 0 ? formatNumber(Math.log10(val)) : null;
+    }
+
+    const lnMatch = norm.match(/^logaritmo\s+natural\s+de\s+(e|\d+(?:\.\d+)?)$/);
+    if (lnMatch) {
+      const val = lnMatch[1] === "e" ? Math.E : parseFloat(lnMatch[1]);
+      return val > 0 ? formatNumber(Math.log(val)) : null;
+    }
+
+    const absMatch = norm.match(/^valor\s+absoluto\s+de\s+(-?\d+(?:\.\d+)?)$/);
+    if (absMatch) return formatNumber(Math.abs(parseFloat(absMatch[1])));
+
+    const factMatch = norm.match(/^(?:factorial\s+de\s+(\d+)|(\d+)\s*!)$/);
+    if (factMatch) {
+      const n = parseInt(factMatch[1] || factMatch[2], 10);
+      if (n < 0 || n > 20) return null;
+      let acc = 1;
+      for (let i = 2; i <= n; i++) acc *= i;
+      return `${acc}`;
     }
 
     // Replace Spanish words with math symbols
     let cleaned = norm
-      .replace(/cuanto es/g, "")
-      .replace(/calcula/g, "")
-      .replace(/mas/g, "+")
-      .replace(/menos/g, "-")
+      .replace(/!/g, "")
+      .replace(/\bal cuadrado\b/g, " ^ 2")
+      .replace(/\bal cubo\b/g, " ^ 3")
+      .replace(/\bmas\b/g, "+")
+      .replace(/\bmenos\b/g, "-")
       .replace(/\b(?:dividido por|dividido entre|entre|dividido)\b/g, "/")
       .replace(/\b(?:multiplicado por|por)\b/g, "*")
       .replace(/elevado a la|elevado a/g, "^")
-      .replace(/raiz cuadrada de|raiz de/g, "sqrt").trim();
+      .replace(/raiz cuadrada de|raiz de/g, "sqrt")
+      .trim();
 
-    // Square root
+    if (/[+\-*/^]/.test(cleaned)) {
+      for (const [word, digit] of Object.entries(WORD_NUMBERS)) {
+        cleaned = cleaned.replace(new RegExp(`\\b${word}\\b`, "g"), digit);
+      }
+    }
+
+    // Square root (only standalone `sqrt <number>`, keeping `raíz de 9 + 2` null as required by tests)
     if (cleaned.includes("sqrt")) {
       const sqMatch = cleaned.match(/^sqrt\s*(\d+(?:\.\d+)?)$/);
       if (sqMatch) {
         const val = parseFloat(sqMatch[1]);
         return `${Math.sqrt(val)}`;
       }
+      return null;
     }
 
     try {
       // Safe arithmetic evaluator for basic tokens
       if (!/^[0-9+\-*/().\s^]+$/.test(cleaned) || cleaned.trim().length === 0) {
+        return null;
+      }
+      if (!/[+\-*/^]/.test(cleaned)) {
         return null;
       }
       cleaned = cleaned.replace(/\^/g, "**");
@@ -131,13 +339,25 @@ export class LocalBrain {
       return { type: "stop" };
     }
 
-    // 2. Robot motion
+    // 2. Personal Memory (preferences, updates, recall)
+    const memoryReply = MemoryStore.handlePersonalMemory(withoutWake);
+    if (memoryReply !== null) {
+      return { type: "personal_memory", payload: { reply: memoryReply } };
+    }
+
+    // 3. Robot motion
     const motion = this.parseRobotMotion(withoutWake);
     if (motion) {
       return { type: "robot_motion", payload: { motion } };
     }
 
-    // 3. UI Transformation / Apps
+    // 4. Direct unit conversions ("100 km a millas", "30 grados celsius a fahrenheit")
+    const unitConversion = this.convertUnits(withoutWake);
+    if (unitConversion !== null) {
+      return { type: "math", payload: { result: unitConversion, expression: withoutWake, unitConversion: true } };
+    }
+
+    // 5. UI Transformation / Apps
     if (
       norm.includes("vuelve a inicio") ||
       norm.includes("pantalla principal") ||
@@ -174,23 +394,23 @@ export class LocalBrain {
       return { type: "open_tool", payload: { tool: "SMART_HOME_SETTINGS" as NikoUiMode } };
     }
 
-    // 4. Time
+    // 6. Time
     if (norm.includes("que hora") || norm.includes("la hora")) {
       return { type: "tell_time" };
     }
 
-    // 5. Battery
+    // 7. Battery
     if (norm.includes("bateria")) {
       return { type: "battery_status" };
     }
 
-    // 6. Flashlight / Torch
+    // 8. Flashlight / Torch
     if (norm.includes("linterna")) {
       const turnOff = norm.includes("apaga");
       return { type: "torch", payload: { enable: !turnOff } };
     }
 
-    // 7. Memory queries
+    // 9. Memory queries
     if (norm.includes("olvida todo") || norm.includes("borra tu memoria")) {
       return { type: "clear_memory" };
     }
@@ -202,17 +422,10 @@ export class LocalBrain {
       return { type: "memory_summary" };
     }
 
-    // 8. Math calculation
-    if (
-      norm.startsWith("cuanto es") ||
-      norm.startsWith("calcula") ||
-      norm.includes("por ciento de") ||
-      /^[\d\s.,()+*/^%-]+$/.test(withoutWake)
-    ) {
-      const res = this.evaluateMath(withoutWake);
-      if (res !== null) {
-        return { type: "math", payload: { result: res, expression: withoutWake } };
-      }
+    // 10. Math calculation
+    const mathRes = this.evaluateMath(withoutWake);
+    if (mathRes !== null) {
+      return { type: "math", payload: { result: mathRes, expression: withoutWake } };
     }
 
     // Explicit research must precede app names ("busca tutoriales de YouTube").
@@ -221,7 +434,7 @@ export class LocalBrain {
       return { type: "search_web", payload: { query: searchMatch[1].trim() } };
     }
 
-    // 9. External App Launchers
+    // 11. External App Launchers
     if (norm.includes("whatsapp")) {
       return { type: "open_app", payload: { appName: "WhatsApp", url: "https://web.whatsapp.com" } };
     }
@@ -235,7 +448,7 @@ export class LocalBrain {
       return { type: "open_app", payload: { appName: "Google Maps", url: "https://maps.google.com" } };
     }
 
-    // 10. Message sending
+    // 12. Message sending
     const msgMatch = withoutWake.match(/(?:manda|envia|escribe)\s+un\s+mensaje(?:\s+a\s+([^,]+?))?\s+(?:asi|diciendo|que diga)\s+(.+)/i);
     if (msgMatch) {
       return {
@@ -247,14 +460,14 @@ export class LocalBrain {
       };
     }
 
-    // 12. Greetings
+    // 13. Greetings
     if (
       /^(?:hola|buenas|que tal|como estas|buenos dias|buenas tardes|buenas noches)$/i.test(norm)
     ) {
       return { type: "greeting" };
     }
 
-    // 13. Questions starting with "quien es", "que paso", "donde queda" -> route to search
+    // 14. Questions starting with "quien es", "que paso", "donde queda" -> route to search
     if (
       norm.startsWith("quien es") ||
       norm.startsWith("que es") ||

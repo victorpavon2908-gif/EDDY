@@ -265,7 +265,12 @@ object LeoNativeWebSearch {
             host.contains(".gob.") || host.endsWith(".edu") || host.contains(".edu.")
         val titledAsPrimary = Regex("(?i)\\b(?:oficial|ministerio|universidad|instituto|organizacion|reporte|estudio)\\b")
             .containsMatchIn(hit.title)
-        val technicalPrimary = host in setOf("developer.android.com", "docs.python.org", "kotlinlang.org", "developer.mozilla.org", "learn.microsoft.com", "docs.oracle.com", "nodejs.org", "go.dev", "doc.rust-lang.org")
+        val technicalPrimary = host in setOf(
+            "developer.android.com", "docs.python.org", "kotlinlang.org", "developer.mozilla.org",
+            "learn.microsoft.com", "docs.oracle.com", "nodejs.org", "go.dev", "doc.rust-lang.org",
+            "es.wikipedia.org", "en.wikipedia.org", "github.com", "arxiv.org", "who.int", "paho.org",
+            "un.org", "bcn.gob.ni", "ineter.gob.ni", "w3.org", "ietf.org", "react.dev", "sqlite.org", "postgresql.org",
+        )
         return (if (technicalPrimary) 2.0 else 0.0) + (if (institutional) 1.4 else 0.0) + (if (titledAsPrimary) 0.5 else 0.0) +
             (if (hit.url.startsWith("https://")) 0.2 else 0.0)
     }
@@ -695,7 +700,7 @@ object LeoNativeWebSearch {
     private val SCRIPT_STYLE = Regex("<(script|style|noscript|svg)\\b[^>]*>.*?</\\1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val COMMENTS = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
     private val META_TAG = Regex("<meta\\b[^>]*>", RegexOption.IGNORE_CASE)
-    private val CONTENT_TAG = Regex("<(?:p|li)\\b[^>]*>(.*?)</(?:p|li)>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val CONTENT_TAG = Regex("<(?:p|li|blockquote|dd)\\b[^>]*>(.*?)</(?:p|li|blockquote|dd)>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val ATTR = Regex("([a-zA-Z_:][-a-zA-Z0-9_:.]*)\\s*=\\s*([\\\"'])(.*?)\\2", RegexOption.DOT_MATCHES_ALL)
     private val NUMERIC_ENTITY = Regex("&#(x?[0-9a-fA-F]+);")
     private val DESCRIPTION_KEYS = setOf("description", "og:description", "twitter:description")
