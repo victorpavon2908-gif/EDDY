@@ -220,6 +220,7 @@ private fun LeoSettingsScreen(
     val scope = rememberCoroutineScope()
     val modelManager = remember { NikoModelManager(context) }
     val ownerVoice = remember { NikoVoiceProfile(context) }
+    val offlineKnowledge = remember { LeoFrozenBrainManager(context) }
 
     var enrolled by remember { mutableStateOf(ownerVoice.isEnrolled) }
     var ownerOnly by remember { mutableStateOf(ownerVoice.ownerOnly) }
@@ -237,6 +238,15 @@ private fun LeoSettingsScreen(
 
     var speakerInstalled by remember { mutableStateOf(modelManager.isInstalled(NikoModelCatalog.speaker)) }
     var whisperInstalled by remember { mutableStateOf(modelManager.isInstalled(NikoModelCatalog.whisperAsr)) }
+    var offlineAllowed by remember { mutableStateOf(LeoOfflineKnowledgeSettings.downloadAllowed(context)) }
+    var offlineInstalled by remember { mutableStateOf(offlineKnowledge.isInstalled()) }
+    var offlineJob by remember { mutableStateOf<Job?>(null) }
+    var offlineStatus by remember {
+        mutableStateOf(
+            if (offlineKnowledge.isInstalled()) "Enciclopedia instalada y disponible sin Internet."
+            else "Paquete opcional (~500 MB) aún no instalado.",
+        )
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -272,17 +282,6 @@ private fun LeoSettingsScreen(
 
     var preparing by remember { mutableStateOf(false) }
     var modelStatus by remember { mutableStateOf("Los modelos acústicos se verifican e instalan localmente en tu teléfono.") }
-
-    val offlineKnowledge = remember { LeoFrozenBrainManager(context) }
-    var offlineAllowed by remember { mutableStateOf(LeoOfflineKnowledgeSettings.downloadAllowed(context)) }
-    var offlineInstalled by remember { mutableStateOf(offlineKnowledge.isInstalled()) }
-    var offlineJob by remember { mutableStateOf<Job?>(null) }
-    var offlineStatus by remember {
-        mutableStateOf(
-            if (offlineKnowledge.isInstalled()) "Enciclopedia instalada y disponible sin Internet."
-            else "Paquete opcional (~500 MB) aún no instalado.",
-        )
-    }
 
     var hardwareAuditReport by remember { mutableStateOf("") }
     var showClearMemoryDialog by remember { mutableStateOf(false) }
@@ -893,8 +892,8 @@ private fun LeoSettingsScreen(
 
                 OutlinedButton(
                     onClick = {
-                        val report = LeoHardwareProtocolRunner.runAudit(context)
-                        hardwareAuditReport = report.summaryMessage()
+                        val snap = LeoHardwareProtocolRunner(context).captureSensorSnapshot()
+                        hardwareAuditReport = "Batería: ${snap.batteryPercent}% (${"%.1f".format(snap.batteryTempC)} °C) · Luz ambiente: ${snap.ambientLux.toInt()} lx · Acelerómetro: ${"%.2f".format(snap.accelMagnitudeG)} g"
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
