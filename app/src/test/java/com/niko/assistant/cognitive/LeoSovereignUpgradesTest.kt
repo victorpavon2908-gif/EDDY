@@ -465,6 +465,11 @@ class LeoSovereignUpgradesTest {
             val liveVisionReply = core3.reply(LeoNeuralCore.Request("¿Me estás viendo?", true, false, false), dummyKnowledge)
             assertTrue(liveVisionReply.text.contains("1 persona"))
             assertTrue(liveVisionReply.text.contains("escritorio biónico"))
+
+            // Verify LeoSovereignStore.clear() used by Settings "Borrar memoria" button
+            val clearStore = LeoSovereignStore(tempDir)
+            clearStore.clear()
+            assertFalse(clearStore.restoreAll(core3.autodidact, core3.rag, core3.timeline, core3.persona, core3.consciousness))
         } finally {
             tempDir.deleteRecursively()
         }

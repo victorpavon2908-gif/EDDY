@@ -86,6 +86,16 @@ class LeoSovereignStore(
         }.getOrDefault(false)
     }
 
+    @Synchronized
+    fun clear() {
+        memorySnapshot = ""
+        val dir = storageDir ?: return
+        runCatching {
+            File(dir, FILE_NAME).delete()
+            File(dir, "$FILE_NAME.tmp").delete()
+        }
+    }
+
     private fun b64(value: String): String =
         encoder.encodeToString(value.toByteArray(StandardCharsets.UTF_8))
 
