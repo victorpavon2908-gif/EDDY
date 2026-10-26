@@ -387,7 +387,7 @@ class LeoPlatformVoiceEngine(
 
     private fun recognitionPhrases(bundle: Bundle?): List<String> =
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            .map(String::trim)
+            .map(::repairRecognitionCandidate)
             .filter(String::isNotBlank)
 
     private fun recoverOpeningFailure() {
@@ -424,12 +424,10 @@ class LeoPlatformVoiceEngine(
         private const val MAX_READY_TIMEOUTS = 3
         private val WAKE = Regex("(?i)(?:^|\\s|[¿¡,.;:!?])leo(?:\\s|[¿¡,.;:!?]|$)")
 
-        internal fun extractWakeCommand(value: String): String? {
-            val match = WAKE.find(value.trim()) ?: return null
-            return value.substring(match.range.last + 1)
-                .trim()
-                .trimStart(',', '.', ';', ':', '¿', '?', '¡', '!')
-                .trim()
-        }
+        internal fun repairRecognitionCandidate(raw: String): String =
+            TranscriptQuality.repairAsrTranscript(raw.trim())
+
+        internal fun extractWakeCommand(value: String): String? =
+            TranscriptQuality.extractRepairedWakeCommand(value)
     }
 }

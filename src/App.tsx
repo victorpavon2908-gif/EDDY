@@ -103,12 +103,18 @@ export const App: React.FC = () => {
     setRequestedMotion(motion);
   };
 
+  // Eddy Lab Rats Persona Mode state
+  const [eddyMode, setEddyMode] = useState<string>(
+    () => MemoryStore.getPreference("eddy_persona_mode") || "EDDY_CLASSIC"
+  );
+
   // Speak helper
   const speakResponse = useCallback(
     (text: string, onDone?: () => void) => {
       setResponseText(text);
       setVisualState("SPEAKING");
-      voiceService.speak(text, {
+      const spoken = LocalBrain.cleanSpokenWebReply(text);
+      voiceService.speak(spoken, {
         rate: settings.voiceRate,
         pitch: settings.voicePitch,
         onStart: () => setVisualState("SPEAKING"),
@@ -153,8 +159,9 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Handle Personal Memory (preferences, updates, recall)
+      // Handle Personal Memory (preferences, updates, recall, Eddy persona & protocols)
       if (cmd.type === "personal_memory") {
+        setEddyMode(MemoryStore.getPreference("eddy_persona_mode") || "EDDY_CLASSIC");
         speakResponse(cmd.payload?.reply || "Listo.");
         return;
       }
@@ -319,7 +326,7 @@ export const App: React.FC = () => {
           const searchResp = await fetch("/api/search", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: searchQuery }),
+            body: JSON.stringify({ query: searchQuery, readPages: true }),
             signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]),
           });
           if (!isCurrent()) return;
@@ -350,10 +357,9 @@ export const App: React.FC = () => {
         }
       }
 
-      // If search already yielded an articulate Google synthesis, we can prefer it or synthesize with chat
-      if (latestSearchResult && latestSearchResult.summary && (isExplicitGoogle || isSearch)) {
-        const speechClean = latestSearchResult.summary.replace(/\[\d+\]/g, "");
-        speakResponse(speechClean);
+      // If explicit Google modal was requested and search already synthesized a fluent summary, speak it directly
+      if (latestSearchResult && latestSearchResult.summary && isExplicitGoogle) {
+        speakResponse(latestSearchResult.summary);
         return;
       }
 
@@ -524,6 +530,58 @@ export const App: React.FC = () => {
               inputState={inputState}
               webSearching={webSearching}
             />
+          </div>
+
+          {/* Eddy Lab Rats Bionic Control Strip */}
+          <div className="mt-2 w-full flex items-center justify-between gap-1.5 px-1 overflow-x-auto no-scrollbar">
+            <button
+              type="button"
+              onClick={() => {
+                const nextCmd =
+                  eddyMode === "EDDY_CLASSIC"
+                    ? "activa modo misión"
+                    : eddyMode === "MISSION_CONTROL"
+                    ? "activa modo enfoque"
+                    : "activa modo eddy";
+                handleProcessCommand(nextCmd);
+              }}
+              className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase bg-teal-500/15 hover:bg-teal-500/25 border border-teal-400/30 text-teal-200 transition-all shrink-0"
+              title="Cambiar personalidad biónica (Eddy / Misión / Enfoque)"
+            >
+              {eddyMode === "MISSION_CONTROL"
+                ? "🛰️ Mando"
+                : eddyMode === "EMPATHIC_FOCUS"
+                ? "💙 Enfoque"
+                : "⚡ Modo Eddy"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleProcessCommand("protocolo estudio")}
+              className="px-2 py-1 rounded-full text-[10px] font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white/75 hover:text-white transition-all shrink-0"
+            >
+              🧪 Estudio
+            </button>
+            <button
+              type="button"
+              onClick={() => handleProcessCommand("protocolo nocturno")}
+              className="px-2 py-1 rounded-full text-[10px] font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white/75 hover:text-white transition-all shrink-0"
+            >
+              🌙 Nocturno
+            </button>
+            <button
+              type="button"
+              onClick={() => handleProcessCommand("protocolo laboratorio")}
+              className="px-2 py-1 rounded-full text-[10px] font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white/75 hover:text-white transition-all shrink-0"
+            >
+              🔬 Laboratorio
+            </button>
+            <button
+              type="button"
+              onClick={() => handleProcessCommand("¿Qué hicimos hoy?")}
+              className="px-2 py-1 rounded-full text-[10px] font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white/75 hover:text-white transition-all shrink-0"
+            >
+              🕒 Hoy
+            </button>
           </div>
         </div>
 

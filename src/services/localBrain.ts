@@ -205,69 +205,175 @@ export class LocalBrain {
     return null;
   }
 
+  public static cleanSpokenWebReply(text: string): string {
+    return text
+      .replace(/\[\d+\]/g, "")
+      .replace(/https?:\/\/\S+/g, "")
+      .replace(/\s+/g, " ")
+      .replace(/\s+([.,;:!?])/g, "$1")
+      .trim();
+  }
+
   public static synthesizeWebSources(
     query: string,
-    sources: Array<{ title: string; url: string; snippet: string; date?: string }>,
+    sources: Array<{ title: string; url: string; snippet: string; date?: string; domain?: string; sourceName?: string }>,
     personality: string = "BALANCED"
   ): string {
-    const valid = (sources || []).filter((s) => s && s.snippet && s.snippet.trim().length > 15);
+    const valid = (sources || []).filter((s) => s && ((s.snippet && s.snippet.trim().length > 12) || (s.title && s.title.trim().length > 12)));
     if (valid.length === 0) {
       return "No tengo fuentes verificadas suficientes para responder esa consulta. Probá con términos más específicos.";
     }
 
+    const cleanQuery = cleanConversationalPrefix(query)
+      .replace(/^(?:busca(?:r|me)?(?:\s+en\s+(?:internet|google|la web))?|investiga|averigua|noticias de|hablame de|explicame|decime|dime)\s+/i, "")
+      .trim();
+
+    const stopTokens = new Set([
+      "que", "como", "cual", "quien", "donde", "cuando", "por", "para", "con", "del", "las", "los",
+      "una", "uno", "sobre", "busca", "internet", "google", "hoy", "actual", "noticias", "informacion",
+      "acerca", "explica", "explicame", "dime", "decime", "fue", "son", "esta", "estan",
+    ]);
+
     const qTokens = new Set(
-      normalize(query)
+      normalize(cleanQuery || query)
         .split(" ")
-        .filter((t) => t.length >= 2 && !["que", "como", "cual", "quien", "donde", "cuando", "por", "para", "con", "del", "las", "los", "una", "uno", "sobre", "busca", "internet"].includes(t))
+        .filter((t) => t.length >= 2 && !stopTokens.has(t))
     );
+
+    const isDefinition = /\b(?:que es|quien es|quien fue|significado|definicion|biografia)\b/i.test(normalize(query));
+    const isHowTo = /\b(?:como|pasos|funciona|funcionamiento|procedimiento|hacer|preparar|configurar)\b/i.test(normalize(query));
+    const isComparison = /\b(?:diferencia|diferencias|comparar|compara|versus|vs|mejor)\b/i.test(normalize(query));
+    const wantsDeep = personality === "DETAILED" || /\b(?:profundidad|detallad|a fondo|amplia|completo)\b/i.test(normalize(query));
 
     interface RankedSentence {
       text: string;
       sourceIndex: number;
+      domainKey: string;
       score: number;
     }
 
-    const candidates: RankedSentence[] = [];
-    valid.slice(0, 5).forEach((source, idx) => {
-      const rawSentences = source.snippet
+    const cleanFragment = (raw: string): string => {
+      return raw
         .replace(/\s+/g, " ")
-        .split(/(?<=[.!?])\s+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length >= 20);
+        .replace(/\s*(?:\.\.\.|…|\[\.\.\.\])\s*$/g, "")
+        .replace(/\s+[-|—–]\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúñÑ0-9\s.&]{1,35}$/g, "")
+        .trim();
+    };
 
-      const pool = rawSentences.length > 0 ? rawSentences : [source.snippet.replace(/\s+/g, " ").trim()];
-      pool.forEach((sentence) => {
-        const sTokens = normalize(sentence).split(" ");
+    const candidates: RankedSentence[] = [];
+    valid.slice(0, 6).forEach((source, idx) => {
+      const domainKey = (source.domain || source.sourceName || source.url || `src-${idx}`).toLowerCase().replace(/^www\./, "");
+      const cleanedSnippet = cleanFragment(source.snippet || "");
+      const cleanedTitle = cleanFragment(source.title || "");
+
+      const rawSentences = cleanedSnippet
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => cleanFragment(s))
+        .filter((s) => s.length >= 24 && s.length <= 340);
+
+      const pool =
+        rawSentences.length > 0
+          ? rawSentences
+          : cleanedSnippet.length >= 20
+          ? [cleanedSnippet]
+          : cleanedTitle.length >= 20
+          ? [`${cleanedTitle}: ${cleanedSnippet}`.trim()]
+          : [];
+
+      pool.forEach((sentence, sIdx) => {
+        const normSentence = normalize(sentence);
+        if (/\b(?:aceptar cookies|politica de privacidad|iniciar sesion|comprar ahora|suscribete|haz clic)\b/.test(normSentence)) {
+          return;
+        }
+        const sTokens = normSentence.split(" ");
         const overlap = sTokens.filter((t) => qTokens.has(t)).length;
-        const hasNumbers = /\d/.test(sentence) ? 0.8 : 0;
-        const explanatory = /\b(?:es|son|fue|permite|consiste|produce|transforma|define|significa|debido)\b/i.test(sentence) ? 1.2 : 0;
+        const coverage = qTokens.size > 0 ? overlap / qTokens.size : 0.5;
+        if (qTokens.size > 0 && overlap === 0 && sIdx > 0) return;
+
+        const hasNumbers = /\d/.test(sentence) ? 0.9 : 0;
+        const definitional = /\b(?:es un|es una|fue un|fue una|son|consiste|define|significa|conocido como|nacio|destaco)\b/i.test(normSentence)
+          ? isDefinition ? 2.4 : 1.3
+          : 0;
+        const causalOrProcess = /\b(?:permite|produce|transforma|funciona|mediante|debido|porque|para ello|genera)\b/i.test(normSentence)
+          ? isHowTo ? 2.2 : 1.2
+          : 0;
+        const contrastive = /\b(?:mientras|diferencia|cambio|sin embargo|ventaja|frente a)\b/i.test(normSentence) && isComparison ? 1.8 : 0;
+        const wikiBonus = domainKey.includes("wikipedia.org") ? 1.1 : 0;
+        const leadBonus = sIdx === 0 ? 0.6 : 0;
+
         candidates.push({
-          text: sentence.slice(0, 240).replace(/[.]+$/, ""),
+          text: sentence.slice(0, 280).replace(/[.!?]+$/, "").trim(),
           sourceIndex: idx + 1,
-          score: overlap * 2.0 + hasNumbers + explanatory - idx * 0.25,
+          domainKey,
+          score:
+            overlap * 2.2 +
+            coverage * 2.0 +
+            hasNumbers +
+            definitional +
+            causalOrProcess +
+            contrastive +
+            wikiBonus +
+            leadBonus -
+            idx * 0.2,
         });
       });
     });
 
     candidates.sort((a, b) => b.score - a.score);
-    const maxSentences = personality === "CONCISE" ? 2 : 3;
+    const maxSentences = personality === "CONCISE" ? 2 : wantsDeep ? 4 : 3;
     const selected: RankedSentence[] = [];
     const seenNorm = new Set<string>();
+    const usedDomains = new Set<string>();
 
+    // Pass 1: prioritize distinct domains so synthesis corroborates across sources
     for (const cand of candidates) {
       if (selected.length >= maxSentences) break;
-      const key = normalize(cand.text).slice(0, 60);
+      const key = normalize(cand.text).slice(0, 55);
+      if (seenNorm.has(key) || usedDomains.has(cand.domainKey)) continue;
+      seenNorm.add(key);
+      usedDomains.add(cand.domainKey);
+      selected.push(cand);
+    }
+
+    // Pass 2: fill remaining slots with highest-scoring non-duplicate facts
+    for (const cand of candidates) {
+      if (selected.length >= maxSentences) break;
+      if (selected.includes(cand)) continue;
+      const key = normalize(cand.text).slice(0, 55);
       if (seenNorm.has(key)) continue;
       seenNorm.add(key);
       selected.push(cand);
     }
 
     if (selected.length === 0) {
-      const first = valid[0].snippet.replace(/\s+/g, " ").trim().slice(0, 220).replace(/[.]+$/, "");
-      return `${first} [1].`;
+      const fallbackText = cleanFragment(valid[0].snippet || valid[0].title).slice(0, 240).replace(/[.!?]+$/, "");
+      return `${fallbackText} [1].`;
     }
 
-    return selected.map((s) => `${s.text} [${s.sourceIndex}].`).join(" ");
+    const connectors = ["", "Además, ", "Por otra parte, ", "Asimismo, "];
+    const formatted = selected.map((item, idx) => {
+      let body = item.text;
+      if (idx > 0) {
+        const alreadyHasConnector = /^(?:adem[aá]s|asimismo|por otra parte|sin embargo|también|cabe destacar|en cuanto|finalmente)\b/i.test(body);
+        if (!alreadyHasConnector && body.length > 2) {
+          const connector = connectors[idx] || "";
+          // Lowercase first letter only if it's not an acronym or proper name paired with articles
+          const firstWord = body.split(" ")[0] || "";
+          const canLower = /^(?:El|La|Los|Las|Un|Una|Este|Esta|Estos|Estas|Su|Sus|Se|En|Con|Para|Seg[uú]n)$/.test(firstWord);
+          if (connector && canLower) {
+            body = connector + body.charAt(0).toLowerCase() + body.slice(1);
+          }
+        }
+      }
+      return `${body} [${item.sourceIndex}].`;
+    });
+
+    const joined = formatted.join(" ");
+    const personaMode = MemoryStore.getPreference("eddy_persona_mode");
+    if (personaMode === "MISSION_CONTROL") {
+      return `[REPORTE WEB VERIFICADO] ${joined}`;
+    }
+    return joined;
   }
 
   public static parseRobotMotion(input: string): RobotMotion | null {
@@ -666,12 +772,19 @@ export class LocalBrain {
       return { type: "greeting" };
     }
 
-    // 14. Questions starting with "quien es", "que paso", "donde queda" -> route to search
+    // 14. Questions starting with "quien es", "que paso", "donde queda", "como funciona", "explicame" -> route to search
     if (
       norm.startsWith("quien es") ||
+      norm.startsWith("quien fue") ||
       norm.startsWith("que es") ||
+      norm.startsWith("como funciona") ||
+      norm.startsWith("por que ") ||
       norm.startsWith("donde queda") ||
-      norm.startsWith("cual es la capital")
+      norm.startsWith("cual es la capital") ||
+      norm.startsWith("que paso") ||
+      norm.startsWith("ultimas noticias") ||
+      norm.startsWith("hablame de ") ||
+      norm.startsWith("explicame ")
     ) {
       return { type: "search_web", payload: { query: withoutWake } };
     }

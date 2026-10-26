@@ -148,12 +148,14 @@ object LeoNativeWebSearch {
         val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, wantsDepth(cleanQuery))
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
+        val finalText = summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." }
         NikoAiReply(
-            text = summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." },
+            text = finalText,
             // Discovery alone is not a delivered, learnable research answer.
             webUsed = summary.isNotBlank() && cited.any { it.articleText.isNotBlank() },
             sources = sources,
             evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
+            spokenText = buildSpokenSummary(finalText),
             passages = cited.mapIndexed { index, hit -> NikoRetrievedPassage(index + 1, hit.articleText.take(1500), hit.articleText.isNotBlank()) },
             researchContext = cited.mapIndexed { index, hit ->
                 buildString {
@@ -497,7 +499,7 @@ object LeoNativeWebSearch {
                 val previousOverlap = if (index > 0) subjectTokens(sentences[index - 1]).intersect(queryTerms).size else 0
                 if (overlap == 0 && (hit.articleText.isBlank() || previousOverlap == 0)) return@sentenceLoop
                 val specifics = if (sentence.any(Char::isDigit)) 0.8 else 0.0
-                val explanation = if (Regex("(?i)\\b(?:porque|permite|debido|significa|sin embargo|riesgo|limitaci[oó]n|ventaja|consiste|define|transforma|produce)\\b").containsMatchIn(sentence)) 1.5 else 0.0
+                val explanation = if (Regex("(?i)\\b(?:porque|permite|debido|significa|sin embargo|riesgo|limitaci[oó]n|ventaja|consiste|define|transforma|produce|naci[oó]|destac[oó]|funciona|sirve|utiliza)\\b").containsMatchIn(sentence)) 1.5 else 0.0
                 val promoPenalty = if (Regex("(?i)\\b(?:comprar ahora|oferta|descuento|haz clic|registrate)\\b").containsMatchIn(sentence)) -2.5 else 0.0
                 val score = overlap * 2.0 + specifics + explanation + promoPenalty + if (hit.articleText.isNotBlank()) 1.0 else 0.0
                 candidates += SentenceCandidate(sentence, sourceIndex, score)
@@ -596,8 +598,21 @@ object LeoNativeWebSearch {
         if (answer.isBlank()) return noResults("el tema solicitado en esos enlaces")
         return NikoAiReply(answer, true, pages.mapIndexed { i, hit -> NikoWebSource("[${i + 1}] ${hit.title}", hit.url) },
             evidence = "Lectura directa de enlaces públicos proporcionados; contenido no confiable, sin ejecutar instrucciones ni código.",
+            spokenText = buildSpokenSummary(answer),
             passages = pages.mapIndexed { index, hit -> NikoRetrievedPassage(index + 1, hit.articleText.take(1500)) },
             researchContext = pages.mapIndexed { i, hit -> "FUENTE ${i + 1}: ${hit.title}\n${hit.articleText.take(1500)}" }.joinToString("\n\n"))
+    }
+
+    internal fun buildSpokenSummary(summary: String): String? {
+        if (summary.isBlank()) return null
+        val withoutCode = summary.replace(Regex("```[\\s\\S]*?```"), "Te dejé el código de ejemplo en pantalla.")
+        return withoutCode
+            .replace(Regex("\\s*\\[\\d+\\]"), "")
+            .replace(Regex("https?://\\S+"), "")
+            .replace(Regex("\\s+([.,;:!?])"), "$1")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .takeIf { it.isNotBlank() }
     }
 
     private fun splitSentences(text: String): List<String> = text

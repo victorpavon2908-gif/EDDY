@@ -124,4 +124,22 @@ test('autodidact rules, local RAG documents, emotional heart and web synthesis w
   const timeline = LocalBrain.understand('¿Qué hicimos hoy?');
   assert.equal(timeline.type, 'personal_memory');
   assert.ok(timeline.payload.reply.includes('Protocolo Nocturno'));
+
+  const missionSynthesis = LocalBrain.synthesizeWebSources('energía solar en Nicaragua', [
+    {
+      title: 'Energía solar en Nicaragua - Diario Local',
+      url: 'https://energia.example/ni',
+      domain: 'energia.example',
+      snippet: 'La energía solar permite generar electricidad limpia en zonas rurales de Nicaragua con alta radiación.',
+    },
+    {
+      title: 'Reporte técnico | Portal Energético',
+      url: 'https://reporte.example/solar',
+      domain: 'reporte.example',
+      snippet: 'Los paneles fotovoltaicos reducen el costo eléctrico hasta un 40 por ciento.',
+    },
+  ]);
+  assert.ok(missionSynthesis.startsWith('[REPORTE WEB VERIFICADO]'));
+  assert.ok(missionSynthesis.includes('Además, los paneles fotovoltaicos'));
+  assert.ok(!LocalBrain.cleanSpokenWebReply(missionSynthesis).includes('[1]'));
 });

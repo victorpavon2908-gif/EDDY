@@ -60,6 +60,17 @@ object TranscriptQuality {
         return text.trim()
     }
 
+    private val WAKE_PATTERN = Regex("(?i)(?:^|\\s|[¿¡,.;:!?])leo(?:\\s|[¿¡,.;:!?]|$)")
+
+    fun extractRepairedWakeCommand(value: String): String? {
+        val repaired = repairAsrTranscript(value.trim())
+        val match = WAKE_PATTERN.find(repaired) ?: return null
+        return repaired.substring(match.range.last + 1)
+            .trim()
+            .trimStart(',', '.', ';', ':', '¿', '?', '¡', '!')
+            .trim()
+    }
+
     /** A costly independent decode is reserved for low-quality, execution-sensitive dictation. */
     fun requiresAcousticVerification(value: String): Boolean {
         val normalized = normalizedForRules(value)

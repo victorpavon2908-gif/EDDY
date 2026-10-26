@@ -32,6 +32,15 @@ class LeoEddyPersona(
     var mode: PersonaMode = initialMode
         private set
 
+    fun exportState(): String = mode.name
+
+    fun importState(raw: String) {
+        val clean = raw.trim()
+        PersonaMode.entries.firstOrNull { it.name.equals(clean, ignoreCase = true) }?.let {
+            mode = it
+        }
+    }
+
     fun handleCommand(input: String): String? {
         val key = MemoryLearning.key(input).removePrefix("leo ").trim()
         return when {

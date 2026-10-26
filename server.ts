@@ -42,11 +42,12 @@ app.get("/api/search/suggestions", async (req: Request, res: Response) => {
 app.post("/api/search", async (req: Request, res: Response) => {
   const query = validateQuery(req.body?.query);
   if (!query) return res.status(400).json({ error: "Ingresá una consulta de 1 a 500 caracteres." });
+  const readPages = req.body?.readPages !== false;
   const controller = new AbortController();
   const cancel = () => { if (!res.writableEnded) controller.abort(); };
   res.on("close", cancel);
   try {
-    const result = await searchWeb(query, { signal: controller.signal });
+    const result = await searchWeb(query, { signal: controller.signal, readPages });
     if (!controller.signal.aborted) res.json(result);
   } catch {
     if (!controller.signal.aborted) res.status(503).json({ error: "La búsqueda no está disponible. Volvé a intentar." });
@@ -90,8 +91,10 @@ app.post("/api/chat", async (req: Request, res: Response) => {
   // 3. Multi-source fluent extractive synthesis when web sources are available
   if (Array.isArray(sources) && sources.length > 0) {
     const reply = LocalBrain.synthesizeWebSources(cleanMessage, sources as SearchSource[], String(personality));
+    MemoryStore.recordEpisode("Investigación", cleanMessage, reply);
     return res.json({
       reply,
+      spokenReply: LocalBrain.cleanSpokenWebReply(reply),
       provider: "local-sovereign",
       sources,
       groundedWithGoogle: false,

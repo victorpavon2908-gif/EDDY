@@ -100,7 +100,7 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
       const resp = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: q }),
+        body: JSON.stringify({ query: q, readPages: true }),
         signal: controller.signal,
       });
       if (!resp.ok) throw new Error("No pude completar la búsqueda. Volvé a intentar.");
@@ -328,7 +328,7 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-blue-400" />
                       <span className="text-xs font-bold text-blue-200 uppercase tracking-wide">
-                        {result.groundedWithGoogle ? "Síntesis con fuentes de Google" : "Extractos de la búsqueda"}
+                        {result.groundedWithGoogle ? "Síntesis con fuentes de Google" : "Síntesis verificada multi-fuente de LEO"}
                       </span>
                     </div>
 

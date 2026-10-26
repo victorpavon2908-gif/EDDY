@@ -1,8 +1,12 @@
 package com.niko.assistant.cognitive
 
+import com.niko.assistant.actions.LeoHardwareProtocolRunner
 import com.niko.assistant.actions.LeoLabProtocols
 import com.niko.assistant.agent.TurnController
+import com.niko.assistant.ai.LeoNativeWebSearch
 import com.niko.assistant.ai.NikoAiReply
+import com.niko.assistant.ai.NikoRetrievedPassage
+import com.niko.assistant.ai.NikoWebSource
 import com.niko.assistant.devicecontrol.LeoLiveVisionAnalyzer
 import com.niko.assistant.devicecontrol.LeoUiAction
 import com.niko.assistant.devicecontrol.LeoUiSnapshot
@@ -13,10 +17,12 @@ import com.niko.assistant.learning.LeoAutodidactEngine
 import com.niko.assistant.memory.LeoEncryptedSync
 import com.niko.assistant.memory.LeoEpisodicTimeline
 import com.niko.assistant.memory.LeoLocalRagEngine
+import com.niko.assistant.memory.LeoSovereignStore
 import com.niko.assistant.voice.LeoAcousticWakeScorer
 import com.niko.assistant.voice.LeoDuplexPolicy
 import com.niko.assistant.voice.LeoHardwareBenchmark
 import com.niko.assistant.voice.TranscriptQuality
+import java.nio.file.Files
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.runBlocking
@@ -319,5 +325,112 @@ class LeoSovereignUpgradesTest {
         restoredTimeline.importSerialized(serialized)
         assertEquals(1, restoredTimeline.distilledFactsCount)
         assertTrue(restoredTimeline.recentEpisodes().isNotEmpty())
+    }
+
+    @Test
+    fun sovereignStoreHardwareProtocolRunnerAsrVoiceRepairAndFluentWebSynthesisWorkTogether() = runBlocking {
+        val tempDir = Files.createTempDirectory("leo_sovereign_test").toFile()
+        try {
+            val executedHardwareSteps = mutableListOf<LeoLabProtocols.ProtocolStep>()
+            val runner = LeoHardwareProtocolRunner(
+                customStepDispatcher = { step ->
+                    executedHardwareSteps += step
+                    true
+                },
+            )
+            val store = LeoSovereignStore(tempDir)
+            val core1 = LeoNeuralCore(TurnController(), store = store, hardwareRunner = runner)
+            val dummyKnowledge = object : LeoNeuralCore.Knowledge {
+                override suspend fun local(): String? = null
+                override suspend fun research(requireSources: Boolean): NikoAiReply? = null
+                override suspend fun fallback() = "fallback"
+            }
+
+            // 1. Mutate persona, teach rule, index RAG doc, and run hardware protocol on core1
+            core1.reply(LeoNeuralCore.Request("activa modo misión", true, false, false), dummyKnowledge)
+            core1.reply(
+                LeoNeuralCore.Request(
+                    "aprendé que cuando te diga clave biónica me respondás escudo activo",
+                    true,
+                    false,
+                    false,
+                ),
+                dummyKnowledge,
+            )
+            core1.reply(
+                LeoNeuralCore.Request(
+                    "guardá en mis documentos el PDF Guía Biónica: El reactor principal opera a 400 hercios estables.",
+                    true,
+                    false,
+                    false,
+                ),
+                dummyKnowledge,
+            )
+            core1.reply(LeoNeuralCore.Request("protocolo emergencia", true, false, false), dummyKnowledge)
+
+            assertTrue(executedHardwareSteps.any { it.type == LeoLabProtocols.StepType.TORCH && it.value == "ON" })
+            assertTrue(executedHardwareSteps.any { it.type == LeoLabProtocols.StepType.SET_VOLUME && it.value == "100" })
+
+            // 2. Boot a fresh LeoNeuralCore pointing to the same LeoSovereignStore directory
+            val core2 = LeoNeuralCore(TurnController(), store = LeoSovereignStore(tempDir))
+            assertEquals(LeoEddyPersona.PersonaMode.MISSION_CONTROL, core2.persona.mode)
+
+            val ruleReply = core2.reply(LeoNeuralCore.Request("clave biónica", true, false, false), dummyKnowledge)
+            assertEquals("escudo activo", ruleReply.text)
+
+            val ragReply = core2.rag.answer("¿A cuántos hercios opera el reactor principal?")
+            assertNotNull(ragReply)
+            assertTrue(ragReply!!.contains("400 hercios"))
+
+            val timelineReply = core2.reply(LeoNeuralCore.Request("¿Qué hicimos hoy?", true, false, false), dummyKnowledge)
+            assertTrue(timelineReply.text.contains("Protocolo Emergencia"))
+
+            // 3. Live Voice Engine ASR repair before wake-word extraction
+            assertEquals(
+                "abrí WhatsApp",
+                TranscriptQuality.extractRepairedWakeCommand("oye lio abrí wasap"),
+            )
+            assertEquals(
+                "poné Spotify",
+                TranscriptQuality.extractRepairedWakeCommand("leo poné espotifai"),
+            )
+
+            // 4. Local multi-source extractive web synthesis & clean spokenText
+            val rawWebReply = NikoAiReply(
+                text = "Extracto inicial [1]",
+                webUsed = true,
+                sources = listOf(
+                    NikoWebSource("[1] Energía Solar", "https://solar.example/uno"),
+                    NikoWebSource("[2] Red Eléctrica", "https://red.example/dos"),
+                ),
+                passages = listOf(
+                    NikoRetrievedPassage(
+                        1,
+                        "La energía solar fotovoltaica transforma la radiación del sol en electricidad limpia mediante celdas semiconductoras.",
+                        true,
+                    ),
+                    NikoRetrievedPassage(
+                        2,
+                        "Los sistemas solares con baterías reducen el consumo de la red hasta un 65 por ciento anual.",
+                        true,
+                    ),
+                ),
+            )
+            val synthesized = LeoResearchSynthesis.synthesizeLocalExtractive(rawWebReply, "energía solar fotovoltaica")
+            assertTrue(synthesized.text.contains("[1]"))
+            assertTrue(synthesized.text.contains("[2]"))
+            assertTrue(synthesized.text.contains("Además,"))
+            assertNotNull(synthesized.spokenText)
+            assertFalse(synthesized.spokenText!!.contains("[1]"))
+            assertTrue(synthesized.spokenText!!.contains("celdas semiconductoras"))
+
+            val codeSpoken = LeoNativeWebSearch.buildSpokenSummary("Ejemplo [1]:\n\n```\nprint(42)\n```\n\nVerificá tu entorno.")
+            assertNotNull(codeSpoken)
+            assertFalse(codeSpoken!!.contains("print(42)"))
+            assertFalse(codeSpoken.contains("[1]"))
+            assertTrue(codeSpoken.contains("código de ejemplo en pantalla"))
+        } finally {
+            tempDir.deleteRecursively()
+        }
     }
 }

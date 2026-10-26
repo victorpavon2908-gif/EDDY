@@ -1,5 +1,6 @@
 import type { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import type { GoogleSearchResult, NikoWebSource } from '../src/types';
+import { LocalBrain } from '../src/services/localBrain';
 
 export function validateQuery(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -10,7 +11,11 @@ export function validateQuery(value: unknown): string | null {
 export function safeUrl(value: string): string | null {
   try {
     const url = new URL(value);
-    return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
+    const host = url.hostname.toLowerCase();
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return null;
+    if (/^(?:0\.|127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(host)) return null;
+    return url.href;
   } catch { return null; }
 }
 
@@ -22,6 +27,48 @@ export function plainText(value: string): string {
       const n = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : Number(code.slice(1));
       return n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : entity;
     }).replace(/\s+/g, ' ').trim();
+}
+
+const BOILERPLATE_PATTERNS = [
+  /aceptar cookies/i,
+  /pol[ií]tica de privacidad/i,
+  /todos los derechos reservados/i,
+  /enable javascript/i,
+  /habilita javascript/i,
+  /inicia(?:r)? sesi[oó]n/i,
+  /suscr[ií]bete a nuestro bolet[ií]n/i,
+];
+
+export function extractReadableHtml(html: string): string {
+  if (!html || !html.trim()) return '';
+  const cleaned = html
+    .replace(/<(script|style|noscript|svg|nav|footer|header|aside)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+
+  const metaMatches = [...cleaned.matchAll(/<meta\b[^>]*>/gi)]
+    .map(m => m[0])
+    .filter(tag => /(?:name|property)=["'](?:description|og:description|twitter:description)["']/i.test(tag))
+    .map(tag => plainText(tag.match(/content=["']([^"']+)["']/i)?.[1] || ''))
+    .filter(text => text.length >= 40 && !BOILERPLATE_PATTERNS.some(rx => rx.test(text)))
+    .slice(0, 2);
+
+  const mainScope = cleaned.match(/<(?:article|main)\b[^>]*>([\s\S]*?)<\/(?:article|main)>/i)?.[1] || cleaned;
+  const paragraphs = [...mainScope.matchAll(/<(?:p|li|blockquote|dd)\b[^>]*>([\s\S]*?)<\/(?:p|li|blockquote|dd)>/gi)]
+    .map(m => plainText(m[1]))
+    .filter(text => text.length >= 35 && text.length <= 750 && !BOILERPLATE_PATTERNS.some(rx => rx.test(text)))
+    .slice(0, 14);
+
+  const combined = [...metaMatches, ...paragraphs];
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const part of combined) {
+    const key = part.toLowerCase().slice(0, 80);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(part);
+    }
+  }
+  return unique.join(' ').slice(0, 1800).trim();
 }
 
 export function parseRss(xml: string, provider: string): NikoWebSource[] {
@@ -102,7 +149,7 @@ export function groundedResult(response: GenerateContentResponse): { sources: Ni
 
 type Transport = typeof fetch;
 export async function fetchText(url: string, signal: AbortSignal, transport: Transport = fetch): Promise<string> {
-  const response = await transport(url, { signal, headers: { 'User-Agent': 'LEO-Assistant/0.11', 'Accept-Language': 'es,en;q=0.7' } });
+  const response = await transport(url, { signal, headers: { 'User-Agent': 'LEO-Assistant/0.15', 'Accept-Language': 'es,en;q=0.7' } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const reader = response.body?.getReader();
   if (!reader) return '';
@@ -127,7 +174,61 @@ export async function suggestions(query: string, signal: AbortSignal, transport:
   } catch { return []; }
 }
 
-export async function searchWeb(query: string, options: { gemini?: GoogleGenAI | null; transport?: Transport; signal?: AbortSignal; timeoutMs?: number } = {}): Promise<GoogleSearchResult> {
+export async function enrichSourcesWithArticleText(
+  sources: NikoWebSource[],
+  signal: AbortSignal,
+  transport: Transport = fetch
+): Promise<NikoWebSource[]> {
+  const top = sources.slice(0, 3);
+  const rest = sources.slice(3);
+  const enrichedTop = await Promise.all(
+    top.map(async (source) => {
+      const safe = safeUrl(source.url);
+      if (!safe) return source;
+      const pageController = new AbortController();
+      const timer = setTimeout(() => pageController.abort(), 3200);
+      const onParentAbort = () => pageController.abort();
+      signal.addEventListener('abort', onParentAbort, { once: true });
+      try {
+        if (source.domain === 'es.wikipedia.org' && source.url.includes('/wiki/')) {
+          const titleSlug = source.url.split('/wiki/')[1];
+          if (titleSlug) {
+            const wikiJson = JSON.parse(
+              await fetchText(
+                `https://es.wikipedia.org/api/rest_v1/page/summary/${titleSlug}`,
+                pageController.signal,
+                transport
+              )
+            );
+            if (typeof wikiJson?.extract === 'string' && wikiJson.extract.trim().length > 40) {
+              return { ...source, snippet: wikiJson.extract.trim().slice(0, 1400) };
+            }
+          }
+        }
+        const html = await fetchText(safe, pageController.signal, transport);
+        const extracted = extractReadableHtml(html);
+        if (extracted.length >= 60) {
+          const merged = source.snippet && !extracted.includes(source.snippet.slice(0, 40))
+            ? `${source.snippet} ${extracted}`.trim()
+            : extracted;
+          return { ...source, snippet: merged.slice(0, 1400) };
+        }
+      } catch {
+        // Fallback to search snippet if reading the article fails or times out
+      } finally {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', onParentAbort);
+      }
+      return source;
+    })
+  );
+  return [...enrichedTop, ...rest];
+}
+
+export async function searchWeb(
+  query: string,
+  options: { gemini?: GoogleGenAI | null; transport?: Transport; signal?: AbortSignal; timeoutMs?: number; readPages?: boolean } = {}
+): Promise<GoogleSearchResult> {
   const transport = options.transport || fetch;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000);
@@ -166,10 +267,22 @@ export async function searchWeb(query: string, options: { gemini?: GoogleGenAI |
     ]);
     const current = /\b(hoy|ayer|actual|actuales|noticias|recientes|precio|clima)\b/i.test(query);
     // Preserve grounded ordering: citation numbers refer to these exact positions.
-    const sources = uniqueSources([...grounded.sources, ...(current ? [...news, ...bing, ...duck] : [...bing, ...duck, ...wiki, ...news]), ...(current ? wiki : [])]).slice(0, 8);
-    const summary = grounded.summary || (sources.length
-      ? `Extractos de resultados; no se han leído ni verificado las páginas completas:\n\n${sources.slice(0, 4).map((s, i) => `${s.title}${s.snippet ? ` — ${s.snippet}` : ''} [${i + 1}]`).join('\n\n')}`
-      : 'No pude obtener resultados. Revisá la conexión, reintentá o abrí la búsqueda directamente en Google.');
+    const rawSources = uniqueSources([...grounded.sources, ...(current ? [...news, ...bing, ...duck] : [...bing, ...duck, ...wiki, ...news]), ...(current ? wiki : [])]).slice(0, 8);
+    const sources = options.readPages && rawSources.length > 0
+      ? await enrichSourcesWithArticleText(rawSources, signal, transport)
+      : rawSources;
+
+    let summary = grounded.summary;
+    if (!summary) {
+      if (options.readPages && sources.length > 0) {
+        summary = LocalBrain.synthesizeWebSources(query, sources, 'BALANCED');
+      } else if (sources.length > 0) {
+        summary = `Extractos de resultados; no se han leído ni verificado las páginas completas:\n\n${sources.slice(0, 4).map((s, i) => `${s.title}${s.snippet ? ` — ${s.snippet}` : ''} [${i + 1}]`).join('\n\n')}`;
+      } else {
+        summary = 'No pude obtener resultados. Revisá la conexión, reintentá o abrí la búsqueda directamente en Google.';
+      }
+    }
+
     return { query, provider: [...new Set(sources.map(s => s.provider))].join(' · ') || 'Sin resultados', summary,
       sources, suggestions: related, groundedWithGoogle: Boolean(grounded.summary), warnings,
       status: sources.length ? (warnings.length ? 'partial' : 'ok') : 'unavailable' };
