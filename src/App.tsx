@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   NikoVisualState,
   InputState,
@@ -25,6 +25,9 @@ import { LeoFirstRunModal } from "./components/LeoFirstRunModal";
 import { GoogleSearchModal } from "./components/GoogleSearchModal";
 
 export const App: React.FC = () => {
+  const activeRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => activeRequest.current?.abort(), []);
+
   // Application Settings
   const [settings, setSettings] = useState<AppSettings>(() => MemoryStore.getSettings());
 
@@ -123,6 +126,13 @@ export const App: React.FC = () => {
     async (rawText: string) => {
       const text = rawText.trim();
       if (!text) return;
+      activeRequest.current?.abort();
+      const request = new AbortController();
+      activeRequest.current = request;
+      const isCurrent = () => activeRequest.current === request && !request.signal.aborted;
+      setWebSearching(false);
+      setSources([]);
+      setWebUsed(false);
 
       setHeardText(text);
       setDiagnostics((d) => ({
@@ -221,6 +231,7 @@ export const App: React.FC = () => {
         try {
           if ("getBattery" in navigator) {
             const b: any = await (navigator as any).getBattery();
+            if (!isCurrent()) return;
             const pct = Math.round(b.level * 100);
             const charging = b.charging ? "conectado y cargando" : "con batería";
             speakResponse(`Queda un ${pct}% de batería, ${charging}.`);
@@ -299,9 +310,13 @@ export const App: React.FC = () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query: searchQuery }),
+            signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]),
           });
+          if (!isCurrent()) return;
+          if (!searchResp.ok) throw new Error("Search unavailable");
           if (searchResp.ok) {
             const data: GoogleSearchResult = await searchResp.json();
+            if (!isCurrent()) return;
             latestSearchResult = data;
             currentSources = data.sources || [];
             setSources(currentSources);
@@ -314,9 +329,14 @@ export const App: React.FC = () => {
             }
           }
         } catch (err) {
+          if (!isCurrent()) return;
           console.warn("Search fetch failed:", err);
+          if (isSearch) {
+            speakResponse("No pude completar la búsqueda. Revisá tu conexión y volvé a intentar.");
+            return;
+          }
         } finally {
-          setWebSearching(false);
+          if (isCurrent()) setWebSearching(false);
         }
       }
 
@@ -332,6 +352,7 @@ export const App: React.FC = () => {
         const chatResp = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]),
           body: JSON.stringify({
             message: text,
             sources: currentSources,
@@ -339,8 +360,10 @@ export const App: React.FC = () => {
           }),
         });
 
+        if (!isCurrent()) return;
         if (chatResp.ok) {
           const chatData = await chatResp.json();
+          if (!isCurrent()) return;
           if (chatData.sources && chatData.sources.length > 0) {
             setSources(chatData.sources);
             setWebUsed(true);
@@ -350,7 +373,7 @@ export const App: React.FC = () => {
           speakResponse("Tuve un inconveniente al consultar la red, pero aquí estoy.");
         }
       } catch (err) {
-        speakResponse("No pude conectar con el servicio en este momento.");
+        if (isCurrent()) speakResponse("No pude conectar con el servicio en este momento.");
       }
     },
     [settings, audioLevel, snr, speakResponse, showToast, openGoogleSearch]

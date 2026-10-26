@@ -215,6 +215,12 @@ export class LocalBrain {
       }
     }
 
+    // Explicit research must precede app names ("busca tutoriales de YouTube").
+    const searchMatch = withoutWake.match(/^(?:busca(?:r|me)?(?:\s+en\s+(?:internet|google|la web))?|investiga|averigua|noticias de)\s+(.+)/i);
+    if (searchMatch) {
+      return { type: "search_web", payload: { query: searchMatch[1].trim() } };
+    }
+
     // 9. External App Launchers
     if (norm.includes("whatsapp")) {
       return { type: "open_app", payload: { appName: "WhatsApp", url: "https://web.whatsapp.com" } };
@@ -239,12 +245,6 @@ export class LocalBrain {
           body: msgMatch[2]?.trim(),
         },
       };
-    }
-
-    // 11. Explicit Web Search
-    const searchMatch = withoutWake.match(/^(?:busca(?:me)?|investiga|averigua|busca en internet|noticias de)\s+(.+)/i);
-    if (searchMatch) {
-      return { type: "search_web", payload: { query: searchMatch[1].trim() } };
     }
 
     // 12. Greetings

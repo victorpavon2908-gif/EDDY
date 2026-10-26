@@ -35,6 +35,8 @@ export interface GoogleSearchResult {
   sources: NikoWebSource[];
   suggestions?: string[];
   groundedWithGoogle?: boolean;
+  status?: "ok" | "partial" | "unavailable";
+  warnings?: string[];
 }
 
 export interface ConversationTurn {

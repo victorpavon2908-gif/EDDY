@@ -96,3 +96,7 @@ Pruebas de regresión para cancelación de conexión bloqueada, búsquedas super
 ## Ingeniería del agente LEO (2026-10-06)
 
 Arquitectura y límites comprobables: [LEO_ARCHITECTURE](docs/LEO_ARCHITECTURE.md), [validación](docs/LEO_VALIDATION.md) y [matriz de evidencia](docs/LEO_EVALUATION.md). La nueva coordinación preserva los motores existentes; no implica full-duplex principal, autonomía abierta o superioridad comercial comprobada.
+
+## Búsqueda: estabilidad y fuentes
+
+La revisión del 2026-10-26 incorpora proveedores web en paralelo, cancelación de consultas, errores visibles y citas vinculadas a las fuentes mostradas. Detalles, pruebas y límites pendientes: [SEARCH_RELIABILITY](docs/SEARCH_RELIABILITY.md).

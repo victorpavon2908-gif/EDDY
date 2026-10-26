@@ -49,94 +49,84 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<any>(null);
+  const activeSearch = useRef<AbortController | null>(null);
+  const [error, setError] = useState("");
 
-  // Sync initial query and result when modal opens
   useEffect(() => {
-    if (isOpen) {
-      if (initialQuery) {
-        setQuery(initialQuery);
-      }
-      if (initialResult) {
-        setResult(initialResult);
-      } else if (initialQuery) {
-        handleSearch(initialQuery);
-      }
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-    }
+    if (!isOpen) return;
+    setQuery(initialQuery);
+    setResult(initialResult);
+    setError("");
+    if (!initialResult && initialQuery) void handleSearch(initialQuery);
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 100);
+    return () => {
+      clearTimeout(focusTimer);
+      activeSearch.current?.abort();
+      activeSearch.current = null;
+      setLoading(false);
+    };
   }, [isOpen, initialQuery, initialResult]);
 
-  // Autocomplete fetch on query change
   useEffect(() => {
-    if (!query.trim() || query.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(async () => {
+    setSuggestions([]);
+    if (!isOpen || query.trim().length < 2) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
       try {
-        const resp = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query.trim())}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          if (Array.isArray(data.suggestions)) {
-            setSuggestions(data.suggestions);
-          }
+        const resp = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query.trim())}`, { signal: controller.signal });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!controller.signal.aborted && Array.isArray(data.suggestions)) {
+          setSuggestions(data.suggestions.filter((s: unknown): s is string => typeof s === "string"));
         }
-      } catch (_e) {
-        // ignore
-      }
+      } catch { /* Autocomplete is optional. */ }
     }, 200);
-
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, [query]);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [query, isOpen]);
 
   const handleSearch = async (searchQuery: string) => {
     const q = searchQuery.trim();
     if (!q) return;
-
+    activeSearch.current?.abort();
+    const controller = new AbortController();
+    activeSearch.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 15000);
     setShowSuggestions(false);
     setLoading(true);
-
+    setResult(null);
+    setError("");
+    onStopSpeaking?.();
     try {
       const resp = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: q }),
+        signal: controller.signal,
       });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        const searchResult: GoogleSearchResult = {
-          query: data.query || q,
-          provider: data.provider || "Google",
-          summary: data.summary || "",
-          sources: data.sources || [],
-          suggestions: data.suggestions || [],
-          groundedWithGoogle: data.groundedWithGoogle,
-        };
-        setResult(searchResult);
-
-        // Read out synthesis if available
-        if (searchResult.summary && onSpeakText) {
-          // Clean citation brackets for smoother voice
-          const speechSummary = searchResult.summary.replace(/\[\d+\]/g, "");
-          onSpeakText(speechSummary);
-        }
+      if (!resp.ok) throw new Error("No pude completar la búsqueda. Volvé a intentar.");
+      const data = await resp.json();
+      if (controller.signal.aborted || activeSearch.current !== controller) return;
+      const searchResult: GoogleSearchResult = {
+        query: data.query || q,
+        provider: data.provider || "Búsqueda web",
+        summary: data.summary || "",
+        sources: Array.isArray(data.sources) ? data.sources : [],
+        suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+        groundedWithGoogle: data.groundedWithGoogle,
+        warnings: data.warnings,
+        status: data.status,
+      };
+      setResult(searchResult);
+      if (searchResult.sources.length && searchResult.summary) {
+        onSpeakText?.(searchResult.summary.replace(/\[\d+\]/g, ""));
       }
-    } catch (err) {
-      console.error("Failed to execute search:", err);
+    } catch {
+      if (activeSearch.current === controller) {
+        setError(controller.signal.aborted ? "La búsqueda tardó demasiado. Volvé a intentar." : "No pude conectar con la búsqueda. Revisá tu conexión y reintentá.");
+      }
     } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      if (activeSearch.current === controller) { setLoading(false); activeSearch.current = null; }
     }
   };
 
@@ -176,14 +166,14 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm sm:text-base font-bold tracking-wide text-white">
-                  Búsqueda Web con Google
+                  Búsqueda en internet
                 </h2>
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  EN VIVO
+                  WEB
                 </span>
               </div>
               <p className="text-[11px] text-white/50">
-                Indexación en tiempo real por Google y síntesis con LEO
+                Fuentes de la web y resultados con referencias
               </p>
             </div>
           </div>
@@ -207,13 +197,14 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
                 ref={inputRef}
                 id="input-google-search"
                 type="text"
+                maxLength={500}
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setShowSuggestions(true);
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Escribí lo que querés buscar en Google..."
+                placeholder="Escribí lo que querés buscar..."
                 className="flex-1 bg-transparent text-sm text-white placeholder:text-white/35 focus:outline-none"
               />
               {query && (
@@ -274,7 +265,7 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
           <div className="mt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-400" />
-              Tendencias:
+              Ideas:
             </span>
             {QUICK_TRENDS.map((trend, i) => (
               <button
@@ -301,20 +292,29 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">
-                  Consultando índices de Google Search...
+                  Buscando en internet...
                 </p>
                 <p className="text-xs text-white/40 mt-0.5">
-                  Extrayendo y contrastando fuentes en tiempo real para LEO
+                  Consultando buscadores y reuniendo fuentes para LEO
                 </p>
               </div>
             </div>
           )}
 
-          {!loading && !result && (
+          {error && (
+            <div role="alert" className="rounded-xl border border-rose-400/30 p-4 text-sm text-rose-200">
+              {error}
+              <button onClick={() => handleSearch(query)} className="ml-3 underline">Reintentar</button>
+            </div>
+          )}
+          {!loading && result?.warnings?.length ? (
+            <p role="status" className="text-xs text-amber-200">{result.warnings.join(" ")} Se muestran los resultados disponibles.</p>
+          ) : null}
+          {!loading && !result && !error && (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-2 text-white/40">
               <Globe className="w-8 h-8 text-blue-400/60" />
               <p className="text-xs">
-                Ingresá cualquier consulta para obtener una síntesis en tiempo real impulsada por Google Search.
+                Ingresá una consulta para encontrar fuentes y extractos de la web.
               </p>
             </div>
           )}
@@ -328,7 +328,7 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-blue-400" />
                       <span className="text-xs font-bold text-blue-200 uppercase tracking-wide">
-                        Síntesis de LEO (Google Grounding)
+                        {result.groundedWithGoogle ? "Síntesis con fuentes de Google" : "Extractos de la búsqueda"}
                       </span>
                     </div>
 
@@ -401,7 +401,7 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="text-xs font-bold text-white uppercase tracking-wide">
-                      Fuentes Web Indexadas por Google ({result.sources.length})
+                      Fuentes encontradas ({result.sources.length})
                     </span>
                   </div>
 
@@ -463,7 +463,7 @@ export const GoogleSearchModal: React.FC<GoogleSearchModalProps> = ({
         <div className="px-4 py-2.5 border-t border-white/10 bg-[#080D17] flex items-center justify-between text-[11px] text-white/40">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>Motor Google conectado y calibrado</span>
+            <span>{loading ? "Buscando…" : result?.provider || "Listo para buscar"}</span>
           </div>
           <span>LEO v0.11</span>
         </div>

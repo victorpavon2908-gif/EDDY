@@ -9,6 +9,15 @@ import kotlinx.coroutines.launch
 import java.net.URLDecoder
 
 class LeoNativeWebSearchTest {
+    @Test fun programmingLanguageSymbolsRemainRelevantDuringResearch() {
+        val cpp = LeoNativeWebSearch.Hit("C++ referencias", "https://cpp.example/reference", "C++ permite programar aplicaciones con tipos y funciones.")
+        val csharp = LeoNativeWebSearch.Hit("C# referencias", "https://csharp.example/reference", "C# permite programar aplicaciones con tipos y funciones.")
+        assertTrue(LeoNativeWebSearch.isRelevantTo("C++", cpp))
+        assertTrue(LeoNativeWebSearch.isRelevantTo("C#", csharp))
+        assertFalse(LeoNativeWebSearch.isRelevantTo("C++", csharp))
+        assertTrue(LeoNativeWebSearch.researchQueries("cpp", "C++", false).any { "documentation" in it })
+    }
+
     @Test fun searchSnippetsDoNotCountAsReadAndLearnableEvidence() = runBlocking {
         val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
             if ("bing.com" in url) LeoNativeWebSearch.Fetch("<rss><channel><item><title>Panel solar</title><link>https://energy.example/report</link><description>Un panel solar transforma energía solar en electricidad para alimentar dispositivos.</description></item></channel></rss>", url)

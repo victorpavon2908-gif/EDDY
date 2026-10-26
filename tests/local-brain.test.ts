@@ -14,3 +14,13 @@ for (const [input, type] of [
   ['Leonardo da Vinci','unknown'],
 ]) test(`routing: ${input}`, () => assert.equal(LocalBrain.understand(input).type,type));
 test('wake word does not truncate Leonardo', () => assert.equal(LocalBrain.understand('Leonardo da Vinci').payload?.query,'Leonardo da Vinci'));
+for (const [input, query] of [
+  ['busca en internet paneles solares', 'paneles solares'],
+  ['buscar en Google noticias de Nicaragua', 'noticias de Nicaragua'],
+  ['busca tutoriales de YouTube', 'tutoriales de YouTube'],
+  ['investiga Spotify', 'Spotify'],
+]) test(`explicit search query: ${input}`, () => {
+  const command = LocalBrain.understand(input);
+  assert.equal(command.type, 'search_web');
+  assert.equal(command.payload.query, query);
+});

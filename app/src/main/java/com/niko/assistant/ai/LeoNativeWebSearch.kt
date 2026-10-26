@@ -59,7 +59,7 @@ object LeoNativeWebSearch {
                 }
             } }
         }
-        if (reply?.webUsed == true) return reply
+        if (reply != null && (reply.webUsed || reply.sources.isNotEmpty())) return reply
         val failure = synchronized(observations) { failureMessage(observations.toList()) }
         return if (failure != null) NikoAiReply(failure, false, reply?.sources.orEmpty())
             else reply ?: NikoAiReply("La investigación agotó su tiempo. Podés reintentar o pasarme un enlace público para leerlo.", false, emptyList())
@@ -675,7 +675,7 @@ object LeoNativeWebSearch {
         return BOILERPLATE.any(value::contains)
     }
 
-    private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+    private fun normalize(value: String): String = Normalizer.normalize(value.replace("C++", "cpp", true).replace("C#", "csharp", true).lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace(Regex("\\p{Mn}+"), "")
         .replace(Regex("[^a-z0-9ñ ]+"), " ")
         .replace(Regex("\\s+"), " ")
