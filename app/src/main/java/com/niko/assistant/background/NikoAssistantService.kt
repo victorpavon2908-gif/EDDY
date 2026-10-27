@@ -273,6 +273,12 @@ open class NikoAssistantService : Service() {
             ACTION_HIDE_BUBBLE -> hideBubble()
             ACTION_REFRESH_BUBBLE -> { hideBubble(); showBubble() }
             ACTION_RESET_BUBBLE -> resetBubblePosition()
+            ACTION_SUBMIT_COMMAND -> {
+                val command = intent.getStringExtra(EXTRA_COMMAND_TEXT)?.trim()
+                if (!command.isNullOrBlank()) {
+                    serviceScope.launch { submitCommand(command) }
+                }
+            }
         }
         if (!foregroundReady) { stopSelf(); return START_NOT_STICKY }
         if (!voiceRequested && intent?.action != ACTION_START) {
@@ -1358,14 +1364,17 @@ open class NikoAssistantService : Service() {
         val finalText = reply.text
         val evidenceNote = if (reply.webUsed) AutonomousResearch.evidenceNote(reply.sources.map { it.url }) else ""
         val displayed = if (evidenceNote.isBlank()) finalText else "$finalText\n\n$evidenceNote"
-        NikoRuntimeState.setAiResponse(applicationContext, displayed, reply.webUsed, reply.sources)
+        NikoRuntimeState.setAiResponse(applicationContext, displayed, reply.webUsed, reply.sources, reply.suggestions)
         val spokenText = (reply.spokenText ?: finalText)
             .replace(Regex("\\s*\\[\\d+\\]"), "")
             .replace(Regex("\\s+"), " ")
             .trim()
         val voiceStyle = withContext(Dispatchers.IO) { memory.responseStyle() }
         agent.turns.checkpoint()
-        speakOnly(com.niko.assistant.ai.LeoDialoguePolicy.researchSpeech(spokenText.ifBlank { finalText }, voiceStyle))
+        val emotionalProsody = neuralCore.emotionalHeart.currentEmotion?.let {
+            SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it))
+        } ?: replyProsody
+        speakOnly(com.niko.assistant.ai.LeoDialoguePolicy.researchSpeech(spokenText.ifBlank { finalText }, voiceStyle), prosody = emotionalProsody)
         recordLearningReply(finalText)
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }
     }
@@ -1375,11 +1384,14 @@ open class NikoAssistantService : Service() {
         LeoVoiceDiagnostics.recordResponseText()
         agent.conversation.reply(NikoAiReply(text, false, emptyList()))
         NikoRuntimeState.setResponse(applicationContext, text)
-        speakOnly(text)
+        val emotionalProsody = neuralCore.emotionalHeart.currentEmotion?.let {
+            SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it))
+        } ?: replyProsody
+        speakOnly(text, prosody = emotionalProsody)
         recordLearningReply(text)
         withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }
     }
-    private fun speakOnly(text: String, continueCommand: Boolean = false) {
+    private fun speakOnly(text: String, continueCommand: Boolean = false, prosody: SpeechProsody = replyProsody) {
         if (text.isBlank() || destroyed) return
         conversationWindowJob?.cancel()
         continueAfterSpeech = continueCommand || NikoAiSettings.companionInitiative(applicationContext)
@@ -1415,7 +1427,7 @@ open class NikoAssistantService : Service() {
         }
 
         NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
-        val queued = runCatching { platformTts.speak(text, replyProsody) }.getOrDefault(false)
+        val queued = runCatching { platformTts.speak(text, prosody) }.getOrDefault(false)
         if (queued) {
             NikoRuntimeState.setVoiceReady(applicationContext, true)
         } else {
@@ -1539,5 +1551,15 @@ open class NikoAssistantService : Service() {
         const val ACTION_HIDE_BUBBLE = UpgradeIdentity.ACTION_HIDE_BUBBLE
         const val ACTION_REFRESH_BUBBLE = UpgradeIdentity.ACTION_REFRESH_BUBBLE
         const val ACTION_RESET_BUBBLE = UpgradeIdentity.ACTION_RESET_BUBBLE
+        const val ACTION_SUBMIT_COMMAND = "com.eddy.assistant.SUBMIT_COMMAND"
+        const val EXTRA_COMMAND_TEXT = "command_text"
+
+        fun submitCommand(context: Context, command: String) {
+            val intent = UpgradeIdentity.assistantService(context).apply {
+                action = ACTION_SUBMIT_COMMAND
+                putExtra(EXTRA_COMMAND_TEXT, command)
+            }
+            runCatching { androidx.core.content.ContextCompat.startForegroundService(context, intent) }
+        }
     }
 }

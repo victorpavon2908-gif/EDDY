@@ -340,6 +340,10 @@ class MainActivity : ComponentActivity() {
                             webSearching = snapshot.webSearching,
                             webUsed = snapshot.webUsed,
                             webSources = snapshot.webSources,
+                            suggestions = snapshot.suggestions,
+                            onSuggestionClick = { suggestion ->
+                                NikoAssistantService.submitCommand(applicationContext, suggestion)
+                            },
                             onTools = { NikoUiModeStore.set(applicationContext, NikoUiMode.TOOLBOX) },
                         )
                         // Stable offline status and diagnostics live in Settings; show only active work here.

@@ -93,6 +93,8 @@ internal fun NikoReferenceScreen(
     webSources: List<NikoWebSource> = emptyList(),
     inputStatus: String = "",
     webSearching: Boolean = false,
+    suggestions: List<String> = emptyList(),
+    onSuggestionClick: (String) -> Unit = {},
     onTools: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -152,6 +154,7 @@ internal fun NikoReferenceScreen(
             ConversationGlass(
                 state = displayState, heardText = heardText, responseText = responseText,
                 webUsed = webUsed, webSearching = webSearching, sources = webSources,
+                suggestions = suggestions, onSuggestionClick = onSuggestionClick,
             )
             Spacer(Modifier.height(12.dp))
             QuickActionsRail()
@@ -274,6 +277,8 @@ private fun ConversationGlass(
     webUsed: Boolean,
     webSearching: Boolean,
     sources: List<NikoWebSource>,
+    suggestions: List<String> = emptyList(),
+    onSuggestionClick: (String) -> Unit = {},
 ) {
     val uriHandler = LocalUriHandler.current
     var showFullResponse by remember { mutableStateOf(false) }
@@ -384,6 +389,33 @@ private fun ConversationGlass(
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                 color = Color(0xFF687670),
                                 fontSize = 12.sp,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+
+            AnimatedVisibility(suggestions.isNotEmpty() && state != NikoVisualState.LISTENING && state != NikoVisualState.THINKING) {
+                Row(
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    suggestions.forEach { suggestion ->
+                        Surface(
+                            modifier = Modifier.clickable { onSuggestionClick(suggestion) },
+                            shape = RoundedCornerShape(100.dp),
+                            color = Color(0xFFE8F5E9),
+                            border = BorderStroke(1.dp, Color(0xFF81C784)),
+                        ) {
+                            Text(
+                                text = "💬 $suggestion",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                color = Color(0xFF1B5E20),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                             )
                         }

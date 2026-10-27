@@ -112,6 +112,7 @@ class LeoNeuralCore(
                     NikoAiReply(it, false, emptyList())
                 }
                 ?: code.reply(request.message)
+                ?: findDistilledAnswer(request.message)
                 ?: reasoning.reply(request, ResilientKnowledge(knowledge)).also { produced ->
                     if (produced.webUsed && produced.text.isNotBlank()) {
                         timeline.distillKnowledge(request.message, produced.text)
@@ -125,6 +126,27 @@ class LeoNeuralCore(
         turns.checkpoint()
         return answer
     }
+    private fun findDistilledAnswer(query: String): NikoAiReply? {
+        if (com.niko.assistant.brain.WebQueryRouter.needsRecentInformation(query)) return null
+        if (com.niko.assistant.brain.WebQueryRouter.explicitQuery(query) != null) return null
+        if (com.niko.assistant.ai.AutonomousResearch.offlineOnly(query)) return null
+        if (query.trim().length < 4) return null
+        val hits = rag.search(query, topK = 1)
+        val best = hits.firstOrNull() ?: return null
+        if (best.chunk.docId.startsWith("distilled_") && best.score >= 0.72) {
+            val cleanSnippet = best.chunk.text.trim()
+            val spoken = "Según mis registros locales: ${com.niko.assistant.ai.LeoNativeWebSearch.buildSpokenSummary(cleanSnippet) ?: cleanSnippet}"
+            return NikoAiReply(
+                text = "📌 **Memoria Local (Ficha Destilada):**\n\n$cleanSnippet\n\n*(Recuperado al instante desde tu base vectorial local)*",
+                webUsed = false,
+                sources = emptyList(),
+                spokenText = spoken,
+                suggestions = listOf("Buscar versión actualizada en la red", "Profundizar en este tema"),
+            )
+        }
+        return null
+    }
+
     /** A failed optional producer must not abort the whole turn; cancellation always wins. */
     private inner class ResilientKnowledge(private val source: Knowledge) : Knowledge {
         private suspend fun <T> attempt(block: suspend () -> T): T? {

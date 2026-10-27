@@ -25,6 +25,7 @@ object NikoRuntimeState {
     private const val KEY_SEARCHING = "searching"
     private const val KEY_WEB_USED = "web_used"
     private const val KEY_WEB_SOURCES = "web_sources"
+    private const val KEY_SUGGESTIONS = "suggestions"
     private const val KEY_BRAIN_STATE = "brain_state"
     private const val KEY_BRAIN_PROGRESS = "brain_progress"
     private const val KEY_BRAIN_STATUS = "brain_status"
@@ -55,6 +56,7 @@ object NikoRuntimeState {
         val webSearching: Boolean = false,
         val webUsed: Boolean = false,
         val webSources: List<NikoWebSource> = emptyList(),
+        val suggestions: List<String> = emptyList(),
         val brainState: BrainState = BrainState.WAITING,
         val brainProgress: Int = 0,
         val brainStatus: String = "Cerebro local pendiente",
@@ -119,6 +121,7 @@ object NikoRuntimeState {
             webSearching = prefs.getBoolean(KEY_SEARCHING, false),
             webUsed = prefs.getBoolean(KEY_WEB_USED, false),
             webSources = decodeSources(prefs.getString(KEY_WEB_SOURCES, "[]").orEmpty()),
+            suggestions = decodeSuggestions(prefs.getString(KEY_SUGGESTIONS, "[]").orEmpty()),
             brainState = brainState,
             brainProgress = prefs.getInt(KEY_BRAIN_PROGRESS, if (brainState == BrainState.READY) 100 else 0).coerceIn(0, 100),
             brainStatus = LeoBrand.publicText(
@@ -229,7 +232,7 @@ object NikoRuntimeState {
     /** Token previews stay in memory. Persist the completed answer once, not every token. */
     fun previewResponse(value: String) {
         _stateFlow.value = _stateFlow.value.copy(
-            responseText = LeoBrand.publicText(value), webUsed = false, webSources = emptyList(),
+            responseText = LeoBrand.publicText(value), webUsed = false, webSources = emptyList(), suggestions = emptyList(),
         )
     }
 
@@ -239,11 +242,13 @@ object NikoRuntimeState {
             putString(KEY_RESPONSE, publicValue)
             putBoolean(KEY_WEB_USED, false)
             putString(KEY_WEB_SOURCES, "[]")
+            putString(KEY_SUGGESTIONS, "[]")
         }
         _stateFlow.value = _stateFlow.value.copy(
             responseText = publicValue,
             webUsed = false,
             webSources = emptyList(),
+            suggestions = emptyList(),
         )
         publishExternal(context)
     }
@@ -253,17 +258,20 @@ object NikoRuntimeState {
         value: String,
         webUsed: Boolean,
         sources: List<NikoWebSource>,
+        suggestions: List<String> = emptyList(),
     ) {
         val publicValue = LeoBrand.publicText(value)
         edit(context) {
             putString(KEY_RESPONSE, publicValue)
             putBoolean(KEY_WEB_USED, webUsed)
             putString(KEY_WEB_SOURCES, encodeSources(sources))
+            putString(KEY_SUGGESTIONS, encodeSuggestions(suggestions))
         }
         _stateFlow.value = _stateFlow.value.copy(
             responseText = publicValue,
             webUsed = webUsed,
             webSources = sources,
+            suggestions = suggestions,
         )
         publishExternal(context)
     }
@@ -282,6 +290,7 @@ object NikoRuntimeState {
             putString(KEY_VOICE_STATUS, "Voz en pausa")
             putBoolean(KEY_WEB_USED, false)
             putString(KEY_WEB_SOURCES, "[]")
+            putString(KEY_SUGGESTIONS, "[]")
             // Brain state intentionally survives a voice/service reset: the frozen brain is
             // independent persistent storage and a partial download can resume next launch.
         }
@@ -297,6 +306,7 @@ object NikoRuntimeState {
             voiceStatus = "Voz en pausa",
             webUsed = false,
             webSources = emptyList(),
+            suggestions = emptyList(),
         )
         publishExternal(context)
     }
@@ -313,6 +323,7 @@ object NikoRuntimeState {
         .put("searching", snapshot.webSearching)
         .put("webUsed", snapshot.webUsed)
         .put("webSources", encodeSources(snapshot.webSources))
+        .put("suggestions", encodeSuggestions(snapshot.suggestions))
         .put("brainState", snapshot.brainState.name)
         .put("brainProgress", snapshot.brainProgress)
         .put("brainStatus", snapshot.brainStatus)
@@ -334,6 +345,7 @@ object NikoRuntimeState {
             webSearching = json.optBoolean("searching"),
             webUsed = json.optBoolean("webUsed"),
             webSources = decodeSources(json.optString("webSources", "[]")),
+            suggestions = decodeSuggestions(json.optString("suggestions", "[]")),
             brainState = BrainState.valueOf(json.optString("brainState", BrainState.WAITING.name)),
             brainProgress = json.optInt("brainProgress", 0).coerceIn(0, 100),
             brainStatus = json.optString("brainStatus", "Cerebro local pendiente"),
@@ -367,6 +379,22 @@ object NikoRuntimeState {
                         url = url,
                     )
                 )
+            }
+        }
+    }.getOrDefault(emptyList())
+
+    private fun encodeSuggestions(suggestions: List<String>): String {
+        val array = JSONArray()
+        suggestions.take(12).forEach { array.put(it) }
+        return array.toString()
+    }
+
+    private fun decodeSuggestions(raw: String): List<String> = runCatching {
+        val array = JSONArray(raw.ifBlank { "[]" })
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optString(index).trim()
+                if (item.isNotBlank()) add(item)
             }
         }
     }.getOrDefault(emptyList())

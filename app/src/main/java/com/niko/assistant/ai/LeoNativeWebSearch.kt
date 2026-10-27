@@ -181,6 +181,7 @@ object LeoNativeWebSearch {
             sources = sources,
             evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
             spokenText = buildSpokenSummary(finalText),
+            suggestions = generateSuggestions(cleanQuery, subject),
             passages = cited.mapIndexed { index, hit -> NikoRetrievedPassage(index + 1, hit.articleText.take(1500), hit.articleText.isNotBlank()) },
             researchContext = cited.mapIndexed { index, hit ->
                 buildString {
@@ -197,6 +198,38 @@ object LeoNativeWebSearch {
         "No pude obtener fuentes útiles sobre $subject. Puede fallar la conexión o el buscador; no voy a darte páginas ajenas al tema.",
         false, emptyList(),
     )
+
+    internal fun generateSuggestions(query: String, subject: String): List<String> {
+        val q = normalize(query).lowercase()
+        val subj = subject.trim().replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
+        return when {
+            Regex("\\b(?:quien fue|quien es|biografia|vida de|nacio|murio)\\b").containsMatchIn(q) -> listOf(
+                "¿Cuáles fueron sus mayores logros?",
+                "¿Dónde nació y cómo inició?",
+                "Datos curiosos sobre $subj",
+            )
+            Regex("\\b(?:que es|como funciona|para que sirve|definicion|significa)\\b").containsMatchIn(q) -> listOf(
+                "¿Cómo funciona en la práctica?",
+                "¿Cuáles son sus ventajas y desventajas?",
+                "Ejemplos comunes de $subj",
+            )
+            Regex("\\b(?:noticias|noticia|hoy|actualidad|paso con|suceso)\\b").containsMatchIn(q) -> listOf(
+                "¿Qué repercusiones tiene esto?",
+                "¿Qué dicen las fuentes principales?",
+                "Actualizaciones recientes sobre $subj",
+            )
+            Regex("\\b(?:precio|cuanto cuesta|valor|comprar)\\b").containsMatchIn(q) -> listOf(
+                "¿Vale la pena comprarlo?",
+                "Alternativas recomendadas",
+                "Comparativa de modelos o precios",
+            )
+            else -> listOf(
+                "¿Podés profundizar más en este tema?",
+                "Puntos clave de $subj",
+                "¿Qué origen o historia tiene?",
+            )
+        }
+    }
 
     internal fun isWeatherQuery(query: String): Boolean {
         val q = normalize(query)
@@ -264,6 +297,11 @@ object LeoNativeWebSearch {
                 sources = listOf(NikoWebSource("[1] Servicio Meteorológico (wttr.in)", "https://wttr.in/$encoded")),
                 evidence = "Datos meteorológicos en tiempo real consultados vía wttr.in.",
                 spokenText = eddySpeech,
+                suggestions = listOf(
+                    "¿Va a llover hoy en $cityCap?",
+                    "Pronóstico para mañana en $cityCap",
+                    "Humedad y sensación térmica en $cityCap",
+                ),
                 passages = listOf(NikoRetrievedPassage(1, "Clima actual en $cityCap: $tempC°C, $condition, humedad $humidity%, viento $wind km/h.", true)),
                 researchContext = "CLIMA $cityCap: $tempC°C, $condition, humedad $humidity%, viento $wind km/h.",
             )

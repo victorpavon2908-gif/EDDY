@@ -21,6 +21,10 @@ data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
             }
         }
 
+        fun fromExpressive(expressive: com.niko.assistant.cognitive.LeoEddyPersona.ExpressiveProsody): SpeechProsody {
+            return SpeechProsody(speed = expressive.rateMultiplier, pitch = expressive.pitchMultiplier)
+        }
+
         /** Prefer sentence/word boundaries over arbitrary character cuts for long replies. */
         fun chunks(text: String, limit: Int): List<String> {
             require(limit > 0)

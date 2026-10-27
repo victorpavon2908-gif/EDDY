@@ -75,6 +75,9 @@ class LeoEmotionalHeart(private val maxHistory: Int = 12) {
         return "${state.empatheticPrefix} $baseReply"
     }
 
+    val currentEmotion: Emotion?
+        @Synchronized get() = history.lastOrNull()
+
     @Synchronized
     fun currentMoodSummary(): String {
         val last = history.lastOrNull() ?: return "Neutral y atento"

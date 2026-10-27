@@ -17,4 +17,6 @@ data class NikoAiReply(
     /** Optional narration for non-speech artifacts such as source code. */
     val spokenText: String? = null,
     val passages: List<NikoRetrievedPassage> = emptyList(),
+    /** Preguntas de seguimiento o sugerencias interactivas mostradas al usuario. */
+    val suggestions: List<String> = emptyList(),
 )
