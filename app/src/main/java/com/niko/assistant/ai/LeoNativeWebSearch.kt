@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
 import org.json.JSONObject
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
@@ -65,12 +66,16 @@ object LeoNativeWebSearch {
             else reply ?: NikoAiReply("La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público.", false, emptyList())
     }
 
-    internal fun failureMessage(events: List<FetchDiagnostic>): String? = when {
-        events.any { it.status == 429 } -> "Un buscador limitó las consultas y no obtuve evidencia suficiente. Probá más tarde o pasame un enlace público."
-        events.any { it.status == 403 } -> "Un sitio rechazó el acceso y no obtuve evidencia suficiente. Podés pasarme otra fuente pública; no voy a saltarme ese bloqueo."
-        events.any { it.failure == "SocketTimeoutException" } -> "La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público."
-        events.any { it.failure == "UnknownHostException" || it.failure == "ConnectException" } -> "No pude conectar con las fuentes. Revisá la conexión o probá con un enlace público cuando vuelva Internet."
-        else -> null
+        internal fun failureMessage(events: List<FetchDiagnostic>): String? {
+        if (events.isEmpty()) return null
+        if (events.any { it.status in 200..299 }) return null
+        return when {
+            events.all { it.status == 429 } -> "Un buscador limitó las consultas y no obtuve evidencia suficiente. Probá más tarde o pasame un enlace público."
+            events.all { it.status == 403 } -> "Un sitio rechazó el acceso y no obtuve evidencia suficiente. Podés pasarme otra fuente pública; no voy a saltarme ese bloqueo."
+            events.any { it.failure == "SocketTimeoutException" } -> "La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público."
+            events.any { it.failure == "UnknownHostException" || it.failure == "ConnectException" } -> "No pude conectar con las fuentes. Revisá la conexión o probá con un enlace público cuando vuelva Internet."
+            else -> null
+        }
     }
 
     /** Injectable transport exercises discovery, redirects, filtering and summary together. */
@@ -103,7 +108,7 @@ object LeoNativeWebSearch {
         val researchQueries = researchQueries(subject, cleanQuery, current)
         val hits = linkedMapOf<String, Hit>()
 
-        // 3. Descubrimiento federado soberano (Wikipedia + DDG Lite + Bing + DDG/Google News)
+        // 3. Descubrimiento federado soberano (Wikipedia + DDG Lite/API + Bing + DDG/Google News)
         val discovered = coroutineScope {
             val base = listOf(
                 async { searchWikipedia(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
@@ -150,9 +155,9 @@ object LeoNativeWebSearch {
                     url = page?.finalUrl ?: original.url,
                     publisher = hostOf(page?.finalUrl ?: original.url).ifBlank { original.publisher },
                     rank = index,
-                    articleText = usefulArticle,
-                    steps = if (usefulArticle.isNotBlank()) extractSteps(page?.body.orEmpty()) else emptyList(),
-                    code = if (usefulArticle.isNotBlank()) extractCode(page?.body.orEmpty()) else "",
+                    articleText = usefulArticle.ifBlank { original.articleText },
+                    steps = if (usefulArticle.isNotBlank()) extractSteps(page?.body.orEmpty()) else original.steps,
+                    code = if (usefulArticle.isNotBlank()) extractCode(page?.body.orEmpty()) else original.code,
                 )
             } }.awaitAll().filterNotNull().distinctBy(::hitKey)
         }
@@ -311,9 +316,44 @@ object LeoNativeWebSearch {
     internal suspend fun searchWikipedia(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://es.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=$encoded&gsrlimit=3&prop=extracts|info&inprop=url&exintro=1&explaintext=1&exsentences=4&format=json"
-        val jsonStr = fetch(url, "application/json", 150_000)?.body ?: return emptyList()
-        return parseWikipedia(jsonStr)
+        val jsonStr = fetch(url, "application/json", 150_000)?.body
+        val generatorHits = if (!jsonStr.isNullOrBlank()) parseWikipedia(jsonStr) else emptyList()
+        if (generatorHits.isNotEmpty()) return generatorHits
+
+        val openSearchUrl = "https://es.wikipedia.org/w/api.php?action=opensearch&search=$encoded&limit=3&namespace=0&format=json"
+        val openSearchJson = fetch(openSearchUrl, "application/json", 80_000)?.body
+        return if (!openSearchJson.isNullOrBlank()) parseWikipediaOpenSearch(openSearchJson, fetch) else emptyList()
     }
+
+    internal suspend fun parseWikipediaOpenSearch(jsonStr: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> = runCatching {
+        if (jsonStr.isBlank()) return emptyList()
+        val array = JSONArray(jsonStr)
+        if (array.length() < 4) return emptyList()
+        val titles = array.optJSONArray(1) ?: return emptyList()
+        val urls = array.optJSONArray(3) ?: return emptyList()
+        val hits = mutableListOf<Hit>()
+        for (i in 0 until minOf(titles.length(), 3)) {
+            val title = titles.optString(i, "")
+            val url = urls.optString(i, "")
+            if (title.isBlank() || url.isBlank()) continue
+            val summaryUrl = "https://es.wikipedia.org/api/rest_v1/page/summary/${URLEncoder.encode(title.replace(' ', '_'), "UTF-8")}"
+            val summaryJson = fetch(summaryUrl, "application/json", 100_000)?.body
+            val extract = if (!summaryJson.isNullOrBlank()) {
+                JSONObject(summaryJson).optString("extract", "").let(::htmlToText).trim()
+            } else ""
+            if (extract.length >= 20) {
+                hits += Hit(
+                    title = "$title - Wikipedia",
+                    url = url,
+                    snippet = extract.take(900),
+                    publisher = "Wikipedia",
+                    rank = i,
+                    articleText = extract.take(MAX_ARTICLE_TEXT),
+                )
+            }
+        }
+        hits
+    }.getOrDefault(emptyList())
 
     internal fun parseWikipedia(jsonStr: String): List<Hit> {
         if (jsonStr.isBlank()) return emptyList()
@@ -349,9 +389,57 @@ object LeoNativeWebSearch {
     internal suspend fun searchDuckDuckGoLite(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://lite.duckduckgo.com/lite/?q=$encoded"
-        val html = fetch(url, HTML_ACCEPT, SEARCH_HTML_LIMIT)?.body ?: return emptyList()
-        return parseDuckDuckGoLite(html)
+        val html = fetch(url, HTML_ACCEPT, SEARCH_HTML_LIMIT)?.body
+        val liteHits = if (!html.isNullOrBlank()) parseDuckDuckGoLite(html) else emptyList()
+        if (liteHits.isNotEmpty()) return liteHits
+
+        return searchDuckDuckGoApi(query, fetch)
     }
+
+    internal suspend fun searchDuckDuckGoApi(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
+        val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
+        val url = "https://api.duckduckgo.com/?q=$encoded&format=json&no_html=1&skip_disambig=1"
+        val jsonStr = fetch(url, "application/json", 150_000)?.body ?: return emptyList()
+        return parseDuckDuckGoApi(jsonStr)
+    }
+
+    internal fun parseDuckDuckGoApi(jsonStr: String): List<Hit> = runCatching {
+        if (jsonStr.isBlank()) return emptyList()
+        val root = JSONObject(jsonStr)
+        val hits = mutableListOf<Hit>()
+        val abstractText = root.optString("AbstractText", "").trim()
+        val heading = root.optString("Heading", "").trim()
+        val abstractUrl = root.optString("AbstractURL", "").trim()
+        val source = root.optString("AbstractSource", "DuckDuckGo")
+        if (abstractText.length >= 20 && abstractUrl.isNotBlank() && safePublicUrl(abstractUrl)) {
+            hits += Hit(
+                title = if (heading.isNotBlank()) "$heading - $source" else "DuckDuckGo: $heading",
+                url = abstractUrl,
+                snippet = abstractText.take(900),
+                publisher = source,
+                rank = 0,
+                articleText = abstractText.take(MAX_ARTICLE_TEXT),
+            )
+        }
+        val related = root.optJSONArray("RelatedTopics")
+        if (related != null) {
+            for (i in 0 until minOf(related.length(), 4)) {
+                val item = related.optJSONObject(i) ?: continue
+                val text = item.optString("Text", "").trim()
+                val firstUrl = item.optString("FirstURL", "").trim()
+                if (text.length >= 20 && safePublicUrl(firstUrl)) {
+                    hits += Hit(
+                        title = text.take(60),
+                        url = firstUrl,
+                        snippet = text.take(900),
+                        publisher = hostOf(firstUrl).ifBlank { "DuckDuckGo" },
+                        rank = hits.size,
+                    )
+                }
+            }
+        }
+        hits
+    }.getOrDefault(emptyList())
 
     internal fun parseDuckDuckGoLite(html: String): List<Hit> {
         if (html.isBlank()) return emptyList()
@@ -442,7 +530,7 @@ object LeoNativeWebSearch {
         val titleOverlap = title.intersect(terms).size
         val bodyOverlap = body.intersect(terms).size
         val coverage = bodyOverlap.toDouble() / terms.size
-        if (bodyOverlap == 0 || (terms.size > 1 && (bodyOverlap < 2 || coverage < 0.5))) return 0.0
+        if (bodyOverlap == 0 || (terms.size == 2 && bodyOverlap < 2) || (terms.size > 2 && bodyOverlap < 2 && titleOverlap == 0)) return 0.0
         return titleOverlap * 2.5 + bodyOverlap * 1.5 + coverage * 2.0
     }
 
@@ -491,7 +579,7 @@ object LeoNativeWebSearch {
 
     internal suspend fun searchGoogleNews(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
-        val url = "https://news.google.com/rss/search?q=$encoded&hl=es-419&gl=NI&ceid=NI:es-419"
+        val url = "https://news.google.com/rss/search?q=$encoded&hl=es-419&gl=US&ceid=US:es-419"
         val xml = fetch(url, RSS_ACCEPT, RSS_LIMIT)?.body ?: return emptyList()
         return parseRss(xml, "Google News")
     }
@@ -499,8 +587,10 @@ object LeoNativeWebSearch {
     internal suspend fun searchDuckDuckGo(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://html.duckduckgo.com/html/?q=$encoded"
-        val html = fetch(url, HTML_ACCEPT, SEARCH_HTML_LIMIT)?.body ?: return emptyList()
-        return parseDuckDuckGo(html)
+        val html = fetch(url, HTML_ACCEPT, SEARCH_HTML_LIMIT)?.body
+        val hits = if (!html.isNullOrBlank()) parseDuckDuckGo(html) else emptyList()
+        if (hits.isNotEmpty()) return hits
+        return searchDuckDuckGoApi(query, fetch)
     }
 
     internal fun parseDuckDuckGo(html: String): List<Hit> = DDG_BLOCK.findAll(html).mapIndexedNotNull { index, block ->
@@ -945,6 +1035,7 @@ object LeoNativeWebSearch {
         "leo", "que", "ha", "han", "pasado", "pasa", "paso", "esta", "ahora", "mismo",
         "ultimas", "ultima", "noticias", "dime", "decime", "cuentame", "contame", "hablame", "sobre", "del", "de", "el",
         "la", "los", "las", "con", "por", "favor", "quiero", "saber", "busca", "buscame", "internet",
+        "quien", "quienes", "cual", "cuales", "donde", "cuando", "fue", "es", "era", "ser",
     )
     private val STOP_WORDS = setOf(
         "que", "como", "para", "por", "con", "una", "uno", "unos", "unas", "del", "las", "los", "este", "esta", "esto", "ese", "esa",
@@ -957,8 +1048,8 @@ object LeoNativeWebSearch {
     private const val PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.8,text/plain;q=0.7,*/*;q=0.2"
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Mobile Safari/537.36 LEO/1.0"
     private const val SEARCH_BUDGET_MS = 28_000L
-    private const val CONNECT_TIMEOUT_MS = 4_000
-    private const val READ_TIMEOUT_MS = 4_000
+    private const val CONNECT_TIMEOUT_MS = 6_000
+    private const val READ_TIMEOUT_MS = 6_000
     private const val MAX_QUERY_CHARS = 500
     private const val MAX_RESEARCH_QUERIES = 3
     private const val MAX_RESULTS = 8
