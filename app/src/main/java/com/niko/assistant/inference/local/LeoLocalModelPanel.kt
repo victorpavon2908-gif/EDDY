@@ -154,7 +154,7 @@ fun LeoLocalModelPanel() {
             }
 
             Text(
-                text = "Modelos oficiales Qwen3 Apache 2.0 en tu teléfono. No requieren clave ni conexión una vez descargados. Todo el contexto permanece privado en tu dispositivo.",
+                text = "Modelos Transformer locales (Google Gemma 2 y Qwen3) 100% offline en tu teléfono. Cero servidores externos, sin claves ni conexión a internet tras su descarga. Privacidad absoluta.",
                 color = PanelTextSecondary,
                 fontSize = 12.5.sp,
                 lineHeight = 18.sp,
@@ -191,7 +191,11 @@ fun LeoLocalModelPanel() {
                             Spacer(Modifier.width(6.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (option == LeoLocalModelCatalog.compact) "Qwen3 1.7B · Compacto y Rápido" else "Qwen3 4B · Máxima Capacidad",
+                                    text = when (option) {
+                                        LeoLocalModelCatalog.compact -> "Qwen3 1.7B · Compacto y Rápido"
+                                        LeoLocalModelCatalog.gemma -> "Google Gemma 2 2B · Transformer DeepMind"
+                                        else -> "Qwen3 4B · Máxima Capacidad"
+                                    },
                                     color = PanelTextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
