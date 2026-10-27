@@ -154,7 +154,7 @@ fun LeoLocalModelPanel() {
             }
 
             Text(
-                text = "Modelos Transformer locales (Google Gemma 2 y Qwen3) 100% offline en tu teléfono. Cero servidores externos, sin claves ni conexión a internet tras su descarga. Privacidad absoluta.",
+                text = "Modelos de arquitectura Transformer (Google Gemma 2 de Google DeepMind y Qwen3). Se ejecutan 100% offline en este teléfono, sin enviar datos a la nube ni requerir claves.",
                 color = PanelTextSecondary,
                 fontSize = 12.5.sp,
                 lineHeight = 18.sp,

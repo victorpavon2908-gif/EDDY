@@ -929,8 +929,9 @@ private fun LeoSettingsScreen(
             // ── SECCIÓN 6: CEREBRO OFFLINE, MODELOS LLM Y MEMORIA SEMÁNTICA ──
             DarkSettingsCard(
                 icon = Icons.Rounded.Memory,
-                title = "Descargas",
-                subtitle = "Modelos y conocimiento para usar sin Internet.",
+                title = "Modelos Transformer de Google y Cerebro Offline",
+                subtitle = "Google Gemma 2 (DeepMind), Qwen3 y enciclopedia 100% sin Internet.",
+                initiallyExpanded = true,
             ) {
                 // Panel de modelos GGUF Qwen3
                 LeoLocalModelPanel()
@@ -1215,9 +1216,10 @@ internal fun DarkSettingsCard(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    initiallyExpanded: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
     var visited by rememberSaveable { mutableStateOf(false) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
