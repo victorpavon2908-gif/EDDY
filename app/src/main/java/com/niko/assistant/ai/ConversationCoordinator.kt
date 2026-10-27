@@ -23,7 +23,7 @@ object ConversationCoordinator {
         if (localFirst) {
             val answer = local()
             if (!answer.isNullOrBlank() && !AutonomousResearch.uncertain(answer)) return localReply(answer)
-            return cloud(mayResearch && answer != null) ?: localReply(answer ?: fallback())
+            return cloud(mayResearch) ?: localReply(answer ?: fallback())
         }
         return cloud(false) ?: localReply(local() ?: fallback())
     }

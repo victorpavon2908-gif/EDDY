@@ -3,6 +3,7 @@ package com.niko.assistant.ai
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
@@ -378,4 +379,92 @@ class LeoNativeWebSearchTest {
         assertEquals(null, LeoNativeWebSearch.failureMessage(emptyList()))
     }
 
+
+    @Test fun weatherQueryParsesLocationAndFormatsSpokenEddyReply() = runBlocking {
+        assertTrue(LeoNativeWebSearch.isWeatherQuery("cómo está el clima en Managua"))
+        assertTrue(LeoNativeWebSearch.isWeatherQuery("qué temperatura hace"))
+        assertEquals("managua", LeoNativeWebSearch.extractWeatherLocation("cómo está el clima en Managua"))
+
+        val wttrJson = """{
+            "current_condition": [{
+                "temp_C": "30",
+                "FeelsLikeC": "32",
+                "humidity": "58",
+                "windspeedKmph": "11",
+                "lang_es": [{"value": "parcialmente nublado"}],
+                "weatherDesc": [{"value": "Partly cloudy"}]
+            }],
+            "weather": [{
+                "maxtempC": "33",
+                "mintempC": "23"
+            }]
+        }"""
+
+        val reply = LeoNativeWebSearch.searchWeather("clima en Managua") { url, _, _ ->
+            LeoNativeWebSearch.Fetch(wttrJson, url)
+        }
+        assertNotNull(reply)
+        assertTrue(reply!!.webUsed)
+        assertTrue(reply.text.contains("30°C"))
+        assertTrue(reply.text.contains("Parcialmente nublado"))
+        assertTrue(reply.spokenText!!.contains("30 grados"))
+        assertTrue(reply.spokenText!!.contains("Managua"))
+        assertFalse(reply.spokenText!!.contains("[1]"))
+    }
+
+    @Test fun wikipediaSearchExtractsCleanSummaryAndArticleText() {
+        val wikiJson = """{
+            "query": {
+                "pages": {
+                    "123": {
+                        "title": "Albert Einstein",
+                        "fullurl": "https://es.wikipedia.org/wiki/Albert_Einstein",
+                        "extract": "Albert Einstein fue un físico alemán conocido principalmente por la teoría de la relatividad.",
+                        "index": 1
+                    }
+                }
+            }
+        }"""
+        val hits = LeoNativeWebSearch.parseWikipedia(wikiJson)
+        assertEquals(1, hits.size)
+        assertEquals("Albert Einstein - Wikipedia", hits[0].title)
+        assertTrue(hits[0].articleText.contains("teoría de la relatividad"))
+        assertEquals("Wikipedia", hits[0].publisher)
+    }
+
+    @Test fun duckDuckGoLiteExtractsUnblockedWebHits() {
+        val html = """
+            <tr>
+              <td>1.</td>
+              <td><a rel="nofollow" href="https://en.wikipedia.org/wiki/Nicaragua" class='result-link'>Nicaragua - Wikipedia</a></td>
+            </tr>
+            <tr>
+              <td></td>
+              <td class='result-snippet'>Nicaragua is a country in Central America.</td>
+            </tr>
+        """
+        val hits = LeoNativeWebSearch.parseDuckDuckGoLite(html)
+        assertEquals(1, hits.size)
+        assertEquals("Nicaragua - Wikipedia", hits[0].title)
+        assertEquals("https://en.wikipedia.org/wiki/Nicaragua", hits[0].url)
+        assertTrue(hits[0].snippet.contains("Central America"))
+    }
+
+    @Test fun eddySpokenSummaryStripsMarkdownAndBrackets() {
+        val markdown = """
+            ### Clima en Managua
+            • **Temperatura:** 30°C
+            • **Condición:** Soleado [1]
+            Para más información visita https://wttr.in
+        """
+        val spoken = LeoNativeWebSearch.buildSpokenSummary(markdown)
+        assertNotNull(spoken)
+        assertFalse(spoken!!.contains("###"))
+        assertFalse(spoken.contains("**"))
+        assertFalse(spoken.contains("[1]"))
+        assertFalse(spoken.contains("https://"))
+        assertFalse(spoken.contains("•"))
+        assertTrue(spoken.contains("Clima en Managua"))
+        assertTrue(spoken.contains("30°C"))
+    }
 }

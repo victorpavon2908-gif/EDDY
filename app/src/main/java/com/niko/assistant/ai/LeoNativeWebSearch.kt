@@ -20,13 +20,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
 
 /**
- * Investigación web nativa de LEO sin API key ni backend propio.
- * Descubre por RSS/HTML público, filtra por el tema real de la pregunta, lee páginas y
- * construye el resumen extractivo localmente. No manda la consulta a una IA remota.
+ * Investigación web nativa de LEO sin API key ni backend propio (100 % soberano).
+ * Consulta Wikipedia, clima en tiempo real (wttr.in), DuckDuckGo Lite y Google News RSS.
+ * Lee páginas y construye resúmenes estructurados y síntesis conversacional para Eddy.
  */
 object LeoNativeWebSearch {
     internal data class Hit(
@@ -40,7 +41,6 @@ object LeoNativeWebSearch {
         val angle: Int = 0,
         val steps: List<String> = emptyList(),
         val code: String = "",
-
     )
 
     internal data class Fetch(val body: String, val finalUrl: String)
@@ -62,7 +62,7 @@ object LeoNativeWebSearch {
         if (reply != null && (reply.webUsed || reply.sources.isNotEmpty())) return reply
         val failure = synchronized(observations) { failureMessage(observations.toList()) }
         return if (failure != null) NikoAiReply(failure, false, reply?.sources.orEmpty())
-            else reply ?: NikoAiReply("La investigación agotó su tiempo. Podés reintentar o pasarme un enlace público para leerlo.", false, emptyList())
+            else reply ?: NikoAiReply("La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público.", false, emptyList())
     }
 
     internal fun failureMessage(events: List<FetchDiagnostic>): String? = when {
@@ -84,18 +84,30 @@ object LeoNativeWebSearch {
             catch (_: Exception) { null }
         }
         val cleanQuery = query.trim().take(MAX_QUERY_CHARS)
-        // Explicit public links can be read even when discovery providers are unavailable.
+
+        // 1. Detección directa de Clima en tiempo real (wttr.in)
+        if (isWeatherQuery(cleanQuery)) {
+            val weatherReply = searchWeather(cleanQuery, fetch)
+            if (weatherReply != null) return@withContext weatherReply
+        }
+
+        // 2. Lectura directa de enlaces explícitos
         val links = Regex("https?://[^\\s<>\"]+").findAll(cleanQuery)
             .map { it.value.trimEnd('.', ',', ')', ']') }.distinct().take(3).toList()
         if (links.isNotEmpty()) return@withContext readLinks(cleanQuery, links, fetch)
+
         val subject = subjectQuery(cleanQuery)
         val terms = subjectTokens(subject)
         if (terms.isEmpty()) return@withContext NikoAiReply("Decime qué tema querés que busque.", false, emptyList())
         val current = WebQueryRouter.needsRecentInformation(cleanQuery)
         val researchQueries = researchQueries(subject, cleanQuery, current)
         val hits = linkedMapOf<String, Hit>()
+
+        // 3. Descubrimiento federado soberano (Wikipedia + DDG Lite + Bing + DDG/Google News)
         val discovered = coroutineScope {
             val base = listOf(
+                async { searchWikipedia(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
+                async { searchDuckDuckGoLite(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
                 async { searchBing(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
                 async {
                     val results = if (current) searchGoogleNews(researchQueries.first(), fetch) else searchDuckDuckGo(researchQueries.first(), fetch)
@@ -115,7 +127,7 @@ object LeoNativeWebSearch {
             (base + facets).awaitAll().flatten()
         }
         discovered.forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
-        // Count useful hits, not login screens or unrelated RSS entries.
+
         if (current && hits.values.count { isRelevantTo(subject, it) } < MIN_RESULTS) {
             searchDuckDuckGo(subject, fetch).forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
         }
@@ -124,22 +136,23 @@ object LeoNativeWebSearch {
 
         val enriched = coroutineScope {
             relevant.mapIndexed { index, original -> async {
+                if (original.articleText.length >= 120) {
+                    return@async original.copy(rank = index)
+                }
                 val page = fetch(original.url, PAGE_ACCEPT, PAGE_LIMIT)
                 if (page != null && (isBlockedPage(page) || !safePublicUrl(page.finalUrl))) return@async null
                 val articleText = page?.body?.let(::extractReadableText).orEmpty()
-                // A changed/redirected page cannot contribute text merely because its RSS title matched.
                 val usefulArticle = articleText.takeIf {
                     isRelevantTo(subject, original.copy(title = "", snippet = it))
                 }.orEmpty()
                 if (articleText.length >= 80 && usefulArticle.isBlank()) return@async null
                 original.copy(
                     url = page?.finalUrl ?: original.url,
-                    publisher = hostOf(page?.finalUrl ?: original.url),
+                    publisher = hostOf(page?.finalUrl ?: original.url).ifBlank { original.publisher },
                     rank = index,
                     articleText = usefulArticle,
                     steps = if (usefulArticle.isNotBlank()) extractSteps(page?.body.orEmpty()) else emptyList(),
                     code = if (usefulArticle.isNotBlank()) extractCode(page?.body.orEmpty()) else "",
-
                 )
             } }.awaitAll().filterNotNull().distinctBy(::hitKey)
         }
@@ -148,7 +161,6 @@ object LeoNativeWebSearch {
         val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, wantsDepth(cleanQuery))
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
-        // Explain the difference between discovered links and articles actually read.
         val readCount = cited.count { it.articleText.isNotBlank() }
         val finalText = if (readCount == 0 && cited.all { it.snippet.isBlank() }) {
             "Encontré enlaces sobre $subject, pero no pude extraer texto de las páginas ni extractos del buscador. Abrí las fuentes o reintentá la búsqueda."
@@ -162,9 +174,9 @@ object LeoNativeWebSearch {
                 append("\n\nAbrí las fuentes para verificar los detalles o volvé a intentar la búsqueda.")
             }
         } else summary.ifBlank { "Encontré enlaces sobre $subject, pero no pude extraer suficiente texto para resumirlos." }
+
         NikoAiReply(
             text = finalText,
-            // Discovery alone is not a delivered, learnable research answer.
             webUsed = summary.isNotBlank() && cited.any { it.articleText.isNotBlank() },
             sources = sources,
             evidence = "Investigación local con ${researchQueries.size} enfoques de consulta y lectura de páginas. Tener varias fuentes no implica que sus afirmaciones estén confirmadas.",
@@ -185,6 +197,142 @@ object LeoNativeWebSearch {
         "No pude obtener fuentes útiles sobre $subject. Puede fallar la conexión o el buscador; no voy a darte páginas ajenas al tema.",
         false, emptyList(),
     )
+
+    internal fun isWeatherQuery(query: String): Boolean {
+        val q = normalize(query)
+        return Regex("\\b(?:clima|tiempo|temperatura|pronostico|va a llover|llovera|esta lloviendo|sensacion termica)\\b").containsMatchIn(q)
+    }
+
+    internal fun extractWeatherLocation(query: String): String {
+        val q = normalize(query)
+            .replace(Regex("^(?:(?:oye|hey|hola)\\s+)?leo\\b[ ,:]*"), "")
+            .replace(Regex("^por favor[ ,]+"), "")
+            .replace(Regex("\\b(?:como esta|que tal|cual es|dime|decime|consulta|averigua|busca|el|la)\\b"), " ")
+            .replace(Regex("\\b(?:clima|tiempo|temperatura|pronostico|hoy|ahora|manana)\\b"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val match = Regex("\\b(?:en|de|para|por)\\s+([a-zñáéíóúü ]{3,30})$").find(q)
+        val city = match?.groupValues?.get(1)?.trim() ?: q.takeIf { it.length in 3..30 && it !in setOf("hoy", "ahora", "manana") }
+        return city?.trim(' ', '.', ',')?.takeIf { it.isNotBlank() } ?: "Managua"
+    }
+
+    internal suspend fun searchWeather(query: String, fetch: suspend (String, String, Int) -> Fetch?): NikoAiReply? {
+        val location = extractWeatherLocation(query)
+        val encoded = URLEncoder.encode(location, Charsets.UTF_8.name())
+        val url = "https://wttr.in/$encoded?format=j1&lang=es"
+        val jsonStr = fetch(url, "application/json", 100_000)?.body ?: return null
+        return runCatching {
+            val root = JSONObject(jsonStr)
+            val current = root.optJSONArray("current_condition")?.optJSONObject(0) ?: return null
+            val tempC = current.optString("temp_C", "--")
+            val feelsLike = current.optString("FeelsLikeC", tempC)
+            val humidity = current.optString("humidity", "--")
+            val wind = current.optString("windspeedKmph", "--")
+            val langEsArr = current.optJSONArray("lang_es")
+            val condition = langEsArr?.optJSONObject(0)?.optString("value")
+                ?: current.optJSONArray("weatherDesc")?.optJSONObject(0)?.optString("value", "despejado")
+                ?: "despejado"
+
+            val weatherArr = root.optJSONArray("weather")
+            val today = weatherArr?.optJSONObject(0)
+            val maxTemp = today?.optString("maxtempC", "") ?: ""
+            val minTemp = today?.optString("mintempC", "") ?: ""
+
+            val cityCap = location.split(' ').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
+
+            val markdown = buildString {
+                appendLine("🌤️ **Clima en $cityCap**")
+                appendLine("• **Temperatura:** ${tempC}°C (Sensación térmica: ${feelsLike}°C)")
+                appendLine("• **Condición:** ${condition.replaceFirstChar(Char::uppercase)}")
+                appendLine("• **Humedad:** $humidity% | **Viento:** $wind km/h")
+                if (maxTemp.isNotBlank() && minTemp.isNotBlank()) {
+                    appendLine("• **Pronóstico de hoy:** Máx ${maxTemp}°C / Mín ${minTemp}°C")
+                }
+            }.trim()
+
+            val eddySpeech = buildString {
+                append("En $cityCap tenemos actualmente $tempC grados con $condition. ")
+                append("La humedad está en $humidity por ciento y el viento a $wind kilómetros por hora. ")
+                if (maxTemp.isNotBlank() && minTemp.isNotBlank()) {
+                    append("La temperatura esperada para hoy oscila entre los $minTemp y los $maxTemp grados.")
+                }
+            }.trim()
+
+            NikoAiReply(
+                text = markdown,
+                webUsed = true,
+                sources = listOf(NikoWebSource("[1] Servicio Meteorológico (wttr.in)", "https://wttr.in/$encoded")),
+                evidence = "Datos meteorológicos en tiempo real consultados vía wttr.in.",
+                spokenText = eddySpeech,
+                passages = listOf(NikoRetrievedPassage(1, "Clima actual en $cityCap: $tempC°C, $condition, humedad $humidity%, viento $wind km/h.", true)),
+                researchContext = "CLIMA $cityCap: $tempC°C, $condition, humedad $humidity%, viento $wind km/h.",
+            )
+        }.getOrNull()
+    }
+
+    internal suspend fun searchWikipedia(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
+        val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
+        val url = "https://es.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=$encoded&gsrlimit=3&prop=extracts|info&inprop=url&exintro=1&explaintext=1&exsentences=4&format=json"
+        val jsonStr = fetch(url, "application/json", 150_000)?.body ?: return emptyList()
+        return parseWikipedia(jsonStr)
+    }
+
+    internal fun parseWikipedia(jsonStr: String): List<Hit> {
+        if (jsonStr.isBlank()) return emptyList()
+        return runCatching {
+            val root = JSONObject(jsonStr)
+            val queryObj = root.optJSONObject("query") ?: return emptyList()
+            val pages = queryObj.optJSONObject("pages") ?: return emptyList()
+            val hits = mutableListOf<Hit>()
+            val keys = pages.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val page = pages.getJSONObject(key)
+                val title = page.optString("title", "").let(::htmlToText).take(220)
+                val fullurl = page.optString("fullurl", "")
+                val extract = page.optString("extract", "").let(::htmlToText).trim()
+                val index = page.optInt("index", 0)
+                val finalUrl = if (fullurl.isNotBlank()) fullurl else "https://es.wikipedia.org/wiki/${URLEncoder.encode(title.replace(' ', '_'), "UTF-8")}"
+                if (title.isNotBlank() && extract.length >= 20) {
+                    hits.add(Hit(
+                        title = "$title - Wikipedia",
+                        url = finalUrl,
+                        snippet = extract.take(900),
+                        publisher = "Wikipedia",
+                        rank = index,
+                        articleText = extract.take(MAX_ARTICLE_TEXT),
+                    ))
+                }
+            }
+            hits.sortedBy { it.rank }
+        }.getOrDefault(emptyList())
+    }
+
+    internal suspend fun searchDuckDuckGoLite(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
+        val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
+        val url = "https://lite.duckduckgo.com/lite/?q=$encoded"
+        val html = fetch(url, HTML_ACCEPT, SEARCH_HTML_LIMIT)?.body ?: return emptyList()
+        return parseDuckDuckGoLite(html)
+    }
+
+    internal fun parseDuckDuckGoLite(html: String): List<Hit> {
+        if (html.isBlank()) return emptyList()
+        val links = DDG_LITE_LINK.findAll(html).toList()
+        val snippets = DDG_LITE_SNIPPET.findAll(html).map { htmlToText(it.groupValues[1]) }.toList()
+        return links.mapIndexedNotNull { index, linkMatch ->
+            val href = HREF_ATTR.find(linkMatch.value)?.groupValues?.get(1)?.let(::decodeSearchUrl) ?: return@mapIndexedNotNull null
+            if (!safePublicUrl(href)) return@mapIndexedNotNull null
+            val title = htmlToText(linkMatch.groupValues[1]).take(220)
+            val snippet = snippets.getOrNull(index)?.take(900).orEmpty()
+            Hit(
+                title = title,
+                url = href,
+                snippet = snippet,
+                publisher = hostOf(href),
+                rank = index,
+            )
+        }.take(MAX_RESULTS * 2)
+    }
 
     internal fun subjectQuery(query: String): String {
         val requested = WebQueryRouter.explicitQuery(query) ?: query
@@ -230,6 +378,13 @@ object LeoNativeWebSearch {
 
     internal fun isRelevantTo(query: String, hit: Hit): Boolean {
         if (!safePublicUrl(hit.url) || isLoginUrl(hit.url) || isBlockedTitle(hit.title)) return false
+        if (hit.publisher.equals("Wikipedia", ignoreCase = true) || hit.url.contains("wikipedia.org")) {
+            val terms = subjectTokens(subjectQuery(query))
+            if (terms.isEmpty()) return true
+            val titleTokens = meaningfulTokens(hit.title).map(::canonicalTerm).toSet()
+            val bodyTokens = meaningfulTokens("${hit.title} ${hit.snippet}").map(::canonicalTerm).toSet()
+            if (titleTokens.intersect(terms).isNotEmpty() || bodyTokens.intersect(terms).isNotEmpty()) return true
+        }
         val terms = subjectTokens(subjectQuery(query))
         return relevanceScore(hit, terms) > 0.0
     }
@@ -249,7 +404,6 @@ object LeoNativeWebSearch {
         val titleOverlap = title.intersect(terms).size
         val bodyOverlap = body.intersect(terms).size
         val coverage = bodyOverlap.toDouble() / terms.size
-        // One generic word (e.g. información) must never validate an unrelated result.
         if (bodyOverlap == 0 || (terms.size > 1 && (bodyOverlap < 2 || coverage < 0.5))) return 0.0
         return titleOverlap * 2.5 + bodyOverlap * 1.5 + coverage * 2.0
     }
@@ -290,21 +444,21 @@ object LeoNativeWebSearch {
             (if (hit.url.startsWith("https://")) 0.2 else 0.0)
     }
 
-    private suspend fun searchBing(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
+    internal suspend fun searchBing(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://www.bing.com/search?format=rss&setlang=es&q=$encoded"
         val xml = fetch(url, RSS_ACCEPT, RSS_LIMIT)?.body ?: return emptyList()
         return parseRss(xml, "Bing")
     }
 
-    private suspend fun searchGoogleNews(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
+    internal suspend fun searchGoogleNews(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://news.google.com/rss/search?q=$encoded&hl=es-419&gl=NI&ceid=NI:es-419"
         val xml = fetch(url, RSS_ACCEPT, RSS_LIMIT)?.body ?: return emptyList()
         return parseRss(xml, "Google News")
     }
 
-    private suspend fun searchDuckDuckGo(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
+    internal suspend fun searchDuckDuckGo(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://html.duckduckgo.com/html/?q=$encoded"
         val html = fetch(url, HTML_ACCEPT, SEARCH_HTML_LIMIT)?.body ?: return emptyList()
@@ -362,13 +516,23 @@ object LeoNativeWebSearch {
             if (isLoginUrl(next)) return Fetch("", next)
             var connection: HttpURLConnection? = null
             try {
-                connection = URL(next).openConnection() as HttpURLConnection
+                val isDuckDuckGoLite = next.startsWith("https://lite.duckduckgo.com/lite/")
+                val targetUri = URI(next)
+                val targetUrl = if (isDuckDuckGoLite) URL("https://lite.duckduckgo.com/lite/") else URL(next)
+                connection = targetUrl.openConnection() as HttpURLConnection
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = minOf(CONNECT_TIMEOUT_MS, remainingMs(deadline).coerceAtLeast(1))
                 connection.readTimeout = minOf(READ_TIMEOUT_MS, remainingMs(deadline).coerceAtLeast(1))
                 connection.setRequestProperty("User-Agent", USER_AGENT)
                 connection.setRequestProperty("Accept", accept)
                 connection.setRequestProperty("Accept-Language", "es-NI,es;q=0.9,en;q=0.7")
+                if (isDuckDuckGoLite) {
+                    val postParams = targetUri.rawQuery.orEmpty()
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                    connection.outputStream.use { out -> out.write(postParams.toByteArray(Charsets.UTF_8)) }
+                }
                 val status = connection.responseCode
                 diagnostic?.invoke(FetchDiagnostic(hostOf(next), status, 0, null))
                 if (status in setOf(301, 302, 303, 307, 308)) {
@@ -377,7 +541,7 @@ object LeoNativeWebSearch {
                 } else {
                     if (status !in 200..299) return null
                     val type = connection.contentType.orEmpty().lowercase(Locale.ROOT)
-                    if (type.isNotBlank() && !listOf("html", "xml", "text/plain").any(type::contains)) return null
+                    if (type.isNotBlank() && !listOf("html", "xml", "json", "text/plain").any(type::contains)) return null
                     val body = connection.inputStream.use { input ->
                         val output = ByteArrayOutputStream(minOf(limit, 64 * 1024))
                         val buffer = ByteArray(8192)
@@ -456,7 +620,6 @@ object LeoNativeWebSearch {
     internal fun extractSteps(html: String): List<String> {
         val clean = html.replace(SCRIPT_STYLE, " ").replace(COMMENTS, " ")
         val article = Regex("(?is)<(?:article|main)\\b[^>]*>(.*?)</(?:article|main)>").find(clean)?.groupValues?.get(1) ?: clean
-        // One ordered list is one procedure: never blend incompatible recipes from different pages.
         return Regex("(?is)<ol\\b[^>]*>(.*?)</ol>").findAll(article).map { list ->
             Regex("(?is)<li\\b[^>]*>(.*?)</li>").findAll(list.groupValues[1])
                 .map { htmlToText(it.groupValues[1]) }.filter { it.length in 12..900 && !looksLikeBoilerplate(it) }.toList()
@@ -466,7 +629,6 @@ object LeoNativeWebSearch {
     internal fun extractCode(html: String): String {
         val clean = html.replace(SCRIPT_STYLE, " ").replace(COMMENTS, " ")
         return Regex("(?is)<pre\\b[^>]*>(.*?)</pre>").findAll(clean).map { block ->
-            // Decode per line so Python indentation and literal newlines remain intact.
             block.groupValues[1].replace(Regex("<[^>]+>"), "")
                 .lineSequence().joinToString("\n") { line ->
                     val indentation = line.takeWhile { it == ' ' || it == '\t' }
@@ -502,8 +664,6 @@ object LeoNativeWebSearch {
         val candidates = mutableListOf<SentenceCandidate>()
         hits.forEachIndexed { sourceIndex, hit ->
             if (!isRelevantTo(query, hit)) return@forEachIndexed
-            // Read the article before the search teaser. Nearby explanatory sentences matter
-            // even when they use pronouns instead of repeating the subject in every sentence.
             val raw = hit.articleText.ifBlank { hit.snippet }.ifBlank { hit.title }
             val sentences = splitSentences(raw).take(MAX_SENTENCES_PER_SOURCE)
             sentences.forEachIndexed sentenceLoop@ { index, sentence ->
@@ -527,7 +687,6 @@ object LeoNativeWebSearch {
             if (selected.sumOf { it.text.length } + candidate.text.length > SUMMARY_LIMIT) return
             selected += candidate
         }
-        // A single verbose result cannot monopolize the answer.
         candidates.groupBy { it.sourceIndex }.values.forEach { group -> group.maxByOrNull { it.score }?.let(::add) }
         candidates.sortedByDescending { it.score }.forEach(::add)
         if (selected.isEmpty()) return ""
@@ -571,7 +730,6 @@ object LeoNativeWebSearch {
         return numbers to polarity
     }
 
-    /** Conservative lexical alert, not an automatic fact checker or proof of contradiction. */
     private fun possibleDiscrepancies(candidates: List<SentenceCandidate>): List<Pair<SentenceCandidate, SentenceCandidate>> {
         val result = mutableListOf<Pair<SentenceCandidate, SentenceCandidate>>()
         for (i in candidates.indices) for (j in i + 1 until candidates.size) {
@@ -604,7 +762,6 @@ object LeoNativeWebSearch {
             } }.awaitAll().filterNotNull().distinctBy(::hitKey)
         }
         if (pages.isEmpty()) return noResults("los enlaces indicados")
-        // URL-only requests use the retrieved title; topic-bearing requests keep their topic filter.
         val topic = requested.takeUnless { subjectTokens(it).all { token -> token in setOf("lee", "leer", "pagina", "resume", "resumi", "explica", "enlace") } }
             ?: pages.first().title
         val answer = practicalAnswer(topic, pages) ?: summarize(topic, pages, false, wantsDepth(query))
@@ -619,13 +776,18 @@ object LeoNativeWebSearch {
     internal fun buildSpokenSummary(summary: String): String? {
         if (summary.isBlank()) return null
         val withoutCode = summary.replace(Regex("```[\\s\\S]*?```"), "Te dejé el código de ejemplo en pantalla.")
-        return withoutCode
+        val cleaned = withoutCode
+            .replace(Regex("(?m)^[ \\t]*#+\\s*"), "")
+            .replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
+            .replace(Regex("\\*([^*]+)\\*"), "$1")
+            .replace(Regex("(?m)^[ \\t]*[•\\-*]\\s*"), "")
             .replace(Regex("\\s*\\[\\d+\\]"), "")
             .replace(Regex("https?://\\S+"), "")
+            .replace(Regex("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+"), "")
             .replace(Regex("\\s+([.,;:!?])"), "$1")
             .replace(Regex("\\s+"), " ")
             .trim()
-            .takeIf { it.isNotBlank() }
+        return cleaned.takeIf { it.isNotBlank() }
     }
 
     private fun splitSentences(text: String): List<String> = text
@@ -642,7 +804,6 @@ object LeoNativeWebSearch {
         .toSet()
 
     private fun similar(a: String, b: String): Boolean {
-        // Similar wording must not erase a changed quantity or reverse a claim's polarity.
         if (claimMarkers(a) != claimMarkers(b)) return false
         val left = meaningfulTokens(a)
         val right = meaningfulTokens(b)
@@ -726,6 +887,9 @@ object LeoNativeWebSearch {
     private val LOGIN_TITLE = Regex("""^(?:inicio de sesion|inicia(?:r)? sesion|inicie sesion|sign in|log in|login|access denied|acceso denegado)(?:\b|$)""")
     private val LOGIN_HOSTS = setOf("accounts.google.com", "account.live.com", "outlook.live.com", "outlook.office.com", "outlook.office365.com")
     private val DDG_SNIPPET = Regex("<(?:a|div)[^>]+class=[\\\"'][^\\\"']*result__snippet[^\\\"']*[\\\"'][^>]*>(.*?)</(?:a|div)>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val DDG_LITE_LINK = Regex("""<a\b[^>]*\bclass=['"][^'"]*result-link[^'"]*['"][^>]*>(.*?)</a>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val DDG_LITE_SNIPPET = Regex("""<td\b[^>]*\bclass=['"][^'"]*result-snippet[^'"]*['"][^>]*>(.*?)</td>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val HREF_ATTR = Regex("""\bhref=['"]([^'"]+)['"]""", RegexOption.IGNORE_CASE)
     private val SCRIPT_STYLE = Regex("<(script|style|noscript|svg)\\b[^>]*>.*?</\\1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val COMMENTS = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
     private val META_TAG = Regex("<meta\\b[^>]*>", RegexOption.IGNORE_CASE)
@@ -739,7 +903,6 @@ object LeoNativeWebSearch {
     )
     private val QUERY_FILLERS = setOf(
         "profundidad", "profundo", "detallado", "detallada", "detalladamente", "exhaustivo", "exhaustiva", "fondo",
-
         "dame", "explicame", "ensename", "ayudame", "necesito", "ayuda", "acerca", "tema", "tal", "cosa", "un", "una", "en", "al",
         "leo", "que", "ha", "han", "pasado", "pasa", "paso", "esta", "ahora", "mismo",
         "ultimas", "ultima", "noticias", "dime", "decime", "cuentame", "contame", "hablame", "sobre", "del", "de", "el",

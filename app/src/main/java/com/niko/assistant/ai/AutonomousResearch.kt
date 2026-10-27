@@ -17,7 +17,7 @@ object AutonomousResearch {
         if (Regex("^(?:hola|buenos dias|buenas tardes|buenas noches|como estas|como te va|que tal|quien sos|quien eres|como te llamas|gracias)\\b").containsMatchIn(text)) return false
         if (WebQueryRouter.explicitQuery(message) != null) return true
         if (Regex("\\b(?:me siento|estoy (?:triste|feliz|cansado|cansada)|me llamo|mi nombre|mi familia|mi contrasena|mi clave)\\b").containsMatchIn(text)) return false
-        return Regex("^(?:explicame|ensenname|ensename|ayudame|necesito ayuda|dame (?:un |una )?(?:ejemplo|receta|codigo|guia)|escribi (?:un |una )?(?:programa|codigo|funcion)|escribe (?:un |una )?(?:programa|codigo|funcion)|programa|implementa|depura|corrige (?:este |el )?codigo)\\b").containsMatchIn(text) ||
+        return Regex("^(?:explicame|ensenname|ensename|cuentame|hablame|dime|ayudame|necesito ayuda|dame (?:un |una )?(?:ejemplo|receta|codigo|guia)|escribi (?:un |una )?(?:programa|codigo|funcion)|escribe (?:un |una )?(?:programa|codigo|funcion)|programa|implementa|depura|corrige (?:este |el )?codigo)\\b").containsMatchIn(text) ||
             WebQueryRouter.needsCurrentInformation(message) ||
             Regex("^(?:que|quien|quienes|cuando|donde|cual|cuales|cuanto|cuantos|como|por que|es cierto|verifica|compar[aá]|recomienda|recomendame)\\b").containsMatchIn(text)
     }
@@ -45,6 +45,7 @@ object AutonomousResearch {
 
     fun evidenceNote(urls: List<String>): String = when {
         urls.isEmpty() -> "No hay fuentes web verificables."
+        urls.any { it.contains("wttr.in") || it.contains("wikipedia.org") } -> ""
         publisherCount(urls) < 2 -> "La diversidad de fuentes no quedó confirmada."
         else -> ""
     }

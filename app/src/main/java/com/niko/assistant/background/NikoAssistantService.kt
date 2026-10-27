@@ -1299,8 +1299,11 @@ open class NikoAssistantService : Service() {
         return try {
             val retrieved = webClient.reply(contextualQuery, "", forceWeb)
             val reply = retrieved?.let { original ->
+                val base = if (original.webUsed && original.spokenText.isNullOrBlank()) {
+                    com.niko.assistant.cognitive.LeoResearchSynthesis.synthesizeLocalExtractive(original, contextualQuery)
+                } else original
                 if (!inferenceSettings.researchAllowed) {
-                    com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(original) { evidence ->
+                    com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(base) { evidence ->
                         agent.turns.checkpoint()
                         val result = com.niko.assistant.inference.local.LeoLocalInferenceClient(applicationContext)
                             .reply(contextualQuery, researchEvidence = evidence)
@@ -1309,8 +1312,8 @@ open class NikoAssistantService : Service() {
                     }
                 } else {
                     val config = withContext(Dispatchers.IO) { inferenceSettings.read() }
-                    if (config == null || !config.research) original else
-                        com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(original, generate@{ evidence ->
+                    if (config == null || !config.research) base else
+                        com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(base, generate@{ evidence ->
                             agent.turns.checkpoint()
                             if (!inferenceSettings.researchAllowed || !inferenceSettings.isCurrent(config)) return@generate null
                             val result = inferenceClient.reply(config.endpoint, config.model, config.key, contextualQuery, evidence)

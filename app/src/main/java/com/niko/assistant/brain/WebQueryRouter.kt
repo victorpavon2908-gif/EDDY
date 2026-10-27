@@ -38,7 +38,7 @@ object WebQueryRouter {
         if (freshnessMarkers.any { Regex(it).containsMatchIn(text) }) return true
 
         return listOf(
-            "\\b(?:noticias|pronostico|clima|cotizacion|tipo de cambio)\\b",
+            "\\b(?:noticias|pronostico|clima|tiempo|temperatura|va a llover|llovera|esta lloviendo|cotizacion|tipo de cambio)\\b",
             "\\b(?:precio|cuesta|cuanto vale|resultado|marcador|horario|presidente|gan[oó])\\b",
             "\\b(?:terremoto|sismo|huracan|tormenta|eleccion|elecciones)\\b.*\\b(?:reciente|hoy|ahora|acaba|hace poco)\\b",
         ).any { Regex(it).containsMatchIn(text) }
