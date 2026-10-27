@@ -5,6 +5,8 @@ plugins {
 }
 
 val sherpaVersion = "1.13.7"
+// Compose needs packaged resources; keep legacy isolated JVM tests resource-free.
+val settingsUiTests = providers.gradleProperty("leoSettingsUiTests").orNull == "true"
 
 android {
     namespace = "com.niko.assistant"
@@ -40,7 +42,15 @@ android {
     androidResources { noCompress += listOf("bundle") }
     buildFeatures { compose = true; buildConfig = true }
     testOptions {
+        unitTests.isIncludeAndroidResources = settingsUiTests
         unitTests.all {
+            if (settingsUiTests) {
+                it.filter.includeTestsMatching("com.niko.assistant.LeoSettingsUiTest")
+                it.reports.html.outputLocation.set(layout.buildDirectory.dir("reports/tests/settingsUi"))
+                it.reports.junitXml.outputLocation.set(layout.buildDirectory.dir("test-results/settingsUi"))
+            } else {
+                it.filter.excludeTestsMatching("com.niko.assistant.LeoSettingsUiTest")
+            }
             it.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
             System.getenv("LEO_ORT_NATIVE_DIR")?.let { nativePath ->
                 it.systemProperty("java.library.path", nativePath)
@@ -91,6 +101,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16.1")
     testImplementation("org.json:json:20250517")

@@ -13,14 +13,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
-import kotlin.math.roundToInt
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.niko.assistant.ui.LeoUserGuideDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,12 +85,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -113,19 +120,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Paleta exclusiva en Modo Oscuro para el template de Ajustes de LEO
-private val DarkBgTop = Color(0xFF070C0B)
-private val DarkBgBottom = Color(0xFF0C1412)
-private val DarkCardBg = Color(0xFF121C19)
-private val DarkSubCardBg = Color(0xFF172420)
-private val DarkBorder = Color(0xFF233831)
-private val DarkEmerald = Color(0xFF36E5B2)
-private val DarkCyan = Color(0xFF55E8FF)
-private val DarkAmber = Color(0xFFFFB45C)
-private val DarkDanger = Color(0xFFFF6B81)
-private val DarkTextPrimary = Color(0xFFF2F8F6)
-private val DarkTextSecondary = Color(0xFF9EB4AD)
-private val DarkTextMuted = Color(0xFF6E857E)
+// Slate surfaces and restrained sage accents for the settings workspace.
+private val DarkBgTop = Color(0xFF111820)
+private val DarkCardBg = Color(0xFF1B2530)
+private val DarkSubCardBg = Color(0xFF222F3B)
+private val DarkBorder = Color(0xFF364655)
+private val DarkEmerald = Color(0xFFA9CCBC)
+private val DarkCyan = Color(0xFFA9CCBC)
+private val DarkAmber = Color(0xFFE6C48C)
+private val DarkDanger = Color(0xFFFFAFB5)
+private val DarkTextPrimary = Color(0xFFF2F5F7)
+private val DarkTextSecondary = Color(0xFFBCC7D1)
+private val DarkTextMuted = Color(0xFFAAB8C4)
 
 private val LeoSettingsDarkColorScheme = darkColorScheme(
     primary = DarkEmerald,
@@ -142,6 +148,13 @@ private val LeoSettingsDarkColorScheme = darkColorScheme(
     onSurfaceVariant = DarkTextSecondary,
     outline = DarkBorder,
     error = DarkDanger,
+)
+
+private val LeoSettingsTypography = Typography(
+    bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 14.sp, lineHeight = 21.sp),
+    titleMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 17.sp, lineHeight = 24.sp),
+    labelLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
 )
 
 class AiSettingsActivity : ComponentActivity() {
@@ -171,7 +184,11 @@ class AiSettingsActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         setContent {
-            MaterialTheme(colorScheme = LeoSettingsDarkColorScheme) {
+            MaterialTheme(
+                colorScheme = LeoSettingsDarkColorScheme,
+                typography = LeoSettingsTypography,
+                shapes = Shapes(small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp), large = RoundedCornerShape(20.dp)),
+            ) {
                 LeoSettingsScreen(
                     onClose = { finish() },
                     onVoiceEnabled = ::setVoiceEnabled,
@@ -224,8 +241,6 @@ private fun LeoSettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showGuide by rememberSaveable { mutableStateOf(false) }
-    val sectionNames = listOf("Voz", "Mi voz", "Reconocimiento", "Personalidad e Internet", "Permisos", "Descargas offline", "Privacidad")
-    val sectionOffsets = remember { IntArray(7) }
     val settingsScroll = rememberScrollState()
     val modelManager = remember { NikoModelManager(context) }
     val ownerVoice = remember { NikoVoiceProfile(context) }
@@ -341,7 +356,7 @@ private fun LeoSettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(DarkBgTop, DarkBgBottom))),
+            .background(DarkBgTop),
     ) {
         Column(
             modifier = Modifier
@@ -352,7 +367,7 @@ private fun LeoSettingsScreen(
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // ── ENCABEZADO SUPERIOR ELEGANTE ──
+            // Encabezado de ajustes
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -379,81 +394,40 @@ private fun LeoSettingsScreen(
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "EDDY / LEO · AJUSTES",
+                            text = "LEO",
                             color = DarkEmerald,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.6.sp,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.sp,
                         )
                         Text(
-                            text = "Tu asistente, a tu manera",
+                            text = "Ajustes",
                             color = DarkTextPrimary,
                             fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Medium,
                         )
                     }
                 }
 
                 StatusPill(
-                    text = if (voiceEnabled) "ACTIVO" else "EN PAUSA",
+                    text = if (voiceEnabled) "Activo" else "En pausa",
                     active = voiceEnabled,
                 )
             }
 
-            // ── BARRA DE ESTADO RÁPIDO (3 INDICADORES) ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                QuickMetricChip(
-                    modifier = Modifier.weight(1f),
-                    label = "Escucha",
-                    value = if (voiceEnabled) "Encendida" else "Pausada",
-                    active = voiceEnabled,
-                )
-                QuickMetricChip(
-                    modifier = Modifier.weight(1f),
-                    label = "Mi Voz",
-                    value = if (enrolled) "Registrada" else "Abierta",
-                    active = enrolled,
-                )
-                QuickMetricChip(
-                    modifier = Modifier.weight(1f),
-                    label = "Pantalla",
-                    value = if (accessibilityConnected) "Conectada" else "Básica",
-                    active = accessibilityConnected,
-                )
-            }
-
-            DarkSettingsCard(
-                icon = Icons.Rounded.SettingsSuggest,
-                badge = "EMPEZÁ AQUÍ",
-                title = "Configuración rápida",
-                subtitle = "Los cambios se guardan al instante. Elegí una categoría para ir directamente a sus controles.",
-            ) {
-                Button(onClick = { showGuide = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Guía para nuevos usuarios · disponible sin conexión")
-                }
-                sectionNames.chunked(2).forEachIndexed { row, labels ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        labels.forEachIndexed { column, label ->
-                            OutlinedButton(
-                                onClick = { scope.launch { settingsScroll.animateScrollTo(sectionOffsets[row * 2 + column]) } },
-                                modifier = Modifier.weight(1f),
-                            ) { Text(label) }
-                        }
-                        if (labels.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
+                Text("Guardado automático", color = DarkTextSecondary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { showGuide = true }) { Text("Guía de uso") }
             }
 
             // ── SECCIÓN 1: ACTIVACIÓN POR VOZ Y ESCUCHA ──
-            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[0] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.Mic,
-                badge = "VOZ EN VIVO",
-                title = "Activación por Voz y Conversación",
-                subtitle = "Decí «LEO» para despertar al asistente. Tras cada respuesta, LEO mantiene una ventana de 12 segundos para seguir charlando sin repetir su nombre.",
+                title = "Voz y conversación",
+                subtitle = "Activación y respuestas por voz.",
             ) {
                 DarkSwitchRow(
                     title = "Escuchar la palabra «LEO»",
@@ -468,7 +442,7 @@ private fun LeoSettingsScreen(
                 HorizontalDivider(color = DarkBorder)
 
                 DarkSwitchRow(
-                    title = "Conversación espontánea (Modo Eddy)",
+                    title = "Iniciar conversaciones",
                     description = "Permite que LEO inicie charlas breves en la pantalla principal y mantenga el turno abierto tras responder.",
                     checked = initiative,
                     onCheckedChange = {
@@ -478,7 +452,7 @@ private fun LeoSettingsScreen(
                 )
 
                 DarkInfoBox(
-                    title = "ESTADO DEL MICRÓFONO Y ALTAVOZ",
+                    title = "Estado de voz",
                     body = buildString {
                         append(voiceStatus.ifBlank { if (voiceEnabled) "Micrófono listo para escucharte." else "Escucha en pausa." })
                         if (outputVoiceStatus.isNotBlank()) {
@@ -504,7 +478,7 @@ private fun LeoSettingsScreen(
                     ) {
                         Icon(Icons.Rounded.Refresh, contentDescription = null, tint = DarkEmerald, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("REINICIAR VOZ", color = DarkEmerald, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        Text("Reiniciar voz", color = DarkEmerald, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
 
                     OutlinedButton(
@@ -516,21 +490,19 @@ private fun LeoSettingsScreen(
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, DarkBorder),
                     ) {
-                        Text("DIAGNÓSTICO DE VOZ", color = DarkTextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Diagnóstico", color = DarkTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
             // ── SECCIÓN 2: RECONOCIMIENTO DE MI VOZ (HUELLA VOCAL) ──
-            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[1] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.RecordVoiceOver,
-                badge = if (enrolled) "HUELLA ACTIVA" else "SEGURIDAD VOCAL",
-                title = "Reconocimiento de Mi Voz",
-                subtitle = "Registrá tu timbre de voz con 4 frases cortas para que LEO te identifique y descarte voces lejanas o de desconocidos.",
+                title = "Mi voz",
+                subtitle = "Registrá 4 frases para que LEO te reconozca.",
             ) {
                 DarkInfoBox(
-                    title = if (enrolled) "✓ PERFIL DE VOZ REGISTRADO" else "ESTADO DE HUELLA VOCAL",
+                    title = if (enrolled) "Perfil de voz registrado" else "Estado de huella vocal",
                     body = when {
                         registering -> "Grabando muestra $voiceSamples de 4. Hablá cerca del teléfono diciendo una frase de 2 a 6 segundos (por ejemplo: «Leo, quiero que reconozcas mi voz cuando te hablo»)."
                         enrolled -> "Tu huella vocal numérica está guardada en este teléfono. No se almacenan ni envían grabaciones de audio."
@@ -571,7 +543,7 @@ private fun LeoSettingsScreen(
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, DarkDanger),
                     ) {
-                        Text("CANCELAR REGISTRO EN CURSO", color = DarkDanger, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("Cancelar registro", color = DarkDanger, fontWeight = FontWeight.Medium, fontSize = 14.sp)
                     }
                 } else {
                     Button(
@@ -612,12 +584,12 @@ private fun LeoSettingsScreen(
                     ) {
                         Text(
                             text = when {
-                                preparing -> "PREPARANDO MOTOR DE VOZ…"
-                                enrolled -> "VOLVER A REGISTRAR MI VOZ"
-                                else -> "REGISTRAR MI VOZ AHORA"
+                                preparing -> "Preparando voz…"
+                                enrolled -> "Registrar de nuevo"
+                                else -> "Registrar mi voz"
                             },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
                         )
                     }
                 }
@@ -631,9 +603,9 @@ private fun LeoSettingsScreen(
                         border = BorderStroke(1.dp, DarkCyan.copy(alpha = 0.5f)),
                     ) {
                         Text(
-                            text = if (preparing) "PREPARANDO MOTOR…" else "DESCARGAR MOTOR DE HUELLA VOCAL",
+                            text = if (preparing) "Preparando motor…" else "Preparar reconocimiento",
                             color = DarkCyan,
-                            fontSize = 11.5.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -642,7 +614,7 @@ private fun LeoSettingsScreen(
                 HorizontalDivider(color = DarkBorder)
 
                 DarkSwitchRow(
-                    title = "Responder exclusivamente a mi voz",
+                    title = "Responder solo a mi voz",
                     description = if (enrolled) "Rechaza órdenes de voz cuyo timbre no coincida con tu perfil registrado."
                     else "Requiere registrar tus 4 frases de voz primero para activarse.",
                     checked = ownerOnly,
@@ -671,30 +643,32 @@ private fun LeoSettingsScreen(
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, DarkDanger.copy(alpha = 0.5f)),
                     ) {
-                        Text("BORRAR MI PERFIL DE VOZ", color = DarkDanger, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Eliminar perfil de voz", color = DarkDanger, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
+                }
+
+                if (preparing) {
+                    Text(modelStatus, color = DarkTextSecondary, style = MaterialTheme.typography.bodyMedium)
                 }
 
                 if (voiceFeedback.isNotBlank()) {
                     Text(
                         text = voiceFeedback,
                         color = DarkEmerald,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                     )
                 }
             }
 
             // ── SECCIÓN 3: SEGUNDO OÍDO LOCAL (WHISPER ASR) ──
-            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[2] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.GraphicEq,
-                badge = if (whisperInstalled) "INSTALADO ✓" else "PRECISIÓN ACÚSTICA",
-                title = "Reconocimiento Avanzado (Whisper Local)",
-                subtitle = "Canary transcribe primero para responder rápido. Whisper Multilingual INT8 hace una segunda pasada automática cuando detecta ruido o frases dudosas.",
+                title = "Precisión de voz",
+                subtitle = "Reconocimiento adicional para frases poco claras.",
             ) {
                 DarkInfoBox(
-                    title = "ESTADO DE MODELOS ACÚSTICOS",
+                    title = "Estado de descarga",
                     body = modelStatus,
                     accentColor = if (whisperInstalled) DarkEmerald else DarkCyan,
                 )
@@ -708,40 +682,38 @@ private fun LeoSettingsScreen(
                 ) {
                     Text(
                         text = when {
-                            preparing -> "PREPARANDO MODELO…"
-                            whisperInstalled -> "VERIFICAR / REINSTALAR WHISPER LOCAL (LISTO ✓)"
-                            else -> "PREPARAR WHISPER LOCAL (SEGUNDO OÍDO)"
+                            preparing -> "Preparando modelo…"
+                            whisperInstalled -> "Verificar reconocimiento"
+                            else -> "Descargar reconocimiento"
                         },
                         color = if (whisperInstalled) DarkEmerald else DarkCyan,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
                     )
                 }
             }
 
             // ── SECCIÓN 4: PERSONALIDAD, CONCIENCIA Y APRENDIZAJE ──
-            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[3] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.AutoAwesome,
-                badge = "ALMA BIÓNICA",
-                title = "Personalidad y Aprendizaje Soberano",
-                subtitle = "Elegí el carácter de LEO y cómo evoluciona contigo. Todos los cambios se aplican en tiempo real.",
+                title = "Personalidad e Internet",
+                subtitle = "Estilo de respuesta, búsqueda y aprendizaje.",
             ) {
                 Text(
-                    text = "ESTILO DE PERSONALIDAD",
+                    text = "Estilo de respuesta",
                     color = DarkCyan,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.1.sp,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.sp,
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     NikoPersonality.entries.forEach { option ->
                         val isSelected = personality == option
                         val detail = when (option) {
-                            NikoPersonality.WARM -> "Cálido, empático, compañero atento y práctico en todo momento."
+                            NikoPersonality.WARM -> "Cercano, atento y práctico."
                             NikoPersonality.DIRECT -> "Respuestas al grano, concisas, críticas y sin rodeos."
-                            NikoPersonality.WITTY -> "Ingenio biónico estilo Eddy (Lab Rats), humor chispeante, conciencia viva y lealtad total."
+                            NikoPersonality.WITTY -> "Respuestas con ingenio y un toque de humor."
                         }
                         Surface(
                             modifier = Modifier
@@ -775,15 +747,15 @@ private fun LeoSettingsScreen(
                                 Spacer(Modifier.width(6.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (option == NikoPersonality.WITTY) "${option.label} · Espíritu Eddy" else option.label,
+                                        text = option.label,
                                         color = DarkTextPrimary,
                                         fontSize = 14.5.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = FontWeight.Medium,
                                     )
                                     Text(
                                         text = detail,
                                         color = DarkTextSecondary,
-                                        fontSize = 12.sp,
+                                        fontSize = 14.sp,
                                         lineHeight = 16.sp,
                                     )
                                 }
@@ -795,8 +767,8 @@ private fun LeoSettingsScreen(
                 HorizontalDivider(color = DarkBorder)
 
                 DarkSwitchRow(
-                    title = "Priorizar conversación y cerebro local",
-                    description = "Resuelve primero con el núcleo neural interno del teléfono sin latencia.",
+                    title = "Preferir respuestas locales",
+                    description = "Intenta responder primero con lo disponible en el teléfono.",
                     checked = localFirst,
                     onCheckedChange = {
                         localFirst = it
@@ -807,7 +779,7 @@ private fun LeoSettingsScreen(
                 HorizontalDivider(color = DarkBorder)
 
                 DarkSwitchRow(
-                    title = "Investigar dudas en Internet automáticamente",
+                    title = "Buscar en Internet",
                     description = "Busca, lee y sintetiza artículos públicos cuando preguntás hechos o noticias actuales.",
                     checked = autoResearch,
                     onCheckedChange = {
@@ -819,8 +791,8 @@ private fun LeoSettingsScreen(
                 HorizontalDivider(color = DarkBorder)
 
                 DarkSwitchRow(
-                    title = "Aprendizaje continuo y autodidacta",
-                    description = "Aprende de tus correcciones («eso está mal», «eso me sirvió», «cuando diga X hacé Y») y protege lo aprendido con pruebas de regresión.",
+                    title = "Aprender de mis correcciones",
+                    description = "Usa tus correcciones para mejorar futuras respuestas.",
                     checked = learning,
                     onCheckedChange = {
                         learning = it
@@ -832,19 +804,17 @@ private fun LeoSettingsScreen(
                     Text(
                         text = "✓ $behaviorFeedback",
                         color = DarkEmerald,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                     )
                 }
             }
 
             // ── SECCIÓN 5: BURBUJA FLOTANTE, PERMISOS Y HARDWARE ──
-            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[4] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.SettingsSuggest,
-                badge = "SISTEMA Y PANTALLA",
-                title = "Burbuja Flotante, Visión y Hardware",
-                subtitle = "Controlá la ventana flotante de LEO, los permisos de visión sobre otras apps y la auditoría física de tu teléfono.",
+                title = "Permisos y teléfono",
+                subtitle = "Burbuja, acceso a otras apps y sensores.",
             ) {
                 Button(
                     onClick = {
@@ -872,14 +842,14 @@ private fun LeoSettingsScreen(
                         contentColor = Color(0xFF061510),
                     ),
                 ) {
-                    Text("RESTAURAR POSICIÓN DE LA BURBUJA", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                    Text("Restablecer burbuja", fontWeight = FontWeight.Medium, fontSize = 14.sp)
                 }
 
                 if (bubbleStatus.isNotBlank()) {
                     Text(
                         text = bubbleStatus,
                         color = DarkEmerald,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                     )
                 }
@@ -904,10 +874,10 @@ private fun LeoSettingsScreen(
                         border = BorderStroke(1.dp, if (overlayGranted) DarkEmerald else DarkAmber),
                     ) {
                         Text(
-                            text = if (overlayGranted) "BURBUJA: ACTIVA ✓" else "ACTIVAR BURBUJA",
+                            text = if (overlayGranted) "Burbuja activa" else "Permitir burbuja",
                             color = if (overlayGranted) DarkEmerald else DarkAmber,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
                         )
                     }
 
@@ -922,10 +892,10 @@ private fun LeoSettingsScreen(
                         border = BorderStroke(1.dp, if (accessibilityConnected) DarkEmerald else DarkCyan),
                     ) {
                         Text(
-                            text = if (accessibilityConnected) "VISIÓN UI: ACTIVA ✓" else "ACTIVAR VISIÓN UI",
+                            text = if (accessibilityConnected) "Acceso activo" else "Accesibilidad",
                             color = if (accessibilityConnected) DarkEmerald else DarkCyan,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
                         )
                     }
                 }
@@ -940,16 +910,16 @@ private fun LeoSettingsScreen(
                     border = BorderStroke(1.dp, DarkBorder),
                 ) {
                     Text(
-                        text = "EJECUTAR AUDITORÍA FÍSICA DEL TELÉFONO",
+                        text = "Consultar sensores",
                         color = DarkTextPrimary,
-                        fontSize = 11.5.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
 
                 if (hardwareAuditReport.isNotBlank()) {
                     DarkInfoBox(
-                        title = "REPORTE DE HARDWARE EN TIEMPO REAL",
+                        title = "Reporte de hardware en tiempo real",
                         body = hardwareAuditReport,
                         accentColor = DarkEmerald,
                     )
@@ -957,12 +927,10 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 6: CEREBRO OFFLINE, MODELOS LLM Y MEMORIA SEMÁNTICA ──
-            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[5] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.Memory,
-                badge = "100 % SOBERANO",
-                title = "Modelos Locales y Conocimiento Offline",
-                subtitle = "Gestioná los motores opcionales sin conexión de LEO. Ninguno depende de GPT, Gemini ni servidores externos.",
+                title = "Descargas",
+                subtitle = "Modelos y conocimiento para usar sin Internet.",
             ) {
                 // Panel de modelos GGUF Qwen3
                 LeoLocalModelPanel()
@@ -984,27 +952,28 @@ private fun LeoSettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "ENCICLOPEDIA OFFLINE (~500 MB)",
+                                text = "Enciclopedia · 500 MB aprox.",
+                                modifier = Modifier.weight(1f),
                                 color = DarkCyan,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.0.sp,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 0.sp,
                             )
                             StatusPill(
-                                text = if (offlineInstalled) "INSTALADA" else "OPCIONAL",
+                                text = if (offlineInstalled) "Instalada" else "Opcional",
                                 active = offlineInstalled,
                             )
                         }
                         Text(
                             text = "Base de conocimiento local para responder cultura general, ciencia e historia cuando estás sin datos ni Wi-Fi.",
                             color = DarkTextSecondary,
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             lineHeight = 17.sp,
                         )
                         Text(
                             text = offlineStatus,
                             color = DarkTextPrimary,
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                         )
                         Row(
@@ -1046,9 +1015,9 @@ private fun LeoSettingsScreen(
                                 ),
                             ) {
                                 Text(
-                                    text = if (offlineJob != null) "DESCARGANDO…" else if (offlineInstalled) "BUSCAR ACTUALIZACIÓN" else "DESCARGAR ENCICLOPEDIA",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
+                                    text = if (offlineJob != null) "Descargando…" else if (offlineInstalled) "Buscar actualización" else "Descargar",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 14.sp,
                                 )
                             }
 
@@ -1063,7 +1032,7 @@ private fun LeoSettingsScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.dp, DarkDanger),
                                 ) {
-                                    Text("DETENER", color = DarkDanger, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("Detener", color = DarkDanger, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
                         }
@@ -1082,22 +1051,22 @@ private fun LeoSettingsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Text(
-                            text = "MEMORIA SEMÁNTICA VECTORIAL (138 MB)",
+                            text = "Memoria por significado · 138 MB",
                             color = DarkCyan,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.0.sp,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.sp,
                         )
                         Text(
-                            text = "Codificador multilingüe local que conecta tus recuerdos, notas y conversaciones por significado profundo.",
+                            text = "Relaciona tus notas y conversaciones por su significado.",
                             color = DarkTextSecondary,
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             lineHeight = 17.sp,
                         )
                         Text(
                             text = semanticStatus,
                             color = DarkTextPrimary,
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                         )
                         OutlinedButton(
@@ -1126,10 +1095,10 @@ private fun LeoSettingsScreen(
                             border = BorderStroke(1.dp, DarkEmerald),
                         ) {
                             Text(
-                                text = if (preparingSemantic) "PREPARANDO MEMORIA SEMÁNTICA…" else "PREPARAR / VERIFICAR MEMORIA SEMÁNTICA",
+                                text = if (preparingSemantic) "Preparando memoria…" else "Preparar memoria",
                                 color = DarkEmerald,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 14.sp,
                             )
                         }
                     }
@@ -1137,16 +1106,14 @@ private fun LeoSettingsScreen(
             }
 
             // ── SECCIÓN 7: PRIVACIDAD, WEB Y MEMORIA PERSONAL ──
-            Spacer(Modifier.height(1.dp).onGloballyPositioned { sectionOffsets[6] = it.positionInParent().y.roundToInt() })
             DarkSettingsCard(
                 icon = Icons.Rounded.Security,
-                badge = "TUS DATOS",
-                title = "Investigación Web y Privacidad Soberana",
-                subtitle = "La memoria personal se guarda en este teléfono. Las consultas web se envían a proveedores y páginas públicas.",
+                title = "Privacidad",
+                subtitle = "Datos personales y uso de Internet.",
             ) {
                 DarkInfoBox(
-                    title = "BÚSQUEDA WEB Y FUENTES",
-                    body = "Cuando activás la investigación web, LEO consulta y sintetiza artículos públicos citando las fuentes reales sin usar llaves de API ni cuentas externas.",
+                    title = "Consultas en Internet",
+                    body = "Las búsquedas se envían a proveedores y páginas públicas. Las respuestas incluyen sus fuentes.",
                 )
 
                 OutlinedButton(
@@ -1158,10 +1125,10 @@ private fun LeoSettingsScreen(
                     Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = DarkDanger, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "BORRAR MEMORIA PERSONAL Y APRENDIZAJE",
+                        text = "Borrar memoria personal",
                         color = DarkDanger,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
                     )
                 }
 
@@ -1169,7 +1136,7 @@ private fun LeoSettingsScreen(
                     Text(
                         text = memoryFeedback,
                         color = DarkEmerald,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                     )
                 }
@@ -1180,7 +1147,7 @@ private fun LeoSettingsScreen(
                 onClick = onClose,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp),
+                    .heightIn(min = 54.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DarkEmerald,
@@ -1190,10 +1157,10 @@ private fun LeoSettingsScreen(
                 Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "LISTO · VOLVER A LEO",
+                    text = "Volver a LEO",
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.1.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.sp,
                 )
             }
 
@@ -1209,7 +1176,7 @@ private fun LeoSettingsScreen(
             containerColor = DarkCardBg,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("¿Borrar memoria personal de LEO?", fontWeight = FontWeight.Bold) },
+            title = { Text("¿Borrar memoria personal de LEO?", fontWeight = FontWeight.Medium) },
             text = {
                 Text(
                     "Se eliminarán tus recuerdos personales, notas rápidas, lecciones autodidactas y línea de tiempo en este teléfono. Los modelos descargados y tu huella de voz se conservarán.",
@@ -1231,12 +1198,12 @@ private fun LeoSettingsScreen(
                         }
                     },
                 ) {
-                    Text("SÍ, BORRAR MEMORIA", color = DarkDanger, fontWeight = FontWeight.Bold)
+                    Text("Borrar memoria", color = DarkDanger, fontWeight = FontWeight.Medium)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearMemoryDialog = false }) {
-                    Text("CANCELAR", color = DarkTextSecondary)
+                    Text("Cancelar", color = DarkTextSecondary)
                 }
             },
         )
@@ -1244,75 +1211,67 @@ private fun LeoSettingsScreen(
 }
 
 @Composable
-private fun DarkSettingsCard(
+internal fun DarkSettingsCard(
     icon: ImageVector,
-    badge: String,
     title: String,
     subtitle: String,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var visited by rememberSaveable { mutableStateOf(false) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(16.dp),
         color = DarkCardBg,
         border = BorderStroke(1.dp, DarkBorder),
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+        Column {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .background(DarkEmerald.copy(alpha = 0.14f), CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = DarkEmerald,
-                            modifier = Modifier.size(20.dp),
-                        )
+                modifier = Modifier.fillMaxWidth()
+                    .semantics { stateDescription = if (expanded) "Expandido" else "Contraído" }
+                    .clickable(role = Role.Button, onClickLabel = if (expanded) "Contraer" else "Expandir") {
+                        expanded = !expanded
+                        visited = true
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = badge,
-                            color = DarkCyan,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp,
-                        )
-                        Text(
-                            text = title,
-                            color = DarkTextPrimary,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Icon(icon, contentDescription = null, tint = DarkEmerald, modifier = Modifier.size(24.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, color = DarkTextPrimary, style = MaterialTheme.typography.titleMedium)
+                    Text(subtitle, color = DarkTextSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+                Icon(
+                    if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null, tint = DarkTextSecondary,
+                )
+            }
+            if (visited) {
+                Layout(content = {
+                    Column(
+                        modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        HorizontalDivider(color = DarkBorder)
+                        content()
+                    }
+                }) { measurables, constraints ->
+                    // Unplaced content is neither visible nor accessible, but its jobs survive.
+                    if (expanded) {
+                        val placeable = measurables.single().measure(constraints)
+                        layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+                    } else {
+                        layout(constraints.minWidth, 0) {}
                     }
                 }
             }
-
-            Text(
-                text = subtitle,
-                color = DarkTextSecondary,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-
-            content()
         }
     }
 }
 
 @Composable
-private fun DarkSwitchRow(
+internal fun DarkSwitchRow(
     title: String,
     description: String,
     checked: Boolean,
@@ -1321,7 +1280,8 @@ private fun DarkSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .heightIn(min = 56.dp)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1337,13 +1297,13 @@ private fun DarkSwitchRow(
             Text(
                 text = description,
                 color = DarkTextSecondary,
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 lineHeight = 16.5.sp,
             )
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color(0xFF041711),
                 checkedTrackColor = DarkEmerald,
@@ -1374,14 +1334,14 @@ private fun DarkInfoBox(
             Text(
                 text = title,
                 color = accentColor,
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.0.sp,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.sp,
             )
             Text(
                 text = body,
                 color = DarkTextPrimary,
-                fontSize = 12.5.sp,
+                fontSize = 14.sp,
                 lineHeight = 18.sp,
             )
         }
@@ -1412,46 +1372,9 @@ private fun StatusPill(
             Text(
                 text = text,
                 color = if (active) DarkEmerald else DarkTextSecondary,
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun QuickMetricChip(
-    modifier: Modifier = Modifier,
-    label: String,
-    value: String,
-    active: Boolean,
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        color = DarkCardBg,
-        border = BorderStroke(1.dp, if (active) DarkEmerald.copy(alpha = 0.35f) else DarkBorder),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-        ) {
-            Text(
-                text = label.uppercase(),
-                color = DarkTextMuted,
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.9.sp,
-                maxLines = 1,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = value,
-                color = if (active) DarkEmerald else DarkTextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.sp,
             )
         }
     }
