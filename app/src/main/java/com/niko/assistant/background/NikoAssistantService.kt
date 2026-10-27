@@ -1534,7 +1534,7 @@ open class NikoAssistantService : Service() {
     private fun releaseCpuWakeLock() { cpuWakeLock?.let { if (it.isHeld) runCatching { it.release() } }; cpuWakeLock = null }
 
     companion object {
-        private const val COMMAND_EXECUTION_TIMEOUT_MS = 25_000L
+        private const val COMMAND_EXECUTION_TIMEOUT_MS = 40_000L
         private const val CHANNEL_ID = UpgradeIdentity.assistantChannel
         private const val WAKE_CHANNEL_ID = UpgradeIdentity.wakeChannel
         private const val NOTIFICATION_ID = 2001

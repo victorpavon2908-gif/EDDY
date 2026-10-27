@@ -84,7 +84,7 @@ object LeoNativeWebSearch {
         transport: suspend (String, String, Int) -> Fetch?,
     ): NikoAiReply = withContext(Dispatchers.IO) {
         val fetch: suspend (String, String, Int) -> Fetch? = { url, accept, limit ->
-            try { withTimeoutOrNull(8_000L) { transport(url, accept, limit) } }
+            try { withTimeoutOrNull(4_000L) { transport(url, accept, limit) } }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { null }
         }
@@ -140,11 +140,11 @@ object LeoNativeWebSearch {
         if (relevant.isEmpty()) return@withContext noResults(subject)
 
         val enriched = coroutineScope {
-            relevant.mapIndexed { index, original -> async {
+            relevant.take(4).mapIndexed { index, original -> async {
                 if (original.articleText.length >= 120) {
                     return@async original.copy(rank = index)
                 }
-                val page = fetch(original.url, PAGE_ACCEPT, PAGE_LIMIT)
+                val page = try { withTimeoutOrNull(3_000L) { fetch(original.url, PAGE_ACCEPT, PAGE_LIMIT) } } catch (_: Exception) { null }
                 if (page != null && (isBlockedPage(page) || !safePublicUrl(page.finalUrl))) return@async null
                 val articleText = page?.body?.let(::extractReadableText).orEmpty()
                 val usefulArticle = articleText.takeIf {
@@ -1047,9 +1047,9 @@ object LeoNativeWebSearch {
     private const val HTML_ACCEPT = "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5"
     private const val PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.8,text/plain;q=0.7,*/*;q=0.2"
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Mobile Safari/537.36 LEO/1.0"
-    private const val SEARCH_BUDGET_MS = 28_000L
-    private const val CONNECT_TIMEOUT_MS = 6_000
-    private const val READ_TIMEOUT_MS = 6_000
+    private const val SEARCH_BUDGET_MS = 14_000L
+    private const val CONNECT_TIMEOUT_MS = 3_500
+    private const val READ_TIMEOUT_MS = 3_500
     private const val MAX_QUERY_CHARS = 500
     private const val MAX_RESEARCH_QUERIES = 3
     private const val MAX_RESULTS = 8
