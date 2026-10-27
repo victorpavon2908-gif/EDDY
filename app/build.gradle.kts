@@ -5,6 +5,8 @@ plugins {
 }
 
 val sherpaVersion = "1.13.7"
+// Compose needs packaged resources; keep legacy isolated JVM tests resource-free.
+val settingsUiTests = providers.gradleProperty("leoSettingsUiTests").orNull == "true"
 
 android {
     namespace = "com.niko.assistant"
@@ -40,8 +42,15 @@ android {
     androidResources { noCompress += listOf("bundle") }
     buildFeatures { compose = true; buildConfig = true }
     testOptions {
-        unitTests.isIncludeAndroidResources = true
+        unitTests.isIncludeAndroidResources = settingsUiTests
         unitTests.all {
+            if (settingsUiTests) {
+                it.filter.includeTestsMatching("com.niko.assistant.LeoSettingsUiTest")
+                it.reports.html.outputLocation.set(layout.buildDirectory.dir("reports/tests/settingsUi"))
+                it.reports.junitXml.outputLocation.set(layout.buildDirectory.dir("test-results/settingsUi"))
+            } else {
+                it.filter.excludeTestsMatching("com.niko.assistant.LeoSettingsUiTest")
+            }
             it.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
             System.getenv("LEO_ORT_NATIVE_DIR")?.let { nativePath ->
                 it.systemProperty("java.library.path", nativePath)
