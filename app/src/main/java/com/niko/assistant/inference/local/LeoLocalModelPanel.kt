@@ -48,14 +48,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val PanelCardBg = Color(0xFF101917)
-private val PanelSubCardBg = Color(0xFF16221F)
-private val PanelBorder = Color(0xFF243832)
-private val PanelAccent = Color(0xFF36E5B2)
-private val PanelCyan = Color(0xFF55E8FF)
-private val PanelTextPrimary = Color(0xFFF1F7F5)
-private val PanelTextSecondary = Color(0xFF9EB2AB)
-private val PanelDanger = Color(0xFFFF6B81)
+private val PanelCardBg = Color(0xFF1B2530)
+private val PanelSubCardBg = Color(0xFF222F3B)
+private val PanelBorder = Color(0xFF364655)
+private val PanelAccent = Color(0xFFA9CCBC)
+private val PanelCyan = Color(0xFFA9CCBC)
+private val PanelTextPrimary = Color(0xFFF2F5F7)
+private val PanelTextSecondary = Color(0xFFBCC7D1)
+private val PanelDanger = Color(0xFFFFAFB5)
 
 @Composable
 fun LeoLocalModelPanel() {
@@ -119,15 +119,15 @@ fun LeoLocalModelPanel() {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "MODELO GENERATIVO GGUF (OPCIONAL)",
+                        text = "Modelo de IA opcional",
                         color = PanelCyan,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.1.sp,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.sp,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "Razonamiento profundo y código sin Internet",
+                        text = "Respuestas sin Internet",
                         color = PanelTextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -140,23 +140,23 @@ fun LeoLocalModelPanel() {
                 ) {
                     Text(
                         text = when {
-                            downloading -> "DESCARGANDO"
-                            isEnabled -> "ACTIVO"
-                            isInstalled -> "INSTALADO"
-                            else -> "OPCIONAL"
+                            downloading -> "Descargando"
+                            isEnabled -> "Activo"
+                            isInstalled -> "Instalado"
+                            else -> "Opcional"
                         },
                         color = if (isEnabled || downloading) PanelAccent else PanelTextSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
             }
 
             Text(
-                text = "Modelos oficiales Qwen3 Apache 2.0 en tu teléfono. No requieren clave ni conexión una vez descargados. Todo el contexto permanece privado en tu dispositivo.",
+                text = "Elegí un modelo según el espacio y la memoria disponibles. Funciona sin conexión tras la descarga.",
                 color = PanelTextSecondary,
-                fontSize = 12.5.sp,
+                fontSize = 14.sp,
                 lineHeight = 18.sp,
             )
 
@@ -199,12 +199,12 @@ fun LeoLocalModelPanel() {
                                 Text(
                                     text = option.label,
                                     color = PanelTextSecondary,
-                                    fontSize = 11.5.sp,
+                                    fontSize = 14.sp,
                                 )
                                 Text(
                                     text = if (optionCompatible) "✓ Compatible con la RAM de este teléfono" else "⚠ Requiere más RAM libre en este dispositivo",
                                     color = if (optionCompatible) PanelAccent else Color(0xFFFFB45C),
-                                    fontSize = 11.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                 )
                             }
@@ -232,7 +232,7 @@ fun LeoLocalModelPanel() {
                     Text(
                         text = progress ?: status,
                         color = PanelTextPrimary,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         lineHeight = 17.sp,
                     )
                 }
@@ -252,12 +252,12 @@ fun LeoLocalModelPanel() {
             ) {
                 Text(
                     text = when {
-                        downloading -> "DESCARGA EN CURSO…"
-                        isInstalled -> "VALIDAR Y ACTIVAR ${selected.id.uppercase()}"
-                        else -> "DESCARGAR Y ACTIVAR MODELO LLM"
+                        downloading -> "Descarga en curso…"
+                        isInstalled -> "Activar ${selected.id}"
+                        else -> "Descargar y activar"
                     },
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
                 )
             }
 
@@ -280,9 +280,9 @@ fun LeoLocalModelPanel() {
                     border = BorderStroke(1.dp, if (downloading) PanelDanger else PanelBorder),
                 ) {
                     Text(
-                        text = if (downloading) "DETENER DESCARGA" else "CANCELAR COLA",
+                        text = if (downloading) "Detener descarga" else "Cancelar cola",
                         color = if (downloading) PanelDanger else PanelTextSecondary,
-                        fontSize = 11.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -301,9 +301,9 @@ fun LeoLocalModelPanel() {
                     border = BorderStroke(1.dp, PanelBorder),
                 ) {
                     Text(
-                        text = "USAR NÚCLEO RÁPIDO",
+                        text = "Usar modo ligero",
                         color = PanelTextPrimary,
-                        fontSize = 11.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -317,9 +317,9 @@ fun LeoLocalModelPanel() {
                 border = BorderStroke(1.dp, PanelDanger.copy(alpha = 0.45f)),
             ) {
                 Text(
-                    text = "ELIMINAR ARCHIVO DEL MODELO (LIBERAR ESPACIO)",
+                    text = "Eliminar modelo",
                     color = PanelDanger,
-                    fontSize = 11.5.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -328,7 +328,7 @@ fun LeoLocalModelPanel() {
                 Text(
                     text = "Nota: Tu teléfono tiene menos RAM libre de la recomendada para ${selected.id}. El núcleo biónico rápido de LEO funciona sin necesidad de este archivo pesado.",
                     color = Color(0xFFFFB45C),
-                    fontSize = 11.5.sp,
+                    fontSize = 14.sp,
                     lineHeight = 16.sp,
                 )
             }
@@ -338,10 +338,10 @@ fun LeoLocalModelPanel() {
     if (deleteConfirm) {
         AlertDialog(
             onDismissRequest = { deleteConfirm = false },
-            containerColor = Color(0xFF121C19),
+            containerColor = Color(0xFF1B2530),
             titleContentColor = PanelTextPrimary,
             textContentColor = PanelTextSecondary,
-            title = { Text("Liberar espacio del modelo", fontWeight = FontWeight.Bold) },
+            title = { Text("Liberar espacio del modelo", fontWeight = FontWeight.Medium) },
             text = {
                 Text(
                     "Se eliminarán los archivos descargados de ${store.spec.label}. Tus recuerdos, tu huella de voz y el núcleo biónico de LEO se conservan intactos.",
@@ -367,12 +367,12 @@ fun LeoLocalModelPanel() {
                         }
                     },
                 ) {
-                    Text("ELIMINAR ARCHIVO", color = PanelDanger, fontWeight = FontWeight.Bold)
+                    Text("Eliminar archivo", color = PanelDanger, fontWeight = FontWeight.Medium)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deleteConfirm = false }) {
-                    Text("CANCELAR", color = PanelTextSecondary)
+                    Text("Cancelar", color = PanelTextSecondary)
                 }
             },
         )
@@ -381,10 +381,10 @@ fun LeoLocalModelPanel() {
     if (confirm) {
         AlertDialog(
             onDismissRequest = { confirm = false },
-            containerColor = Color(0xFF121C19),
+            containerColor = Color(0xFF1B2530),
             titleContentColor = PanelTextPrimary,
             textContentColor = PanelTextSecondary,
-            title = { Text("Descargar modelo local (${store.spec.id})", fontWeight = FontWeight.Bold) },
+            title = { Text("Descargar modelo local (${store.spec.id})", fontWeight = FontWeight.Medium) },
             text = {
                 Text(
                     "Se descargarán hasta ${"%.2f".format(store.spec.bytes / 1_000_000_000.0)} GB desde el repositorio oficial. Puede continuar en segundo plano y reanudarse si salís de Ajustes. Te recomendamos usar Wi-Fi. Se activará automáticamente tras verificar la integridad SHA-256.",
@@ -398,12 +398,12 @@ fun LeoLocalModelPanel() {
                         status = "Descarga iniciada para ${selected.id}. Podés seguir el avance aquí o en la notificación."
                     },
                 ) {
-                    Text("DESCARGAR Y VALIDAR", color = PanelAccent, fontWeight = FontWeight.Bold)
+                    Text("Descargar y validar", color = PanelAccent, fontWeight = FontWeight.Medium)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirm = false }) {
-                    Text("AHORA NO", color = PanelTextSecondary)
+                    Text("Ahora no", color = PanelTextSecondary)
                 }
             },
         )

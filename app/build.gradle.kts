@@ -40,6 +40,7 @@ android {
     androidResources { noCompress += listOf("bundle") }
     buildFeatures { compose = true; buildConfig = true }
     testOptions {
+        unitTests.isIncludeAndroidResources = true
         unitTests.all {
             it.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
             System.getenv("LEO_ORT_NATIVE_DIR")?.let { nativePath ->
@@ -91,6 +92,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16.1")
     testImplementation("org.json:json:20250517")
