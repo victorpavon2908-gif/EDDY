@@ -4,9 +4,9 @@ Identidad visual actual: [emblema negro proporcionado por el usuario](docs/desig
 
 Aplicación móvil nativa para Android 12 o superior. El proyecto se centra exclusivamente en dispositivos Android; la aplicación web y su servidor se retiraron. La interfaz actual usa Kotlin y Jetpack Compose. La migración del cerebro a Python sigue pendiente; los scripts de preparación y entrenamiento ya usan Python.
 
-**Guía para nuevos usuarios:** [manual completo](docs/MANUAL_USUARIO_LEO.md), disponible sin conexión desde Inicio → Guía y Ajustes → Guía para nuevos usuarios.
+**Guía para nuevos usuarios:** [manual completo](docs/MANUAL_USUARIO_LEO.md), disponible sin conexión desde Inicio → Guía y Ajustes → Guía de uso.
 
-**Ajustes:** accesos por categoría, preferencias inmediatas, descargas con errores recuperables y guía integrada. La búsqueda en Internet nativa de Android se mantiene.
+**Ajustes:** secciones desplegables, estilo pizarra y salvia con textos breves, preferencias inmediatas, descargas con errores recuperables y guía integrada. La búsqueda en Internet nativa de Android se mantiene.
 La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad para auditoría](docs/IDENTIDAD_LEO.md).
 
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
