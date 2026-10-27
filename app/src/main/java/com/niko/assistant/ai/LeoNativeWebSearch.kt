@@ -89,6 +89,8 @@ object LeoNativeWebSearch {
             catch (_: Exception) { null }
         }
         val cleanQuery = query.trim().take(MAX_QUERY_CHARS)
+        val searchStartTime = System.currentTimeMillis()
+        runCatching { android.util.Log.i("LEO_TRACE", "LeoNativeWebSearch.search start: " + cleanQuery) }
 
         // 1. Detección directa de Clima en tiempo real (wttr.in)
         if (isWeatherQuery(cleanQuery)) {

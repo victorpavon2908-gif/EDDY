@@ -739,11 +739,16 @@ open class NikoAssistantService : Service() {
         updateVisualState()
         commandJob = serviceScope.launch {
             try {
+                runCatching { android.util.Log.i("LEO_TRACE", "handleCommand starting for epoch=" + epoch + ": " + text) }
+                val startTime = System.currentTimeMillis()
                 val completed = withTimeoutOrNull(COMMAND_EXECUTION_TIMEOUT_MS) {
                     withContext(turn) { handleCommand(text) }
                     true
                 } == true
+                val duration = System.currentTimeMillis() - startTime
+                runCatching { android.util.Log.i("LEO_TRACE", "handleCommand finished in " + duration + "ms, completed=" + completed) }
                 if (!completed && epoch == turnEpoch && !destroyed) {
+                    runCatching { android.util.Log.e("LEO_TRACE", "handleCommand TIMEOUT after " + duration + "ms for: " + text) }
                     LeoRealtimeTurnBus.interruptSpeech()
                     speakResponse("La orden tardó demasiado. Ya liberé el procesamiento; decime de nuevo qué querés hacer.")
                 }
