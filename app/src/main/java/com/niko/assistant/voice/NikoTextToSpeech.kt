@@ -22,6 +22,7 @@ class NikoTextToSpeech(
     private val requestedEngine = voicePrefs.getString("system_engine", null)
     private val tts = TextToSpeech(context.applicationContext, this, requestedEngine)
     private val realtimeStopper: () -> Unit = { stop() }
+    private val bundledVoice = LeoBundledOfflineTts(context.applicationContext) { speaking -> notifySpeaking(speaking) }
     @Volatile private var ready = false
     val isReady: Boolean get() = ready
     var voiceDescription: String = "Falta una voz española instalada para usar sin conexión"
@@ -35,9 +36,11 @@ class NikoTextToSpeech(
     }
 
     override fun onInit(status: Int) {
-        ready = status == TextToSpeech.SUCCESS
-        if (ready) {
-            ready = configureNicaraguanLatinVoice()
+        val platformReady = status == TextToSpeech.SUCCESS
+        ready = platformReady || bundledVoice.isPackaged
+        if (platformReady) {
+            val voiceConfigured = configureNicaraguanLatinVoice()
+            ready = voiceConfigured || bundledVoice.isPackaged
             tts.setSpeechRate(1.07f)
             tts.setPitch(0.92f)
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -59,6 +62,10 @@ class NikoTextToSpeech(
                     if (utteranceId == currentUtterance) notifySpeaking(false)
                 }
             })
+        }
+        if (bundledVoice.isPackaged) {
+            voiceDescription = "LEO voz masculina neuronal integrada · sin Internet"
+            onVoiceSelected(voiceDescription)
         }
         onReady(ready)
     }
@@ -127,6 +134,17 @@ class NikoTextToSpeech(
         val spoken = prepareForNicaraguanSpeech(text)
         if (spoken.isBlank()) return false
         ++notificationEpoch
+        if (bundledVoice.isPackaged) {
+            val id = "leo_neural_${System.nanoTime()}"
+            currentPrefix = id
+            currentUtterance = id
+            LeoRealtimeTurnBus.beginSpeechReference(id, spoken)
+            LeoVoiceDiagnostics.recordSpeechRequested("LEO bundled offline TTS")
+            if (bundledVoice.speak(spoken, prosody) {
+                    // The bundled synthesizer failed: report and allow a fresh request to use Android TTS.
+                    LeoVoiceDiagnostics.recordSpeechCancelled()
+                }) return true
+        }
         tts.setSpeechRate(prosody.speed.coerceIn(0.85f, 1.15f))
         tts.setPitch(prosody.pitch.coerceIn(0.85f, 1.05f))
         val maximum = (TextToSpeech.getMaxSpeechInputLength() - 1).coerceAtLeast(80)
@@ -164,6 +182,7 @@ class NikoTextToSpeech(
         currentPrefix = null
         currentUtterance = null
         LeoVoiceDiagnostics.recordSpeechCancelled()
+        bundledVoice.stop()
         tts.stop()
         notifySpeaking(false)
     }
@@ -176,6 +195,7 @@ class NikoTextToSpeech(
         currentPrefix = null
         currentUtterance = null
         LeoVoiceDiagnostics.recordSpeechCancelled()
+        bundledVoice.shutdown()
         tts.stop()
         tts.shutdown()
         notifySpeaking(false)
