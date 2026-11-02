@@ -30,7 +30,7 @@ class LeoSettingsUiTest {
     @get:Rule val compose = createComposeRule()
 
     @Test fun modePickerPersistsSelectionAndReactsToVoiceSideChanges() {
-        val context = org.robolectric.RuntimeEnvironment.getApplication<android.app.Application>()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
         com.niko.assistant.modes.LeoModeStore.set(context, com.niko.assistant.modes.LeoMode.NORMAL)
         compose.setContent {
             MaterialTheme {

@@ -11,7 +11,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [29], manifest = Config.NONE)
 class LeoModeStoreTest {
     @Test fun selectionSurvivesRereadAndDoesNotChangePermissionsOrPreferences() {
-        val context = RuntimeEnvironment.getApplication<android.app.Application>()
+        val context = RuntimeEnvironment.getApplication()
         val settings = context.getSharedPreferences("eddy_ai_settings", android.content.Context.MODE_PRIVATE)
         settings.edit().putBoolean("auto_research", false).putBoolean("local_first", false).commit()
         val before = settings.all.toMap()
