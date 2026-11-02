@@ -8,7 +8,7 @@ La conexión usa la API oficial compatible con chat/completions, no la interfaz 
 
 La activación prueba una respuesta antes de persistir. Los errores HTTP se convierten en diagnósticos locales; no se muestran cuerpos de error del proveedor ni cabeceras. La credencial se cifra con Android Keystore. La preferencia explícita de proveedor principal permite priorizarlo para conversación; las rutas de memoria personal, órdenes del teléfono, búsqueda actual y peticiones «solo local» conservan sus restricciones. El historial y los extractos web tienen permisos separados. La opción de historial comparte hasta tres intercambios; los extractos web requieren citas válidas.
 
-Gemini 3 recibe esfuerzo de razonamiento bajo para conversación, mínimo para Super Leo y medio para Investigador. Se reserva presupuesto de tokens para el texto final porque Google cuenta también tokens de pensamiento. Esto configura el esfuerzo, no demuestra una mejora de latencia o calidad en un dispositivo.
+El modelo propuesto Gemini 3.8 Flash recibe esfuerzo de razonamiento bajo para conversación, mínimo para Super Leo y medio para Investigador. Se reserva presupuesto de tokens para el texto final porque Google cuenta también tokens de pensamiento. Esto configura el esfuerzo, no demuestra una mejora de latencia o calidad en un dispositivo.
 
 ## Inicio de sesión integrado pendiente
 

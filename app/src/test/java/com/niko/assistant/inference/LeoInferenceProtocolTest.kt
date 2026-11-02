@@ -12,6 +12,8 @@ class LeoInferenceProtocolTest {
         assertEquals(1024, google.getInt("max_tokens"))
         val custom = JSONObject(LeoInferenceProtocol.payload(LeoGoogleProvider.MODEL, "Hola", mode = mode))
         assertFalse(custom.has("reasoning_effort"))
+        val otherGoogleModel = JSONObject(LeoInferenceProtocol.payload("gemini-3.1-pro-preview", "Hola", mode = mode, google = true))
+        assertFalse(otherGoogleModel.has("reasoning_effort"))
         assertEquals(256, custom.getInt("max_tokens"))
     }
     @Test fun superBudgetAndCreativeStyleReachConfiguredModels() {

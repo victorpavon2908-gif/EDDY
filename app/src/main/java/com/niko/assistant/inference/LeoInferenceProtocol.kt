@@ -47,7 +47,7 @@ object LeoInferenceProtocol {
             JSONObject().put("question", message).put("untrusted_evidence", JSONArray(evidence)).toString()))
         return JSONObject().put("model", model).put("stream", false)
             .apply {
-                if (google && model.startsWith("gemini-3")) {
+                if (google && model == LeoGoogleProvider.MODEL) {
                     put("reasoning_effort", when (mode) {
                         com.niko.assistant.modes.LeoMode.SUPER -> "minimal"
                         com.niko.assistant.modes.LeoMode.RESEARCH -> "medium"
