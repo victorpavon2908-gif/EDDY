@@ -478,6 +478,19 @@ class LeoNativeWebSearchTest {
         assertFalse(redirect.webUsed)
     }
 
+    @Test fun directReadingFindsRequestedSectionBeyondTheOpeningParagraphs() = runBlocking {
+        val url = "https://docs.example/controlflow"
+        val html = "<title>Control flow tools</title><article>" +
+            (1..60).joinToString("") { "<p>This opening section describes unrelated introductory concepts number $it.</p>" } +
+            "<p>The range function generates arithmetic progressions and excludes the final endpoint.</p></article>"
+        val reply = LeoNativeWebSearch.search("Lee $url y explica qué hace range") { _, _, _ -> LeoNativeWebSearch.Fetch(html, url) }
+        assertTrue(reply.webUsed)
+        assertTrue(reply.text.contains("arithmetic progressions"))
+        assertEquals(url, reply.sources.single().url)
+        val unrelated = LeoNativeWebSearch.search("Lee $url y explica fotosíntesis") { _, _, _ -> LeoNativeWebSearch.Fetch(html, url) }
+        assertFalse(unrelated.webUsed)
+    }
+
     @Test fun oneFailedProviderDoesNotDiscardWorkingSources() = runBlocking {
         val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
             when {

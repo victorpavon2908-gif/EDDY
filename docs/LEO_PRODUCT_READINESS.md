@@ -68,3 +68,6 @@ Un piloto acompañado debe describir únicamente las capacidades implementadas y
 - Plazos: búsqueda e inferencia consumen el mismo presupuesto de la petición, con reserva para responder ante fallos. Se elimina el límite externo fijo de 40 segundos que interrumpía generación normal permitida hasta 185 segundos.
 
 Se añaden regresiones de estos casos. El resultado de la CI del commit de entrega es la evidencia automatizada; la aceptación en teléfono y las mediciones físicas de la tabla anterior siguen pendientes.
+
+### Lectura de páginas largas
+La extracción prioriza párrafos que coinciden con la consulta dentro de un máximo de 512 párrafos, en lugar de conservar únicamente los 32 iniciales. La pertinencia considera también el texto leído. La lectura directa elimina verbos de petición del tema y continúa rechazando páginas ajenas. Se comprobó por HTTP 200 la sección `range` de la documentación de Python en modo Super Leo, con cita y aviso de una sola fuente. Esta comprobación puntual no prueba disponibilidad sostenida del buscador ni rendimiento en teléfono.

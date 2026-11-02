@@ -157,7 +157,7 @@ object LeoNativeWebSearch {
                     throw cancelled
                 } catch (_: Exception) { null }
                 if (page != null && (isBlockedPage(page) || !safePublicUrl(page.finalUrl))) return@async null
-                val articleText = page?.body?.let(::extractReadableText).orEmpty()
+                val articleText = page?.body?.let { extractReadableText(it, subject) }.orEmpty()
                 val usefulArticle = articleText.takeIf {
                     isRelevantTo(subject, original.copy(title = "", snippet = it))
                 }.orEmpty()
@@ -485,7 +485,7 @@ object LeoNativeWebSearch {
     private fun relevanceScore(hit: Hit, terms: Set<String>): Double {
         if (terms.isEmpty()) return 0.0
         val title = meaningfulTokens(hit.title).map(::canonicalTerm).toSet()
-        val body = meaningfulTokens("${hit.title} ${hit.snippet}").map(::canonicalTerm).toSet()
+        val body = meaningfulTokens("${hit.title} ${hit.snippet} ${hit.articleText}").map(::canonicalTerm).toSet()
         val titleOverlap = title.intersect(terms).size
         val bodyOverlap = body.intersect(terms).size
         val coverage = bodyOverlap.toDouble() / terms.size
@@ -682,7 +682,7 @@ object LeoNativeWebSearch {
         .find(html)?.value?.let(::attributes)?.get("lang").orEmpty()
         .lowercase(Locale.ROOT).substringBefore('-').substringBefore('_')
 
-    internal fun extractReadableText(html: String): String {
+    internal fun extractReadableText(html: String, query: String = ""): String {
         if (html.isBlank()) return ""
         val cleaned = html.replace(SCRIPT_STYLE, " ").replace(COMMENTS, " ")
         val metaDescriptions = META_TAG.findAll(cleaned).mapNotNull { tag ->
@@ -691,11 +691,13 @@ object LeoNativeWebSearch {
             if (key in DESCRIPTION_KEYS) attrs["content"]?.let(::htmlToText) else null
         }.filter { it.length >= 40 && !looksLikeBoilerplate(it) }.take(2).toList()
         val article = Regex("(?is)<(?:article|main)\\b[^>]*>(.*?)</(?:article|main)>").find(cleaned)?.groupValues?.get(1) ?: cleaned
+        val terms = subjectTokens(subjectQuery(query))
         val paragraphs = CONTENT_TAG.findAll(article)
             .map { htmlToText(it.groupValues[1]).replace(Regex("\\s*\\[\\s*\\d+(?:\\s*[,–-]\\s*\\d+)*\\s*\\]"), "") }
             .filter { it.length in 12..900 && !looksLikeBoilerplate(it) }
+            .take(512).toList()
+            .sortedByDescending { paragraph -> subjectTokens(paragraph).intersect(terms).size }
             .take(MAX_PARAGRAPHS)
-            .toList()
         return (metaDescriptions + paragraphs)
             .distinctBy { normalize(it).take(180) }
             .joinToString(" ")
@@ -843,12 +845,13 @@ object LeoNativeWebSearch {
 
     private suspend fun readLinks(query: String, urls: List<String>, fetch: suspend (String, String, Int) -> Fetch?): NikoAiReply {
         val requested = subjectQuery(query.replace(Regex("https?://[^\\s]+"), ""))
+            .split(' ').filterNot { it in setOf("lee", "leer", "pagina", "resume", "resumi", "explica", "enlace", "y", "hace") }.joinToString(" ")
         val pages = coroutineScope {
             urls.filter(::safePublicUrl).map { url -> async {
                 val page = fetch(url, PAGE_ACCEPT, PAGE_LIMIT) ?: return@async null
                 if (!safePublicUrl(page.finalUrl) || isBlockedPage(page)) return@async null
                 val title = TITLE.find(page.body)?.groupValues?.get(1)?.let(::htmlToText).orEmpty()
-                val body = extractReadableText(page.body)
+                val body = extractReadableText(page.body, requested)
                 if (body.isBlank()) return@async null
                 Hit(title.ifBlank { hostOf(page.finalUrl) }, page.finalUrl, "", articleText = body,
                     steps = extractSteps(page.body), code = extractCode(page.body))
