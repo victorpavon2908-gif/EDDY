@@ -33,6 +33,7 @@ enum class LeoMode(
 
     val serious: Boolean get() = this == SUPER || this == RESEARCH
     val inferenceTimeoutMs: Long get() = if (this == SUPER) 20_000 else 185_000
+    val commandTimeoutMs: Long get() = inferenceTimeoutMs + searchMs + 10_000L
     fun tokenBudget(usual: Int): Int = if (this == SUPER) minOf(usual, 256) else usual
 
     companion object {

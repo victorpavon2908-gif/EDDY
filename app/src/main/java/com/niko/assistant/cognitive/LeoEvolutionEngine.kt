@@ -13,10 +13,14 @@ object LeoEvolutionEngine {
                 check(it.moveToFirst() && !it.getString(0).isNullOrBlank()) { "El conocimiento candidato está vacío" }
             }
             // Sample content and provenance: reject malformed URLs before activation.
-            db.rawQuery("SELECT title, url FROM articles ORDER BY id LIMIT 32", null).use { cursor ->
+            var searchProbe: Pair<Long, String>? = null
+            db.rawQuery("SELECT id, title, url FROM articles ORDER BY id LIMIT 32", null).use { cursor ->
                 while (cursor.moveToNext()) {
-                    val title = cursor.getString(0)
-                    val url = cursor.getString(1)
+                    val title = cursor.getString(1)
+                    val url = cursor.getString(2)
+                    if (searchProbe == null) Regex("[\\p{L}\\p{N}]+").find(title.orEmpty())?.value?.let {
+                        searchProbe = cursor.getLong(0) to it
+                    }
                     val uri = runCatching { java.net.URI(url.orEmpty()) }.getOrNull()
                     // Built-in first-party lessons use leo://seed/<slug>, which is
                     // deliberately not a public webpage. They are safe only under
@@ -35,19 +39,16 @@ object LeoEvolutionEngine {
                     }
                 }
             }
-            // Exercise the FTS implementation and join used by live retrieval.
+            // Search an actual sampled title, not a fixed word that might be absent.
+            val probe = checkNotNull(searchProbe) { "No hay títulos que permitan probar la búsqueda." }
             val ftsOk = runCatching {
                 db.rawQuery(
-                    "SELECT a.title FROM articles_fts JOIN articles a ON a.id=articles_fts.docid " +
-                        "WHERE articles_fts MATCH ? LIMIT 1",
-                    arrayOf("agua"),
+                    "SELECT a.id FROM articles_fts JOIN articles a ON a.id=articles_fts.docid " +
+                        "WHERE articles_fts MATCH ? AND a.id=? LIMIT 1",
+                    arrayOf("\"${probe.second}\"", probe.first.toString()),
                 ).use { it.moveToFirst() }
             }.getOrDefault(false)
-            if (!ftsOk) {
-                db.rawQuery("SELECT title FROM articles LIMIT 1", null).use {
-                    check(it.moveToFirst()) { "La búsqueda del conocimiento candidato no superó la prueba básica" }
-                }
-            }
+            check(ftsOk) { "El índice de búsqueda del conocimiento candidato no funciona o no contiene sus artículos." }
         }
     }
 }

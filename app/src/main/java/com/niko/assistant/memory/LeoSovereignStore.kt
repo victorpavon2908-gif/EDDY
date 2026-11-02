@@ -4,6 +4,10 @@ import com.niko.assistant.cognitive.LeoEddyPersona
 import com.niko.assistant.cognitive.LeoLivingConsciousness
 import com.niko.assistant.learning.LeoAutodidactEngine
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
@@ -39,18 +43,23 @@ class LeoSovereignStore(
             b64(consciousness?.exportState().orEmpty()),
         ).joinToString("|")
 
-        memorySnapshot = payload
-        val dir = storageDir ?: return
-        runCatching {
-            if (!dir.exists()) dir.mkdirs()
+        val dir = storageDir
+        if (dir != null) {
+            check(dir.isDirectory || dir.mkdirs()) { "No pude crear el almacenamiento del núcleo." }
             val target = File(dir, FILE_NAME)
             val tmp = File(dir, "$FILE_NAME.tmp")
-            tmp.writeText(payload, StandardCharsets.UTF_8)
-            if (!tmp.renameTo(target)) {
-                target.writeText(payload, StandardCharsets.UTF_8)
-                tmp.delete()
-            }
+            try {
+                FileOutputStream(tmp).use { output ->
+                    output.write(payload.toByteArray(StandardCharsets.UTF_8))
+                    output.fd.sync()
+                }
+                try { Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) }
+                catch (_: AtomicMoveNotSupportedException) {
+                    Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+            } finally { tmp.delete() }
         }
+        memorySnapshot = if (dir == null) payload else ""
     }
 
     @Synchronized
@@ -61,29 +70,31 @@ class LeoSovereignStore(
         persona: LeoEddyPersona,
         consciousness: LeoLivingConsciousness? = null,
     ): Boolean {
-        val raw = runCatching {
-            val file = storageDir?.let { File(it, FILE_NAME) }
-            if (file != null && file.exists() && file.isFile) {
-                file.readText(StandardCharsets.UTF_8).trim()
-            } else {
-                memorySnapshot
-            }
-        }.getOrDefault(memorySnapshot)
+        val file = storageDir?.let { File(it, FILE_NAME) }
+        val raw = if (file?.exists() == true) {
+            check(file.isFile) { "El estado del núcleo no es un archivo legible." }
+            file.readText(StandardCharsets.UTF_8).trim().also { check(it.isNotBlank()) { "El estado guardado está vacío." } }
+        } else if (storageDir == null) memorySnapshot else ""
 
         if (raw.isBlank()) return false
         val parts = raw.split('|')
-        if (parts.size < 4) return false
-
+        check(parts.size in 4..5) { "Formato de estado del núcleo inválido." }
+        val decoded = parts.map(::unb64)
+        check(decoded[0].startsWith("LEOAUTO1|") && decoded[1].startsWith("LEORAG1|") &&
+            decoded[2].startsWith("LEOTIME1|") && LeoEddyPersona.PersonaMode.entries.any { it.name == decoded[3] } &&
+            (decoded.size == 4 || decoded[4].isEmpty() || decoded[4].startsWith("LEOCONSC1|"))) {
+            "El estado del núcleo contiene componentes inválidos."
+        }
         return runCatching {
-            autodidact.importJson(unb64(parts[0]))
-            rag.importJson(unb64(parts[1]))
-            timeline.importSerialized(unb64(parts[2]))
-            persona.importState(unb64(parts[3]))
+            autodidact.importJson(decoded[0])
+            rag.importJson(decoded[1])
+            timeline.importSerialized(decoded[2])
+            persona.importState(decoded[3])
             if (parts.size >= 5 && parts[4].isNotBlank()) {
-                consciousness?.importState(unb64(parts[4]))
+                consciousness?.importState(decoded[4])
             }
             true
-        }.getOrDefault(false)
+        }.getOrElse { throw IllegalStateException("No pude restaurar el estado del núcleo; se conservó el archivo.", it) }
     }
 
     @Synchronized

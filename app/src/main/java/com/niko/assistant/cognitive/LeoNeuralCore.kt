@@ -12,6 +12,10 @@ import com.niko.assistant.memory.LeoEpisodicTimeline
 import com.niko.assistant.memory.LeoLocalRagEngine
 import com.niko.assistant.memory.LeoSovereignStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Coordinates answer production inside the existing turn capability, never owns a second voice job. */
 class LeoNeuralCore(
@@ -26,13 +30,21 @@ class LeoNeuralCore(
     val consciousness: LeoLivingConsciousness = LeoLivingConsciousness(),
     val store: LeoSovereignStore? = null,
     val hardwareRunner: LeoHardwareProtocolRunner? = null,
+    private val persistenceMutex: Mutex = Mutex(),
 ) {
     init {
         store?.restoreAll(autodidact, rag, timeline, persona, consciousness)
     }
 
-    private fun persistState() {
-        store?.saveAll(autodidact, rag, timeline, persona, consciousness)
+    private suspend fun persistState() {
+        if (store == null) return
+        withContext(Dispatchers.IO) {
+            persistenceMutex.withLock {
+                turns.checkpoint()
+                store.saveAll(autodidact, rag, timeline, persona, consciousness)
+            }
+        }
+        turns.checkpoint()
     }
 
     data class Request(val message: String, val localFirst: Boolean, val autoResearch: Boolean, val learnedSearch: Boolean, val contextualInference: Boolean = false)
@@ -66,7 +78,7 @@ class LeoNeuralCore(
                 persistState()
                 NikoAiReply(it, false, emptyList())
             }
-            ?: timeline.handleCommand(message)?.let { NikoAiReply(it, false, emptyList()) }
+            ?: timeline.handleCommand(message)?.let { persistState(); NikoAiReply(it, false, emptyList()) }
             ?: autodidact.interact(message)?.let {
                 persistState()
                 NikoAiReply(it, false, emptyList())
@@ -102,7 +114,7 @@ class LeoNeuralCore(
                     persistState()
                     NikoAiReply(it, false, emptyList())
                 }
-                ?: timeline.handleCommand(request.message)?.let { NikoAiReply(it, false, emptyList()) }
+                ?: timeline.handleCommand(request.message)?.let { persistState(); NikoAiReply(it, false, emptyList()) }
                 ?: autodidact.interact(request.message)?.let {
                     persistState()
                     NikoAiReply(it, false, emptyList())

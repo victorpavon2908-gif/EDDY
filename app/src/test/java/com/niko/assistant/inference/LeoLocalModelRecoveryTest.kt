@@ -62,6 +62,44 @@ class LeoLocalModelRecoveryTest {
         assertFalse(store.installed)
     }
 
+    @Test fun activationRequiresACorrectRealResponseAndPreservesTheOtherModelOnFailure() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val prefs = context.getSharedPreferences("leo_local_generation", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("model_id", "google-gemma-2-2b").putBoolean("enabled", true).putString("revision", "other").commit()
+        val before = prefs.all.toMap()
+        val store = LeoLocalModelStore(context, spec)
+        store.modelFile.writeText("abc")
+        assertTrue(store.recoverIfVerified())
+        for (answer in listOf(null, "", "40", "No puedo responder")) {
+            assertTrue(runCatching { store.activateVerified { answer } }.isFailure)
+            assertEquals(before, prefs.all)
+        }
+        store.activateVerified { "4" }
+        assertTrue(store.enabled)
+        assertEquals(spec.id, prefs.getString("model_id", ""))
+    }
+    @Test fun failedProbeRevokesTheSameModelsActivationAndKeepsItsFile() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val store = LeoLocalModelStore(context, spec)
+        store.modelFile.writeText("abc")
+        assertTrue(store.recoverIfVerified())
+        store.activateVerified { "4" }
+        assertTrue(runCatching { store.activateVerified { null } }.isFailure)
+        assertFalse(store.enabled)
+        assertTrue(store.installed)
+    }
+    @Test fun timeoutAndCancellationCannotReportSuccessfulActivation() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val store = LeoLocalModelStore(context, spec)
+        store.modelFile.writeText("abc")
+        assertTrue(store.recoverIfVerified())
+        assertTrue(runCatching { store.activateVerified(timeoutMs = 20) { kotlinx.coroutines.delay(1000); "4" } }.isFailure)
+        assertFalse(store.enabled)
+        val error = runCatching { store.activateVerified { throw kotlinx.coroutines.CancellationException("cancel") } }.exceptionOrNull()
+        assertTrue(error is kotlinx.coroutines.CancellationException)
+        assertFalse(store.enabled)
+    }
+
     @Test fun physicalRamAloneDoesNotMakeADeviceCompatible() {
         val model = spec.copy(minimumRam = 100, availableRam = 40)
         assertTrue(model.canRun(100, 40, false, true))

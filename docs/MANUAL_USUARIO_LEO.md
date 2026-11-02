@@ -58,7 +58,7 @@ La selección se conserva al cerrar la app. Cambiar de modo no activa descargas,
 - Este índice de Wikipedia y lecciones locales sirve para preguntas de conocimiento general **sin Internet**; no conoce automáticamente noticias y precios actuales.
 - Si hay error, comprobá la versión instalada, Wi‑Fi, espacio, y usá el botón de comprobar/actualizar. No borres datos personales ni reinstales sin antes guardar lo que necesités.
 
-Un archivo de modelo encontrado al abrir configuración se verifica antes de recuperarlo y permanece desactivado si esa era tu elección. La activación exige memoria física y memoria disponible suficientes. Un fallo de verificación muestra el problema y permite reintentar.
+Un archivo de modelo encontrado al abrir configuración se verifica antes de recuperarlo y permanece desactivado si esa era tu elección. La activación exige memoria física y memoria disponible suficientes. La instalación también exige una respuesta de prueba correcta antes de anunciar que el modelo está activado. Si falla o se agota el tiempo, el archivo verificado se conserva para reintentar y se informa el problema.
 
 ## 5. Herramientas y transformaciones
 Entrá a **Herramientas** o pedí «LEO, conviértete en...». Para regresar, usá Atrás o «LEO, volvé al inicio».
@@ -95,3 +95,10 @@ Referencia: README.md, docs/POLYMORPHIC_TOOLS.md, docs/SEARCH_RELIABILITY.md y c
 
 ### Borrar memoria desde configuración o por voz
 Ambas rutas borran recuerdos, historial, acciones y clasificador aprendidos, registro de evolución y estado personal. Si el asistente está activo, se interrumpe su respuesta anterior y se vacía el contexto de sesión. Los modelos descargados, los modos y las preferencias de conexión se conservan. Si una parte del borrado falla, se informa para poder reintentar.
+
+### Recuperación y conservación de datos
+La voz del teléfono intenta recuperarse automáticamente ante errores o falta de respuesta inicial, con reintentos limitados. No vuelve a reproducir la respuesta anterior. Si sigue indisponible, revisá la voz española instalada y volvé a intentarlo.
+
+Los documentos, reglas y episodios del núcleo personal se guardan para la siguiente sesión. Si el archivo no puede leerse, se conserva para recuperación y se informa el fallo. El borrado de memoria elimina también ese estado.
+
+La recuperación de una instalación offline incompleta comprueba tamaño, hash de la publicación e índice de búsqueda antes de activarla. Los tiempos de búsqueda y generación comparten el plazo de cada petición; Super Leo utiliza límites menores. Estos límites no son mediciones de velocidad en tu teléfono.

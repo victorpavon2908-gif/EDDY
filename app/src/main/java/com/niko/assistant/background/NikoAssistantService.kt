@@ -177,6 +177,7 @@ open class NikoAssistantService : Service() {
     private val inferenceSettings by lazy { com.niko.assistant.inference.LeoInferenceSettings(applicationContext) }
     private val inferenceClient = com.niko.assistant.inference.LeoInferenceClient()
     private var neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
+    private var coreRestored = false
     private val taskExecutor = com.niko.assistant.agent.LeoTaskExecutor()
     private val skillRegistry by lazy {
         com.niko.assistant.skills.LeoSkillRegistry().also {
@@ -749,8 +750,9 @@ open class NikoAssistantService : Service() {
             try {
                 runCatching { android.util.Log.i("LEO_TRACE", "handleCommand starting for epoch=" + epoch + ": " + text) }
                 val startTime = System.currentTimeMillis()
-                val completed = withTimeoutOrNull(COMMAND_EXECUTION_TIMEOUT_MS) {
-                    withContext(turn) { handleCommand(text) }
+                val budget = com.niko.assistant.agent.LeoTurnBudget(com.niko.assistant.modes.LeoModeStore.read(applicationContext).commandTimeoutMs)
+                val completed = withTimeoutOrNull(budget.totalMs) {
+                    withContext(turn + budget) { handleCommand(text) }
                     true
                 } == true
                 val duration = System.currentTimeMillis() - startTime
@@ -855,6 +857,7 @@ open class NikoAssistantService : Service() {
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
+        ensureNeuralCore()
         neuralCore.personalReply(text, { input -> withPersonalMemory {
             memory.preferenceReply(input).also { playfulDialogue.setHumorAllowed(memory.humorAllowed()) }
         } }, emotionEngine)?.let {
@@ -1190,6 +1193,24 @@ open class NikoAssistantService : Service() {
         }
     }
 
+    private suspend fun ensureNeuralCore() {
+        if (coreRestored) return
+        withPersonalMemory {
+            if (!coreRestored) {
+                val store = com.niko.assistant.memory.LeoSovereignStore(filesDir)
+                try {
+                    neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns,
+                        store = store, persistenceMutex = learningMutex)
+                } catch (error: Exception) {
+                    // Preserve the unreadable file; a new empty core must not overwrite it.
+                    neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
+                    NikoRuntimeState.setInputStatus(applicationContext, "No pude restaurar documentos y episodios. Conservé el archivo para recuperación.")
+                }
+                coreRestored = true
+            }
+        }
+    }
+
     /** Serialize personal writes with erasure; a superseded turn cannot repopulate cleared data. */
     private suspend fun <T> withPersonalMemory(block: () -> T): T {
         val epoch = learningEpoch
@@ -1213,6 +1234,7 @@ open class NikoAssistantService : Service() {
                 replyVoiceInput = ""
                 replyProsody = SpeechProsody()
                 neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
+                coreRestored = false
                 agent.conversation.clear()
                 companionInitiative.restore(com.niko.assistant.proactive.LeoInitiativeEngine.State())
             })
@@ -1433,7 +1455,7 @@ open class NikoAssistantService : Service() {
         // Keep the primary recognizer listening for guarded interruptions during TTS.
         if (localVoiceActive) setActiveVoiceSpeaking(true, continueAfterSpeech)
 
-        val systemReady = runCatching { platformTts.isReady }.getOrDefault(false)
+        val systemReady = runCatching { platformTts.ensureReady() }.getOrDefault(false)
         if (!systemReady) {
             isSpeaking = false
             NikoRuntimeState.setVoiceReady(applicationContext, false)
@@ -1585,7 +1607,6 @@ open class NikoAssistantService : Service() {
             NikoRuntimeState.setResponse(context, "Memoria personal borrada.")
         }
 
-        private const val COMMAND_EXECUTION_TIMEOUT_MS = 40_000L
         private const val CHANNEL_ID = UpgradeIdentity.assistantChannel
         private const val WAKE_CHANNEL_ID = UpgradeIdentity.wakeChannel
         private const val NOTIFICATION_ID = 2001

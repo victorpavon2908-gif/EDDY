@@ -487,4 +487,27 @@ class LeoSovereignUpgradesTest {
         }
     }
 
+    @Test fun persistedPersonalRouteRestoresDocumentsAndDoesNotResurrectAnExternalClear() = runBlocking {
+        val directory = Files.createTempDirectory("leo-service-persistence").toFile()
+        try {
+            val store = LeoSovereignStore(directory)
+            val first = LeoNeuralCore(TurnController(), store = store)
+            val emotion = LeoEmotionEngine(com.niko.assistant.ai.LeoPlayfulDialogue())
+            first.personalReply("guardá en mis documentos el PDF Manual de prueba: El reactor funciona a 400 hercios estables.", { null }, emotion)
+            val restored = LeoNeuralCore(TurnController(), store = LeoSovereignStore(directory))
+            assertNotNull(restored.rag.answer("¿A cuántos hercios funciona el reactor?"))
+            LeoSovereignStore(directory).clear()
+            assertFalse(store.restoreAll(restored.autodidact, restored.rag, restored.timeline, restored.persona))
+        } finally { directory.deleteRecursively() }
+    }
+
+    @Test fun corruptPersistenceIsReportedAndPreserved() {
+        val directory = Files.createTempDirectory("leo-corrupt-state").toFile()
+        try {
+            val file = java.io.File(directory, "leo_sovereign_state.dat").apply { writeText("broken-state") }
+            assertTrue(runCatching { LeoNeuralCore(TurnController(), store = LeoSovereignStore(directory)) }.isFailure)
+            assertEquals("broken-state", file.readText())
+        } finally { directory.deleteRecursively() }
+    }
+
 }

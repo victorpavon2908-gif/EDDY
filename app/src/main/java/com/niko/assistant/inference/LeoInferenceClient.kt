@@ -21,7 +21,7 @@ class LeoInferenceClient(
         if (!LeoInferenceProtocol.maySend(question)) return null
         val uri = runCatching { LeoInferenceProtocol.endpoint(endpoint) }.getOrNull() ?: return null
         require(timeoutMs > 0)
-        return withTimeoutOrNull(minOf(timeoutMs, mode.inferenceTimeoutMs)) {
+        return withTimeoutOrNull(com.niko.assistant.agent.LeoTurnBudget.limit(minOf(timeoutMs, mode.inferenceTimeoutMs))) {
             suspendCancellableCoroutine { continuation ->
                 pending.add(continuation)
                 val active = AtomicReference<HttpURLConnection?>()

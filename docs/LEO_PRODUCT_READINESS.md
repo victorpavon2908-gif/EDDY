@@ -1,6 +1,6 @@
 # Preparación de LEO como producto
 
-Actualizado: 21 de octubre de 2026 (Nicaragua). Esta página describe evidencias técnicas; no certifica que LEO esté listo para venta general.
+Actualizado: 2 de noviembre de 2026 (Nicaragua). Esta página describe evidencias técnicas; no certifica que LEO esté listo para venta general.
 
 ## IMPLEMENTADO
 
@@ -18,7 +18,7 @@ Ajustes permite instalar y activar Qwen3 1.7B o 4B mediante el runtime JNI conec
 
 ### Investigación más resistente
 
-La excepción de un proveedor se aísla para conservar respuestas de otros; la cancelación del usuario se propaga. La investigación tiene un límite de coroutine de 22 segundos (20 de presupuesto de red y 2 de margen para síntesis), sujeto a que las llamadas bloqueantes respondan a interrupción/timeouts: no es una medición de latencia física. Los fallos distinguen límite de consultas, acceso rechazado, timeout y conexión. No se eluden bloqueos ni CAPTCHAs.
+La excepción de un proveedor se aísla para conservar respuestas de otros; la cancelación del usuario se propaga. La investigación limita la red según el modo (10 segundos en Super Leo, 14 en Normal y Creativo, 18 en Investigador), con hasta 2 segundos adicionales para cerrar la fase y dentro del plazo compartido de la petición, sujeto a que las llamadas bloqueantes respondan a interrupción/timeouts: no es una medición de latencia física. Los fallos distinguen límite de consultas, acceso rechazado, timeout y conexión. No se eluden bloqueos ni CAPTCHAs.
 
 Los enlaces encontrados sin texto suficiente conservan sus referencias, pero no se marcan como una respuesta investigada aprendible. Se conserva el funcionamiento de lectura directa, citas, alertas de discrepancias y herramientas versionadas de la iteración anterior.
 
@@ -58,3 +58,13 @@ Un piloto acompañado debe describir únicamente las capacidades implementadas y
 ## Prueba HTTP de esta iteración
 
 `live-web.log` registra una lectura real HTTP 200 de la documentación de Python, con extracción y cita. La pregunta abierta de arroz volvió a terminar sin evidencia suficiente (Bing respondió sin resultados útiles y DuckDuckGo agotó el tiempo). El script salió con error para esa consulta. Esta prueba verifica el nuevo mensaje de fallo; no aprueba la disponibilidad general de búsqueda.
+
+## Correcciones de recuperación y persistencia del 2 de noviembre
+
+- TTS: recreación automática con tres reintentos, vigilancia de inicialización, rechazo de callbacks antiguos y cancelación de recuperación al cerrar.
+- Modelos: activación posterior a una respuesta real comprobada; un fallo conserva el archivo y evita anunciar éxito. Qwen y Gemma usan sus respectivos formatos de conversación.
+- Memoria: el servicio conecta el almacenamiento del núcleo; las escrituras se coordinan con el borrado y conservan el archivo anterior ante un fallo. Un archivo ilegible se conserva sin sobrescribirlo.
+- Conocimiento offline: recuperación contra el hash esperado de la publicación y prueba de búsqueda sobre un artículo real; un FTS ausente, vacío o desincronizado no supera la validación.
+- Plazos: búsqueda e inferencia consumen el mismo presupuesto de la petición, con reserva para responder ante fallos. Se elimina el límite externo fijo de 40 segundos que interrumpía generación normal permitida hasta 185 segundos.
+
+Se añaden regresiones de estos casos. El resultado de la CI del commit de entrega es la evidencia automatizada; la aceptación en teléfono y las mediciones físicas de la tabla anterior siguen pendientes.

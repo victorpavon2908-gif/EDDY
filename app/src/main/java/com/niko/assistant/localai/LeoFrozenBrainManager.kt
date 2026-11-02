@@ -1,6 +1,7 @@
 package com.niko.assistant.localai
 
 import android.content.Context
+import android.util.AtomicFile
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -47,7 +48,7 @@ class LeoFrozenBrainManager(context: Context) {
         if (!database.isFile || database.length() !in LeoBrainStorage.FROZEN_MIN_BYTES..LeoBrainStorage.FROZEN_MAX_BYTES) return false
         if (!marker.isFile) return false
         val value = runCatching { marker.readText().trim() }.getOrNull().orEmpty()
-        return value.startsWith("$BRAIN_VERSION|")
+        return value.substringBefore('|') == BRAIN_VERSION && isSha256(value.substringAfter('|', ""))
     }
 
     fun installedRevision(): String = runCatching {
@@ -66,8 +67,13 @@ class LeoFrozenBrainManager(context: Context) {
             onProgress(Progress(Progress.State.FAILED, message = "No pude recuperar el paquete anterior; no se reemplazó"))
             return false
         }
-        if (!isInstalled()) {
-            runCatching { recoverPendingInstalling(onProgress) }
+        if (!isInstalled() && LeoOfflineKnowledgeSettings.downloadAllowed(appContext)) {
+            val expected = cachedTrustedManifest()
+            if (expected != null) {
+                try { runInterruptible { recoverPendingInstalling(expected, onProgress) } }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { /* Keep the candidate; the verified release path can retry it. */ }
+            }
         }
         if (isInstalled() && !checkForUpdates) {
             onProgress(Progress(Progress.State.READY, message = "Cerebro congelado listo"))
@@ -77,12 +83,8 @@ class LeoFrozenBrainManager(context: Context) {
 
         return runCatching {
             val manifest = runInterruptible { checkDownloadAllowed(); fetchManifest() }
-            require(manifest.version == BRAIN_VERSION) { "Versión de cerebro inesperada" }
-            require(manifest.archiveName == ARCHIVE_NAME) { "Paquete de cerebro inesperado" }
-            require(manifest.installedBytes in LeoBrainStorage.FROZEN_MIN_BYTES..LeoBrainStorage.FROZEN_MAX_BYTES) {
-                "El cerebro congelado no respeta la cuota de 500 MB"
-            }
-            require(isSha256(manifest.archiveSha256) && isSha256(manifest.installedSha256)) { "Hashes inválidos" }
+            validateManifest(manifest)
+            cacheTrustedManifest(manifest)
             if (isInstalled() && installedRevision() == "${manifest.version}|${manifest.installedSha256}") {
                 onProgress(Progress(Progress.State.READY, message = "Ya tenés la última versión del conocimiento offline"))
                 return true
@@ -146,16 +148,17 @@ class LeoFrozenBrainManager(context: Context) {
         }
     }
 
-    private fun recoverPendingInstalling(onProgress: (Progress) -> Unit): Boolean {
+    private fun recoverPendingInstalling(manifest: ReleaseManifest, onProgress: (Progress) -> Unit): Boolean {
         val installing = File(storage.root, "${LeoBrainStorage.FROZEN_DIRECTORY}.installing")
         val candidate = File(installing, DATABASE_NAME)
         if (!candidate.isFile || candidate.length() !in LeoBrainStorage.FROZEN_MIN_BYTES..LeoBrainStorage.FROZEN_MAX_BYTES) return false
         if (!File(installing, INTERNAL_MANIFEST).isFile || !File(installing, ATTRIBUTION_FILE).isFile) return false
         onProgress(Progress(Progress.State.VERIFYING, candidate.length(), candidate.length(), "Recuperando cerebro local descargado"))
+        if (!LeoFrozenRecovery.matches(candidate, manifest.installedBytes, manifest.installedSha256, ::sha256)) return false
         makeWritable(installing)
         com.niko.assistant.cognitive.LeoEvolutionEngine.validateKnowledge(candidate)
-        val digest = sha256(candidate)
-        File(installing, VALIDATED_MARKER).writeText("$BRAIN_VERSION|$digest")
+        checkDownloadAllowed()
+        File(installing, VALIDATED_MARKER).writeText("${manifest.version}|${manifest.installedSha256}")
         val finalDir = storage.frozen
         makeWritable(finalDir)
         LeoDirectoryActivation.activate(installing, finalDir)
@@ -163,6 +166,31 @@ class LeoFrozenBrainManager(context: Context) {
         File(storage.downloads, "$ARCHIVE_NAME.part").delete()
         onProgress(Progress(Progress.State.READY, candidate.length(), candidate.length(), "Cerebro congelado listo"))
         return true
+    }
+
+    internal fun cacheTrustedManifest(manifest: ReleaseManifest) {
+        validateManifest(manifest)
+        val json = JSONObject().put("schema", 1).put("version", manifest.version)
+            .put("archive_name", manifest.archiveName).put("archive_bytes", manifest.archiveBytes)
+            .put("archive_sha256", manifest.archiveSha256).put("installed_bytes", manifest.installedBytes)
+            .put("installed_sha256", manifest.installedSha256).toString()
+        val atomic = AtomicFile(File(storage.downloads, "trusted-frozen-release.json"))
+        val output = atomic.startWrite()
+        try { output.write(json.toByteArray(Charsets.UTF_8)); atomic.finishWrite(output) }
+        catch (failure: Exception) { atomic.failWrite(output); throw failure }
+    }
+
+    internal fun cachedTrustedManifest(): ReleaseManifest? = runCatching {
+        val atomic = AtomicFile(File(storage.downloads, "trusted-frozen-release.json"))
+        if (!atomic.baseFile.isFile || atomic.baseFile.length() > 16_384) return null
+        parseManifest(atomic.readFully().toString(Charsets.UTF_8)).also(::validateManifest)
+    }.getOrNull()
+
+    private fun validateManifest(manifest: ReleaseManifest) {
+        require(manifest.version == BRAIN_VERSION && manifest.archiveName == ARCHIVE_NAME) { "Versión de cerebro inesperada" }
+        require(manifest.archiveBytes in 1..LeoBrainStorage.TOTAL_MAX_BYTES &&
+            manifest.installedBytes in LeoBrainStorage.FROZEN_MIN_BYTES..LeoBrainStorage.FROZEN_MAX_BYTES) { "Tamaño de cerebro inválido" }
+        require(isSha256(manifest.archiveSha256) && isSha256(manifest.installedSha256)) { "Hashes inválidos" }
     }
 
     private fun fetchManifest(): ReleaseManifest {

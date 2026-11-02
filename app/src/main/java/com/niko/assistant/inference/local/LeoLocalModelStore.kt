@@ -86,20 +86,34 @@ class LeoLocalModelStore(context: Context, requestedModel: LeoLocalModelSpec? = 
                     throw IllegalStateException("Archivo dañado eliminado. Volvé a descargar; el cerebro anterior sigue disponible.", failure)
                 }
             }
-            progress("Activando el modelo verificado en este teléfono…")
             currentCoroutineContext().ensureActive()
             marker.writeText("${spec.id}\n$hash\n")
-            currentCoroutineContext().ensureActive()
-            check(prefs.edit().putString("model_id", spec.id).putBoolean("enabled", true).putString("revision", java.util.UUID.randomUUID().toString()).commit()) { "No se pudo activar el modelo" }
-            if (!currentCoroutineContext().isActive) { disable(); currentCoroutineContext().ensureActive() }
-            runCatching {
-                withTimeoutOrNull(6_000L) {
-                    LeoLocalInferenceClient(app).reply("¿Cuánto es 2 + 2? Respondé solamente el número.", validating = true, model = spec)
-                }
+            progress("Probando una respuesta real del modelo; todavía no se ha activado…")
+            activateVerified {
+                LeoLocalInferenceClient(app).reply("¿Cuánto es 2 + 2? Respondé solamente el número.",
+                    validating = true, model = spec, timeoutMs = PROBE_TIMEOUT_MS, responseTokens = 16)
             }
-            progress("Modelo local activado (${spec.id}) y verificado con SHA-256.")
+            progress("Modelo local activado (${spec.id}), integridad y respuesta comprobadas.")
         }
     }
+    internal suspend fun activateVerified(timeoutMs: Long = PROBE_TIMEOUT_MS, probe: suspend () -> String?) {
+        try {
+            check(installed) { "El archivo del modelo todavía no está verificado." }
+            val answer = withTimeoutOrNull(timeoutMs) { probe() }
+            check(answer?.trim()?.trimEnd('.', '!')?.trim() == "4") {
+                "El archivo se verificó, pero el modelo no respondió correctamente. No se activó; conservé el archivo para reintentar."
+            }
+            currentCoroutineContext().ensureActive()
+            check(prefs.edit().putString("model_id", spec.id).putBoolean("enabled", true)
+                .putString("revision", java.util.UUID.randomUUID().toString()).commit()) { "No se pudo activar el modelo" }
+            if (!currentCoroutineContext().isActive) { disable(); currentCoroutineContext().ensureActive() }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            if (prefs.getString("model_id", LeoLocalModelCatalog.compact.id) == spec.id && prefs.getBoolean("enabled", false)) disable()
+            throw failure
+        }
+    }
+
     private suspend fun download(part: File, progress: suspend (String) -> Unit) {
         var address = URL(spec.url)
         var connection: HttpURLConnection? = null
@@ -142,6 +156,7 @@ class LeoLocalModelStore(context: Context, requestedModel: LeoLocalModelSpec? = 
         } finally { connection?.disconnect() }
     }
     companion object {
+        private const val PROBE_TIMEOUT_MS = 45_000L
         private val installLock = Mutex()
         const val VERSION = "Qwen3-1.7B-Q8_0-90862c4"
         const val BYTES = 1_834_426_016L

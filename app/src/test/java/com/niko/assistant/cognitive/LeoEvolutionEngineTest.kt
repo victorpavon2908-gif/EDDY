@@ -12,6 +12,21 @@ import java.nio.file.Files
 @Config(sdk = [29], manifest = Config.NONE)
 @SQLiteMode(SQLiteMode.Mode.NATIVE)
 class LeoEvolutionEngineTest {
+    @Test fun rejectsMissingOrDisconnectedSearchIndex() {
+        for (kind in listOf("missing", "empty", "orphan")) {
+            val file = Files.createTempFile("leo-broken-index", ".sqlite").toFile()
+            try {
+                SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
+                    db.execSQL("CREATE TABLE articles (id INTEGER PRIMARY KEY, title TEXT, url TEXT)")
+                    db.execSQL("INSERT INTO articles VALUES (1, 'Fotosíntesis', 'https://example.org/fotosintesis')")
+                    if (kind != "missing") db.execSQL("CREATE VIRTUAL TABLE articles_fts USING fts4(title, body)")
+                    if (kind == "orphan") db.execSQL("INSERT INTO articles_fts(docid,title,body) VALUES (2, 'Fotosíntesis', 'Proceso de las plantas')")
+                }
+                org.junit.Assert.assertTrue(kind, runCatching { LeoEvolutionEngine.validateKnowledge(file) }.isFailure)
+            } finally { file.delete() }
+        }
+    }
+
     @Test(expected = IllegalStateException::class) fun rejectsKnowledgeWithUnsafeSourceDespiteWorkingIndex() {
         val file = Files.createTempFile("leo-unsafe", ".sqlite").toFile()
         try {

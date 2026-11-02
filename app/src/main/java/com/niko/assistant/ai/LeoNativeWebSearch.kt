@@ -52,9 +52,11 @@ object LeoNativeWebSearch {
     data class FetchDiagnostic(val host: String, val status: Int?, val bytes: Int, val failure: String?)
 
     suspend fun search(query: String, mode: LeoMode = LeoMode.NORMAL, diagnostic: ((FetchDiagnostic) -> Unit)? = null): NikoAiReply {
-        val deadline = System.nanoTime() + mode.searchMs * 1_000_000L
+        val phaseMs = com.niko.assistant.agent.LeoTurnBudget.limit(mode.searchMs, reserveMs = 5_000L)
+        if (phaseMs == 0L) return NikoAiReply("La búsqueda no tuvo tiempo suficiente dentro de esta petición. Podés volver a intentarlo.", false, emptyList())
+        val deadline = System.nanoTime() + phaseMs * 1_000_000L
         val observations = java.util.Collections.synchronizedList(mutableListOf<FetchDiagnostic>())
-        val reply = withTimeoutOrNull(mode.searchMs + 2_000L) {
+        val reply = withTimeoutOrNull(phaseMs + 2_000L) {
             search(query, mode) { url, accept, limit -> runInterruptible(Dispatchers.IO) {
                 fetchText(url, accept, limit, deadline) { event ->
                     observations += event
