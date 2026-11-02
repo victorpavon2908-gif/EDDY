@@ -2,7 +2,10 @@ package com.niko.assistant.inference.local
 
 /** Immutable, APK-authorized resources. IDs never accept arbitrary filesystem paths. */
 data class LeoLocalModelSpec(val id: String, val bytes: Long, val sha256: String,
-    val url: String, val minimumRam: Long, val availableRam: Long, val label: String)
+    val url: String, val minimumRam: Long, val availableRam: Long, val label: String) {
+    fun canRun(totalRam: Long, freeRam: Long, lowMemory: Boolean, has64Bit: Boolean): Boolean =
+        has64Bit && !lowMemory && totalRam >= minimumRam && freeRam >= availableRam
+}
 
 object LeoLocalModelCatalog {
     val compact = LeoLocalModelSpec("qwen3-1.7b-q8", LeoLocalModelStore.BYTES,

@@ -9,12 +9,20 @@ object WebQueryRouter {
         .replace(Regex("\\p{Mn}+"), "").trim(' ', '¿', '¡')
 
     fun explicitQuery(input: String): String? {
-        val text = normalize(input)
+        val urls = mutableListOf<String>()
+        val protected = Regex("https?://[^\\s<>\"“”«»]+", RegexOption.IGNORE_CASE).replace(input) {
+            val index = urls.size
+            urls += it.value
+            "__leo_search_url_${index}__"
+        }
+        val text = normalize(protected)
             .replace(Regex("^(?:(?:oye|hey|hola)\\s+)?leo\\b[ ,:]*"), "")
             .replace(Regex("^por favor[ ,]+"), "")
         val match = Regex("^(?:(?:podes|puedes|podrias|podria|quiero que|necesito que)\\s+)?(?:buscar|busca|buscame|busques|buscam|investiga|investigame|investigar|investigues|averigua|averiguame|averiguar|consulta|consultame|consultar|googlea)(?:\\s+(?:en|por)\\s+(?:(?:todo|toda)\\s+(?:(?:el|la)\\s+)?)?(?:internet|google|la web|web))?\\s+(.+)$")
             .find(text) ?: return null
-        return match.groupValues[1].trim(' ', ',', '.', '?', '¿', ':').takeIf { it.isNotBlank() }
+        var topic = match.groupValues[1].trim(' ', ',', '.', '?', '¿', ':')
+        urls.forEachIndexed { index, url -> topic = topic.replace("__leo_search_url_${index}__", url) }
+        return topic.takeIf { it.isNotBlank() }
     }
 
     fun needsCurrentInformation(input: String): Boolean {
@@ -38,7 +46,7 @@ object WebQueryRouter {
         if (freshnessMarkers.any { Regex(it).containsMatchIn(text) }) return true
 
         return listOf(
-            "\\b(?:noticias|pronostico|clima|tiempo|temperatura|va a llover|llovera|esta lloviendo|cotizacion|tipo de cambio)\\b",
+            "\\b(?:noticias|pronostico|clima|temperatura|va a llover|llovera|esta lloviendo|cotizacion|tipo de cambio)\\b",
             "\\b(?:precio|cuesta|cuanto vale|resultado|marcador|horario|presidente|gan[oó])\\b",
             "\\b(?:terremoto|sismo|huracan|tormenta|eleccion|elecciones)\\b.*\\b(?:reciente|hoy|ahora|acaba|hace poco)\\b",
         ).any { Regex(it).containsMatchIn(text) }

@@ -22,6 +22,24 @@ class LeoInferenceClientTest {
         override fun getOutputStream() = payload
         override fun getInputStream() = ByteArrayInputStream("""{"choices":[{"finish_reason":"stop","message":{"content":"fixture answer"}}]}""".toByteArray())
     }
+    @Test fun deadlineDisconnectsAStalledProviderAndAllowsANewRequest() = runBlocking {
+        val entered = CountDownLatch(1)
+        val released = CountDownLatch(1)
+        val connection = object : Connection() {
+            override fun getResponseCode(): Int { entered.countDown(); released.await(5, TimeUnit.SECONDS); return 200 }
+            override fun disconnect() { super.disconnect(); released.countDown() }
+        }
+        LeoInferenceClient { connection }.use { client ->
+            val answer = withTimeout(3000) {
+                client.reply("https://example.com/v1/chat/completions", "model", "", "explica variables", timeoutMs = 500)
+            }
+            assertNull(answer)
+            assertEquals(0L, entered.count)
+            assertTrue(connection.disconnected)
+            assertEquals("fixture answer", client.reply("https://example.com/v1/chat/completions", "model", "", "explica variables"))
+        }
+    }
+
     @Test fun sendsPostWithoutFollowingRedirects() = runBlocking {
         val connection = Connection()
         LeoInferenceClient { connection }.use { client ->

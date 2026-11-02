@@ -4,11 +4,16 @@ import com.niko.assistant.memory.MemoryLearning
 
 data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
     companion object {
-        fun forMode(base: SpeechProsody, mode: com.niko.assistant.modes.LeoMode): SpeechProsody = when (mode) {
+        fun forMode(base: SpeechProsody, mode: com.niko.assistant.modes.LeoMode, input: String = ""): SpeechProsody {
+            val text = MemoryLearning.key(input)
+            val explicit = Regex("\\b(?:mas despacio|habla lento|habla mas lento|habla despacio|habla mas despacio|habla rapido|habla mas rapido|responde rapido|ponte serio|habla serio|voz seria|sin bromas|habla alegre|habla asustado|habla enojado|voz de sorpresa)\\b")
+            if (explicit.containsMatchIn(text)) return forInput(input)
+            return when (mode) {
             com.niko.assistant.modes.LeoMode.NORMAL -> base
             com.niko.assistant.modes.LeoMode.SUPER -> SpeechProsody(speed = 1.15f, pitch = 0.89f)
             com.niko.assistant.modes.LeoMode.RESEARCH -> SpeechProsody(speed = 1.0f, pitch = 0.92f)
             com.niko.assistant.modes.LeoMode.CREATIVE -> SpeechProsody(speed = 1.10f, pitch = 1.02f)
+            }
         }
 
         fun forInput(input: String): SpeechProsody {
@@ -16,8 +21,8 @@ data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
                 Regex("\\bno (?:estoy (?:triste|preocupado|preocupada)|me siento mal)\\b"), " ",
             )
             return when {
-                Regex("\\b(?:mas despacio|habla lento|estoy triste|me siento mal|estoy preocupado|estoy preocupada)\\b").containsMatchIn(text) -> SpeechProsody(speed = 0.93f)
-                Regex("\\b(?:mas rapido|responde rapido|habla rapido|date prisa|apurate|no dilates|voz tarda)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.15f)
+                Regex("\\b(?:mas despacio|habla (?:mas )?(?:lento|despacio)|estoy triste|me siento mal|estoy preocupado|estoy preocupada)\\b").containsMatchIn(text) -> SpeechProsody(speed = 0.93f)
+                Regex("\\b(?:mas rapido|responde rapido|habla (?:mas )?rapido|date prisa|apurate|no dilates|voz tarda)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.15f)
                 Regex("\\b(?:ponte serio|habla serio|modo serio|voz seria|sin bromas)\\b").containsMatchIn(text) -> SpeechProsody(speed = 0.96f, pitch = 0.89f)
                 Regex("\\b(?:ponte sarcastico|habla sarcastico|modo sarcasmo|burlate|haz una broma)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.10f, pitch = 0.96f)
                 Regex("\\b(?:alegrate|ponte feliz|habla alegre|emocionate|modo alegre|entusiasmado)\\b").containsMatchIn(text) -> SpeechProsody(speed = 1.14f, pitch = 1.02f)

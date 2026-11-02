@@ -39,3 +39,12 @@ La entrega de código no equivale a certificar el comportamiento físico. Antes 
 La interfaz actual es Kotlin/Compose y parte de la lógica sigue en Kotlin. Los scripts de entrenamiento/preparación usan Python; la migración total del cerebro a Python no está completada.
 
 Los registros históricos pueden mencionar el producto web retirado. Se conservan como evidencia, no como funcionalidad ni instrucciones de despliegue vigentes. La utilidad de métricas `scripts/calcular_metricas.mjs` es una herramienta de consola independiente para mediciones móviles, sin servidor ni dependencias npm.
+
+
+## Revisión funcional — 1 de noviembre de 2026
+
+Se repararon la recuperación de modelos sin SHA-256, su activación involuntaria, la comprobación de RAM disponible, la pérdida de mayúsculas en enlaces de órdenes por voz, las esperas de proveedores sin un plazo global, el clima que confundía mañana con condiciones actuales y la prioridad de indicaciones explícitas de velocidad sobre los modos. El panel de modelos usa la paleta clara de configuración y conserva mensajes de error al recuperarse.
+
+Ajustes y voz usan un borrado común que elimina los datos personales y el aprendizaje persistido. El asistente invalida el turno anterior, coordina las escrituras con el borrado y renueva su estado en memoria; modelos, modo activo, configuración y huella vocal se conservan. Se añadieron regresiones de recuperación con archivos pequeños, pronóstico por día, cancelación/timeout y borrado de datos. Las pruebas no equivalen a certificar descargas de varios GB, calidad de modelos o funcionamiento físico de voz, cámara y Bluetooth.
+
+La suite portátil ejecutó 79 pruebas JVM y las herramientas 13 pruebas Python. La suite Android, las pruebas de interfaz y Lint deben comprobarse en GitHub Actions para el SHA de entrega.

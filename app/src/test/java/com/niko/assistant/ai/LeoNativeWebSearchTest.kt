@@ -115,6 +115,29 @@ class LeoNativeWebSearchTest {
         assertFalse(visited.any { "contexto explicacion detallada" in it || "fuente primaria" in it })
     }
 
+    @Test fun spanishReadPagesArePreferredWithoutFabricatingTranslations() = runBlocking {
+        val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
+            when {
+                "bing.com" in url -> LeoNativeWebSearch.Fetch(
+                    "<rss><channel><item><title>Panel solar</title><link>https://energy.example/es</link><description>Un panel solar produce electricidad.</description></item><item><title>Panel solar English</title><link>https://energy.example/en</link><description>A panel solar device produces electricity.</description></item></channel></rss>", url)
+                url.endsWith("/es") -> LeoNativeWebSearch.Fetch("<html lang='es-NI'><p>Un panel solar transforma la luz en electricidad para alimentar dispositivos durante el día.</p></html>", url)
+                url.endsWith("/en") -> LeoNativeWebSearch.Fetch("<html lang='en'><p>A panel solar device produces electricity for household appliances during daylight.</p></html>", url)
+                else -> null
+            }
+        }
+        assertTrue(reply.webUsed)
+        assertEquals("https://energy.example/es", reply.sources.single().url)
+        assertFalse(reply.text.contains("household"))
+    }
+
+    @Test fun aDefinitionQuestionPrioritizesTheDefinitionOverANumericPrediction() {
+        val hit = LeoNativeWebSearch.Hit("Energía solar", "https://energy.example/solar", "", articleText =
+            "La energía solar es una energía renovable obtenida de la radiación del Sol. " +
+            "Según un informe, la energía solar podría alimentar miles de edificios nuevos en 2030.")
+        val answer = LeoNativeWebSearch.summarize("¿Qué es la energía solar?", listOf(hit), false)
+        assertTrue(answer.startsWith("La energía solar es"))
+    }
+
     @Test fun programmingLanguageSymbolsRemainRelevantDuringResearch() {
         val cpp = LeoNativeWebSearch.Hit("C++ referencias", "https://cpp.example/reference", "C++ permite programar aplicaciones con tipos y funciones.")
         val csharp = LeoNativeWebSearch.Hit("C# referencias", "https://csharp.example/reference", "C# permite programar aplicaciones con tipos y funciones.")

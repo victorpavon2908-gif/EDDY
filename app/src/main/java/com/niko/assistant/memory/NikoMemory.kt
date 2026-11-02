@@ -259,7 +259,7 @@ class NikoMemory(context: Context) {
         cancelProactiveSchedules()
         archive.clearMemory()
         com.niko.assistant.memory.embedding.LeoSemanticMemory.get(appContext).release()
-        prefs.edit().clear().apply()
+        check(prefs.edit().clear().commit()) { "No se pudo guardar el borrado de la memoria." }
     }
 
     private fun readLearnedAnswers(): List<LearnedAnswer> {

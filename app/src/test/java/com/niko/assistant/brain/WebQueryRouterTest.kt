@@ -6,6 +6,13 @@ import org.junit.Test
 class WebQueryRouterTest {
     private val brain = LocalBrain()
 
+    @Test fun voiceSearchRoutingPreservesCaseSensitiveLinksAndAccents() {
+        val url = "https://docs.example/Guía/CaseSensitive?token=AbC&x=%2F"
+        assertEquals(AssistantCommand.SearchWeb(url), brain.understand("Leo, busca $url"))
+        assertEquals("resume $url", WebQueryRouter.explicitQuery("busca resume $url"))
+        assertFalse(WebQueryRouter.needsRecentInformation("cuánto tiempo tarda descargar un modelo"))
+    }
+
     @Test fun broadInternetRequestExtractsOnlyTheTopic() {
         assertEquals("energia solar", WebQueryRouter.explicitQuery("busca en todo internet energía solar"))
         assertEquals("energia solar", WebQueryRouter.explicitQuery("busca por toda la web energía solar"))

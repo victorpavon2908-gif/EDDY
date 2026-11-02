@@ -110,8 +110,6 @@ import com.niko.assistant.localai.NikoModelCatalog
 import com.niko.assistant.localai.NikoModelManager
 import com.niko.assistant.localai.NikoModelSpec
 import com.niko.assistant.localai.NikoVoiceProfile
-import com.niko.assistant.memory.LeoSovereignStore
-import com.niko.assistant.memory.NikoMemory
 import com.niko.assistant.memory.embedding.LeoSemanticMemory
 import com.niko.assistant.ui.NikoUiMode
 import com.niko.assistant.ui.NikoUiModeStore
@@ -1243,11 +1241,11 @@ private fun LeoSettingsScreen(
                         showClearMemoryDialog = false
                         memoryFeedback = "Borrando memoria…"
                         scope.launch {
-                            val result = withContext(Dispatchers.IO) {
-                                val personal = runCatching { NikoMemory(context).clearAll() }
-                                val sovereign = runCatching { LeoSovereignStore(context.filesDir).clear() }
-                                personal.isSuccess && sovereign.isSuccess
-                            }
+                            val result = try {
+                                NikoAssistantService.clearPersonalMemory(context)
+                                true
+                            } catch (cancelled: CancellationException) { throw cancelled }
+                            catch (_: Exception) { false }
                             memoryFeedback = if (result) "Memoria personal y aprendizaje reiniciados."
                                 else "No se pudo borrar toda la memoria. Revisá el almacenamiento y reintentá."
                         }

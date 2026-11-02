@@ -43,6 +43,7 @@ object LeoNativeWebSearch {
         val angle: Int = 0,
         val steps: List<String> = emptyList(),
         val code: String = "",
+        val language: String = "",
     )
 
     internal data class Fetch(val body: String, val finalUrl: String)
@@ -163,6 +164,7 @@ object LeoNativeWebSearch {
                     url = page?.finalUrl ?: original.url,
                     publisher = hostOf(page?.finalUrl ?: original.url).ifBlank { original.publisher },
                     rank = index,
+                    language = page?.body?.let(::pageLanguage).orEmpty().ifBlank { original.language },
                     articleText = usefulArticle.ifBlank { original.articleText },
                     steps = if (usefulArticle.isNotBlank()) extractSteps(page?.body.orEmpty()) else original.steps,
                     code = if (usefulArticle.isNotBlank()) extractCode(page?.body.orEmpty()) else original.code,
@@ -172,8 +174,13 @@ object LeoNativeWebSearch {
         if (enriched.isEmpty()) return@withContext noResults(subject)
         // Do not mix unread search snippets into an answer grounded in read pages.
         val evidenceHits = enriched.filter { it.articleText.isNotBlank() }.ifEmpty { enriched }
-        val cited = evidenceHits.distinctBy { it.url }.take(mode.sourceCount)
-        val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, mode == LeoMode.RESEARCH || wantsDepth(cleanQuery), sentenceLimit = if (mode == LeoMode.SUPER && !wantsDepth(cleanQuery)) 2 else 4)
+        val spanish = evidenceHits.filter { it.language == "es" && it.articleText.isNotBlank() }
+        val wantsEnglish = Regex("(?i)\\b(?:en ingles|in english|translate|what|how|why|where|when)\\b").containsMatchIn(normalize(cleanQuery))
+        // The interface is Spanish. Prefer read Spanish pages when available; never translate by guessing.
+        // Explicit links, English requests and code retain the original sources.
+        val answerHits = if (spanish.isNotEmpty() && (!current || spanish.any { it.published.isNotBlank() }) && !wantsEnglish && !isCoding(cleanQuery)) spanish else evidenceHits
+        val cited = answerHits.distinctBy { it.url }.take(mode.sourceCount)
+        val summary = practicalAnswer(cleanQuery, cited) ?: summarize(cleanQuery, cited, current, mode == LeoMode.RESEARCH || wantsDepth(cleanQuery), sentenceLimit = if (mode == LeoMode.SUPER && !wantsDepth(cleanQuery)) 2 else 4)
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         val readCount = cited.count { it.articleText.isNotBlank() }
@@ -246,81 +253,17 @@ object LeoNativeWebSearch {
         }
     }
 
-    internal fun isWeatherQuery(query: String): Boolean {
-        val q = normalize(query)
-        return Regex("\\b(?:clima|tiempo|temperatura|pronostico|va a llover|llovera|esta lloviendo|sensacion termica)\\b").containsMatchIn(q)
-    }
+    internal fun isWeatherQuery(query: String): Boolean = LeoWeather.isQuery(query)
 
-    internal fun extractWeatherLocation(query: String): String {
-        val q = normalize(query)
-            .replace(Regex("^(?:(?:oye|hey|hola)\\s+)?leo\\b[ ,:]*"), "")
-            .replace(Regex("^por favor[ ,]+"), "")
-            .replace(Regex("\\b(?:como esta|que tal|cual es|dime|decime|consulta|averigua|busca|el|la)\\b"), " ")
-            .replace(Regex("\\b(?:clima|tiempo|temperatura|pronostico|hoy|ahora|manana)\\b"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-        val match = Regex("\\b(?:en|de|para|por)\\s+([a-zñáéíóúü ]{3,30})$").find(q)
-        val city = match?.groupValues?.get(1)?.trim() ?: q.takeIf { it.length in 3..30 && it !in setOf("hoy", "ahora", "manana") }
-        return city?.trim(' ', '.', ',')?.takeIf { it.isNotBlank() } ?: "Managua"
-    }
+    internal fun extractWeatherLocation(query: String): String = LeoWeather.location(query)
 
     internal suspend fun searchWeather(query: String, fetch: suspend (String, String, Int) -> Fetch?): NikoAiReply? {
+        if (LeoWeather.dayOffset(query) == null) return null
         val location = extractWeatherLocation(query)
         val encoded = URLEncoder.encode(location, Charsets.UTF_8.name())
         val url = "https://wttr.in/$encoded?format=j1&lang=es"
-        val jsonStr = fetch(url, "application/json", 100_000)?.body ?: return null
-        return runCatching {
-            val root = JSONObject(jsonStr)
-            val current = root.optJSONArray("current_condition")?.optJSONObject(0) ?: return null
-            val tempC = current.optString("temp_C", "--")
-            val feelsLike = current.optString("FeelsLikeC", tempC)
-            val humidity = current.optString("humidity", "--")
-            val wind = current.optString("windspeedKmph", "--")
-            val langEsArr = current.optJSONArray("lang_es")
-            val condition = langEsArr?.optJSONObject(0)?.optString("value")
-                ?: current.optJSONArray("weatherDesc")?.optJSONObject(0)?.optString("value", "despejado")
-                ?: "despejado"
-
-            val weatherArr = root.optJSONArray("weather")
-            val today = weatherArr?.optJSONObject(0)
-            val maxTemp = today?.optString("maxtempC", "") ?: ""
-            val minTemp = today?.optString("mintempC", "") ?: ""
-
-            val cityCap = location.split(' ').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
-
-            val markdown = buildString {
-                appendLine("🌤️ **Clima en $cityCap**")
-                appendLine("• **Temperatura:** ${tempC}°C (Sensación térmica: ${feelsLike}°C)")
-                appendLine("• **Condición:** ${condition.replaceFirstChar(Char::uppercase)}")
-                appendLine("• **Humedad:** $humidity% | **Viento:** $wind km/h")
-                if (maxTemp.isNotBlank() && minTemp.isNotBlank()) {
-                    appendLine("• **Pronóstico de hoy:** Máx ${maxTemp}°C / Mín ${minTemp}°C")
-                }
-            }.trim()
-
-            val eddySpeech = buildString {
-                append("En $cityCap tenemos actualmente $tempC grados con $condition. ")
-                append("La humedad está en $humidity por ciento y el viento a $wind kilómetros por hora. ")
-                if (maxTemp.isNotBlank() && minTemp.isNotBlank()) {
-                    append("La temperatura esperada para hoy oscila entre los $minTemp y los $maxTemp grados.")
-                }
-            }.trim()
-
-            NikoAiReply(
-                text = markdown,
-                webUsed = true,
-                sources = listOf(NikoWebSource("[1] Servicio Meteorológico (wttr.in)", "https://wttr.in/$encoded")),
-                evidence = "Datos meteorológicos en tiempo real consultados vía wttr.in.",
-                spokenText = eddySpeech,
-                suggestions = listOf(
-                    "¿Va a llover hoy en $cityCap?",
-                    "Pronóstico para mañana en $cityCap",
-                    "Humedad y sensación térmica en $cityCap",
-                ),
-                passages = listOf(NikoRetrievedPassage(1, "Clima actual en $cityCap: $tempC°C, $condition, humedad $humidity%, viento $wind km/h.", true)),
-                researchContext = "CLIMA $cityCap: $tempC°C, $condition, humedad $humidity%, viento $wind km/h.",
-            )
-        }.getOrNull()
+        val raw = fetch(url, "application/json", 100_000)?.body ?: return null
+        return LeoWeather.parse(query, location, raw)
     }
 
     internal suspend fun searchWikipedia(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
@@ -362,6 +305,7 @@ object LeoNativeWebSearch {
                     publisher = "Wikipedia",
                     rank = i,
                     articleText = extract.take(MAX_ARTICLE_TEXT),
+                    language = "es",
                 )
             }
         }
@@ -391,6 +335,7 @@ object LeoNativeWebSearch {
                         publisher = "Wikipedia",
                         rank = index,
                         articleText = extract.take(MAX_ARTICLE_TEXT),
+                    language = "es",
                     ))
                 }
             }
@@ -731,6 +676,10 @@ object LeoNativeWebSearch {
         return raw?.let { runCatching { Charset.forName(it) }.getOrNull() } ?: Charsets.UTF_8
     }
 
+    private fun pageLanguage(html: String): String = Regex("<html\\b[^>]*>", RegexOption.IGNORE_CASE)
+        .find(html)?.value?.let(::attributes)?.get("lang").orEmpty()
+        .lowercase(Locale.ROOT).substringBefore('-').substringBefore('_')
+
     internal fun extractReadableText(html: String): String {
         if (html.isBlank()) return ""
         val cleaned = html.replace(SCRIPT_STYLE, " ").replace(COMMENTS, " ")
@@ -801,6 +750,7 @@ object LeoNativeWebSearch {
 
     internal fun summarize(query: String, hits: List<Hit>, current: Boolean, deep: Boolean = false, sentenceLimit: Int = 4): String {
         val queryTerms = subjectTokens(subjectQuery(query))
+        val definition = Regex("\\b(?:que es|que son|quien es|quien fue|define|definicion|significa)\\b").containsMatchIn(normalize(query))
         val candidates = mutableListOf<SentenceCandidate>()
         hits.forEachIndexed { sourceIndex, hit ->
             if (!isRelevantTo(query, hit)) return@forEachIndexed
@@ -814,7 +764,8 @@ object LeoNativeWebSearch {
                 val specifics = if (sentence.any(Char::isDigit)) 0.8 else 0.0
                 val explanation = if (Regex("(?i)\\b(?:porque|permite|debido|significa|sin embargo|riesgo|limitaci[oó]n|ventaja|consiste|define|transforma|produce|naci[oó]|destac[oó]|funciona|sirve|utiliza)\\b").containsMatchIn(sentence)) 1.5 else 0.0
                 val promoPenalty = if (Regex("(?i)\\b(?:comprar ahora|oferta|descuento|haz clic|registrate)\\b").containsMatchIn(sentence)) -2.5 else 0.0
-                val score = overlap * 2.0 + specifics + explanation + promoPenalty + if (hit.articleText.isNotBlank()) 1.0 else 0.0
+                val directAnswer = if (definition && Regex("\\b(?:es|son|fue|consiste|se define|significa)\\b").containsMatchIn(normalize(sentence))) 6.0 else 0.0
+                val score = overlap * 2.0 + directAnswer + specifics + explanation + promoPenalty + if (hit.articleText.isNotBlank()) 1.0 else 0.0
                 candidates += SentenceCandidate(sentence, sourceIndex, score)
             }
         }
@@ -1040,6 +991,7 @@ object LeoNativeWebSearch {
     private val BOILERPLATE = listOf(
         "aceptar cookies", "politica de privacidad", "suscribete", "inicia sesion", "todos los derechos reservados",
         "enable javascript", "habilita javascript", "activa javascript", "newsletter",
+        "te explicamos que", "in this article", "student encyclopedia", "te puede interesar", "you may also like",
     )
     private val QUERY_FILLERS = setOf(
         "profundidad", "profundo", "detallado", "detallada", "detalladamente", "exhaustivo", "exhaustiva", "fondo",

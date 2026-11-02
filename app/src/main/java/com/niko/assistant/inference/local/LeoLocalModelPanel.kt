@@ -48,14 +48,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val PanelCardBg = Color(0xFF101917)
-private val PanelSubCardBg = Color(0xFF16221F)
-private val PanelBorder = Color(0xFF243832)
-private val PanelAccent = Color(0xFF36E5B2)
-private val PanelCyan = Color(0xFF55E8FF)
-private val PanelTextPrimary = Color(0xFFF1F7F5)
-private val PanelTextSecondary = Color(0xFF9EB2AB)
-private val PanelDanger = Color(0xFFFF6B81)
+private val PanelCardBg = Color(0xFFFFFFFF)
+private val PanelSubCardBg = Color(0xFFF0F3F6)
+private val PanelBorder = Color(0xFFD7DEE5)
+private val PanelAccent = Color(0xFF163E5C)
+private val PanelCyan = Color(0xFF163E5C)
+private val PanelTextPrimary = Color(0xFF172B3A)
+private val PanelTextSecondary = Color(0xFF4B5C68)
+private val PanelDanger = Color(0xFFA32138)
 
 @Composable
 fun LeoLocalModelPanel() {
@@ -74,9 +74,10 @@ fun LeoLocalModelPanel() {
         else it.outputData.getString(LeoModelDownloadWorker.STATUS)
     }
     var job by remember { mutableStateOf<Job?>(null) }
+    var recovering by remember { mutableStateOf(false) }
     var isInstalled by remember(selected) { mutableStateOf(store.installed) }
     var isEnabled by remember(selected) { mutableStateOf(store.enabled) }
-    val isCompatible = remember(selected) { store.compatible() }
+    val isCompatible = remember(selected, downloading, isEnabled) { store.compatible() }
     var status by remember(selected) {
         mutableStateOf(
             when {
@@ -90,13 +91,25 @@ fun LeoLocalModelPanel() {
     var confirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(selected, completedStatus, downloading) {
-        if (!store.installed && store.recoverIfVerified()) {
-            workManager.cancelUniqueWork(LeoModelDownloadWorker.NAME)
+        var recoveryProblem: String? = null
+        if (!downloading && !store.installed && store.modelFile.isFile) {
+            recovering = true
+            status = "Verificando el archivo local encontrado…"
+            try {
+                if (!withContext(Dispatchers.IO) { store.recoverIfVerified() })
+                    recoveryProblem = "El archivo no superó la verificación. Podés verificarlo o volver a descargarlo."
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { recoveryProblem = "No pude recuperar el archivo. Podés verificarlo o volver a descargarlo." }
+            finally { recovering = false }
         }
         isInstalled = store.installed
         isEnabled = store.enabled
-        if (store.enabled) {
+        if (recoveryProblem != null) {
+            status = recoveryProblem
+        } else if (store.enabled) {
             status = "Modelo activo: ${store.spec.id} (instalado y verificado con SHA-256)"
+        } else if (isInstalled) {
+            status = "Modelo verificado y desactivado. Tocá validar y activar para usarlo."
         } else if (completedStatus != null && !downloading) {
             status = completedStatus
         }
@@ -119,7 +132,7 @@ fun LeoLocalModelPanel() {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "MODELO GENERATIVO GGUF (OPCIONAL)",
+                        text = "MODELO LOCAL OPCIONAL",
                         color = PanelCyan,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -127,7 +140,7 @@ fun LeoLocalModelPanel() {
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "Razonamiento profundo y código sin Internet",
+                        text = "Texto y código sin conexión",
                         color = PanelTextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -168,7 +181,7 @@ fun LeoLocalModelPanel() {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = job == null && !downloading) { selected = option },
+                            .clickable(enabled = job == null && !downloading && !recovering) { selected = option },
                         shape = RoundedCornerShape(14.dp),
                         color = if (isSelected) PanelAccent.copy(alpha = 0.11f) else PanelSubCardBg,
                         border = BorderStroke(
@@ -182,7 +195,7 @@ fun LeoLocalModelPanel() {
                         ) {
                             RadioButton(
                                 selected = isSelected,
-                                onClick = { if (job == null && !downloading) selected = option },
+                                onClick = { if (job == null && !downloading && !recovering) selected = option },
                                 colors = RadioButtonDefaults.colors(
                                     selectedColor = PanelAccent,
                                     unselectedColor = PanelTextSecondary,
@@ -244,21 +257,21 @@ fun LeoLocalModelPanel() {
 
             Button(
                 onClick = { confirm = true },
-                enabled = job == null && !downloading,
+                enabled = job == null && !downloading && !recovering,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PanelAccent,
-                    contentColor = Color(0xFF061510),
+                    contentColor = Color(0xFFFFFFFF),
                     disabledContainerColor = PanelBorder,
                     disabledContentColor = PanelTextSecondary,
                 ),
             ) {
                 Text(
                     text = when {
-                        downloading -> "DESCARGA EN CURSO…"
-                        isInstalled -> "VALIDAR Y ACTIVAR ${selected.id.uppercase()}"
-                        else -> "DESCARGAR Y ACTIVAR MODELO LLM"
+                        downloading -> "Descarga en curso…"
+                        isInstalled -> "Verificar y activar ${selected.id}"
+                        else -> "Descargar y activar"
                     },
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.5.sp,
@@ -284,7 +297,7 @@ fun LeoLocalModelPanel() {
                     border = BorderStroke(1.dp, if (downloading) PanelDanger else PanelBorder),
                 ) {
                     Text(
-                        text = if (downloading) "DETENER DESCARGA" else "CANCELAR COLA",
+                        text = if (downloading) "Detener descarga" else "Cancelar cola",
                         color = if (downloading) PanelDanger else PanelTextSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -293,19 +306,23 @@ fun LeoLocalModelPanel() {
 
                 OutlinedButton(
                     onClick = {
-                        scope.launch {
-                            withContext(Dispatchers.IO) { store.disable() }
-                            isEnabled = false
-                            status = "Modelo pesado desactivado. LEO usa ahora su núcleo biónico rápido; el archivo se conserva."
+                        job = scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) { store.disable() }
+                                isEnabled = false
+                                status = "Modelo desactivado. El núcleo rápido está activo; el archivo se conserva."
+                            } catch (cancelled: CancellationException) { throw cancelled }
+                            catch (_: Exception) { status = "No pude guardar el cambio. Volvé a intentarlo." }
+                            finally { job = null }
                         }
                     },
-                    enabled = job == null && !downloading,
+                    enabled = job == null && !downloading && !recovering,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, PanelBorder),
                 ) {
                     Text(
-                        text = "USAR NÚCLEO RÁPIDO",
+                        text = "Usar núcleo rápido",
                         color = PanelTextPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -315,7 +332,7 @@ fun LeoLocalModelPanel() {
 
             OutlinedButton(
                 onClick = { deleteConfirm = true },
-                enabled = job == null && !downloading,
+                enabled = job == null && !downloading && !recovering,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, PanelDanger.copy(alpha = 0.45f)),
@@ -330,8 +347,8 @@ fun LeoLocalModelPanel() {
 
             if (!isCompatible) {
                 Text(
-                    text = "Nota: Tu teléfono tiene menos RAM libre de la recomendada para ${selected.id}. El núcleo biónico rápido de LEO funciona sin necesidad de este archivo pesado.",
-                    color = Color(0xFFFFB45C),
+                    text = "El teléfono no cumple ahora los requisitos de memoria o arquitectura de ${selected.id}. El núcleo biónico rápido de LEO funciona sin necesidad de este archivo pesado.",
+                    color = Color(0xFF78542D),
                     fontSize = 11.5.sp,
                     lineHeight = 16.sp,
                 )
@@ -342,7 +359,7 @@ fun LeoLocalModelPanel() {
     if (deleteConfirm) {
         AlertDialog(
             onDismissRequest = { deleteConfirm = false },
-            containerColor = Color(0xFF121C19),
+            containerColor = PanelCardBg,
             titleContentColor = PanelTextPrimary,
             textContentColor = PanelTextSecondary,
             title = { Text("Liberar espacio del modelo", fontWeight = FontWeight.Bold) },
@@ -385,7 +402,7 @@ fun LeoLocalModelPanel() {
     if (confirm) {
         AlertDialog(
             onDismissRequest = { confirm = false },
-            containerColor = Color(0xFF121C19),
+            containerColor = PanelCardBg,
             titleContentColor = PanelTextPrimary,
             textContentColor = PanelTextSecondary,
             title = { Text("Descargar modelo local (${store.spec.id})", fontWeight = FontWeight.Bold) },

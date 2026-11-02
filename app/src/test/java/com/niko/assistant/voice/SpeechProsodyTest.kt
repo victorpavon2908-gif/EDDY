@@ -4,6 +4,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechProsodyTest {
+    @Test fun explicitSpeechInstructionsOverrideTheOperatingMode() {
+        val slow = SpeechProsody.forMode(SpeechProsody(), com.niko.assistant.modes.LeoMode.SUPER, "Leo, habla más lento")
+        assertTrue(slow.speed < 1f)
+        val fast = SpeechProsody.forMode(SpeechProsody(), com.niko.assistant.modes.LeoMode.RESEARCH, "habla más rápido")
+        assertEquals(1.15f, fast.speed)
+    }
+
     @Test fun operatingModesChangeVoiceAndNormalRestoresExistingProsody() {
         val base = SpeechProsody(speed = 0.96f, pitch = 0.93f)
         assertEquals(base, SpeechProsody.forMode(base, com.niko.assistant.modes.LeoMode.NORMAL))

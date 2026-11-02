@@ -40,6 +40,7 @@ KOTLIN
 java -cp "$leo_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-reflect -jvm-target 17 \
  -classpath "$leo_cp" -d "$leo_work/probe.jar" "$leo_work/Probe.kt" "$leo_work/Log.kt" \
  app/src/main/java/com/niko/assistant/modes/LeoMode.kt \
+ app/src/main/java/com/niko/assistant/ai/LeoWeather.kt \
  app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt \
  app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt \
  app/src/main/java/com/niko/assistant/brain/WebQueryRouter.kt

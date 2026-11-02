@@ -23,7 +23,10 @@ class LeoLocalModelStore(context: Context, requestedModel: LeoLocalModelSpec? = 
     private val hash get() = spec.sha256
     val modelFile = File(root, "$hash.gguf")
     private val marker = File(root, "$hash.validated")
-    val installed get() = modelFile.isFile && modelFile.length() == bytes && marker.isFile
+    private fun validMarker(): Boolean = runCatching {
+        marker.isFile && marker.length() <= 512 && marker.readText() == "${spec.id}\n$hash\n"
+    }.getOrDefault(false)
+    val installed get() = modelFile.isFile && modelFile.length() == bytes && validMarker()
     val enabled get() = prefs.getBoolean("enabled", false) && installed &&
         prefs.getString("model_id", LeoLocalModelCatalog.compact.id) == spec.id
     fun snapshot(): String? = if (enabled) prefs.getString("revision", "initial") else null
@@ -42,25 +45,24 @@ class LeoLocalModelStore(context: Context, requestedModel: LeoLocalModelSpec? = 
     fun compatible(): Boolean {
         val info = ActivityManager.MemoryInfo()
         (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
-        return Build.SUPPORTED_64_BIT_ABIS.isNotEmpty() && info.totalMem >= spec.minimumRam && !info.lowMemory
+        return spec.canRun(info.totalMem, info.availMem, info.lowMemory, Build.SUPPORTED_64_BIT_ABIS.isNotEmpty())
     }
-    suspend fun recoverIfVerified(): Boolean = withContext(Dispatchers.IO) {
-        if (!modelFile.isFile || modelFile.length() != bytes) return@withContext false
-        if (!marker.isFile) {
-            marker.writeText("${spec.id}\n$hash\n")
+    suspend fun recoverIfVerified(): Boolean = installLock.withLock {
+        withContext(Dispatchers.IO) {
+            if (!modelFile.isFile || modelFile.length() != bytes) return@withContext false
+            val job = currentCoroutineContext()
+            try { LeoModelIntegrity.verify(modelFile, bytes, hash) { job.ensureActive() } }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { marker.delete(); return@withContext false }
+            currentCoroutineContext().ensureActive()
+            if (!validMarker()) marker.writeText("${spec.id}\n$hash\n")
+            // Recover the verified file only. Activation is always an explicit user choice.
+            true
         }
-        if (!prefs.getBoolean("enabled", false)) {
-            prefs.edit()
-                .putString("model_id", spec.id)
-                .putBoolean("enabled", true)
-                .putString("revision", java.util.UUID.randomUUID().toString())
-                .commit()
-        }
-        true
     }
     suspend fun install(progress: suspend (String) -> Unit) = installLock.withLock {
         withContext(Dispatchers.IO) {
-            check(compatible()) { "${spec.label}. Requiere dispositivo de 64 bits y al menos ${spec.minimumRam / 1_000_000_000} GB de RAM total" }
+            check(compatible()) { "${spec.label}. Requiere dispositivo de 64 bits y al menos ${spec.minimumRam / 1_000_000_000} GB de RAM total y ${spec.availableRam / 1_000_000} MB disponibles" }
             if (!modelFile.exists()) {
                 val part = File(root, "$hash.part")
                 if (part.length() > bytes) part.delete()

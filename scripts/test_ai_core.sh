@@ -14,6 +14,13 @@ leo_test_filters=(
     --tests com.niko.assistant.voice.LeoWakeAcknowledgementTest
     --tests com.niko.assistant.ai.ConversationContextTest
     --tests com.niko.assistant.ai.LeoNativeWebSearchTest
+    --tests com.niko.assistant.ai.LeoWeatherTest
+    --tests com.niko.assistant.modes.LeoModeTest
+    --tests com.niko.assistant.modes.LeoModeStoreTest
+    --tests com.niko.assistant.inference.LeoLocalModelRecoveryTest
+    --tests com.niko.assistant.inference.LeoInferenceClientTest
+    --tests com.niko.assistant.memory.LeoPersonalDataResetTest
+    --tests com.niko.assistant.voice.SpeechProsodyTest
     --tests com.niko.assistant.learning.AdaptiveLearningPolicyTest
     --tests com.niko.assistant.learning.InteractionCorrectionTest
     --tests com.niko.assistant.learning.LearnedActionCodecTest

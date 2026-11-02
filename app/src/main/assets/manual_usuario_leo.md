@@ -37,7 +37,7 @@ Desde el botón **Modos** del inicio o **Configuración → Modos de LEO** podé
 | «Leo, activa modo creativo» | Morado y expresión habitual | Propone ideas y ejemplos cuando usás un modelo configurado; la voz es más expresiva. |
 | «Leo, activa modo normal» | Aspecto original | Recupera el equilibrio habitual. También podés decir «desactiva modo Super Leo». |
 
-La selección se conserva al cerrar la app. Cambiar de modo no activa descargas, modelos remotos, micrófono ni permisos. Super Leo reduce trabajo y espera; la rapidez final depende del teléfono, la red y los modelos instalados. Las consultas actuales siguen necesitando fuentes; el modo creativo no convierte una idea en un hecho. Los cambios afectan las respuestas siguientes.
+La selección se conserva al cerrar la app. Cambiar de modo no activa descargas, modelos remotos, micrófono ni permisos. Super Leo reduce trabajo y espera; la rapidez final depende del teléfono, la red y los modelos instalados. Las consultas actuales siguen necesitando fuentes; el modo creativo no convierte una idea en un hecho. Los cambios afectan las respuestas siguientes. Una indicación explícita como «habla más lento» tiene prioridad sobre la velocidad del modo.
 
 ## 3. Internet: búsquedas, noticias y fuentes
 - Activá **Buscar en Internet** en **Configuración → Internet y fuentes**. **Probar búsqueda** realiza una consulta real y muestra si encontró fuentes y pudo leer páginas; no cambia tus preferencias.
@@ -46,14 +46,19 @@ La selección se conserva al cerrar la app. Cambiar de modo no activa descargas,
 - Para forzar la búsqueda: «LEO, buscá en internet las últimas noticias de Nicaragua»; «LEO, investigá la energía solar»; «LEO, averiguá el precio actual de Bitcoin»; «LEO, consultá esta página https://...».
 - Abrí **Conversación y controles → Leer respuesta completa** para consultar fuentes y enlaces.
 - El buscador prueba varios proveedores públicos, clasifica coincidencias y extrae texto de las páginas cuando responden. Un artículo que no abrió **no está verificado**: puede mostrar extractos y enlaces, identificados como tales.
+- Las consultas de clima distinguen condiciones actuales y pronósticos de mañana o pasado mañana cuando el proveedor los incluye; muestran la fecha y probabilidades disponibles. Una consulta sobre duración o temperatura del procesador no se trata como clima.
 - Requiere conexión. Algunos sitios impiden lectura automatizada, pueden bloquearse o tardar. Reintentá con otra consulta o pasá un enlace público. No hay garantía de acceso a cualquier sitio ni de veracidad de todo resultado.
 - Se consultan páginas públicas: evitá enviar contraseñas, mensajes privados u otros datos sensibles al buscador.
+
+- Si hay páginas leídas en español, se prefieren para las consultas generales en español. El código, los enlaces explícitos y las peticiones en inglés conservan sus fuentes originales.
 
 ## 4. Enciclopedia offline
 - En **Configuración → Modelos y descargas → Enciclopedia**, elegí descargar el paquete opcional de cerca de 500 MB. Necesitás conexión inicial y espacio libre para descargar y verificar.
 - Las etapas incluyen descargar, verificar integridad, instalar y activar. Al terminar debe indicar **instalado**.
 - Este índice de Wikipedia y lecciones locales sirve para preguntas de conocimiento general **sin Internet**; no conoce automáticamente noticias y precios actuales.
 - Si hay error, comprobá la versión instalada, Wi‑Fi, espacio, y usá el botón de comprobar/actualizar. No borres datos personales ni reinstales sin antes guardar lo que necesités.
+
+Un archivo de modelo encontrado al abrir configuración se verifica antes de recuperarlo y permanece desactivado si esa era tu elección. La activación exige memoria física y memoria disponible suficientes. Un fallo de verificación muestra el problema y permite reintentar.
 
 ## 5. Herramientas y transformaciones
 Entrá a **Herramientas** o pedí «LEO, conviértete en...». Para regresar, usá Atrás o «LEO, volvé al inicio».
@@ -87,3 +92,6 @@ Los archivos multimedia son privados de la app; exportalos antes de desinstalar.
 Los módulos se identificaron en el código fuente del proyecto. La descarga completa de ~500 MB, los buscadores y los módulos multimedia requieren pruebas en Android real para dar por confirmado su funcionamiento en cada dispositivo. LEO no garantiza infalibilidad, autonomía irrestricta ni acceso a contenido privado de terceros.
 
 Referencia: README.md, docs/POLYMORPHIC_TOOLS.md, docs/SEARCH_RELIABILITY.md y clases Android en el repositorio EDDY.
+
+### Borrar memoria desde configuración o por voz
+Ambas rutas borran recuerdos, historial, acciones y clasificador aprendidos, registro de evolución y estado personal. Si el asistente está activo, se interrumpe su respuesta anterior y se vacía el contexto de sesión. Los modelos descargados, los modos y las preferencias de conexión se conservan. Si una parte del borrado falla, se informa para poder reintentar.

@@ -96,7 +96,6 @@ import com.niko.assistant.voice.VoiceControl
 import com.niko.assistant.voice.LeoVoiceDiagnostics
 import com.niko.assistant.voice.LeoRealtimeTurnBus
 import com.niko.assistant.voice.LeoPlatformVoiceEngine
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -143,10 +142,11 @@ open class NikoAssistantService : Service() {
     @Volatile private var adaptiveUnavailable = false
     @Volatile private var learningEpoch = 0L
     private val adaptiveLoading = AtomicBoolean(false)
-    private val learningMutex = Mutex()
+    private val learningMutex = com.niko.assistant.memory.LeoPersonalDataReset.learningMutex
     private var lastTrainableUtterance: String? = null
     private var lastCommandSucceeded = false
     private var replyProsody = SpeechProsody()
+    private var replyVoiceInput = ""
     private var localVoice: NikoLocalVoiceEngine? = null
     private var platformVoice: LeoPlatformVoiceEngine? = null
     private var localVoiceActive = false
@@ -176,7 +176,7 @@ open class NikoAssistantService : Service() {
     private val emotionEngine by lazy { com.niko.assistant.cognitive.LeoEmotionEngine(playfulDialogue) }
     private val inferenceSettings by lazy { com.niko.assistant.inference.LeoInferenceSettings(applicationContext) }
     private val inferenceClient = com.niko.assistant.inference.LeoInferenceClient()
-    private val neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
+    private var neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
     private val taskExecutor = com.niko.assistant.agent.LeoTaskExecutor()
     private val skillRegistry by lazy {
         com.niko.assistant.skills.LeoSkillRegistry().also {
@@ -220,6 +220,7 @@ open class NikoAssistantService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        runningInstance = this
         NikoAiSettings.retireCloudCredentials(applicationContext)
         LeoRealtimeTurnBus.registerTurnInterrupter(turnInterrupter)
         if (!hasMicrophonePermission()) {
@@ -298,16 +299,17 @@ open class NikoAssistantService : Service() {
                     !isListening && !isThinking && !isSpeaking && !isTranscribing &&
                     commandJob?.isActive != true && !CaptureGate.held &&
                     !activeVoiceMicrophoneSilenced() && platformTts.isReady
+                val memoryEpoch = learningEpoch
                 val now = System.currentTimeMillis()
                 val calendar = java.util.Calendar.getInstance()
                 val enabled = NikoAiSettings.companionInitiative(applicationContext)
                 val candidates = if (enabled && available) withContext(Dispatchers.IO) { memory.initiativeCandidates(now) } else emptyList()
                 // Recheck after IO; a user may have started speaking while evidence was loading.
-                val stillAvailable = available && !isListening && !isThinking && !isSpeaking && !isTranscribing && commandJob?.isActive != true
+                val stillAvailable = available && memoryEpoch == learningEpoch && !com.niko.assistant.memory.LeoPersonalDataReset.clearing && !isListening && !isThinking && !isSpeaking && !isTranscribing && commandJob?.isActive != true
                 val invitation = companionInitiative.decide(now,
                     "${calendar.get(java.util.Calendar.YEAR)}-${calendar.get(java.util.Calendar.DAY_OF_YEAR)}",
                     calendar.get(java.util.Calendar.HOUR_OF_DAY), enabled, stillAvailable, candidates)
-                initiativeStore.save(companionInitiative.state)
+                if (!com.niko.assistant.memory.LeoPersonalDataReset.clearing && memoryEpoch == learningEpoch) initiativeStore.save(companionInitiative.state)
                 if (invitation != null) {
                     try { speakResponse(invitation.text) }
                     catch (cancelled: CancellationException) { throw cancelled }
@@ -323,6 +325,7 @@ open class NikoAssistantService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (runningInstance === this) runningInstance = null
         inferenceClient.close()
         destroyed = true
         CaptureGate.pauseVoice = null
@@ -698,6 +701,7 @@ open class NikoAssistantService : Service() {
 
     private fun submitCommand(text: String) {
         if (destroyed) return
+        if (com.niko.assistant.memory.LeoPersonalDataReset.clearing && VoiceControl.parse(text) == null) return
         conversationWindowJob?.cancel()
         companionInitiative.interacted(System.currentTimeMillis(), com.niko.assistant.memory.MemoryLearning.key(text) in setOf("no", "mejor no", "ahora no"))
         initiativeStore.save(companionInitiative.state)
@@ -781,13 +785,11 @@ open class NikoAssistantService : Service() {
 
     private suspend fun handleCommand(rawText: String) {
         agent.turns.checkpoint()
+        replyVoiceInput = rawText
         when (val confirmation = agent.confirmation(rawText)) {
             is com.niko.assistant.agent.LeoAgentRuntime.ConfirmationReply.Approved -> {
                 if (confirmation.command == AssistantCommand.ClearMemory) {
                     clearLocalMemory()
-                    agent.conversation.clear()
-                    initiativeStore.clear()
-                    companionInitiative.restore(com.niko.assistant.proactive.LeoInitiativeEngine.State())
                     speakResponse("Borré mi memoria local.")
                     return
                 }
@@ -831,7 +833,7 @@ open class NikoAssistantService : Service() {
             learningQuestion = turnEpoch to rawText
         }
         // Persist user before assistant for every route; no detached history writer can reorder turns.
-        withContext(Dispatchers.IO) { memory.rememberUserTurn(rawText) }
+        withPersonalMemory { memory.rememberUserTurn(rawText) }
         agent.turns.checkpoint()
         val initiativeOrder = rawText.lowercase(java.util.Locale.ROOT).trim().trimEnd('.', '!', '?')
             .replace("conversación", "conversacion").replace("espontánea", "espontanea")
@@ -849,7 +851,7 @@ open class NikoAssistantService : Service() {
         val correctionAlias = if (correctedText != null) lastTrainableUtterance else null
         lastTrainableUtterance = text
         replyProsody = SpeechProsody.forInput(text)
-        neuralCore.personalReply(text, { input -> withContext(Dispatchers.IO) {
+        neuralCore.personalReply(text, { input -> withPersonalMemory {
             memory.preferenceReply(input).also { playfulDialogue.setHumorAllowed(memory.humorAllowed()) }
         } }, emotionEngine)?.let {
             speakResearchResponse(text, it)
@@ -857,7 +859,7 @@ open class NikoAssistantService : Service() {
         }
         // Conversation repair precedes research and action routing; do not search vague requests.
         com.niko.assistant.ai.LeoDialoguePolicy.style(text)?.let { style ->
-            withContext(Dispatchers.IO) { memory.setResponseStyle(style) }
+            withPersonalMemory { memory.setResponseStyle(style) }
             speakResponse(if (style == "brief") "De acuerdo, voy al punto. Guardé tu preferencia por respuestas cortas."
                 else "De acuerdo. Guardé tu preferencia por respuestas detalladas.")
             return
@@ -949,7 +951,7 @@ open class NikoAssistantService : Service() {
             speakResponse(response)
             return
         }
-        withContext(Dispatchers.IO) { memory.learnExplicitly(text) }?.let {
+        withPersonalMemory { memory.learnExplicitly(text) }?.let {
             learnIntent(text, LearnedIntent.MEMORY, correctionAlias)
             speakResponse(it); return
         }
@@ -980,7 +982,7 @@ open class NikoAssistantService : Service() {
                 if (!direct.isNullOrBlank()) {
                     responses.add(direct)
                     stepReplies.add(NikoAiReply(direct, false, emptyList()))
-                    if (lastCommandSucceeded) withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
+                    if (lastCommandSucceeded) withPersonalMemory { memory.rememberCompletedCommand(command, direct) }
                 }
                 delay(120L)
                 direct.orEmpty()
@@ -1004,7 +1006,7 @@ open class NikoAssistantService : Service() {
                 speakResponse(executeDirectCommand(AssistantCommand.AutomateUi(text)) ?: "No pude iniciar la automatización.")
                 return
             }
-            withContext(Dispatchers.IO) { memory.personalReply(text) }?.let {
+            withPersonalMemory { memory.personalReply(text) }?.let {
                 learnIntent(text, LearnedIntent.MEMORY, correctionAlias); speakResponse(it); return
             }
             val prediction = predictIntent(text)
@@ -1069,7 +1071,7 @@ open class NikoAssistantService : Service() {
         )
         val direct = executeDirectCommand(command) ?: "Listo."
         speakResponse(direct)
-        if (lastCommandSucceeded) withContext(Dispatchers.IO) { memory.rememberCompletedCommand(command, direct) }
+        if (lastCommandSucceeded) withPersonalMemory { memory.rememberCompletedCommand(command, direct) }
     }
 
     private suspend fun executeDeterministicLocalAction(
@@ -1143,7 +1145,7 @@ open class NikoAssistantService : Service() {
     }
 
     private fun prewarmAdaptiveLearning() {
-        if (destroyed || adaptiveUnavailable || adaptiveNetwork != null ||
+        if (destroyed || com.niko.assistant.memory.LeoPersonalDataReset.clearing || adaptiveUnavailable || adaptiveNetwork != null ||
             !NikoAiSettings.adaptiveLearning(applicationContext) || !adaptiveLoading.compareAndSet(false, true)
         ) return
         serviceScope.launch(Dispatchers.IO) {
@@ -1184,20 +1186,30 @@ open class NikoAssistantService : Service() {
         }
     }
 
-    private suspend fun clearLocalMemory() {
-        ++learningEpoch
-        learningQuestion = null
-        withContext(Dispatchers.IO) {
+    /** Serialize personal writes with erasure; a superseded turn cannot repopulate cleared data. */
+    private suspend fun <T> withPersonalMemory(block: () -> T): T {
+        val epoch = learningEpoch
+        return withContext(Dispatchers.IO) {
             learningMutex.withLock {
-                memory.clearAll()
-                adaptiveStore.clear()
-                learnedActionStore.clear()
-                codeAgent.clearEvolutionHistory()
+                agent.turns.checkpoint()
+                if (epoch != learningEpoch || com.niko.assistant.memory.LeoPersonalDataReset.clearing)
+                    throw CancellationException("Personal memory is being reset")
+                block()
+            }
+        }
+    }
+
+    private suspend fun clearLocalMemory() {
+        com.niko.assistant.memory.LeoPersonalDataReset.clear(applicationContext,
+            before = { ++learningEpoch; learningQuestion = null },
+            after = {
                 adaptiveNetwork = null
                 adaptiveUnavailable = false
                 lastTrainableUtterance = null
-            }
-        }
+                neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
+                agent.conversation.clear()
+                companionInitiative.restore(com.niko.assistant.proactive.LeoInitiativeEngine.State())
+            })
     }
 
     private fun rememberCorrectedAction(alias: String?, commands: List<AssistantCommand>) {
@@ -1392,7 +1404,7 @@ open class NikoAssistantService : Service() {
         } ?: replyProsody
         speakOnly(com.niko.assistant.ai.LeoDialoguePolicy.researchSpeech(spokenText.ifBlank { finalText }, voiceStyle), prosody = emotionalProsody)
         recordLearningReply(finalText)
-        withContext(Dispatchers.IO) { memory.rememberAssistantTurn(finalText) }
+        withPersonalMemory { memory.rememberAssistantTurn(finalText) }
     }
 
     private suspend fun speakResponse(text: String) {
@@ -1405,7 +1417,7 @@ open class NikoAssistantService : Service() {
         } ?: replyProsody
         speakOnly(text, prosody = emotionalProsody)
         recordLearningReply(text)
-        withContext(Dispatchers.IO) { memory.rememberAssistantTurn(text) }
+        withPersonalMemory { memory.rememberAssistantTurn(text) }
     }
     private fun speakOnly(text: String, continueCommand: Boolean = false, prosody: SpeechProsody = replyProsody) {
         if (text.isBlank() || destroyed) return
@@ -1443,7 +1455,7 @@ open class NikoAssistantService : Service() {
         }
 
         NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
-        val queued = runCatching { platformTts.speak(text, SpeechProsody.forMode(prosody, com.niko.assistant.modes.LeoModeStore.read(applicationContext))) }.getOrDefault(false)
+        val queued = runCatching { platformTts.speak(text, SpeechProsody.forMode(prosody, com.niko.assistant.modes.LeoModeStore.read(applicationContext), replyVoiceInput)) }.getOrDefault(false)
         if (queued) {
             NikoRuntimeState.setVoiceReady(applicationContext, true)
         } else {
@@ -1550,6 +1562,21 @@ open class NikoAssistantService : Service() {
     private fun releaseCpuWakeLock() { cpuWakeLock?.let { if (it.isHeld) runCatching { it.release() } }; cpuWakeLock = null }
 
     companion object {
+        @Volatile private var runningInstance: NikoAssistantService? = null
+
+        /** Called after the settings confirmation; does not start a service or enable the microphone. */
+        suspend fun clearPersonalMemory(context: Context) = withContext(Dispatchers.Main.immediate) {
+            val active = runningInstance?.takeUnless { it.destroyed }
+            if (active == null) com.niko.assistant.memory.LeoPersonalDataReset.clear(context)
+            else {
+                active.interruptCurrentTurn()
+                LeoRealtimeTurnBus.interruptSpeech()
+                active.clearLocalMemory()
+            }
+            NikoRuntimeState.setHeard(context, "")
+            NikoRuntimeState.setResponse(context, "Memoria personal borrada.")
+        }
+
         private const val COMMAND_EXECUTION_TIMEOUT_MS = 40_000L
         private const val CHANNEL_ID = UpgradeIdentity.assistantChannel
         private const val WAKE_CHANNEL_ID = UpgradeIdentity.wakeChannel
