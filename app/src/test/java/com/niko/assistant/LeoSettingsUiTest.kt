@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -28,6 +29,27 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class LeoSettingsUiTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun geminiSetupOpensOfficialGooglePageAndRequiresUserCredential() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        com.niko.assistant.inference.LeoInferenceSettings(context).clear()
+        val opened = mutableListOf<String>()
+        compose.setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Column {
+                    LeoGeminiSettingsCard(openUrl = { opened += it })
+                }
+            }
+        }
+        compose.onNodeWithText("Inteligencia con Gemini").performClick()
+        compose.onNodeWithText("ABRIR GOOGLE AI STUDIO").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(com.niko.assistant.inference.LeoGoogleProvider.STUDIO), opened)
+            assertEquals(false, com.niko.assistant.inference.LeoInferenceSettings(context).enabled)
+        }
+        compose.onNodeWithText("COMPROBAR Y ACTIVAR").assertIsNotEnabled()
+        compose.onNodeWithText("Pegá tu clave de Gemini").assertExists()
+    }
 
     @Test fun modePickerPersistsSelectionAndReactsToVoiceSideChanges() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()

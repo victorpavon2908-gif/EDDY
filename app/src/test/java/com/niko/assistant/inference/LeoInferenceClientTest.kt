@@ -12,6 +12,35 @@ import java.util.concurrent.TimeUnit
 
 /** Protocol transport fixtures only. These are not model quality or live provider measurements. */
 class LeoInferenceClientTest {
+    @Test fun connectionDiagnosticsNeverExposeProviderBodiesOrCredentials() = runBlocking {
+        for ((status, expected) in listOf(401 to LeoInferenceClient.Failure.CREDENTIAL,
+            403 to LeoInferenceClient.Failure.CREDENTIAL, 404 to LeoInferenceClient.Failure.MODEL,
+            429 to LeoInferenceClient.Failure.QUOTA, 503 to LeoInferenceClient.Failure.PROVIDER)) {
+            val connection = Connection(status)
+            LeoInferenceClient { connection }.use { client ->
+                val result = client.request("https://example.com/v1/chat/completions", "model", "private-key", "hola")
+                assertNull(result.answer)
+                assertEquals(expected, result.failure)
+                assertFalse(result.toString().contains("private-key"))
+                assertTrue(connection.disconnected)
+            }
+        }
+    }
+
+    @Test fun onlySuccessfulUncancelledProbeCanReplaceTheProvider() = runBlocking {
+        var saves = 0
+        val failure = LeoInferenceActivation.activate({ LeoInferenceClient.Result(failure = LeoInferenceClient.Failure.QUOTA) }, { saves++ })
+        assertNull(failure.answer)
+        assertEquals(0, saves)
+        val success = LeoInferenceActivation.activate({ LeoInferenceClient.Result(answer = "LEO conectado") }, { saves++ })
+        assertNotNull(success.answer)
+        assertEquals(1, saves)
+        val job = launch {
+            LeoInferenceActivation.activate({ delay(10_000); LeoInferenceClient.Result(answer = "tarde") }, { saves++ })
+        }
+        yield(); job.cancelAndJoin()
+        assertEquals(1, saves)
+    }
     private open class Connection(private val status: Int = 200) : HttpURLConnection(URL("https://example.com/v1/chat/completions")) {
         val payload = ByteArrayOutputStream()
         @Volatile var disconnected = false

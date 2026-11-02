@@ -15,8 +15,17 @@ class LeoInferenceSettingsTest {
     @Before fun reset() { settings().clear() }
     @Test fun doesNotEnableItselfAndRequiresConsent() {
         assertNull(settings().read())
+        assertFalse(settings().preferRemote)
         settings().save("https://example.com/v1/chat/completions", "model", "", false)
         assertNull(settings().read())
+    }
+    @Test fun remotePreferenceIsExplicitAndRevocable() {
+        settings().save("https://example.com/v1/chat/completions", "model", "", true, preferRemote = true)
+        assertTrue(settings().preferRemote)
+        settings().disable()
+        assertFalse(settings().preferRemote)
+        settings().save("https://example.com/v1/chat/completions", "model", "", true)
+        assertFalse(settings().preferRemote)
     }
     @Test fun consentPersistsAndRevocationStopsAccess() {
         settings().save("https://example.com/v1/chat/completions", "model", "", true)

@@ -1,5 +1,7 @@
 package com.niko.assistant.inference
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.layout.*
@@ -7,80 +9,128 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun LeoInferencePanel() {
+fun LeoInferencePanel(openUrl: ((String) -> Unit)? = null) {
     val context = LocalContext.current
     val settings = remember { LeoInferenceSettings(context) }
     val scope = rememberCoroutineScope()
     val client = remember { LeoInferenceClient() }
     DisposableEffect(client) { onDispose { client.close() } }
-    var endpoint by remember { mutableStateOf(settings.endpoint) }
-    var model by remember { mutableStateOf(settings.model) }
+    var endpoint by remember { mutableStateOf(settings.endpoint.ifBlank { LeoGoogleProvider.ENDPOINT }) }
+    var model by remember { mutableStateOf(settings.model.ifBlank { LeoGoogleProvider.MODEL }) }
     var secret by remember { mutableStateOf("") }
     var consent by remember { mutableStateOf(false) }
     var historyConsent by remember { mutableStateOf(false) }
     var researchConsent by remember { mutableStateOf(false) }
+    var preferRemote by remember { mutableStateOf(if (settings.enabled) settings.preferRemote else true) }
     var enabled by remember { mutableStateOf(settings.enabled) }
     var busy by remember { mutableStateOf(false) }
+    var advanced by remember { mutableStateOf(!LeoGoogleProvider.isGoogle(endpoint)) }
     var status by remember { mutableStateOf("") }
-    Text("MODELO DE RAZONAMIENTO Y CÓDIGO", style = MaterialTheme.typography.titleMedium)
-    Text("Opcional. Requiere un servidor compatible que vos elijás. Puede ser propio o de pago; LEO no incluye una suscripción. En conversación se envía la pregunta actual, que puede contener datos personales o código. La investigación puede incluir extractos si lo autorizás abajo. No se adjunta la base de recuerdos personales. Podés autorizar por separado hasta tres intercambios recientes del historial para dar continuidad; pueden contener datos personales o código.")
-    Text(if (enabled) "Proveedor activado" else "Proveedor desactivado: se usan las funciones locales y la búsqueda existente")
-    OutlinedButton(onClick = {
-        endpoint = LeoGoogleProvider.ENDPOINT; model = LeoGoogleProvider.MODEL
-        secret = ""; consent = false; historyConsent = false; researchConsent = false
-        status = "Gemini seleccionado. Requiere tu clave de Google AI Studio; Google Drive no proporciona esta credencial. No se ha activado ni probado."
-    }, enabled = !busy) { Text("USAR GOOGLE GEMINI") }
-    OutlinedTextField(endpoint, { endpoint = it; consent = false }, label = { Text("URL HTTPS completa de chat/completions") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
-    OutlinedTextField(model, { model = it; consent = false }, label = { Text("Nombre exacto del modelo instalado en el servidor") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
-    OutlinedTextField(secret, { secret = it }, label = { Text("Clave API; vacía para un servidor sin clave") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), enabled = !busy)
-    Text("Al guardar se reemplaza la clave anterior. La clave queda cifrada con Android Keystore.")
+    val google = LeoGoogleProvider.isGoogle(endpoint)
+    fun open(url: String) {
+        try {
+            if (openUrl != null) openUrl(url) else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) { status = "No pude abrir el navegador. Abrí $url desde tu navegador." }
+    }
+    Text("CONECTAR INTELIGENCIA", style = MaterialTheme.typography.titleMedium)
+    Text(if (enabled) "Proveedor guardado activo" else "Conexión opcional · actualmente desactivada")
+    Row {
+        OutlinedButton(onClick = {
+            endpoint = LeoGoogleProvider.ENDPOINT; model = LeoGoogleProvider.MODEL
+            secret = ""; consent = false; historyConsent = false; researchConsent = false
+            preferRemote = true; advanced = false
+            status = "Gemini seleccionado. Completá los pasos para conectarlo."
+        }, enabled = !busy) { Text("Google Gemini") }
+        TextButton(onClick = { advanced = !advanced }, enabled = !busy) { Text("Avanzado") }
+    }
+    if (google) {
+        Text("1. Entrá con tu cuenta en Google AI Studio y creá o elegí tu clave.")
+        Button(onClick = { open(LeoGoogleProvider.STUDIO) }, enabled = !busy) { Text("ABRIR GOOGLE AI STUDIO") }
+        Text("2. Copiá tu clave y pegala aquí. El inicio de sesión ocurre en Google; LEO no recibe tu contraseña ni lee otras apps.")
+        Text("El nivel gratuito tiene cuotas y depende de tu proyecto y del modelo. Si tu proyecto tiene facturación, las llamadas pueden tener costo. Google puede usar el contenido del nivel gratuito para mejorar sus productos.", style = MaterialTheme.typography.bodySmall)
+        Row {
+            TextButton(onClick = { open(LeoGoogleProvider.USAGE) }) { Text("Ver mi uso") }
+            TextButton(onClick = { open(LeoGoogleProvider.PRICING) }) { Text("Cuotas y precios") }
+        }
+    }
+    if (advanced) {
+        OutlinedTextField(endpoint, { endpoint = it; consent = false }, label = { Text("URL HTTPS de chat/completions") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+        OutlinedTextField(model, { model = it; consent = false }, label = { Text("Modelo") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+    } else Text("Modelo: $model", style = MaterialTheme.typography.bodySmall)
+    OutlinedTextField(secret, { secret = it }, label = { Text(if (google) "Pegá tu clave de Gemini" else "Clave API del proveedor") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), enabled = !busy, singleLine = true)
+    Text("Tu clave se guarda cifrada en este teléfono. Para cambiar la conexión, ingresala de nuevo.", style = MaterialTheme.typography.bodySmall)
     Row {
         Checkbox(consent, { consent = it }, enabled = !busy)
-        Text("Autorizo enviar mis preguntas actuales al servidor indicado para razonamiento y código.")
+        Text("Autorizo enviar mis preguntas a este proveedor y hacer una prueba de conexión.")
     }
     Row {
-        Checkbox(researchConsent, { researchConsent = it }, enabled = !busy)
-        Text("También autorizo enviar los extractos de páginas recuperadas para sintetizar investigaciones. No se envían recuerdos privados.")
+        Checkbox(preferRemote, { preferRemote = it }, enabled = !busy)
+        Text("Usarlo como modelo principal de conversación. Si falla, continuar con las funciones locales.")
     }
     Row {
         Checkbox(historyConsent, { historyConsent = it }, enabled = !busy)
-        Text("Autorizo compartir hasta tres intercambios recientes con este servidor para entender referencias y continuar la conversación. No se incluyen en la síntesis web.")
+        Text("Compartir hasta tres intercambios recientes para continuar la conversación. Pueden contener datos personales.")
     }
+    Row {
+        Checkbox(researchConsent, { researchConsent = it }, enabled = !busy)
+        Text("Permitir resumir los extractos de búsquedas con citas verificadas.")
+    }
+    Text("La base de recuerdos personales no se adjunta. «Solo local» evita el envío al modelo.", style = MaterialTheme.typography.bodySmall)
     Button(onClick = {
         busy = true
         scope.launch {
             try {
-                require(LeoGoogleProvider.validCredential(endpoint, secret))
-                withContext(Dispatchers.IO) { settings.save(endpoint, model, secret, consent, researchConsent, historyConsent) }
-                secret = ""; enabled = settings.enabled; consent = false; researchConsent = false; historyConsent = false
-                status = "Configuración guardada. Todavía no se comprobó una respuesta del servidor."
-            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { status = "No se pudo guardar. Revisá URL HTTPS, modelo y disponibilidad de Keystore." }
+                require(consent && LeoGoogleProvider.validCredential(endpoint, secret))
+                val normalizedSecret = secret.trim()
+                val result = LeoInferenceActivation.activate(
+                    probe = { client.request(endpoint, model, normalizedSecret, "Respondé solamente: LEO conectado") },
+                    persist = { withContext(Dispatchers.IO) {
+                        coroutineContext.ensureActive()
+                        settings.save(endpoint, model, normalizedSecret, consent, researchConsent, historyConsent, preferRemote)
+                    } },
+                )
+                if (result.answer != null) {
+                    secret = ""; enabled = settings.enabled
+                    consent = false; researchConsent = false; historyConsent = false
+                    status = "Conexión comprobada y activada. Ya podés conversar con LEO."
+                } else status = result.failure?.description ?: "No se obtuvo una respuesta válida."
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { status = "No pude activar la conexión. Revisá modelo, clave y almacenamiento seguro del teléfono." }
             finally { busy = false }
         }
-    }, enabled = consent && !busy) { Text("GUARDAR Y ACTIVAR") }
+    }, enabled = consent && !busy && model.isNotBlank() && (!google || secret.isNotBlank())) {
+        Text(if (busy) "COMPROBANDO…" else "COMPROBAR Y ACTIVAR")
+    }
     OutlinedButton(onClick = {
         busy = true
         scope.launch {
             try {
                 val config = withContext(Dispatchers.IO) { settings.read() }
-                val answer = config?.let { client.reply(it.endpoint, it.model, it.key, "Respondé solamente: LEO conectado") }
-                status = if (answer == null || config == null || !settings.isCurrent(config)) "No se obtuvo una respuesta válida. Revisá servidor, modelo y clave." else "Respuesta real del servidor: ${answer.take(180)}"
+                val result = config?.let { client.request(it.endpoint, it.model, it.key, "Respondé solamente: LEO conectado") }
+                status = if (config == null || !settings.isCurrent(config)) "La conexión guardada ya no está disponible."
+                    else if (result?.answer != null) "Conexión guardada comprobada."
+                    else result?.failure?.description ?: "No se obtuvo una respuesta válida."
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { status = "No pude comprobar la conexión guardada." }
             finally { busy = false }
         }
-    }, enabled = enabled && !busy) { Text("PROBAR CONEXIÓN") }
+    }, enabled = enabled && !busy) { Text("PROBAR CONEXIÓN GUARDADA") }
     OutlinedButton(onClick = {
         busy = true
         scope.launch {
             try {
                 withContext(Dispatchers.IO) { settings.clear() }
-                enabled = false; consent = false; researchConsent = false; historyConsent = false; secret = ""; status = "Proveedor desactivado y credencial eliminada."
-            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { status = "No pude borrar la configuración. Intentá nuevamente." } finally { busy = false }
+                enabled = false; consent = false; researchConsent = false; historyConsent = false; secret = ""
+                status = "Proveedor desactivado y credencial eliminada de este teléfono."
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { status = "No pude borrar la conexión. Intentá nuevamente." }
+            finally { busy = false }
         }
-    }, enabled = !busy) { Text("DESACTIVAR Y BORRAR CREDENCIAL") }
+    }, enabled = !busy) { Text("DESCONECTAR Y BORRAR CLAVE") }
     if (status.isNotBlank()) Text(status)
 }

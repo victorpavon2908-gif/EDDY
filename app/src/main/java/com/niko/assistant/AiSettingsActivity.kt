@@ -465,7 +465,7 @@ private fun LeoSettingsScreen(
                 HorizontalDivider(color = DarkBorder)
                 DarkSwitchRow(
                     title = "Preferir respuestas locales",
-                    description = "Para conversaciones sin búsqueda. Las consultas web tienen prioridad cuando corresponde.",
+                    description = "Para conversaciones sin búsqueda. Elegir Gemini como modelo principal tiene prioridad sobre esta opción.",
                     checked = localFirst,
                     onCheckedChange = {
                         localFirst = it
@@ -499,6 +499,8 @@ private fun LeoSettingsScreen(
                 if (behaviorFeedback.isNotBlank()) Text(behaviorFeedback, color = DarkEmerald,
                     style = MaterialTheme.typography.bodyMedium)
             }
+
+            LeoGeminiSettingsCard()
 
             // ── SECCIÓN 1: ACTIVACIÓN POR VOZ Y ESCUCHA ──
             DarkSettingsCard(
@@ -1434,5 +1436,16 @@ private fun StatusPill(
                 letterSpacing = 0.sp,
             )
         }
+    }
+}
+
+@Composable
+internal fun LeoGeminiSettingsCard(openUrl: ((String) -> Unit)? = null) {
+    DarkSettingsCard(
+        icon = Icons.Rounded.AutoAwesome,
+        title = "Inteligencia con Gemini",
+        subtitle = "Conectá tu cuenta de AI Studio con tu propia clave.",
+    ) {
+        com.niko.assistant.inference.LeoInferencePanel(openUrl)
     }
 }

@@ -1021,7 +1021,7 @@ open class NikoAssistantService : Service() {
                 withContext(Dispatchers.IO) { inferenceSettings.read()?.history == true }
             val answer = neuralCore.reply(
                 com.niko.assistant.cognitive.LeoNeuralCore.Request(
-                    text, NikoAiSettings.localFirst(applicationContext), NikoAiSettings.autoResearch(applicationContext),
+                    text, NikoAiSettings.localFirst(applicationContext) && !inferenceSettings.preferRemote, NikoAiSettings.autoResearch(applicationContext),
                     prediction?.let { it.reliable && it.intent == LearnedIntent.SEARCH } == true,
                     contextualInference = contextualInference,
                 ),

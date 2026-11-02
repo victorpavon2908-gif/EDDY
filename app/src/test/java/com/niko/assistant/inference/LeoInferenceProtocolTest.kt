@@ -5,6 +5,15 @@ import org.junit.Test
 import org.json.JSONObject
 
 class LeoInferenceProtocolTest {
+    @Test fun googleUsesLowLatencyThinkingWithoutChangingOtherProviders() {
+        val mode = com.niko.assistant.modes.LeoMode.SUPER
+        val google = JSONObject(LeoInferenceProtocol.payload(LeoGoogleProvider.MODEL, "Hola", mode = mode, google = true))
+        assertEquals("minimal", google.getString("reasoning_effort"))
+        assertEquals(1024, google.getInt("max_tokens"))
+        val custom = JSONObject(LeoInferenceProtocol.payload(LeoGoogleProvider.MODEL, "Hola", mode = mode))
+        assertFalse(custom.has("reasoning_effort"))
+        assertEquals(256, custom.getInt("max_tokens"))
+    }
     @Test fun superBudgetAndCreativeStyleReachConfiguredModels() {
         val fast = JSONObject(LeoInferenceProtocol.payload("model", "Hola", mode = com.niko.assistant.modes.LeoMode.SUPER))
         assertEquals(256, fast.getInt("max_tokens"))

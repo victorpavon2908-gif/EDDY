@@ -18,6 +18,7 @@ class LeoInferenceSettings(context: Context) {
     }
     val enabled: Boolean get() = prefs.getBoolean("consent", false)
     val researchAllowed: Boolean get() = enabled && prefs.getBoolean("research_consent", false)
+    val preferRemote: Boolean get() = enabled && prefs.getBoolean("prefer_remote", false)
     val endpoint: String get() = prefs.getString("endpoint", "").orEmpty()
     val model: String get() = prefs.getString("model", "").orEmpty()
     fun read(): Config? {
@@ -37,7 +38,7 @@ class LeoInferenceSettings(context: Context) {
             Config(endpoint, model, secret, snapshot["research_consent"] == true, snapshot["revision"] as? String ?: "", snapshot["history_consent"] == true)
         }.getOrNull()
     }
-    fun save(endpoint: String, model: String, secret: String, consent: Boolean, researchConsent: Boolean = false, historyConsent: Boolean = false) {
+    fun save(endpoint: String, model: String, secret: String, consent: Boolean, researchConsent: Boolean = false, historyConsent: Boolean = false, preferRemote: Boolean = false) {
         LeoInferenceProtocol.endpoint(endpoint)
         require(LeoGoogleProvider.validCredential(endpoint, secret))
         require(model.isNotBlank() && model.length <= 160)
@@ -49,7 +50,7 @@ class LeoInferenceSettings(context: Context) {
                 Base64.encodeToString(cipher.doFinal(secret.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
         }
         check(prefs.edit().putString("endpoint", endpoint.trim()).putString("model", model.trim())
-            .putString("secret", encrypted).putBoolean("consent", consent).putBoolean("research_consent", consent && researchConsent).putBoolean("history_consent", consent && historyConsent).putString("revision", java.util.UUID.randomUUID().toString()).commit())
+            .putString("secret", encrypted).putBoolean("consent", consent).putBoolean("research_consent", consent && researchConsent).putBoolean("history_consent", consent && historyConsent).putBoolean("prefer_remote", consent && preferRemote).putString("revision", java.util.UUID.randomUUID().toString()).commit())
     }
     fun isCurrent(config: Config): Boolean {
         val snapshot = prefs.all

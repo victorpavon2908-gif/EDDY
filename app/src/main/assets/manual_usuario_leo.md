@@ -12,6 +12,7 @@ Guía de uso desde la primera apertura. Describe las funciones presentes en el c
 
 ## Ajustes: dónde encontrar cada opción
 Los cambios de Android se guardan al instante. Tocá una categoría para abrir o cerrar sus controles. Cerrar una sección conserva su estado y no interrumpe sus tareas mientras permanezcas en Ajustes.
+- **Inteligencia con Gemini**: conexión guiada con Google AI Studio, prueba antes de activar y elección del modelo principal.
 - **Voz y conversación**: encender o pausar escucha, conversación espontánea, reinicio y diagnóstico.
 - **Mi voz**: instalar el identificador, registrar cuatro frases y limitar las respuestas a tu voz. No es un bloqueo de seguridad.
 - **Precisión de voz**: instalar o comprobar el segundo reconocedor local.
@@ -102,3 +103,16 @@ La voz del teléfono intenta recuperarse automáticamente ante errores o falta d
 Los documentos, reglas y episodios del núcleo personal se guardan para la siguiente sesión. Si el archivo no puede leerse, se conserva para recuperación y se informa el fallo. El borrado de memoria elimina también ese estado.
 
 La recuperación de una instalación offline incompleta comprueba tamaño, hash de la publicación e índice de búsqueda antes de activarla. Los tiempos de búsqueda y generación comparten el plazo de cada petición; Super Leo utiliza límites menores. Estos límites no son mediciones de velocidad en tu teléfono.
+
+## Conectar Gemini con tu cuenta
+1. Abrí **Configuración → Inteligencia con Gemini** y tocá **ABRIR GOOGLE AI STUDIO**. Entrá con tu cuenta en la página oficial de Google y creá o elegí una clave de Gemini. LEO no lee tu contraseña ni copia claves desde otras aplicaciones.
+2. Copiá la clave, regresá a LEO y pegala en el campo indicado. Autorizá enviar preguntas y hacer una prueba.
+3. Elegí si Gemini será el modelo principal de conversación. Esta elección tiene prioridad sobre «Preferir respuestas locales». Las órdenes del teléfono y las funciones personales siguen su ruta habitual; «solo local» evita el envío al modelo.
+4. Para continuidad, podés autorizar por separado hasta tres intercambios recientes. El permiso de resumir extractos web también es independiente; las citas deben superar la validación de LEO.
+5. Tocá **COMPROBAR Y ACTIVAR**. Si falla la prueba, no se reemplaza la conexión anterior. Una clave inválida, falta de acceso al modelo o cuota agotada muestran un mensaje para reintentar.
+
+La clave queda cifrada con Android Keystore. **PROBAR CONEXIÓN GUARDADA** comprueba la conexión existente sin volver a escribirla. **DESCONECTAR Y BORRAR CLAVE** elimina la credencial del teléfono; podés revocarla además en AI Studio.
+
+Google ofrece un nivel gratuito limitado para proyectos y modelos elegibles; usar la app Gemini gratis no equivale a una API ilimitada. Comprobá **Ver mi uso** y **Cuotas y precios**. Si el proyecto tiene facturación, las llamadas pueden costar dinero. En el nivel gratuito, Google puede usar preguntas y respuestas para mejorar sus productos. LEO no activa facturación.
+
+El inicio de sesión dentro de LEO sin pegar claves requiere otra integración con un proyecto Firebase de LEO y App Check; no está configurada en esta versión. La conexión disponible usa la clave personal de cada usuario.

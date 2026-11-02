@@ -23,7 +23,7 @@ object LeoInferenceProtocol {
         return message.isNotBlank() && message.length <= MAX_INPUT && !AutonomousResearch.offlineOnly(message) &&
             !Regex("\\b(no (?:uses|usar|envies|enviar) (?:la nube|modelos remotos|datos)|sin (?:usar )?(?:la )?nube|no envies|solo local)\\b").containsMatchIn(text)
     }
-    fun payload(model: String, message: String, evidence: String? = null, history: List<com.niko.assistant.ai.ConversationTurn> = emptyList(), mode: com.niko.assistant.modes.LeoMode = com.niko.assistant.modes.LeoMode.NORMAL): String {
+    fun payload(model: String, message: String, evidence: String? = null, history: List<com.niko.assistant.ai.ConversationTurn> = emptyList(), mode: com.niko.assistant.modes.LeoMode = com.niko.assistant.modes.LeoMode.NORMAL, google: Boolean = false): String {
         require(model.isNotBlank() && model.length <= 160 && maySend(message))
         require(evidence == null || evidence.length <= 10000)
         val system = "Sos LEO, un asistente claro y cercano. Respondé en el idioma del usuario. " +
@@ -46,7 +46,18 @@ object LeoInferenceProtocol {
         messages.put(JSONObject().put("role", "user").put("content", if (evidence == null) message else
             JSONObject().put("question", message).put("untrusted_evidence", JSONArray(evidence)).toString()))
         return JSONObject().put("model", model).put("stream", false)
-            .apply { if (mode == com.niko.assistant.modes.LeoMode.SUPER) put("max_tokens", 256) else if (evidence != null) put("max_tokens", 4096) }
+            .apply {
+                if (google && model.startsWith("gemini-3")) {
+                    put("reasoning_effort", when (mode) {
+                        com.niko.assistant.modes.LeoMode.SUPER -> "minimal"
+                        com.niko.assistant.modes.LeoMode.RESEARCH -> "medium"
+                        else -> "low"
+                    })
+                    // The provider counts thinking tokens too; leave room for the actual answer.
+                    put("max_tokens", if (mode == com.niko.assistant.modes.LeoMode.SUPER) 1024 else 4096)
+                } else if (mode == com.niko.assistant.modes.LeoMode.SUPER) put("max_tokens", 256)
+                else if (evidence != null) put("max_tokens", 4096)
+            }
             .put("messages", messages).toString()
     }
     fun answer(raw: String): String {
