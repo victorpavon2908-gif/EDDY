@@ -703,11 +703,15 @@ open class NikoAssistantService : Service() {
         if (destroyed) return
         if (com.niko.assistant.memory.LeoPersonalDataReset.clearing && VoiceControl.parse(text) == null) return
         conversationWindowJob?.cancel()
-        companionInitiative.interacted(System.currentTimeMillis(), com.niko.assistant.memory.MemoryLearning.key(text) in setOf("no", "mejor no", "ahora no"))
-        initiativeStore.save(companionInitiative.state)
-        VoiceControl.parse(text)?.let { control ->
-            companionInitiative.silence(System.currentTimeMillis())
+        if (!com.niko.assistant.memory.LeoPersonalDataReset.clearing) {
+            companionInitiative.interacted(System.currentTimeMillis(), com.niko.assistant.memory.MemoryLearning.key(text) in setOf("no", "mejor no", "ahora no"))
             initiativeStore.save(companionInitiative.state)
+        }
+        VoiceControl.parse(text)?.let { control ->
+            if (!com.niko.assistant.memory.LeoPersonalDataReset.clearing) {
+                companionInitiative.silence(System.currentTimeMillis())
+                initiativeStore.save(companionInitiative.state)
+            }
             interruptCurrentTurn()
             LeoRealtimeTurnBus.interruptSpeech()
             cancelActiveVoiceConversation()
@@ -1206,6 +1210,8 @@ open class NikoAssistantService : Service() {
                 adaptiveNetwork = null
                 adaptiveUnavailable = false
                 lastTrainableUtterance = null
+                replyVoiceInput = ""
+                replyProsody = SpeechProsody()
                 neuralCore = com.niko.assistant.cognitive.LeoNeuralCore(agent.turns)
                 agent.conversation.clear()
                 companionInitiative.restore(com.niko.assistant.proactive.LeoInitiativeEngine.State())
@@ -1571,6 +1577,8 @@ open class NikoAssistantService : Service() {
             else {
                 active.interruptCurrentTurn()
                 LeoRealtimeTurnBus.interruptSpeech()
+                active.cancelActiveVoiceConversation()
+                active.finishTurn()
                 active.clearLocalMemory()
             }
             NikoRuntimeState.setHeard(context, "")

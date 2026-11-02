@@ -23,7 +23,7 @@ class LeoLocalModelLifecycleTest {
         val prefs = app.getSharedPreferences("leo_local_generation", Context.MODE_PRIVATE)
         try {
             RandomAccessFile(store.modelFile, "rw").use { it.setLength(LeoLocalModelStore.BYTES) }
-            File(storage.generative, "${LeoLocalModelStore.SHA256}.validated").writeText("fixture")
+            File(storage.generative, "${LeoLocalModelStore.SHA256}.validated").writeText("${store.spec.id}\n${store.spec.sha256}\n")
             prefs.edit().putBoolean("enabled", true).putString("revision", "first").commit()
             val old = store.snapshot()
             assertTrue(store.isCurrent(old))

@@ -34,7 +34,7 @@ class LeoLargeModelTest {
         val large = LeoLocalModelStore(app, LeoLocalModelCatalog.large)
         try {
             RandomAccessFile(compact.modelFile, "rw").use { it.setLength(compact.spec.bytes) }
-            File(storage.generative, "${compact.spec.sha256}.validated").writeText("fixture")
+            File(storage.generative, "${compact.spec.sha256}.validated").writeText("${compact.spec.id}\n${compact.spec.sha256}\n")
             large.modelFile.writeText("partial fixture")
             val revision = compact.snapshot()
             large.removeDownload()
