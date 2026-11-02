@@ -323,9 +323,9 @@ object LeoNativeWebSearch {
 
     internal suspend fun searchWikipedia(query: String, fetch: suspend (String, String, Int) -> Fetch?): List<Hit> {
         val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
-        val url = "https://es.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=$encoded&gsrlimit=3&prop=extracts|info&inprop=url&exintro=1&explaintext=1&exsentences=4&format=json"
+        val url = "https://es.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=$encoded&gsrlimit=3&prop=extracts%7Cinfo&inprop=url&exintro=1&explaintext=1&exsentences=4&format=json"
         val jsonStr = fetch(url, "application/json", 150_000)?.body
-        val generatorHits = if (!jsonStr.isNullOrBlank()) parseWikipedia(jsonStr) else emptyList()
+        val generatorHits = if (!jsonStr.isNullOrBlank()) parseWikipedia(jsonStr, query) else emptyList()
         if (generatorHits.isNotEmpty()) return generatorHits
 
         val openSearchUrl = "https://es.wikipedia.org/w/api.php?action=opensearch&search=$encoded&limit=3&namespace=0&format=json"
@@ -340,7 +340,10 @@ object LeoNativeWebSearch {
         val titles = array.optJSONArray(1) ?: return emptyList()
         val urls = array.optJSONArray(3) ?: return emptyList()
         val hits = mutableListOf<Hit>()
-        for (i in 0 until minOf(titles.length(), 3)) {
+        val indices = (0 until minOf(titles.length(), 3)).toList()
+        val exact = indices.filter { normalize(titles.optString(it, "")) == normalize(array.optString(0, "")) }
+        // A namesake is not a fallback biography when the exact person's page fails.
+        for (i in exact.ifEmpty { indices }) {
             val title = titles.optString(i, "")
             val url = urls.optString(i, "")
             if (title.isBlank() || url.isBlank()) continue
@@ -363,17 +366,16 @@ object LeoNativeWebSearch {
         hits
     }.getOrDefault(emptyList())
 
-    internal fun parseWikipedia(jsonStr: String): List<Hit> {
+    internal fun parseWikipedia(jsonStr: String, subject: String = ""): List<Hit> {
         if (jsonStr.isBlank()) return emptyList()
         return runCatching {
             val root = JSONObject(jsonStr)
             val queryObj = root.optJSONObject("query") ?: return emptyList()
             val pages = queryObj.optJSONObject("pages") ?: return emptyList()
             val hits = mutableListOf<Hit>()
-            val keys = pages.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                val page = pages.getJSONObject(key)
+            val candidates = pages.keys().asSequence().map { pages.getJSONObject(it) }.toList()
+            val exact = candidates.filter { subject.isNotBlank() && normalize(it.optString("title", "")) == normalize(subject) }
+            for (page in exact.ifEmpty { candidates }) {
                 val title = page.optString("title", "").let(::htmlToText).take(220)
                 val fullurl = page.optString("fullurl", "")
                 val extract = page.optString("extract", "").let(::htmlToText).trim()

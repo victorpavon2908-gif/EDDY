@@ -69,6 +69,33 @@ class LeoNativeWebSearchTest {
         assertTrue(reply.passages.all { it.pageRead })
     }
 
+    @Test fun exactWikipediaTitleDoesNotFallBackToANamesake() = runBlocking {
+        val visited = mutableListOf<String>()
+        val json = """["ruben dario",["Rubén Darío","Rubén Darío Insúa"],["",""],["https://es.wikipedia.org/wiki/Rub%C3%A9n_Dar%C3%ADo","https://es.wikipedia.org/wiki/Rub%C3%A9n_Dar%C3%ADo_Ins%C3%BAa"]]"""
+        val hits = LeoNativeWebSearch.parseWikipediaOpenSearch(json) { url, _, _ ->
+            visited += url
+            if ("Ins" in url) LeoNativeWebSearch.Fetch("""{"extract":"Rubén Darío Insúa es un entrenador de fútbol profesional."}""", url)
+            else null
+        }
+        assertTrue(hits.isEmpty())
+        assertEquals(1, visited.size)
+        assertFalse(visited.single().contains("Ins"))
+    }
+
+    @Test fun wikipediaGeneratorUrlIsValidAndPrefersTheExactTitle() = runBlocking {
+        var requests = 0
+        val hits = LeoNativeWebSearch.searchWikipedia("Rubén Darío") { url, _, _ ->
+            requests++
+            java.net.URI(url) // Raw pipes in prop=extracts|info made production reject this URL.
+            LeoNativeWebSearch.Fetch("""{"query":{"pages":{
+                "1":{"title":"Rubén Darío","extract":"Rubén Darío fue un poeta nicaragüense y representante del modernismo.","index":1},
+                "2":{"title":"Rubén Darío Insúa","extract":"Rubén Darío Insúa es un entrenador de fútbol profesional.","index":2}
+            }}}""", url)
+        }
+        assertEquals(1, requests)
+        assertEquals("Rubén Darío - Wikipedia", hits.single().title)
+    }
+
     @Test fun programmingLanguageSymbolsRemainRelevantDuringResearch() {
         val cpp = LeoNativeWebSearch.Hit("C++ referencias", "https://cpp.example/reference", "C++ permite programar aplicaciones con tipos y funciones.")
         val csharp = LeoNativeWebSearch.Hit("C# referencias", "https://csharp.example/reference", "C# permite programar aplicaciones con tipos y funciones.")
