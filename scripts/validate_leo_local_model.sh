@@ -36,6 +36,7 @@ leo_cp="$leo_lib/kotlin-stdlib-2.0.21.jar:$leo_lib/kotlinx-coroutines-core-jvm-1
 java -cp "$leo_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-reflect -jvm-target 17 \
  -classpath "$leo_cp" -d "$leo_root/probes.jar" \
  app/src/main/java/com/niko/assistant/inference/local/LeoLlamaBridge.kt \
+ app/src/main/java/com/niko/assistant/modes/LeoMode.kt \
  app/src/main/java/com/niko/assistant/inference/local/LeoLocalPrompt.kt \
  app/src/main/java/com/niko/assistant/inference/local/LeoLocalResearchPrompt.kt \
  app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt \

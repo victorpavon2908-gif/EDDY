@@ -28,16 +28,17 @@ internal fun LeoAnimatedFace(
     reply: String,
     modifier: Modifier = Modifier,
 ) {
+    val mode = rememberLeoMode()
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     var elapsed by remember { mutableFloatStateOf(0f) }
     var blink by remember { mutableStateOf(false) }
     var mood by remember { mutableStateOf(LeoFaceMood.FRIENDLY) }
     val active = enabled && lifecycle.isAtLeast(Lifecycle.State.RESUMED)
     val expressive = active && state != NikoVisualState.THINKING && state != NikoVisualState.LISTENING
-    LaunchedEffect(input, reply, enabled) {
-        mood = if (enabled) LeoFaceMood.resolve(input, reply) else LeoFaceMood.FRIENDLY
+    LaunchedEffect(input, reply, enabled, mode) {
+        mood = if (enabled) LeoFaceMood.forMode(mode, input, reply) else LeoFaceMood.FRIENDLY
         delay(8000)
-        mood = LeoFaceMood.FRIENDLY
+        mood = if (mode.serious) LeoFaceMood.SERIOUS else LeoFaceMood.FRIENDLY
     }
     LaunchedEffect(active, state, mood) {
         elapsed = 0f
@@ -66,7 +67,7 @@ internal fun LeoAnimatedFace(
             translate((size.width - 360f * scale) / 2f, (size.height - 341f * scale) / 2f)
             scale(scale, scale, Offset.Zero)
         }) {
-            val ink = Color.Black
+            val ink = if (mode == com.niko.assistant.modes.LeoMode.NORMAL) Color.Black else Color(mode.ink)
             val line = Stroke(6f, cap = StrokeCap.Round)
             val body = Path().apply {
                 moveTo(82f, 318f); lineTo(82f, 115f)
@@ -78,7 +79,8 @@ internal fun LeoAnimatedFace(
             }
             drawPath(body, ink)
             drawPath(Path().apply { moveTo(139f, 219f); lineTo(183f, 270f); lineTo(225f, 219f); moveTo(183f, 270f); lineTo(183f, 298f) }, ink, style = line)
-            val face = if (expressive) mood else LeoFaceMood.FRIENDLY
+            val face = if (mode.serious) LeoFaceMood.SERIOUS else if (expressive) mood else LeoFaceMood.FRIENDLY
+            val serious = face == LeoFaceMood.SERIOUS
             val laughing = face == LeoFaceMood.LAUGHING
             val surprised = face == LeoFaceMood.SURPRISED
             val wry = face == LeoFaceMood.WRY
@@ -96,12 +98,16 @@ internal fun LeoAnimatedFace(
                     // Keep this silhouette for every open-eye expression, without pupils.
                     drawPath(Path().apply {
                         moveTo(x - 23.5f, 117f)
-                        cubicTo(x - 23.5f, 102.64f, x - 12.98f, 91f, x, 91f)
-                        cubicTo(x + 12.98f, 91f, x + 23.5f, 102.64f, x + 23.5f, 117f)
+                        val crown = if (serious) 101f else 91f
+                        val shoulder = if (serious) 108f else 102.64f
+                        cubicTo(x - 23.5f, shoulder, x - 12.98f, crown, x, crown)
+                        cubicTo(x + 12.98f, crown, x + 23.5f, shoulder, x + 23.5f, 117f)
                         close()
                     }, ink, style = line)
                 }
-                if (angry || afraid || sad) {
+                if (serious) {
+                    drawLine(ink, Offset(x - 20f, if (i == 0) 83f else 88f), Offset(x + 20f, if (i == 0) 88f else 83f), 5f, StrokeCap.Round)
+                } else if (angry || afraid || sad) {
                     val inner = if (angry) 83f else 66f
                     val outer = if (angry) 66f else 80f
                     drawLine(ink, Offset(x - 18f, if (i == 0) outer else inner), Offset(x + 18f, if (i == 0) inner else outer), 5f, StrokeCap.Round)
@@ -113,6 +119,8 @@ internal fun LeoAnimatedFace(
             // Rhythm follows speaking state, not phonemes or measured audio amplitude.
             val opening = if (speaking) 7f + abs(sin(elapsed * 13f)) * 25f else if (laughing) 29f + abs(sin(elapsed * 9f)) * 9f else 0f
             when {
+                serious && speaking -> drawOval(ink, Offset(161f, 149f), Size(47f, 8f + opening * .35f), style = line)
+                serious -> drawLine(ink, Offset(157f, 158f), Offset(211f, 158f), 6f, StrokeCap.Round)
                 speaking -> {
                     // Preserve the reference smile; vary only its lower curve during speech.
                     val depth = 8f + opening

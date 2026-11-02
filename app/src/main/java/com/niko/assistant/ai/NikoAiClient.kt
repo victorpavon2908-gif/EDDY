@@ -9,7 +9,7 @@ import kotlinx.coroutines.ensureActive
 class NikoAiClient(
     context: Context,
     @Suppress("UNUSED_PARAMETER") baseUrlOverride: String? = null,
-    private val search: suspend (String) -> NikoAiReply = { LeoNativeWebSearch.search(it) },
+    private val search: suspend (String) -> NikoAiReply = { LeoNativeWebSearch.search(it, mode = com.niko.assistant.modes.LeoModeStore.read(context.applicationContext)) },
 ) {
     private val appContext = context.applicationContext
     private val knowledge = NikoKnowledgeStore(appContext)

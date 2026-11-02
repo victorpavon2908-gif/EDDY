@@ -16,7 +16,7 @@ class LeoInferenceClient(
 ) : Closeable {
     private val pending = java.util.concurrent.ConcurrentHashMap.newKeySet<kotlinx.coroutines.CancellableContinuation<String?>>()
     private val workers = ThreadPoolExecutor(2, 2, 10, TimeUnit.SECONDS, ArrayBlockingQueue(2))
-    suspend fun reply(endpoint: String, model: String, key: String, question: String, evidence: String? = null, history: List<com.niko.assistant.ai.ConversationTurn> = emptyList()): String? {
+    suspend fun reply(endpoint: String, model: String, key: String, question: String, evidence: String? = null, history: List<com.niko.assistant.ai.ConversationTurn> = emptyList(), mode: com.niko.assistant.modes.LeoMode = com.niko.assistant.modes.LeoMode.NORMAL): String? {
         if (!LeoInferenceProtocol.maySend(question)) return null
         val uri = runCatching { LeoInferenceProtocol.endpoint(endpoint) }.getOrNull() ?: return null
         return suspendCancellableCoroutine { continuation ->
@@ -31,14 +31,14 @@ class LeoInferenceClient(
                     connection.instanceFollowRedirects = false
                     connection.requestMethod = "POST"
                     connection.connectTimeout = 12000
-                    connection.readTimeout = 45000
+                    connection.readTimeout = if (mode == com.niko.assistant.modes.LeoMode.SUPER) 15000 else 45000
                     connection.doOutput = true
                     connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                     if (key.isNotBlank()) {
                         require(key.length <= 4096 && key.none { it.isISOControl() })
                         connection.setRequestProperty("Authorization", "Bearer $key")
                     }
-                    val payload = LeoInferenceProtocol.payload(model, question, evidence, history).toByteArray(Charsets.UTF_8)
+                    val payload = LeoInferenceProtocol.payload(model, question, evidence, history, mode).toByteArray(Charsets.UTF_8)
                     connection.setFixedLengthStreamingMode(payload.size)
                     connection.outputStream.use { it.write(payload) }
                     check(connection.responseCode == 200)

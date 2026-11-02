@@ -5,11 +5,14 @@ import java.util.Locale
 
 /** Conservative visual cues, not emotion recognition or a claim about the user's feelings. */
 internal enum class LeoFaceMood {
-    FRIENDLY, LAUGHING, WRY, SURPRISED, CARING, AFRAID, ANGRY, SAD;
+    FRIENDLY, SERIOUS, LAUGHING, WRY, SURPRISED, CARING, AFRAID, ANGRY, SAD;
 
     companion object {
         private fun key(text: String) = Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("\\p{Mn}+"), "").trim()
+
+        fun forMode(mode: com.niko.assistant.modes.LeoMode, input: String, reply: String): LeoFaceMood =
+            if (mode.serious) SERIOUS else resolve(input, reply)
 
         fun resolve(input: String, reply: String): LeoFaceMood {
             if (reply == com.niko.assistant.ai.LeoPlayfulDialogue.HUMOR_DISABLED) return FRIENDLY

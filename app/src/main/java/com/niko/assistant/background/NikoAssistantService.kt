@@ -799,6 +799,13 @@ open class NikoAssistantService : Service() {
             com.niko.assistant.agent.LeoAgentRuntime.ConfirmationReply.None -> Unit
         }
         learningQuestion = null
+        // Explicit mode commands take the immediate local route, without search or model loading.
+        com.niko.assistant.modes.LeoMode.requested(rawText)?.let { mode ->
+            com.niko.assistant.modes.LeoModeStore.set(applicationContext, mode)
+            com.niko.assistant.ui.NikoUiModeStore.set(applicationContext, com.niko.assistant.ui.NikoUiMode.ASSISTANT)
+            speakResponse("Modo ${mode.title} activado. ${mode.description}")
+            return
+        }
         if (NikoAiSettings.adaptiveLearning(applicationContext)) {
             val assessment = com.niko.assistant.learning.LeoLearningJournal.assessment(rawText)
             if (assessment != null) {
@@ -1021,7 +1028,7 @@ open class NikoAssistantService : Service() {
                         val history = if (config.history) withContext(Dispatchers.IO) { memory.historyForInference(text) } else emptyList()
                         agent.turns.checkpoint()
                         if (!inferenceSettings.isCurrent(config)) return null
-                        val answer = inferenceClient.reply(config.endpoint, config.model, config.key, text, history = history) ?: return null
+                        val answer = inferenceClient.reply(config.endpoint, config.model, config.key, text, history = history, mode = com.niko.assistant.modes.LeoModeStore.read(applicationContext)) ?: return null
                         agent.turns.checkpoint()
                         if (!inferenceSettings.isCurrent(config)) return null
                         val code = answer.contains("```")
@@ -1313,7 +1320,10 @@ open class NikoAssistantService : Service() {
                 val base = if (original.webUsed && original.spokenText.isNullOrBlank()) {
                     com.niko.assistant.cognitive.LeoResearchSynthesis.synthesizeLocalExtractive(original, contextualQuery)
                 } else original
-                if (!inferenceSettings.researchAllowed) {
+                if (com.niko.assistant.modes.LeoModeStore.read(applicationContext) == com.niko.assistant.modes.LeoMode.SUPER) {
+                    // Return already sourced evidence immediately; skip optional model rewriting.
+                    base
+                } else if (!inferenceSettings.researchAllowed) {
                     com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(base) { evidence ->
                         agent.turns.checkpoint()
                         val result = com.niko.assistant.inference.local.LeoLocalInferenceClient(applicationContext)
@@ -1327,7 +1337,7 @@ open class NikoAssistantService : Service() {
                         com.niko.assistant.cognitive.LeoResearchSynthesis.synthesize(base, generate@{ evidence ->
                             agent.turns.checkpoint()
                             if (!inferenceSettings.researchAllowed || !inferenceSettings.isCurrent(config)) return@generate null
-                            val result = inferenceClient.reply(config.endpoint, config.model, config.key, contextualQuery, evidence)
+                            val result = inferenceClient.reply(config.endpoint, config.model, config.key, contextualQuery, evidence, mode = com.niko.assistant.modes.LeoModeStore.read(applicationContext))
                             agent.turns.checkpoint()
                             if (!inferenceSettings.researchAllowed || !inferenceSettings.isCurrent(config)) null else result
                         })
@@ -1374,7 +1384,8 @@ open class NikoAssistantService : Service() {
             .replace(Regex("\\s*\\[\\d+\\]"), "")
             .replace(Regex("\\s+"), " ")
             .trim()
-        val voiceStyle = withContext(Dispatchers.IO) { memory.responseStyle() }
+        val voiceStyle = if (com.niko.assistant.modes.LeoModeStore.read(applicationContext) == com.niko.assistant.modes.LeoMode.SUPER) "brief"
+            else withContext(Dispatchers.IO) { memory.responseStyle() }
         agent.turns.checkpoint()
         val emotionalProsody = neuralCore.emotionalHeart.currentEmotion?.let {
             SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it))
@@ -1432,7 +1443,7 @@ open class NikoAssistantService : Service() {
         }
 
         NikoRuntimeState.setVoiceStatus(applicationContext, platformTts.voiceDescription)
-        val queued = runCatching { platformTts.speak(text, prosody) }.getOrDefault(false)
+        val queued = runCatching { platformTts.speak(text, SpeechProsody.forMode(prosody, com.niko.assistant.modes.LeoModeStore.read(applicationContext))) }.getOrDefault(false)
         if (queued) {
             NikoRuntimeState.setVoiceReady(applicationContext, true)
         } else {

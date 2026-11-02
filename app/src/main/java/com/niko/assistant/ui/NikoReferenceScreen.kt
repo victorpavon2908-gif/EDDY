@@ -98,13 +98,15 @@ internal fun NikoReferenceScreen(
     onTools: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val mode = rememberLeoMode()
+    var modesOpen by remember { mutableStateOf(false) }
     var controlsOpen by remember { mutableStateOf(false) }
     var helpOpen by remember { mutableStateOf(false) }
     val displayState = if (visualState == NikoVisualState.LISTENING && inputState != InputState.READY) {
         NikoVisualState.IDLE
     } else visualState
 
-    Box(Modifier.fillMaxSize().background(Color.White)) {
+    Box(Modifier.fillMaxSize().background(Color(mode.background))) {
         NikoHero(
             state = displayState,
             enabled = autoListeningEnabled,
@@ -113,6 +115,11 @@ internal fun NikoReferenceScreen(
             responseText = responseText,
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         )
+        TextButton(onClick = { modesOpen = true },
+            modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)) {
+            Text(if (mode == com.niko.assistant.modes.LeoMode.NORMAL) "Modos · Normal" else mode.title,
+                color = Color(mode.ink), fontWeight = FontWeight.SemiBold)
+        }
         androidx.compose.material3.IconButton(
             onClick = { context.startActivity(Intent(context, AiSettingsActivity::class.java)) },
             modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp),
@@ -136,6 +143,7 @@ internal fun NikoReferenceScreen(
             }
         }
     }
+    if (modesOpen) LeoModeDialog(onDismiss = { modesOpen = false })
     if (helpOpen) LeoUserGuideDialog(onClose = { helpOpen = false })
     if (controlsOpen) ModalBottomSheet(
         onDismissRequest = { controlsOpen = false },

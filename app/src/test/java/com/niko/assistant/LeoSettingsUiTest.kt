@@ -29,6 +29,31 @@ import org.robolectric.annotation.Config
 class LeoSettingsUiTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun modePickerPersistsSelectionAndReactsToVoiceSideChanges() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication<android.app.Application>()
+        com.niko.assistant.modes.LeoModeStore.set(context, com.niko.assistant.modes.LeoMode.NORMAL)
+        compose.setContent {
+            MaterialTheme {
+                val mode = com.niko.assistant.ui.rememberLeoMode()
+                androidx.compose.foundation.layout.Column {
+                    Text("Modo actual: ${mode.id}")
+                    com.niko.assistant.ui.LeoModeOptions(mode) {
+                        com.niko.assistant.modes.LeoModeStore.set(context, it)
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("Super Leo").performClick()
+        compose.onNodeWithText("Modo actual: super").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(com.niko.assistant.modes.LeoMode.SUPER, com.niko.assistant.modes.LeoModeStore.read(context))
+            com.niko.assistant.modes.LeoModeStore.set(context, com.niko.assistant.modes.LeoMode.RESEARCH)
+        }
+        compose.onNodeWithText("Modo actual: investigador").assertIsDisplayed()
+        compose.onNodeWithText("Normal").performClick()
+        compose.onNodeWithText("Modo actual: normal").assertIsDisplayed()
+    }
+
     @Test fun initiallyExpandedSectionDisplaysItsControlsImmediately() {
         compose.setContent {
             MaterialTheme {

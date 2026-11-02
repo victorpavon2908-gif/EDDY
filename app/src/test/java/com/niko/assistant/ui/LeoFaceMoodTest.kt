@@ -4,6 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LeoFaceMoodTest {
+    @Test fun superKeepsASeriousExpressionAcrossOrdinaryReplies() {
+        assertEquals(LeoFaceMood.SERIOUS, LeoFaceMood.forMode(com.niko.assistant.modes.LeoMode.SUPER, "hola", "Jajaja"))
+        assertEquals(LeoFaceMood.SERIOUS, LeoFaceMood.forMode(com.niko.assistant.modes.LeoMode.RESEARCH, "hola", ""))
+        assertEquals(LeoFaceMood.LAUGHING, LeoFaceMood.forMode(com.niko.assistant.modes.LeoMode.NORMAL, "reíte", ""))
+    }
+
     @Test fun supportsExplicitFacesWithAccents() {
         assertEquals(LeoFaceMood.LAUGHING, LeoFaceMood.resolve("LEO, reíte", ""))
         assertEquals(LeoFaceMood.WRY, LeoFaceMood.resolve("Sé sarcástico", ""))

@@ -9,13 +9,14 @@ import java.util.concurrent.atomic.AtomicLong
 class LeoLocalInferenceClient(context: Context) {
     private val app = context.applicationContext
     suspend fun reply(question: String, context: String = "", validating: Boolean = false, model: LeoLocalModelSpec? = null, researchEvidence: String? = null): String? {
+        val mode = if (validating) com.niko.assistant.modes.LeoMode.NORMAL else com.niko.assistant.modes.LeoModeStore.read(app)
         val store = LeoLocalModelStore(app, if (validating) model else null)
         val revision = store.snapshot()
         if (!validating && revision == null) return null
         if (!store.compatible() || !store.modelFile.isFile) return null
-        val prompt = runCatching { (if (researchEvidence == null) LeoLocalPrompt.build(question, context) else LeoLocalResearchPrompt.build(question, researchEvidence)).toByteArray(Charsets.UTF_8) }.getOrNull() ?: return null
+        val prompt = runCatching { (if (researchEvidence == null) LeoLocalPrompt.build(question, context, mode) else LeoLocalResearchPrompt.build(question, researchEvidence)).toByteArray(Charsets.UTF_8) }.getOrNull() ?: return null
         return withContext(Dispatchers.Main.immediate) {
-            withTimeoutOrNull(185000) {
+            withTimeoutOrNull(mode.inferenceTimeoutMs) {
                 suspendCancellableCoroutine { continuation ->
                     val id = ids.incrementAndGet()
                     val main = Handler(Looper.getMainLooper())
@@ -47,7 +48,7 @@ class LeoLocalInferenceClient(context: Context) {
                             if (!validating && !store.isCurrent(revision)) { finish(null); return }
                             try { remote!!.send(Message.obtain().apply {
                                 what = LeoLocalInferenceService.RUN; replyTo = receiver
-                                data = Bundle().apply { putLong("id", id); putByteArray("prompt", prompt); putString("model_id", store.spec.id); putInt("limit", if (researchEvidence != null) 1024 else LeoLocalPrompt.responseBudget(question)) }
+                                data = Bundle().apply { putLong("id", id); putByteArray("prompt", prompt); putString("model_id", store.spec.id); putInt("limit", mode.tokenBudget(if (researchEvidence != null) 1024 else LeoLocalPrompt.responseBudget(question))) }
                             }) } catch (_: RemoteException) { finish(null) }
                         }
                         override fun onServiceDisconnected(name: ComponentName) = finish(null)

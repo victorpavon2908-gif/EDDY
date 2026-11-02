@@ -5,6 +5,14 @@ import org.junit.Test
 import org.json.JSONObject
 
 class LeoInferenceProtocolTest {
+    @Test fun superBudgetAndCreativeStyleReachConfiguredModels() {
+        val fast = JSONObject(LeoInferenceProtocol.payload("model", "Hola", mode = com.niko.assistant.modes.LeoMode.SUPER))
+        assertEquals(256, fast.getInt("max_tokens"))
+        val creative = JSONObject(LeoInferenceProtocol.payload("model", "Ideas", mode = com.niko.assistant.modes.LeoMode.CREATIVE))
+        assertTrue(creative.getJSONArray("messages").getJSONObject(0).getString("content").contains("ideas variadas"))
+        assertFalse(creative.has("tools"))
+    }
+
     @Test fun payloadContainsOnlyCurrentQuestionAndFixedInstructions() {
         val payload = JSONObject(LeoInferenceProtocol.payload("my-code-model", "Escribí una función en Rust"))
         assertFalse(payload.getBoolean("stream"))

@@ -4,9 +4,9 @@ package com.niko.assistant.inference.local
 object LeoLocalPrompt {
     private fun clean(text: String) = text.replace("<|", "‹|").replace("|>", "|›")
         .replace("<think>", "‹think›").replace("</think>", "‹/think›")
-    fun build(question: String, context: String = ""): String {
+    fun build(question: String, context: String = "", mode: com.niko.assistant.modes.LeoMode = com.niko.assistant.modes.LeoMode.NORMAL): String {
         require(question.isNotBlank() && question.length <= 4000)
-        val system = "Sos LEO. Respondé en español de forma clara, útil, con el detalle solicitado. " +
+        val system = mode.instruction + " " + "Sos LEO. Respondé en español de forma clara, útil, con el detalle solicitado. " +
             "Si faltan datos, pedí una aclaración. Si no sabés, decilo. " +
             "No tenés acceso a Internet, cámara ni herramientas en esta respuesta. " +
             "Nunca afirmés haber ejecutado acciones, compilado código o consultado fuentes. " +

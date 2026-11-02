@@ -4,6 +4,13 @@ import com.niko.assistant.memory.MemoryLearning
 
 data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
     companion object {
+        fun forMode(base: SpeechProsody, mode: com.niko.assistant.modes.LeoMode): SpeechProsody = when (mode) {
+            com.niko.assistant.modes.LeoMode.NORMAL -> base
+            com.niko.assistant.modes.LeoMode.SUPER -> SpeechProsody(speed = 1.15f, pitch = 0.89f)
+            com.niko.assistant.modes.LeoMode.RESEARCH -> SpeechProsody(speed = 1.0f, pitch = 0.92f)
+            com.niko.assistant.modes.LeoMode.CREATIVE -> SpeechProsody(speed = 1.10f, pitch = 1.02f)
+        }
+
         fun forInput(input: String): SpeechProsody {
             val text = MemoryLearning.key(input).replace(
                 Regex("\\bno (?:estoy (?:triste|preocupado|preocupada)|me siento mal)\\b"), " ",

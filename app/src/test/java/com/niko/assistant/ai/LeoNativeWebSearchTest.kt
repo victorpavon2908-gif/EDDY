@@ -96,6 +96,25 @@ class LeoNativeWebSearchTest {
         assertEquals("Rubén Darío - Wikipedia", hits.single().title)
     }
 
+    @Test fun superModeUsesOneQueryAndStillRequiresReadEvidence() = runBlocking {
+        val visited = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val reply = LeoNativeWebSearch.search("panel solar", com.niko.assistant.modes.LeoMode.SUPER) { url, _, _ ->
+            visited += java.net.URLDecoder.decode(url, "UTF-8")
+            when {
+                "bing.com" in url -> LeoNativeWebSearch.Fetch(
+                    "<rss><channel><item><title>Panel solar</title><link>https://energy.example/panel</link><description>Un panel solar produce electricidad.</description></item></channel></rss>", url)
+                "energy.example" in url -> LeoNativeWebSearch.Fetch(
+                    "<p>Un panel solar transforma la luz en electricidad para alimentar dispositivos y reducir el consumo de la red.</p>", url)
+                else -> null
+            }
+        }
+        assertTrue(reply.webUsed)
+        assertTrue(reply.passages.all { it.pageRead })
+        assertTrue(reply.sources.size <= 3)
+        assertTrue(reply.evidence.contains("1 enfoques"))
+        assertFalse(visited.any { "contexto explicacion detallada" in it || "fuente primaria" in it })
+    }
+
     @Test fun programmingLanguageSymbolsRemainRelevantDuringResearch() {
         val cpp = LeoNativeWebSearch.Hit("C++ referencias", "https://cpp.example/reference", "C++ permite programar aplicaciones con tipos y funciones.")
         val csharp = LeoNativeWebSearch.Hit("C# referencias", "https://csharp.example/reference", "C# permite programar aplicaciones con tipos y funciones.")

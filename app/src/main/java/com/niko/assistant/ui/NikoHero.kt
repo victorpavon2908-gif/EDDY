@@ -36,6 +36,7 @@ import kotlin.math.sin
 /** Animated interpretation of the supplied emblem, preserving body gestures and voice states. */
 @Composable
 internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, enabled: Boolean = true, immersive: Boolean = false, heardText: String = "", responseText: String = "") {
+    val mode = rememberLeoMode()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val lifecycleState by lifecycle.currentStateAsState()
     val request by RobotMotionBus.requests.collectAsStateWithLifecycle()
@@ -88,7 +89,7 @@ internal fun NikoHero(state: NikoVisualState, modifier: Modifier = Modifier, ena
         rotation = 0f
         lift = 0f
     }
-    Box(modifier.semantics(mergeDescendants = true) { contentDescription = description }) {
+    Box(modifier.semantics(mergeDescendants = true) { contentDescription = description + ". Modo " + mode.title }) {
         LeoAnimatedFace(
             state = state, enabled = enabled, input = heardText, reply = responseText,
             modifier = Modifier.fillMaxSize().padding(vertical = if (immersive) 0.dp else 32.dp, horizontal = if (immersive) 0.dp else 24.dp)

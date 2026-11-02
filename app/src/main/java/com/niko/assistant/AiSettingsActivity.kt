@@ -298,6 +298,7 @@ private fun LeoSettingsScreen(
     var initiative by remember { mutableStateOf(NikoAiSettings.companionInitiative(context)) }
     var personality by remember { mutableStateOf(NikoAiSettings.personality(context)) }
     var localFirst by remember { mutableStateOf(NikoAiSettings.localFirst(context)) }
+    val operatingMode = com.niko.assistant.ui.rememberLeoMode()
     var autoResearch by remember { mutableStateOf(NikoAiSettings.autoResearch(context)) }
     var learning by remember { mutableStateOf(NikoAiSettings.adaptiveLearning(context)) }
     var behaviorFeedback by remember { mutableStateOf("") }
@@ -437,6 +438,18 @@ private fun LeoSettingsScreen(
                 fontSize = 11.sp, letterSpacing = 1.sp)
 
             DarkSettingsCard(
+                icon = Icons.Rounded.AutoAwesome,
+                title = "Modos de LEO",
+                subtitle = "${operatingMode.title} · aspecto y forma de responder",
+            ) {
+                com.niko.assistant.ui.LeoModeOptions(operatingMode) {
+                    com.niko.assistant.modes.LeoModeStore.set(context, it)
+                }
+                Text("También podés decir «Leo, activa modo Super Leo».", color = DarkTextSecondary,
+                    style = MaterialTheme.typography.bodyMedium)
+            }
+
+            DarkSettingsCard(
                 icon = Icons.Rounded.Language,
                 title = "Internet y fuentes",
                 subtitle = if (autoResearch) "Búsqueda automática activada" else "Búsqueda automática en pausa",
@@ -467,7 +480,7 @@ private fun LeoSettingsScreen(
                         searchFeedback = "Consultando fuentes…"
                         scope.launch {
                             try {
-                                val reply = LeoNativeWebSearch.search("¿Qué es la energía solar?")
+                                val reply = LeoNativeWebSearch.search("¿Qué es la energía solar?", mode = operatingMode)
                                 searchFeedback = when {
                                     reply.webUsed -> "Búsqueda disponible: ${reply.sources.size} fuentes y lectura de páginas completada."
                                     reply.sources.isNotEmpty() -> "Encontré ${reply.sources.size} fuentes, pero no pude leer sus páginas. Probá de nuevo."

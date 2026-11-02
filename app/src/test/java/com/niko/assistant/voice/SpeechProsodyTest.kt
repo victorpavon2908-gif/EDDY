@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechProsodyTest {
+    @Test fun operatingModesChangeVoiceAndNormalRestoresExistingProsody() {
+        val base = SpeechProsody(speed = 0.96f, pitch = 0.93f)
+        assertEquals(base, SpeechProsody.forMode(base, com.niko.assistant.modes.LeoMode.NORMAL))
+        val fast = SpeechProsody.forMode(base, com.niko.assistant.modes.LeoMode.SUPER)
+        assertTrue(fast.speed > base.speed)
+        assertTrue(fast.pitch < base.pitch)
+        val creative = SpeechProsody.forMode(base, com.niko.assistant.modes.LeoMode.CREATIVE)
+        assertTrue(creative.pitch > fast.pitch)
+    }
+
     @Test fun offlineEmotionCommandsAdjustVoiceWithoutChangingTtsEngine() {
         val base = SpeechProsody.forInput("hola Leo")
         val serious = SpeechProsody.forInput("Leo ponte serio")

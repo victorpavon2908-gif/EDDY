@@ -1,6 +1,7 @@
 package com.niko.assistant.ai
 
 import com.niko.assistant.brain.WebQueryRouter
+import com.niko.assistant.modes.LeoMode
 import java.io.ByteArrayOutputStream
 import java.io.StringReader
 import java.net.HttpURLConnection
@@ -49,11 +50,11 @@ object LeoNativeWebSearch {
 
     data class FetchDiagnostic(val host: String, val status: Int?, val bytes: Int, val failure: String?)
 
-    suspend fun search(query: String, diagnostic: ((FetchDiagnostic) -> Unit)? = null): NikoAiReply {
-        val deadline = System.nanoTime() + SEARCH_BUDGET_MS * 1_000_000L
+    suspend fun search(query: String, mode: LeoMode = LeoMode.NORMAL, diagnostic: ((FetchDiagnostic) -> Unit)? = null): NikoAiReply {
+        val deadline = System.nanoTime() + mode.searchMs * 1_000_000L
         val observations = java.util.Collections.synchronizedList(mutableListOf<FetchDiagnostic>())
-        val reply = withTimeoutOrNull(SEARCH_BUDGET_MS + 2_000L) {
-            search(query) { url, accept, limit -> runInterruptible(Dispatchers.IO) {
+        val reply = withTimeoutOrNull(mode.searchMs + 2_000L) {
+            search(query, mode) { url, accept, limit -> runInterruptible(Dispatchers.IO) {
                 fetchText(url, accept, limit, deadline) { event ->
                     observations += event
                     diagnostic?.invoke(event)
@@ -81,6 +82,7 @@ object LeoNativeWebSearch {
     /** Injectable transport exercises discovery, redirects, filtering and summary together. */
     internal suspend fun search(
         query: String,
+        mode: LeoMode = LeoMode.NORMAL,
         transport: suspend (String, String, Int) -> Fetch?,
     ): NikoAiReply = withContext(Dispatchers.IO) {
         val fetch: suspend (String, String, Int) -> Fetch? = { url, accept, limit ->
@@ -106,7 +108,7 @@ object LeoNativeWebSearch {
         val terms = subjectTokens(subject)
         if (terms.isEmpty()) return@withContext NikoAiReply("Decime qué tema querés que busque.", false, emptyList())
         val current = WebQueryRouter.needsRecentInformation(cleanQuery)
-        val researchQueries = researchQueries(subject, cleanQuery, current)
+        val researchQueries = researchQueries(subject, cleanQuery, current).take(mode.queryCount)
         val hits = linkedMapOf<String, Hit>()
 
         // Keep completed providers even when another provider exhausts discovery time.
@@ -117,7 +119,7 @@ object LeoNativeWebSearch {
                 results.forEach { hit -> hits.putIfAbsent(hitKey(hit), hit.copy(angle = angle)) }
             }
         }
-        withTimeoutOrNull(DISCOVERY_BUDGET_MS) {
+        withTimeoutOrNull(mode.discoveryMs) {
             coroutineScope {
                 val base = listOf(
                     async { collect { searchWikipedia(subject, fetch) } },
@@ -142,7 +144,7 @@ object LeoNativeWebSearch {
         if (relevant.isEmpty()) return@withContext noResults(subject)
 
         val enriched = coroutineScope {
-            relevant.take(MAX_RESULTS).mapIndexed { index, original -> async {
+            relevant.take(mode.pageCount).mapIndexed { index, original -> async {
                 if (original.articleText.length >= 120) {
                     return@async original.copy(rank = index)
                 }
@@ -170,8 +172,8 @@ object LeoNativeWebSearch {
         if (enriched.isEmpty()) return@withContext noResults(subject)
         // Do not mix unread search snippets into an answer grounded in read pages.
         val evidenceHits = enriched.filter { it.articleText.isNotBlank() }.ifEmpty { enriched }
-        val cited = evidenceHits.distinctBy { it.url }.take(MAX_SOURCES)
-        val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, wantsDepth(cleanQuery))
+        val cited = evidenceHits.distinctBy { it.url }.take(mode.sourceCount)
+        val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, mode == LeoMode.RESEARCH || wantsDepth(cleanQuery), sentenceLimit = if (mode == LeoMode.SUPER && !wantsDepth(cleanQuery)) 2 else 4)
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
         val readCount = cited.count { it.articleText.isNotBlank() }
@@ -797,7 +799,7 @@ object LeoNativeWebSearch {
         }.trim()
     }
 
-    internal fun summarize(query: String, hits: List<Hit>, current: Boolean, deep: Boolean = false): String {
+    internal fun summarize(query: String, hits: List<Hit>, current: Boolean, deep: Boolean = false, sentenceLimit: Int = 4): String {
         val queryTerms = subjectTokens(subjectQuery(query))
         val candidates = mutableListOf<SentenceCandidate>()
         hits.forEachIndexed { sourceIndex, hit ->
@@ -830,7 +832,7 @@ object LeoNativeWebSearch {
         if (selected.isEmpty()) return ""
         val publishers = selected.map { publisherKey(hits[it.sourceIndex]) }.distinct().size
         val pagesRead = selected.map { it.sourceIndex }.distinct().count { hits[it].articleText.isNotBlank() }
-        val conciseFacts = selected.take(if (deep) 8 else 4)
+        val conciseFacts = selected.take(if (deep) 8 else sentenceLimit)
         val discrepancies = possibleDiscrepancies(candidates)
         return buildString {
             conciseFacts.forEachIndexed { position, fact ->
@@ -1057,14 +1059,11 @@ object LeoNativeWebSearch {
     private const val HTML_ACCEPT = "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5"
     private const val PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.8,text/plain;q=0.7,*/*;q=0.2"
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Mobile Safari/537.36 LEO/1.0"
-    private const val DISCOVERY_BUDGET_MS = 6_500L
-    private const val SEARCH_BUDGET_MS = 14_000L
     private const val CONNECT_TIMEOUT_MS = 3_500
     private const val READ_TIMEOUT_MS = 3_500
     private const val MAX_QUERY_CHARS = 500
     private const val MAX_RESEARCH_QUERIES = 3
     private const val MAX_RESULTS = 8
-    private const val MAX_SOURCES = 6
     private const val MAX_PARAGRAPHS = 32
     private const val MAX_ARTICLE_TEXT = 12_000
     private const val MAX_SENTENCES_PER_SOURCE = 40

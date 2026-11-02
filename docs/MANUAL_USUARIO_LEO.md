@@ -15,7 +15,7 @@ Los cambios de Android se guardan al instante. Tocá una categoría para abrir o
 - **Voz y conversación**: encender o pausar escucha, conversación espontánea, reinicio y diagnóstico.
 - **Mi voz**: instalar el identificador, registrar cuatro frases y limitar las respuestas a tu voz. No es un bloqueo de seguridad.
 - **Precisión de voz**: instalar o comprobar el segundo reconocedor local.
-- **Internet y fuentes**: búsqueda automática, prioridad local y botón **Probar búsqueda**. Es la primera categoría y aparece abierta.
+- **Internet y fuentes**: búsqueda automática, prioridad local y botón **Probar búsqueda**. La categoría aparece abierta.
 - **Estilo y aprendizaje**: personalidad y aprendizaje de tus correcciones.
 - **Permisos y teléfono**: burbuja, accesibilidad y lectura de sensores. Android administra estos permisos; concedelos solo para las funciones que uses.
 - **Modelos y descargas**: modelo local, enciclopedia y memoria semántica. Revisá el estado de cada uno; descargar uno no instala los demás. Mantené Ajustes abierto durante las descargas que se ejecutan en esa pantalla.
@@ -26,6 +26,18 @@ Los cambios de Android se guardan al instante. Tocá una categoría para abrir o
 - **Iniciar conversaciones**: permite intervenciones breves del asistente. Es opcional en Ajustes.
 - **Personalidad**: elegí el estilo disponible en Ajustes.
 - **Preferir respuestas locales**: intenta resolver con capacidades locales. No equivale a disponer de todos los conocimientos del mundo.
+
+## Modos de LEO
+Desde el botón **Modos** del inicio o **Configuración → Modos de LEO** podés cambiar de perfil. También funciona por voz, con la escucha habilitada:
+
+| Decí | Aspecto | Qué cambia |
+| --- | --- | --- |
+| «Leo, activa modo Super Leo» | Rojo, ojos más firmes y boca seria | Respuestas breves, voz ágil, una consulta temática, hasta tres fuentes y menor presupuesto de generación. Devuelve evidencia sin esperar la reescritura opcional de un modelo. |
+| «Leo, activa modo investigador» | Azul y expresión concentrada | Más tiempo de búsqueda, hasta seis fuentes y explicaciones amplias. |
+| «Leo, activa modo creativo» | Morado y expresión habitual | Propone ideas y ejemplos cuando usás un modelo configurado; la voz es más expresiva. |
+| «Leo, activa modo normal» | Aspecto original | Recupera el equilibrio habitual. También podés decir «desactiva modo Super Leo». |
+
+La selección se conserva al cerrar la app. Cambiar de modo no activa descargas, modelos remotos, micrófono ni permisos. Super Leo reduce trabajo y espera; la rapidez final depende del teléfono, la red y los modelos instalados. Las consultas actuales siguen necesitando fuentes; el modo creativo no convierte una idea en un hecho. Los cambios afectan las respuestas siguientes.
 
 ## 3. Internet: búsquedas, noticias y fuentes
 - Activá **Buscar en Internet** en **Configuración → Internet y fuentes**. **Probar búsqueda** realiza una consulta real y muestra si encontró fuentes y pudo leer páginas; no cambia tus preferencias.
