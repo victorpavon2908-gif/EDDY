@@ -12,6 +12,17 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [29], manifest = Config.NONE)
 class LeoWebOnlyClientTest {
+    @Test fun explicitSearchPreservesCaseSensitiveUrlsAndOriginalWording() = runBlocking {
+        val queries = mutableListOf<String>()
+        val client = NikoAiClient(RuntimeEnvironment.getApplication(), search = { query ->
+            queries += query
+            NikoAiReply("Resultado", false, emptyList())
+        })
+        val message = "Leo, buscá https://docs.example/Guía/CaseSensitive?token=AbC"
+        client.reply(message, "private memory", true)
+        assertEquals(listOf(message), queries)
+    }
+
     @Test fun publicResearchNeverReceivesPrivateMemoryOrRetiredKey() = runBlocking {
         val context: Context = RuntimeEnvironment.getApplication()
         val prefs = context.getSharedPreferences("eddy_ai_settings", Context.MODE_PRIVATE)

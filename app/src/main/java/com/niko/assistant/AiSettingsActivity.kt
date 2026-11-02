@@ -55,6 +55,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Refresh
@@ -74,7 +75,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -94,6 +95,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.niko.assistant.actions.LeoHardwareProtocolRunner
+import com.niko.assistant.ai.LeoNativeWebSearch
 import com.niko.assistant.ai.NikoAiSettings
 import com.niko.assistant.ai.NikoPersonality
 import com.niko.assistant.background.NikoAssistantService
@@ -120,26 +122,26 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Slate surfaces and restrained sage accents for the settings workspace.
-private val DarkBgTop = Color(0xFF111820)
-private val DarkCardBg = Color(0xFF1B2530)
-private val DarkSubCardBg = Color(0xFF222F3B)
-private val DarkBorder = Color(0xFF364655)
-private val DarkEmerald = Color(0xFFA9CCBC)
-private val DarkCyan = Color(0xFFA9CCBC)
-private val DarkAmber = Color(0xFFE6C48C)
-private val DarkDanger = Color(0xFFFFAFB5)
-private val DarkTextPrimary = Color(0xFFF2F5F7)
-private val DarkTextSecondary = Color(0xFFBCC7D1)
-private val DarkTextMuted = Color(0xFFAAB8C4)
+// Pearl surfaces, ink typography and bronze details for a quiet editorial layout.
+private val DarkBgTop = Color(0xFFF3F2EE)
+private val DarkCardBg = Color(0xFFFFFFFF)
+private val DarkSubCardBg = Color(0xFFF0F3F6)
+private val DarkBorder = Color(0xFFD7DEE5)
+private val DarkEmerald = Color(0xFF163E5C)
+private val DarkCyan = Color(0xFF163E5C)
+private val DarkAmber = Color(0xFF78542D)
+private val DarkDanger = Color(0xFFA32138)
+private val DarkTextPrimary = Color(0xFF172B3A)
+private val DarkTextSecondary = Color(0xFF4B5C68)
+private val DarkTextMuted = Color(0xFF5D6B75)
 
-private val LeoSettingsDarkColorScheme = darkColorScheme(
+private val LeoSettingsColorScheme = lightColorScheme(
     primary = DarkEmerald,
-    onPrimary = Color(0xFF051812),
-    primaryContainer = Color(0xFF15382D),
-    onPrimaryContainer = Color(0xFFB5F7E0),
-    secondary = DarkCyan,
-    onSecondary = Color(0xFF051A1F),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFDDEAF3),
+    onPrimaryContainer = DarkTextPrimary,
+    secondary = DarkAmber,
+    onSecondary = Color.White,
     background = DarkBgTop,
     onBackground = DarkTextPrimary,
     surface = DarkCardBg,
@@ -174,8 +176,8 @@ class AiSettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
         ContextCompat.registerReceiver(
             this,
@@ -185,7 +187,7 @@ class AiSettingsActivity : ComponentActivity() {
         )
         setContent {
             MaterialTheme(
-                colorScheme = LeoSettingsDarkColorScheme,
+                colorScheme = LeoSettingsColorScheme,
                 typography = LeoSettingsTypography,
                 shapes = Shapes(small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp), large = RoundedCornerShape(20.dp)),
             ) {
@@ -299,6 +301,8 @@ private fun LeoSettingsScreen(
     var autoResearch by remember { mutableStateOf(NikoAiSettings.autoResearch(context)) }
     var learning by remember { mutableStateOf(NikoAiSettings.adaptiveLearning(context)) }
     var behaviorFeedback by remember { mutableStateOf("") }
+    var testingSearch by remember { mutableStateOf(false) }
+    var searchFeedback by rememberSaveable { mutableStateOf("") }
 
     val semanticMemory = remember { LeoSemanticMemory.get(context) }
     var semanticStatus by remember { mutableStateOf(semanticMemory.status) }
@@ -401,9 +405,9 @@ private fun LeoSettingsScreen(
                             letterSpacing = 0.sp,
                         )
                         Text(
-                            text = "Ajustes",
+                            text = "Configuración",
                             color = DarkTextPrimary,
-                            fontSize = 22.sp,
+                            fontSize = 26.sp,
                             fontWeight = FontWeight.Medium,
                         )
                     }
@@ -415,12 +419,74 @@ private fun LeoSettingsScreen(
                 )
             }
 
-            Row(
+            Surface(
+                color = DarkEmerald,
+                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Guardado automático", color = DarkTextSecondary, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { showGuide = true }) { Text("Guía de uso") }
+                Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("A TU MEDIDA", color = Color(0xFFD6E5F0), fontSize = 12.sp, letterSpacing = 2.sp)
+                    Text("Tu asistente. Tu estilo.", color = Color.White, fontSize = 26.sp,
+                        fontFamily = FontFamily.Serif, lineHeight = 32.sp)
+                    Text("Elegí cómo buscar, conversar y recordar.", color = Color(0xFFD6E5F0), fontSize = 14.sp)
+                    TextButton(onClick = { showGuide = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text("Explorar la guía →") }
+                }
+            }
+            Text("TUS PREFERENCIAS · GUARDADO AUTOMÁTICO", color = DarkTextMuted,
+                fontSize = 11.sp, letterSpacing = 1.sp)
+
+            DarkSettingsCard(
+                icon = Icons.Rounded.Language,
+                title = "Internet y fuentes",
+                subtitle = if (autoResearch) "Búsqueda automática activada" else "Búsqueda automática en pausa",
+                initiallyExpanded = true,
+            ) {
+                DarkSwitchRow(
+                    title = "Buscar en Internet",
+                    description = "Consulta temas y datos actuales con enlaces a las fuentes.",
+                    checked = autoResearch,
+                    onCheckedChange = {
+                        autoResearch = it
+                        saveBehavior("Búsqueda automática ${if (it) "activada" else "desactivada"}.")
+                    },
+                )
+                HorizontalDivider(color = DarkBorder)
+                DarkSwitchRow(
+                    title = "Preferir respuestas locales",
+                    description = "Para conversaciones sin búsqueda. Las consultas web tienen prioridad cuando corresponde.",
+                    checked = localFirst,
+                    onCheckedChange = {
+                        localFirst = it
+                        saveBehavior()
+                    },
+                )
+                OutlinedButton(
+                    onClick = {
+                        testingSearch = true
+                        searchFeedback = "Consultando fuentes…"
+                        scope.launch {
+                            try {
+                                val reply = LeoNativeWebSearch.search("¿Qué es la energía solar?")
+                                searchFeedback = when {
+                                    reply.webUsed -> "Búsqueda disponible: ${reply.sources.size} fuentes y lectura de páginas completada."
+                                    reply.sources.isNotEmpty() -> "Encontré ${reply.sources.size} fuentes, pero no pude leer sus páginas. Probá de nuevo."
+                                    else -> reply.text
+                                }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                searchFeedback = "No se pudo completar la prueba. Revisá la conexión y reintentá."
+                            } finally { testingSearch = false }
+                        }
+                    },
+                    enabled = !testingSearch,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (testingSearch) "Comprobando…" else "Probar búsqueda") }
+                if (searchFeedback.isNotBlank()) Text(searchFeedback, color = DarkTextSecondary,
+                    style = MaterialTheme.typography.bodyMedium)
+                if (behaviorFeedback.isNotBlank()) Text(behaviorFeedback, color = DarkEmerald,
+                    style = MaterialTheme.typography.bodyMedium)
             }
 
             // ── SECCIÓN 1: ACTIVACIÓN POR VOZ Y ESCUCHA ──
@@ -577,7 +643,7 @@ private fun LeoSettingsScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = DarkEmerald,
-                            contentColor = Color(0xFF061510),
+                            contentColor = Color.White,
                             disabledContainerColor = DarkBorder,
                             disabledContentColor = DarkTextSecondary,
                         ),
@@ -696,8 +762,8 @@ private fun LeoSettingsScreen(
             // ── SECCIÓN 4: PERSONALIDAD, CONCIENCIA Y APRENDIZAJE ──
             DarkSettingsCard(
                 icon = Icons.Rounded.AutoAwesome,
-                title = "Personalidad e Internet",
-                subtitle = "Estilo de respuesta, búsqueda y aprendizaje.",
+                title = "Estilo y aprendizaje",
+                subtitle = "Personalidad y preferencias de conversación.",
             ) {
                 Text(
                     text = "Estilo de respuesta",
@@ -767,30 +833,6 @@ private fun LeoSettingsScreen(
                 HorizontalDivider(color = DarkBorder)
 
                 DarkSwitchRow(
-                    title = "Preferir respuestas locales",
-                    description = "Intenta responder primero con lo disponible en el teléfono.",
-                    checked = localFirst,
-                    onCheckedChange = {
-                        localFirst = it
-                        saveBehavior("Prioridad local ${if (it) "activada" else "desactivada"}.")
-                    },
-                )
-
-                HorizontalDivider(color = DarkBorder)
-
-                DarkSwitchRow(
-                    title = "Buscar en Internet",
-                    description = "Busca, lee y sintetiza artículos públicos cuando preguntás hechos o noticias actuales.",
-                    checked = autoResearch,
-                    onCheckedChange = {
-                        autoResearch = it
-                        saveBehavior("Investigación web ${if (it) "activada" else "desactivada"}.")
-                    },
-                )
-
-                HorizontalDivider(color = DarkBorder)
-
-                DarkSwitchRow(
                     title = "Aprender de mis correcciones",
                     description = "Usa tus correcciones para mejorar futuras respuestas.",
                     checked = learning,
@@ -839,7 +881,7 @@ private fun LeoSettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = DarkEmerald,
-                        contentColor = Color(0xFF061510),
+                        contentColor = Color.White,
                     ),
                 ) {
                     Text("Restablecer burbuja", fontWeight = FontWeight.Medium, fontSize = 14.sp)
@@ -929,9 +971,8 @@ private fun LeoSettingsScreen(
             // ── SECCIÓN 6: CEREBRO OFFLINE, MODELOS LLM Y MEMORIA SEMÁNTICA ──
             DarkSettingsCard(
                 icon = Icons.Rounded.Memory,
-                title = "Modelos Transformer de Google y Cerebro Offline",
-                subtitle = "Google Gemma 2 (DeepMind), Qwen3 y enciclopedia 100% sin Internet.",
-                initiallyExpanded = true,
+                title = "Modelos y descargas",
+                subtitle = "Modelos y enciclopedia para usar sin conexión.",
             ) {
                 // Panel de modelos GGUF Qwen3
                 LeoLocalModelPanel()
@@ -1010,7 +1051,7 @@ private fun LeoSettingsScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = DarkEmerald,
-                                    contentColor = Color(0xFF061510),
+                                    contentColor = Color.White,
                                     disabledContainerColor = DarkBorder,
                                     disabledContentColor = DarkTextSecondary,
                                 ),
@@ -1152,7 +1193,7 @@ private fun LeoSettingsScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DarkEmerald,
-                    contentColor = Color(0xFF051812),
+                    contentColor = Color.White,
                 ),
             ) {
                 Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -1220,7 +1261,7 @@ internal fun DarkSettingsCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
-    var visited by rememberSaveable { mutableStateOf(false) }
+    var visited by rememberSaveable { mutableStateOf(initiallyExpanded) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -1239,7 +1280,10 @@ internal fun DarkSettingsCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Icon(icon, contentDescription = null, tint = DarkEmerald, modifier = Modifier.size(24.dp))
+                Box(Modifier.size(44.dp).background(DarkSubCardBg, RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = DarkEmerald, modifier = Modifier.size(22.dp))
+                }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(title, color = DarkTextPrimary, style = MaterialTheme.typography.titleMedium)
                     Text(subtitle, color = DarkTextSecondary, style = MaterialTheme.typography.bodyMedium)
@@ -1307,7 +1351,7 @@ internal fun DarkSwitchRow(
             checked = checked,
             onCheckedChange = null,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(0xFF041711),
+                checkedThumbColor = Color.White,
                 checkedTrackColor = DarkEmerald,
                 uncheckedThumbColor = DarkTextSecondary,
                 uncheckedTrackColor = DarkSubCardBg,

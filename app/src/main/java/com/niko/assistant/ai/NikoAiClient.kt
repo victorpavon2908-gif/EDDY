@@ -1,7 +1,6 @@
 package com.niko.assistant.ai
 
 import android.content.Context
-import com.niko.assistant.brain.WebQueryRouter
 import com.niko.assistant.learning.NikoKnowledgeStore
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -31,8 +30,8 @@ class NikoAiClient(
         @Suppress("UNUSED_PARAMETER") onDelta: (suspend (String) -> Unit)? = null,
     ): NikoAiReply? {
         if (AutonomousResearch.offlineOnly(message) || !forceWeb) return null
-        val subject = WebQueryRouter.explicitQuery(message) ?: message
-        val result = search(subject)
+        // Search extracts the subject itself; retain accents, recency intent and case-sensitive URLs.
+        val result = search(message)
         currentCoroutineContext().ensureActive()
         lastError = result.text.takeUnless { result.webUsed }
         if (knowledge.isRejected(result.text)) return NikoAiReply(

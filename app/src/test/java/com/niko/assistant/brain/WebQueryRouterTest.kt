@@ -6,6 +6,12 @@ import org.junit.Test
 class WebQueryRouterTest {
     private val brain = LocalBrain()
 
+    @Test fun broadInternetRequestExtractsOnlyTheTopic() {
+        assertEquals("energia solar", WebQueryRouter.explicitQuery("busca en todo internet energía solar"))
+        assertEquals("energia solar", WebQueryRouter.explicitQuery("busca por toda la web energía solar"))
+        assertEquals("energia solar", WebQueryRouter.explicitQuery("busca en todo el internet energía solar"))
+    }
+
     @Test fun recognizesNaturalSearchRequests() {
         listOf("búscame en internet noticias de Nicaragua", "podés buscar noticias de Nicaragua", "consultá noticias de Nicaragua", "investigame noticias de Nicaragua", "quiero que busques noticias de Nicaragua").forEach {
             assertEquals(it, AssistantCommand.SearchWeb("noticias de nicaragua"), brain.understand(it))

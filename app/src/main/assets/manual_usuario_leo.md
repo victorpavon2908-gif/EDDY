@@ -4,7 +4,7 @@ Guía de uso desde la primera apertura. Describe las funciones presentes en el c
 
 ## 1. Primer inicio
 1. Abrí LEO en un teléfono con Android 12 o posterior, conexión estable y espacio libre. La primera apertura descarga y verifica los módulos necesarios; esperá a que finalice. Si falla, usá Reintentar. Concedé **micrófono** para conversar y la detección de la palabra **«LEO»**. Sin permiso, la escucha no funciona.
-2. La guía completa está en **Inicio → Guía** y **Ajustes → Guía de uso**, incluso sin conexión. Podés buscar por palabra y copiar el texto. Entrá al icono de **Ajustes** (arriba a la derecha) y activá **Escuchar la palabra «LEO»**. El botón de reinicio de micrófono puede ayudar si no te oye.
+2. La guía completa está en **Inicio → Guía** y **Configuración → Explorar la guía**, incluso sin conexión. Podés buscar por palabra y copiar el texto. Entrá al icono de **Ajustes** (arriba a la derecha) y activá **Escuchar la palabra «LEO»**. El botón de reinicio de micrófono puede ayudar si no te oye.
 3. **Mi voz** permite registrar tu voz y activar el modo de propietario; el comportamiento varía con el entorno y nunca reemplaza la seguridad de Android.
 4. **Pantalla / accesibilidad** y **burbuja flotante** necesitan permisos separados y opcionales. Revisá lo que concedés.
 5. Volvé al inicio. Decí «LEO» y formulá una pregunta normal. Tras responder puede mantenerse una ventana de conversación breve si está activada.
@@ -15,9 +15,10 @@ Los cambios de Android se guardan al instante. Tocá una categoría para abrir o
 - **Voz y conversación**: encender o pausar escucha, conversación espontánea, reinicio y diagnóstico.
 - **Mi voz**: instalar el identificador, registrar cuatro frases y limitar las respuestas a tu voz. No es un bloqueo de seguridad.
 - **Precisión de voz**: instalar o comprobar el segundo reconocedor local.
-- **Personalidad e Internet**: estilo de respuesta, prioridad local, investigación automática y aprendizaje.
+- **Internet y fuentes**: búsqueda automática, prioridad local y botón **Probar búsqueda**. Es la primera categoría y aparece abierta.
+- **Estilo y aprendizaje**: personalidad y aprendizaje de tus correcciones.
 - **Permisos y teléfono**: burbuja, accesibilidad y lectura de sensores. Android administra estos permisos; concedelos solo para las funciones que uses.
-- **Descargas**: modelo local, enciclopedia y memoria semántica. Revisá el estado de cada uno; descargar uno no instala los demás. Mantené Ajustes abierto durante las descargas que se ejecutan en esa pantalla.
+- **Modelos y descargas**: modelo local, enciclopedia y memoria semántica. Revisá el estado de cada uno; descargar uno no instala los demás. Mantené Ajustes abierto durante las descargas que se ejecutan en esa pantalla.
 - **Privacidad**: explicación de consultas web y borrado de memoria con confirmación. No hay botón de deshacer.
 
 ## 2. Hablar y conversar
@@ -27,7 +28,9 @@ Los cambios de Android se guardan al instante. Tocá una categoría para abrir o
 - **Preferir respuestas locales**: intenta resolver con capacidades locales. No equivale a disponer de todos los conocimientos del mundo.
 
 ## 3. Internet: búsquedas, noticias y fuentes
-- Activá **Buscar en Internet** en Ajustes.
+- Activá **Buscar en Internet** en **Configuración → Internet y fuentes**. **Probar búsqueda** realiza una consulta real y muestra si encontró fuentes y pudo leer páginas; no cambia tus preferencias.
+- Si un proveedor tarda demasiado, se conservan los resultados de otros y se reserva tiempo para abrir las páginas. Un fallo de red sigue pudiendo impedir la consulta.
+- Las respuestas con páginas leídas usan esas páginas como evidencia. Si solo hay extractos del buscador, LEO lo indica y no los trata como páginas leídas.
 - Para forzar la búsqueda: «LEO, buscá en internet las últimas noticias de Nicaragua»; «LEO, investigá la energía solar»; «LEO, averiguá el precio actual de Bitcoin»; «LEO, consultá esta página https://...».
 - Abrí **Conversación y controles → Leer respuesta completa** para consultar fuentes y enlaces.
 - El buscador prueba varios proveedores públicos, clasifica coincidencias y extrae texto de las páginas cuando responden. Un artículo que no abrió **no está verificado**: puede mostrar extractos y enlaces, identificados como tales.
@@ -35,7 +38,7 @@ Los cambios de Android se guardan al instante. Tocá una categoría para abrir o
 - Se consultan páginas públicas: evitá enviar contraseñas, mensajes privados u otros datos sensibles al buscador.
 
 ## 4. Enciclopedia offline
-- En **Ajustes → Descargas → Enciclopedia**, elegí descargar el paquete opcional de cerca de 500 MB. Necesitás conexión inicial y espacio libre para descargar y verificar.
+- En **Configuración → Modelos y descargas → Enciclopedia**, elegí descargar el paquete opcional de cerca de 500 MB. Necesitás conexión inicial y espacio libre para descargar y verificar.
 - Las etapas incluyen descargar, verificar integridad, instalar y activar. Al terminar debe indicar **instalado**.
 - Este índice de Wikipedia y lecciones locales sirve para preguntas de conocimiento general **sin Internet**; no conoce automáticamente noticias y precios actuales.
 - Si hay error, comprobá la versión instalada, Wi‑Fi, espacio, y usá el botón de comprobar/actualizar. No borres datos personales ni reinstales sin antes guardar lo que necesités.

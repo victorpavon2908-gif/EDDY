@@ -89,7 +89,6 @@ object LeoNativeWebSearch {
             catch (_: Exception) { null }
         }
         val cleanQuery = query.trim().take(MAX_QUERY_CHARS)
-        val searchStartTime = System.currentTimeMillis()
         runCatching { android.util.Log.i("LEO_TRACE", "LeoNativeWebSearch.search start: " + cleanQuery) }
 
         // 1. Detección directa de Clima en tiempo real (wttr.in)
@@ -110,43 +109,48 @@ object LeoNativeWebSearch {
         val researchQueries = researchQueries(subject, cleanQuery, current)
         val hits = linkedMapOf<String, Hit>()
 
-        // 3. Descubrimiento federado soberano (Wikipedia + DDG Lite/API + Bing + DDG/Google News)
-        val discovered = coroutineScope {
-            val base = listOf(
-                async { searchWikipedia(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
-                async { searchDuckDuckGoLite(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
-                async { searchBing(researchQueries.first(), fetch).map { it.copy(angle = 0) } },
-                async {
-                    val results = if (current) searchGoogleNews(researchQueries.first(), fetch) else searchDuckDuckGo(researchQueries.first(), fetch)
-                    results.map { it.copy(angle = 0) }
-                },
-            )
-            val facets = researchQueries.drop(1).mapIndexed { index, planned ->
-                async {
-                    val results = when {
-                        current && index == 0 -> searchGoogleNews(planned, fetch)
-                        index % 2 == 0 -> searchBing(planned, fetch)
-                        else -> searchDuckDuckGo(planned, fetch)
-                    }
-                    results.map { it.copy(angle = index + 1) }
-                }
+        // Keep completed providers even when another provider exhausts discovery time.
+        // Reserve the rest of the total budget for reading actual pages.
+        suspend fun collect(angle: Int = 0, provider: suspend () -> List<Hit>) {
+            val results = provider()
+            synchronized(hits) {
+                results.forEach { hit -> hits.putIfAbsent(hitKey(hit), hit.copy(angle = angle)) }
             }
-            (base + facets).awaitAll().flatten()
         }
-        discovered.forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
-
-        if (current && hits.values.count { isRelevantTo(subject, it) } < MIN_RESULTS) {
-            searchDuckDuckGo(subject, fetch).forEach { hit -> hits.putIfAbsent(hitKey(hit), hit) }
+        withTimeoutOrNull(DISCOVERY_BUDGET_MS) {
+            coroutineScope {
+                val base = listOf(
+                    async { collect { searchWikipedia(subject, fetch) } },
+                    async { collect { searchDuckDuckGoLite(subject, fetch) } },
+                    async { collect { searchDuckDuckGo(subject, fetch) } },
+                    async { collect { searchBing(subject, fetch) } },
+                    async { if (current) collect { searchGoogleNews(subject, fetch) } },
+                )
+                val facets = researchQueries.drop(1).mapIndexed { index, planned ->
+                    async {
+                        collect(index + 1) {
+                            if (current && index == 0) searchGoogleNews(planned, fetch)
+                            else if (index % 2 == 0) searchBing(planned, fetch)
+                            else searchDuckDuckGo(planned, fetch)
+                        }
+                    }
+                }
+                (base + facets).awaitAll()
+            }
         }
         val relevant = selectDiverse(hits.values.filter { isRelevantTo(subject, it) }, terms)
         if (relevant.isEmpty()) return@withContext noResults(subject)
 
         val enriched = coroutineScope {
-            relevant.take(4).mapIndexed { index, original -> async {
+            relevant.take(MAX_RESULTS).mapIndexed { index, original -> async {
                 if (original.articleText.length >= 120) {
                     return@async original.copy(rank = index)
                 }
-                val page = try { withTimeoutOrNull(3_000L) { fetch(original.url, PAGE_ACCEPT, PAGE_LIMIT) } } catch (_: Exception) { null }
+                val page = try {
+                    withTimeoutOrNull(3_000L) { fetch(original.url, PAGE_ACCEPT, PAGE_LIMIT) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) { null }
                 if (page != null && (isBlockedPage(page) || !safePublicUrl(page.finalUrl))) return@async null
                 val articleText = page?.body?.let(::extractReadableText).orEmpty()
                 val usefulArticle = articleText.takeIf {
@@ -164,7 +168,9 @@ object LeoNativeWebSearch {
             } }.awaitAll().filterNotNull().distinctBy(::hitKey)
         }
         if (enriched.isEmpty()) return@withContext noResults(subject)
-        val cited = enriched.sortedByDescending { it.articleText.isNotBlank() }.distinctBy { it.url }.take(MAX_SOURCES)
+        // Do not mix unread search snippets into an answer grounded in read pages.
+        val evidenceHits = enriched.filter { it.articleText.isNotBlank() }.ifEmpty { enriched }
+        val cited = evidenceHits.distinctBy { it.url }.take(MAX_SOURCES)
         val summary = practicalAnswer(cleanQuery, cited) ?: summarize(subject, cited, current, wantsDepth(cleanQuery))
         val sources = cited
             .mapIndexed { index, hit -> NikoWebSource("[${index + 1}] ${hit.title.ifBlank { hostOf(hit.url) }}", hit.url) }
@@ -731,7 +737,7 @@ object LeoNativeWebSearch {
         }.filter { it.length >= 40 && !looksLikeBoilerplate(it) }.take(2).toList()
         val article = Regex("(?is)<(?:article|main)\\b[^>]*>(.*?)</(?:article|main)>").find(cleaned)?.groupValues?.get(1) ?: cleaned
         val paragraphs = CONTENT_TAG.findAll(article)
-            .map { htmlToText(it.groupValues[1]) }
+            .map { htmlToText(it.groupValues[1]).replace(Regex("\\s*\\[\\s*\\d+(?:\\s*[,–-]\\s*\\d+)*\\s*\\]"), "") }
             .filter { it.length in 12..900 && !looksLikeBoilerplate(it) }
             .take(MAX_PARAGRAPHS)
             .toList()
@@ -1049,13 +1055,13 @@ object LeoNativeWebSearch {
     private const val HTML_ACCEPT = "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5"
     private const val PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.8,text/plain;q=0.7,*/*;q=0.2"
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Mobile Safari/537.36 LEO/1.0"
+    private const val DISCOVERY_BUDGET_MS = 6_500L
     private const val SEARCH_BUDGET_MS = 14_000L
     private const val CONNECT_TIMEOUT_MS = 3_500
     private const val READ_TIMEOUT_MS = 3_500
     private const val MAX_QUERY_CHARS = 500
     private const val MAX_RESEARCH_QUERIES = 3
     private const val MAX_RESULTS = 8
-    private const val MIN_RESULTS = 4
     private const val MAX_SOURCES = 6
     private const val MAX_PARAGRAPHS = 32
     private const val MAX_ARTICLE_TEXT = 12_000

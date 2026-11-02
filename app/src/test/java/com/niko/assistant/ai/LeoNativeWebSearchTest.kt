@@ -10,6 +10,65 @@ import kotlinx.coroutines.launch
 import java.net.URLDecoder
 
 class LeoNativeWebSearchTest {
+    @Test fun slowDiscoveryKeepsCompletedProvidersAndStillReadsPages() = runBlocking {
+        var slowProviderCancelled = false
+        val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
+            when {
+                "wikipedia.org" in url -> {
+                    try { kotlinx.coroutines.delay(10_000) }
+                    finally { slowProviderCancelled = true }
+                    null
+                }
+                "bing.com" in url -> LeoNativeWebSearch.Fetch(
+                    "<rss><channel><item><title>Panel solar</title><link>https://energy.example/panel</link><description>Un panel solar transforma la luz en electricidad.</description></item></channel></rss>", url)
+                "energy.example" in url -> LeoNativeWebSearch.Fetch(
+                    "<p>Un panel solar transforma la luz en electricidad para alimentar dispositivos y reducir el consumo de la red.</p>", url)
+                else -> null
+            }
+        }
+        assertTrue(slowProviderCancelled)
+        assertTrue(reply.webUsed)
+        assertEquals("https://energy.example/panel", reply.sources.single().url)
+        assertTrue(reply.passages.single().pageRead)
+    }
+
+    @Test fun articleReadsContinuePastTheFirstFourBlockedResults() = runBlocking {
+        val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
+            when {
+                "bing.com" in url -> LeoNativeWebSearch.Fetch(
+                    "<rss><channel>" + (1..6).joinToString("") {
+                        "<item><title>Panel solar $it</title><link>https://energy$it.example/panel</link><description>Un panel solar transforma luz en electricidad.</description></item>"
+                    } + "</channel></rss>", url)
+                "energy" in url -> LeoNativeWebSearch.Fetch(
+                    if ((1..4).any { "energy$it.example" in url }) "<title>Access denied</title>"
+                    else "<p>Un panel solar transforma la luz en electricidad para alimentar dispositivos durante las horas de sol.</p>", url)
+                else -> null
+            }
+        }
+        assertTrue(reply.webUsed)
+        assertTrue(reply.sources.any { "energy5.example" in it.url || "energy6.example" in it.url })
+        assertTrue(reply.sources.none { source -> (1..4).any { "energy$it.example" in source.url } })
+    }
+
+    @Test fun readPagesDoNotPromoteUnreadSnippetsIntoTheAnswer() = runBlocking {
+        val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->
+            when {
+                "bing.com" in url -> LeoNativeWebSearch.Fetch(
+                    "<rss><channel>" + (1..2).joinToString("") {
+                        "<item><title>Panel solar $it</title><link>https://energy$it.example/panel</link><description>Un panel solar produce energía. Afirmación no leída.</description></item>"
+                    } + "</channel></rss>", url)
+                "energy1.example" in url -> LeoNativeWebSearch.Fetch(
+                    "<p>Un panel solar transforma la luz en electricidad para alimentar dispositivos.<sup>[25]</sup></p>", url)
+                else -> null
+            }
+        }
+        assertTrue(reply.webUsed)
+        assertEquals("https://energy1.example/panel", reply.sources.single().url)
+        assertFalse(reply.text.contains("[25]"))
+        assertFalse(reply.text.contains("Afirmación no leída"))
+        assertTrue(reply.passages.all { it.pageRead })
+    }
+
     @Test fun programmingLanguageSymbolsRemainRelevantDuringResearch() {
         val cpp = LeoNativeWebSearch.Hit("C++ referencias", "https://cpp.example/reference", "C++ permite programar aplicaciones con tipos y funciones.")
         val csharp = LeoNativeWebSearch.Hit("C# referencias", "https://csharp.example/reference", "C# permite programar aplicaciones con tipos y funciones.")

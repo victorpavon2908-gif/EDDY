@@ -29,6 +29,21 @@ import org.robolectric.annotation.Config
 class LeoSettingsUiTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun initiallyExpandedSectionDisplaysItsControlsImmediately() {
+        compose.setContent {
+            MaterialTheme {
+                DarkSettingsCard(Icons.Rounded.SettingsSuggest, "Internet", "Fuentes", initiallyExpanded = true) {
+                    Text("Probar búsqueda")
+                }
+            }
+        }
+        compose.onNodeWithText("Probar búsqueda").assertIsDisplayed()
+        compose.onNodeWithText("Internet").performClick()
+        compose.onNodeWithText("Probar búsqueda").assertIsNotDisplayed()
+        compose.onNodeWithText("Internet").performClick()
+        compose.onNodeWithText("Probar búsqueda").assertIsDisplayed()
+    }
+
     @Test fun collapsingSectionPreservesContentAndDoesNotDisposeWork() {
         var started = 0
         var disposed = 0

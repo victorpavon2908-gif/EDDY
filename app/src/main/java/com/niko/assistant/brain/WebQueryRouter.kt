@@ -12,7 +12,7 @@ object WebQueryRouter {
         val text = normalize(input)
             .replace(Regex("^(?:(?:oye|hey|hola)\\s+)?leo\\b[ ,:]*"), "")
             .replace(Regex("^por favor[ ,]+"), "")
-        val match = Regex("^(?:(?:podes|puedes|podrias|podria|quiero que|necesito que)\\s+)?(?:buscar|busca|buscame|busques|buscam|investiga|investigame|investigar|investigues|averigua|averiguame|averiguar|consulta|consultame|consultar|googlea)(?:\\s+(?:en|por)\\s+(?:internet|google|la web))?\\s+(.+)$")
+        val match = Regex("^(?:(?:podes|puedes|podrias|podria|quiero que|necesito que)\\s+)?(?:buscar|busca|buscame|busques|buscam|investiga|investigame|investigar|investigues|averigua|averiguame|averiguar|consulta|consultame|consultar|googlea)(?:\\s+(?:en|por)\\s+(?:(?:todo|toda)\\s+(?:(?:el|la)\\s+)?)?(?:internet|google|la web|web))?\\s+(.+)$")
             .find(text) ?: return null
         return match.groupValues[1].trim(' ', ',', '.', '?', '¿', ':').takeIf { it.isNotBlank() }
     }
