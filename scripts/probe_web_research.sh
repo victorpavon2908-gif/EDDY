@@ -42,6 +42,7 @@ java -cp "$leo_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-
  app/src/main/java/com/niko/assistant/agent/LeoTurnBudget.kt \
  app/src/main/java/com/niko/assistant/modes/LeoMode.kt \
  app/src/main/java/com/niko/assistant/ai/LeoWeather.kt \
+ app/src/main/java/com/niko/assistant/ai/LeoWebRequests.kt \
  app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt \
  app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt \
  app/src/main/java/com/niko/assistant/brain/WebQueryRouter.kt

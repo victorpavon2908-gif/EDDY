@@ -520,6 +520,28 @@ class LeoNativeWebSearchTest {
         assertEquals(null, LeoNativeWebSearch.failureMessage(emptyList()))
     }
 
+    @Test fun receivingHeadersDoesNotHideAnIncompleteTimedOutBody() {
+        val events = listOf(LeoNativeWebSearch.FetchDiagnostic("example.org", 200, 0, null),
+            LeoNativeWebSearch.FetchDiagnostic("example.org", null, 0, "RequestTimeout"))
+        assertTrue(LeoNativeWebSearch.failureMessage(events)!!.contains("agotó el tiempo"))
+        assertTrue(LeoWebDiagnostics.describe(events).contains("tiempo de espera agotado"))
+        val complete = events + LeoNativeWebSearch.FetchDiagnostic("example.org", 200, 100, null)
+        assertEquals(null, LeoNativeWebSearch.failureMessage(complete))
+        val details = LeoWebDiagnostics.describe(complete)
+        assertTrue(details.contains("recibí contenido"))
+        assertFalse(details.contains("fuente verificada"))
+    }
+
+    @Test fun diagnosticSeparatesBlockedProvidersFromConnectionAndTlsFailures() {
+        val events = listOf(LeoNativeWebSearch.FetchDiagnostic("a.example", 403, 0, null),
+            LeoNativeWebSearch.FetchDiagnostic("b.example", null, 0, "UnknownHostException"),
+            LeoNativeWebSearch.FetchDiagnostic("c.example", null, 0, "SSLHandshakeException"))
+        val details = LeoWebDiagnostics.describe(events)
+        assertTrue(details.contains("a.example: acceso rechazado"))
+        assertTrue(details.contains("b.example: sin conexión"))
+        assertTrue(details.contains("c.example: falló la conexión segura"))
+    }
+
 
     @Test fun weatherQueryParsesLocationAndFormatsSpokenEddyReply() = runBlocking {
         assertTrue(LeoNativeWebSearch.isWeatherQuery("cómo está el clima en Managua"))

@@ -42,7 +42,8 @@ La selección se conserva al cerrar la app. Cambiar de modo no activa descargas,
 
 ## 3. Internet: búsquedas, noticias y fuentes
 - Activá **Buscar en Internet** en **Configuración → Internet y fuentes**. **Probar búsqueda** realiza una consulta real y muestra si encontró fuentes y pudo leer páginas; no cambia tus preferencias.
-- Si un proveedor tarda demasiado, se conservan los resultados de otros y se reserva tiempo para abrir las páginas. Un fallo de red sigue pudiendo impedir la consulta.
+- Si un proveedor tarda demasiado, se cancela su petición sin esperar a una conexión bloqueada y se conservan los resultados de otros. Un fallo de red sigue pudiendo impedir la consulta.
+- Después de **Probar búsqueda**, tocá **Ver diagnóstico de la prueba**: distingue contenido recibido, acceso rechazado, límite de consultas, error de conexión segura y tiempo agotado. Recibir contenido no demuestra que sea pertinente ni verdadero. Si falla, compará la prueba en Wi-Fi y datos móviles; el diagnóstico ayuda a identificar qué proveedores responden en esa red.
 - Las respuestas con páginas leídas usan esas páginas como evidencia. Si solo hay extractos del buscador, LEO lo indica y no los trata como páginas leídas.
 - Para forzar la búsqueda: «LEO, buscá en internet las últimas noticias de Nicaragua»; «LEO, investigá la energía solar»; «LEO, averiguá el precio actual de Bitcoin»; «LEO, consultá esta página https://...».
 - Abrí **Conversación y controles → Leer respuesta completa** para consultar fuentes y enlaces.

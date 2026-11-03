@@ -75,3 +75,13 @@ documenta que un inicio bloqueado puede no devolver excepción; por eso se usa a
 visible/superposición concedida o una notificación tocada por el usuario.
 La síntesis opcional es generativa: las citas y límites se validan estructuralmente, pero
 eso no prueba que cada interpretación del modelo sea correcta.
+
+## Corrección de espera de red — 3 de noviembre de 2026
+
+La captura de una prueba en Android mostraba vencimiento sin fuentes. La misma consulta («¿Qué es la energía solar?») respondió desde este entorno, por lo que no se atribuyó una causa específica a la red del teléfono sin su diagnóstico. Se corrigió una debilidad verificable: `runInterruptible` no garantiza que un socket, DNS o `disconnect()` que ignoran interrupciones permitan completar a tiempo la cancelación de una coroutine.
+
+El transporte ahora usa un ejecutor con ocho trabajadores y cola limitada. La cancelación devuelve el control inmediatamente, interrumpe/retira la tarea pendiente y solicita la desconexión fuera del hilo del llamador. No aumenta los plazos de búsqueda de los modos. Las tareas terminadas después de la cancelación no publican sus respuestas. La cola elimina solicitudes canceladas; conexiones del sistema que permanezcan bloqueadas pueden agotar la capacidad, con un mensaje explícito en vez de crear hilos ilimitados.
+
+Las regresiones de `LeoWebRequestsTest` simulan lectura y desconexión que ignoran interrupciones, cancelación de tareas en cola, saturación y respuesta obsoleta. `LeoNativeWebSearchTest` comprueba además que recibir solo cabeceras HTTP 200 no oculte un cuerpo incompleto por timeout y distingue bloqueos, DNS y TLS.
+
+La prueba de Ajustes guarda un diagnóstico opcional por host, sin consultas ni rutas de URL. Contenido recibido no equivale a evidencia verificada. La aceptación en el teléfono sigue pendiente: repetir la consulta con la nueva versión, abrir el diagnóstico y comparar Wi-Fi/datos móviles. No se modificaron permisos, DNS, VPN ni restricciones de sitios.

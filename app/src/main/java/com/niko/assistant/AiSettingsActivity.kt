@@ -302,6 +302,8 @@ private fun LeoSettingsScreen(
     var behaviorFeedback by remember { mutableStateOf("") }
     var testingSearch by remember { mutableStateOf(false) }
     var searchFeedback by rememberSaveable { mutableStateOf("") }
+    var searchDetails by rememberSaveable { mutableStateOf("") }
+    var showSearchDetails by rememberSaveable { mutableStateOf(false) }
 
     val semanticMemory = remember { LeoSemanticMemory.get(context) }
     var semanticStatus by remember { mutableStateOf(semanticMemory.status) }
@@ -476,9 +478,12 @@ private fun LeoSettingsScreen(
                     onClick = {
                         testingSearch = true
                         searchFeedback = "Consultando fuentes…"
+                        searchDetails = ""; showSearchDetails = false
                         scope.launch {
+                            val events = java.util.Collections.synchronizedList(mutableListOf<LeoNativeWebSearch.FetchDiagnostic>())
                             try {
-                                val reply = LeoNativeWebSearch.search("¿Qué es la energía solar?", mode = operatingMode)
+                                val reply = LeoNativeWebSearch.search("¿Qué es la energía solar?", mode = operatingMode,
+                                    diagnostic = { events += it })
                                 searchFeedback = when {
                                     reply.webUsed -> "Búsqueda disponible: ${reply.sources.size} fuentes y lectura de páginas completada."
                                     reply.sources.isNotEmpty() -> "Encontré ${reply.sources.size} fuentes, pero no pude leer sus páginas. Probá de nuevo."
@@ -488,7 +493,10 @@ private fun LeoSettingsScreen(
                                 throw cancelled
                             } catch (_: Exception) {
                                 searchFeedback = "No se pudo completar la prueba. Revisá la conexión y reintentá."
-                            } finally { testingSearch = false }
+                            } finally {
+                                searchDetails = com.niko.assistant.ai.LeoWebDiagnostics.describe(synchronized(events) { events.toList() })
+                                testingSearch = false
+                            }
                         }
                     },
                     enabled = !testingSearch,
@@ -496,6 +504,13 @@ private fun LeoSettingsScreen(
                 ) { Text(if (testingSearch) "Comprobando…" else "Probar búsqueda") }
                 if (searchFeedback.isNotBlank()) Text(searchFeedback, color = DarkTextSecondary,
                     style = MaterialTheme.typography.bodyMedium)
+                if (searchDetails.isNotBlank()) {
+                    TextButton(onClick = { showSearchDetails = !showSearchDetails }) {
+                        Text(if (showSearchDetails) "Ocultar diagnóstico" else "Ver diagnóstico de la prueba")
+                    }
+                    if (showSearchDetails) Text(searchDetails, color = DarkTextSecondary,
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 if (behaviorFeedback.isNotBlank()) Text(behaviorFeedback, color = DarkEmerald,
                     style = MaterialTheme.typography.bodyMedium)
             }

@@ -19,7 +19,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -32,6 +32,7 @@ import org.xml.sax.InputSource
  * Lee páginas y construye resúmenes estructurados y síntesis conversacional para Eddy.
  */
 object LeoNativeWebSearch {
+    private val requests = LeoWebRequests()
     internal data class Hit(
         val title: String,
         val url: String,
@@ -57,12 +58,20 @@ object LeoNativeWebSearch {
         val deadline = System.nanoTime() + phaseMs * 1_000_000L
         val observations = java.util.Collections.synchronizedList(mutableListOf<FetchDiagnostic>())
         val reply = withTimeoutOrNull(phaseMs + 2_000L) {
-            search(query, mode) { url, accept, limit -> runInterruptible(Dispatchers.IO) {
-                fetchText(url, accept, limit, deadline) { event ->
+            search(query, mode) { url, accept, limit ->
+                fun record(event: FetchDiagnostic) {
                     observations += event
                     diagnostic?.invoke(event)
                 }
-            } }
+                try {
+                    requests.run(onBusy = { record(FetchDiagnostic(hostOf(url), null, 0, "TransportBusy")) }) { track ->
+                        fetchText(url, accept, limit, deadline, track, ::record)
+                    }
+                } catch (cancelled: TimeoutCancellationException) {
+                    record(FetchDiagnostic(hostOf(url), null, 0, "RequestTimeout"))
+                    throw cancelled
+                }
+            }
         }
         if (reply != null && (reply.webUsed || reply.sources.isNotEmpty())) return reply
         val failure = synchronized(observations) { failureMessage(observations.toList()) }
@@ -70,14 +79,16 @@ object LeoNativeWebSearch {
             else reply ?: NikoAiReply("La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público.", false, emptyList())
     }
 
-        internal fun failureMessage(events: List<FetchDiagnostic>): String? {
+    internal fun failureMessage(events: List<FetchDiagnostic>): String? {
         if (events.isEmpty()) return null
-        if (events.any { it.status in 200..299 }) return null
+        if (events.any { it.status in 200..299 && it.bytes > 0 }) return null
         return when {
             events.all { it.status == 429 } -> "Un buscador limitó las consultas y no obtuve evidencia suficiente. Probá más tarde o pasame un enlace público."
             events.all { it.status == 403 } -> "Un sitio rechazó el acceso y no obtuve evidencia suficiente. Podés pasarme otra fuente pública; no voy a saltarme ese bloqueo."
-            events.any { it.failure == "SocketTimeoutException" } -> "La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público."
+            events.any { it.failure in setOf("SocketTimeoutException", "RequestTimeout") } -> "La consulta a Internet agotó el tiempo sin reunir evidencia suficiente. Podés reintentar o pasarme un enlace público."
             events.any { it.failure == "UnknownHostException" || it.failure == "ConnectException" } -> "No pude conectar con las fuentes. Revisá la conexión o probá con un enlace público cuando vuelva Internet."
+            events.any { it.failure in setOf("SSLHandshakeException", "SSLPeerUnverifiedException") } -> "No pude establecer una conexión segura con las fuentes. Revisá la fecha del teléfono, la red o los filtros de conexión."
+            events.any { it.failure == "TransportBusy" } -> "Hay conexiones anteriores que todavía no terminan. Esperá unos segundos y reintentá la búsqueda."
             else -> null
         }
     }
@@ -596,7 +607,7 @@ object LeoNativeWebSearch {
         return if (nodes.length > 0) nodes.item(0)?.textContent.orEmpty() else ""
     }
 
-    private fun fetchText(url: String, accept: String, limit: Int, deadline: Long, diagnostic: ((FetchDiagnostic) -> Unit)?): Fetch? {
+    private fun fetchText(url: String, accept: String, limit: Int, deadline: Long, track: (HttpURLConnection) -> Unit, diagnostic: ((FetchDiagnostic) -> Unit)?): Fetch? {
         var next = url
         repeat(5) {
             if (Thread.currentThread().isInterrupted || !safePublicUrl(next) || remainingMs(deadline) <= 0) return null
@@ -607,6 +618,7 @@ object LeoNativeWebSearch {
                 val targetUri = URI(next)
                 val targetUrl = if (isDuckDuckGoLite) URL("https://lite.duckduckgo.com/lite/") else URL(next)
                 connection = targetUrl.openConnection() as HttpURLConnection
+                track(connection)
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = minOf(CONNECT_TIMEOUT_MS, remainingMs(deadline).coerceAtLeast(1))
                 connection.readTimeout = minOf(READ_TIMEOUT_MS, remainingMs(deadline).coerceAtLeast(1))
