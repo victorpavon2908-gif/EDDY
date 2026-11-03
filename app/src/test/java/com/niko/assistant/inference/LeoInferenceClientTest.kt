@@ -22,6 +22,7 @@ class LeoInferenceClientTest {
                 assertNull(result.answer)
                 assertEquals(expected, result.failure)
                 assertFalse(result.toString().contains("private-key"))
+                assertTrue(connection.closed.await(1, TimeUnit.SECONDS))
                 assertTrue(connection.disconnected)
             }
         }
@@ -31,6 +32,9 @@ class LeoInferenceClientTest {
         var saves = 0
         val failure = LeoInferenceActivation.activate({ LeoInferenceClient.Result(failure = LeoInferenceClient.Failure.QUOTA) }, { saves++ })
         assertNull(failure.answer)
+        assertEquals(0, saves)
+        val wrong = LeoInferenceActivation.activate({ LeoInferenceClient.Result(answer = "No puedo responder") }, { saves++ })
+        assertNull(wrong.answer)
         assertEquals(0, saves)
         val success = LeoInferenceActivation.activate({ LeoInferenceClient.Result(answer = "LEO conectado") }, { saves++ })
         assertNotNull(success.answer)
@@ -44,8 +48,9 @@ class LeoInferenceClientTest {
     private open class Connection(private val status: Int = 200) : HttpURLConnection(URL("https://example.com/v1/chat/completions")) {
         val payload = ByteArrayOutputStream()
         @Volatile var disconnected = false
+        val closed = CountDownLatch(1)
         override fun connect() {}
-        override fun disconnect() { disconnected = true }
+        override fun disconnect() { disconnected = true; closed.countDown() }
         override fun usingProxy() = false
         override fun getResponseCode() = status
         override fun getOutputStream() = payload
@@ -64,7 +69,8 @@ class LeoInferenceClientTest {
             }
             assertNull(answer)
             assertEquals(0L, entered.count)
-            assertTrue(connection.disconnected)
+            assertTrue(connection.closed.await(1, TimeUnit.SECONDS))
+                assertTrue(connection.disconnected)
             assertEquals("fixture answer", client.reply("https://example.com/v1/chat/completions", "model", "", "explica variables"))
         }
     }
@@ -75,7 +81,8 @@ class LeoInferenceClientTest {
             assertEquals("fixture answer", client.reply("https://example.com/v1/chat/completions", "model", "secret", "explica variables"))
             assertEquals("POST", connection.requestMethod)
             assertFalse(connection.instanceFollowRedirects)
-            assertTrue(connection.disconnected)
+            assertTrue(connection.closed.await(1, TimeUnit.SECONDS))
+                assertTrue(connection.disconnected)
         }
     }
     @Test fun failureIsLocalFallbackNotAnExceptionOrProviderErrorLeak() = runBlocking {
@@ -94,7 +101,8 @@ class LeoInferenceClientTest {
             val job = launch(Dispatchers.Default) { client.reply("https://example.com/v1/chat/completions", "model", "", "explica variables") }
             assertTrue(entered.await(5, TimeUnit.SECONDS))
             job.cancelAndJoin()
-            assertTrue(connection.disconnected)
+            assertTrue(connection.closed.await(1, TimeUnit.SECONDS))
+                assertTrue(connection.disconnected)
         }
     }
 }

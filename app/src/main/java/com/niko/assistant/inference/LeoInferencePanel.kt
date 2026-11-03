@@ -5,6 +5,10 @@ import android.net.Uri
 import androidx.compose.runtime.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -14,31 +18,34 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun LeoInferencePanel(openUrl: ((String) -> Unit)? = null) {
+fun LeoInferencePanel(openUrl: ((String) -> Unit)? = null,
+    settingsFactory: (android.content.Context) -> LeoInferenceSettings = { LeoInferenceSettings(it) },
+    clientFactory: () -> LeoInferenceClient = { LeoInferenceClient() }) {
     val context = LocalContext.current
-    val settings = remember { LeoInferenceSettings(context) }
+    val settings = remember { settingsFactory(context) }
     val scope = rememberCoroutineScope()
-    val client = remember { LeoInferenceClient() }
+    val client = remember { clientFactory() }
     DisposableEffect(client) { onDispose { client.close() } }
     var endpoint by remember { mutableStateOf(settings.endpoint.ifBlank { LeoGoogleProvider.ENDPOINT }) }
     var model by remember { mutableStateOf(settings.model.ifBlank { LeoGoogleProvider.MODEL }) }
     var secret by remember { mutableStateOf("") }
-    var consent by remember { mutableStateOf(false) }
-    var historyConsent by remember { mutableStateOf(false) }
-    var researchConsent by remember { mutableStateOf(false) }
+    var consent by remember { mutableStateOf(settings.enabled) }
+    var historyConsent by remember { mutableStateOf(settings.historyAllowed) }
+    var researchConsent by remember { mutableStateOf(settings.researchAllowed) }
     var preferRemote by remember { mutableStateOf(if (settings.enabled) settings.preferRemote else true) }
     var enabled by remember { mutableStateOf(settings.enabled) }
     var busy by remember { mutableStateOf(false) }
     var advanced by remember { mutableStateOf(!LeoGoogleProvider.isGoogle(endpoint)) }
     var status by remember { mutableStateOf("") }
     val google = LeoGoogleProvider.isGoogle(endpoint)
+    val reusableKey = enabled && settings.canReuseCredential(endpoint)
     fun open(url: String) {
         try {
             if (openUrl != null) openUrl(url) else context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (_: Exception) { status = "No pude abrir el navegador. Abrí $url desde tu navegador." }
     }
     Text("CONECTAR INTELIGENCIA", style = MaterialTheme.typography.titleMedium)
-    Text(if (enabled) "Proveedor guardado activo" else "Conexión opcional · actualmente desactivada")
+    Text(if (enabled) "Activo: ${settings.model}" else "Conexión opcional · actualmente desactivada")
     Row {
         OutlinedButton(onClick = {
             endpoint = LeoGoogleProvider.ENDPOINT; model = LeoGoogleProvider.MODEL
@@ -61,34 +68,30 @@ fun LeoInferencePanel(openUrl: ((String) -> Unit)? = null) {
     if (advanced) {
         OutlinedTextField(endpoint, { endpoint = it; consent = false }, label = { Text("URL HTTPS de chat/completions") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
         OutlinedTextField(model, { model = it; consent = false }, label = { Text("Modelo") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
-    } else Text("Modelo: $model", style = MaterialTheme.typography.bodySmall)
+    } else if (google) {
+        LeoGoogleProvider.conversationModels.forEach { option ->
+            FilterChip(selected = model == option, onClick = { model = option; consent = false }, enabled = !busy,
+                label = { Text(if (option == LeoGoogleProvider.MODEL) "Rápido · Gemini Flash-Lite" else "Más capacidad · Gemini Flash") })
+        }
+        Text("Modelo: $model", style = MaterialTheme.typography.bodySmall)
+    }
     OutlinedTextField(secret, { secret = it }, label = { Text(if (google) "Pegá tu clave de Gemini" else "Clave API del proveedor") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), enabled = !busy, singleLine = true)
-    Text("Tu clave se guarda cifrada en este teléfono. Para cambiar la conexión, ingresala de nuevo.", style = MaterialTheme.typography.bodySmall)
-    Row {
-        Checkbox(consent, { consent = it }, enabled = !busy)
-        Text("Autorizo enviar mis preguntas a este proveedor y hacer una prueba de conexión.")
-    }
-    Row {
-        Checkbox(preferRemote, { preferRemote = it }, enabled = !busy)
-        Text("Usarlo como modelo principal de conversación. Si falla, continuar con las funciones locales.")
-    }
-    Row {
-        Checkbox(historyConsent, { historyConsent = it }, enabled = !busy)
-        Text("Compartir hasta tres intercambios recientes para continuar la conversación. Pueden contener datos personales.")
-    }
-    Row {
-        Checkbox(researchConsent, { researchConsent = it }, enabled = !busy)
-        Text("Permitir resumir los extractos de búsquedas con citas verificadas.")
-    }
+    Text(if (reusableKey) "Clave guardada y cifrada. Dejá el campo vacío para conservarla." else "Tu clave se guarda cifrada en este teléfono.", style = MaterialTheme.typography.bodySmall)
+    ProviderPermissionRow(consent, !busy, { consent = it }, "Autorizo enviar mis preguntas a este proveedor y hacer una prueba de conexión.")
+    ProviderPermissionRow(preferRemote, !busy, { preferRemote = it }, "Usarlo como modelo principal de conversación. Si falla, continuar con las funciones locales.")
+    ProviderPermissionRow(historyConsent, !busy, { historyConsent = it }, "Compartir hasta tres intercambios recientes para continuar la conversación. Pueden contener datos personales.")
+    ProviderPermissionRow(researchConsent, !busy, { researchConsent = it }, "Permitir resumir los extractos de búsquedas con citas verificadas.")
+    Text("Los cambios se aplican al comprobar y activar.", style = MaterialTheme.typography.bodySmall)
     Text("La base de recuerdos personales no se adjunta. «Solo local» evita el envío al modelo.", style = MaterialTheme.typography.bodySmall)
     Button(onClick = {
         busy = true
         scope.launch {
             try {
-                require(consent && LeoGoogleProvider.validCredential(endpoint, secret))
-                val normalizedSecret = secret.trim()
+                val stored = if (secret.isBlank() && reusableKey) withContext(Dispatchers.IO) { settings.read() } else null
+                val normalizedSecret = secret.trim().ifBlank { stored?.takeIf { it.endpoint == endpoint.trim() }?.key.orEmpty() }
+                require(consent && LeoGoogleProvider.validCredential(endpoint, normalizedSecret))
                 val result = LeoInferenceActivation.activate(
-                    probe = { client.request(endpoint, model, normalizedSecret, "Respondé solamente: LEO conectado") },
+                    probe = { client.request(endpoint, model, normalizedSecret, LeoInferenceActivation.PROBE) },
                     persist = { withContext(Dispatchers.IO) {
                         coroutineContext.ensureActive()
                         settings.save(endpoint, model, normalizedSecret, consent, researchConsent, historyConsent, preferRemote)
@@ -96,14 +99,14 @@ fun LeoInferencePanel(openUrl: ((String) -> Unit)? = null) {
                 )
                 if (result.answer != null) {
                     secret = ""; enabled = settings.enabled
-                    consent = false; researchConsent = false; historyConsent = false
+                    consent = enabled; researchConsent = settings.researchAllowed; historyConsent = settings.historyAllowed
                     status = "Conexión comprobada y activada. Ya podés conversar con LEO."
-                } else status = result.failure?.description ?: "No se obtuvo una respuesta válida."
+                } else status = result.description()
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { status = "No pude activar la conexión. Revisá modelo, clave y almacenamiento seguro del teléfono." }
             finally { busy = false }
         }
-    }, enabled = consent && !busy && model.isNotBlank() && (!google || secret.isNotBlank())) {
+    }, enabled = consent && !busy && model.isNotBlank() && (!google || secret.isNotBlank() || reusableKey)) {
         Text(if (busy) "COMPROBANDO…" else "COMPROBAR Y ACTIVAR")
     }
     OutlinedButton(onClick = {
@@ -111,10 +114,10 @@ fun LeoInferencePanel(openUrl: ((String) -> Unit)? = null) {
         scope.launch {
             try {
                 val config = withContext(Dispatchers.IO) { settings.read() }
-                val result = config?.let { client.request(it.endpoint, it.model, it.key, "Respondé solamente: LEO conectado") }
+                val result = config?.let { client.request(it.endpoint, it.model, it.key, LeoInferenceActivation.PROBE) }
                 status = if (config == null || !settings.isCurrent(config)) "La conexión guardada ya no está disponible."
-                    else if (result?.answer != null) "Conexión guardada comprobada."
-                    else result?.failure?.description ?: "No se obtuvo una respuesta válida."
+                    else if (LeoInferenceActivation.validProbe(result?.answer)) "Conexión guardada comprobada."
+                    else result?.description() ?: "No se obtuvo una respuesta válida."
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { status = "No pude comprobar la conexión guardada." }
             finally { busy = false }
@@ -133,4 +136,13 @@ fun LeoInferencePanel(openUrl: ((String) -> Unit)? = null) {
         }
     }, enabled = !busy) { Text("DESCONECTAR Y BORRAR CLAVE") }
     if (status.isNotBlank()) Text(status)
+}
+
+@Composable
+private fun ProviderPermissionRow(checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit, label: String) {
+    Row(Modifier.fillMaxWidth().toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange)
+        .semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
+        Text(label, modifier = Modifier.weight(1f))
+    }
 }

@@ -47,12 +47,9 @@ object LeoInferenceProtocol {
             JSONObject().put("question", message).put("untrusted_evidence", JSONArray(evidence)).toString()))
         return JSONObject().put("model", model).put("stream", false)
             .apply {
-                if (google && model == LeoGoogleProvider.MODEL) {
-                    put("reasoning_effort", when (mode) {
-                        com.niko.assistant.modes.LeoMode.SUPER -> "minimal"
-                        com.niko.assistant.modes.LeoMode.RESEARCH -> "medium"
-                        else -> "low"
-                    })
+                val thinking = if (google) LeoGoogleProvider.thinking(model, mode) else null
+                if (thinking != null) {
+                    put("reasoning_effort", thinking)
                     // The provider counts thinking tokens too; leave room for the actual answer.
                     put("max_tokens", if (mode == com.niko.assistant.modes.LeoMode.SUPER) 1024 else 4096)
                 } else if (mode == com.niko.assistant.modes.LeoMode.SUPER) put("max_tokens", 256)

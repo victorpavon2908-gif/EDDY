@@ -47,7 +47,7 @@ object LeoNativeWebSearch {
         val language: String = "",
     )
 
-    internal data class Fetch(val body: String, val finalUrl: String)
+    internal data class Fetch(val body: String, val finalUrl: String, val httpStatus: Int = 200)
     private data class SentenceCandidate(val text: String, val sourceIndex: Int, val score: Double)
 
     data class FetchDiagnostic(val host: String, val status: Int?, val bytes: Int, val failure: String?)
@@ -638,7 +638,7 @@ object LeoNativeWebSearch {
                     val location = connection.getHeaderField("Location") ?: return null
                     next = URI(next).resolve(location).toString()
                 } else {
-                    if (status !in 200..299) return null
+                    if (status !in 200..299) return Fetch("", next, status)
                     val type = connection.contentType.orEmpty().lowercase(Locale.ROOT)
                     if (type.isNotBlank() && !listOf("html", "xml", "json", "text/plain").any(type::contains)) return null
                     val body = connection.inputStream.use { input ->
@@ -670,6 +670,7 @@ object LeoNativeWebSearch {
         .coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
 
     internal fun isBlockedPage(page: Fetch): Boolean {
+        if (page.httpStatus !in 200..299) return true
         if (isLoginUrl(page.finalUrl)) return true
         val title = TITLE.find(page.body)?.groupValues?.get(1)?.let(::htmlToText).orEmpty()
         return isBlockedTitle(title) || PASSWORD_INPUT.containsMatchIn(page.body) ||
@@ -860,7 +861,10 @@ object LeoNativeWebSearch {
             .split(' ').filterNot { it in setOf("lee", "leer", "pagina", "resume", "resumi", "explica", "enlace", "y", "hace") }.joinToString(" ")
         val pages = coroutineScope {
             urls.filter(::safePublicUrl).map { url -> async {
-                val page = fetch(url, PAGE_ACCEPT, PAGE_LIMIT) ?: return@async null
+                // Retry a transient connection failure once, within the existing turn deadline.
+                // HTTP refusals remain responses and are never retried here.
+                val page = fetch(url, PAGE_ACCEPT, PAGE_LIMIT)
+                    ?: fetch(url, PAGE_ACCEPT, PAGE_LIMIT) ?: return@async null
                 if (!safePublicUrl(page.finalUrl) || isBlockedPage(page)) return@async null
                 val title = TITLE.find(page.body)?.groupValues?.get(1)?.let(::htmlToText).orEmpty()
                 val body = extractReadableText(page.body, requested)

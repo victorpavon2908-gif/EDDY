@@ -460,6 +460,24 @@ class LeoNativeWebSearchTest {
         assertEquals("panel solar", LeoNativeWebSearch.subjectQuery("panel solar en profundidad"))
     }
 
+    @Test fun directReadRetriesOnlyAConnectionFailureAndKeepsHttpRefusalsFinal() = runBlocking {
+        var attempts = 0
+        val url = "https://docs.example/solar"
+        val result = LeoNativeWebSearch.search("lee $url") { _, _, _ ->
+            attempts++
+            if (attempts == 1) null else LeoNativeWebSearch.Fetch("<title>Energía solar</title><p>La energía solar procede de la radiación del Sol y permite producir electricidad.</p>", url)
+        }
+        assertTrue(result.webUsed)
+        assertEquals(2, attempts)
+        attempts = 0
+        val refused = LeoNativeWebSearch.search("lee $url") { _, _, _ ->
+            attempts++
+            LeoNativeWebSearch.Fetch("", url, 403)
+        }
+        assertFalse(refused.webUsed)
+        assertEquals(1, attempts)
+    }
+
     @Test fun directPublicLinkNeedsNoSearchProviderAndNeverExecutesPageContent() = runBlocking {
         val visited = mutableListOf<String>()
         val url = "https://docs.example/panel"

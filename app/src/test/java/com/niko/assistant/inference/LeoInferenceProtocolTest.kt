@@ -10,6 +10,8 @@ class LeoInferenceProtocolTest {
         val google = JSONObject(LeoInferenceProtocol.payload(LeoGoogleProvider.MODEL, "Hola", mode = mode, google = true))
         assertEquals("minimal", google.getString("reasoning_effort"))
         assertEquals(1024, google.getInt("max_tokens"))
+        val flash = JSONObject(LeoInferenceProtocol.payload(LeoGoogleProvider.FLASH, "Hola", mode = mode, google = true))
+        assertEquals("low", flash.getString("reasoning_effort"))
         val custom = JSONObject(LeoInferenceProtocol.payload(LeoGoogleProvider.MODEL, "Hola", mode = mode))
         assertFalse(custom.has("reasoning_effort"))
         val otherGoogleModel = JSONObject(LeoInferenceProtocol.payload("gemini-3.1-pro-preview", "Hola", mode = mode, google = true))

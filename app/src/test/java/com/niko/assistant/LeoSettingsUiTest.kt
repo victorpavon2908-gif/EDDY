@@ -18,6 +18,13 @@ import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -29,6 +36,100 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class LeoSettingsUiTest {
     @get:Rule val compose = createComposeRule()
+
+    private fun fixtureSettings(): com.niko.assistant.inference.LeoInferenceSettings {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        return com.niko.assistant.inference.LeoInferenceSettings(app,
+            javax.crypto.spec.SecretKeySpec(ByteArray(32) { 4 }, "AES"))
+    }
+    private fun fixtureClient(status: Int) = com.niko.assistant.inference.LeoInferenceClient {
+        object : java.net.HttpURLConnection(java.net.URL("https://fixture.example/chat/completions")) {
+            override fun connect() {}
+            override fun disconnect() {}
+            override fun usingProxy() = false
+            override fun getResponseCode() = status
+            override fun getOutputStream() = java.io.ByteArrayOutputStream()
+            override fun getInputStream() = java.io.ByteArrayInputStream(
+                """{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"LEO conectado"}]}}]}""".toByteArray())
+        }
+    }
+    private fun waitForText(text: String) = compose.waitUntil(8_000) {
+        compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    @Test fun savedGeminiCredentialCanUpdatePermissionsAndBeDeletedWithoutReentry() {
+        val settings = fixtureSettings()
+        settings.clear()
+        settings.save(com.niko.assistant.inference.LeoGoogleProvider.ENDPOINT,
+            com.niko.assistant.inference.LeoGoogleProvider.MODEL, "fixture-key", true)
+        compose.setContent { MaterialTheme {
+            androidx.compose.foundation.layout.Column(Modifier.verticalScroll(rememberScrollState())) {
+                com.niko.assistant.inference.LeoInferencePanel(settingsFactory = { settings }, clientFactory = { fixtureClient(200) })
+            }
+        } }
+        compose.onNodeWithText("Compartir hasta tres intercambios recientes para continuar la conversación. Pueden contener datos personales.")
+            .performScrollTo().performClick()
+        compose.onNodeWithText("COMPROBAR Y ACTIVAR").performScrollTo().performClick()
+        waitForText("Conexión comprobada y activada. Ya podés conversar con LEO.")
+        compose.runOnIdle {
+            assertEquals("fixture-key", settings.read()!!.key)
+            assertEquals(true, settings.historyAllowed)
+        }
+        compose.onNodeWithText("DESCONECTAR Y BORRAR CLAVE").performScrollTo().performClick()
+        waitForText("Proveedor desactivado y credencial eliminada de este teléfono.")
+        compose.runOnIdle { assertEquals(null, settings.read()) }
+        compose.onNodeWithText("COMPROBAR Y ACTIVAR").assertIsNotEnabled()
+    }
+
+    @Test fun rejectedGeminiKeyDoesNotReplaceThePreviouslyWorkingProvider() {
+        val settings = fixtureSettings()
+        settings.clear()
+        settings.save("https://old.example/chat/completions", "old-model", "old-fixture-key", true)
+        compose.setContent { MaterialTheme {
+            androidx.compose.foundation.layout.Column(Modifier.verticalScroll(rememberScrollState())) {
+                com.niko.assistant.inference.LeoInferencePanel(settingsFactory = { settings }, clientFactory = { fixtureClient(401) })
+            }
+        } }
+        compose.onNodeWithText("Google Gemini").performClick()
+        compose.onNodeWithText("Pegá tu clave de Gemini").performScrollTo().performTextInput("wrong-fixture-key")
+        compose.onNodeWithText("Autorizo enviar mis preguntas a este proveedor y hacer una prueba de conexión.")
+            .performScrollTo().performClick()
+        compose.onNodeWithText("COMPROBAR Y ACTIVAR").performScrollTo().performClick()
+        waitForText(com.niko.assistant.inference.LeoInferenceClient.Failure.CREDENTIAL.description + " (HTTP 401)")
+        compose.runOnIdle {
+            assertEquals("old-model", settings.model)
+            assertEquals("old-fixture-key", settings.read()!!.key)
+        }
+    }
+
+    @Test fun searchTestReportsFailureAllowsRetryAndPublishesOnlyReadEvidence() {
+        val pending = CompletableDeferred<com.niko.assistant.ai.NikoAiReply>()
+        var attempts = 0
+        compose.setContent { MaterialTheme {
+            androidx.compose.foundation.layout.Column(Modifier.verticalScroll(rememberScrollState())) {
+                com.niko.assistant.ai.LeoSearchTestPanel(com.niko.assistant.modes.LeoMode.SUPER) { query, mode, report ->
+                    assertEquals(com.niko.assistant.modes.LeoMode.SUPER, mode)
+                    org.junit.Assert.assertTrue(query.contains("solar"))
+                    attempts++
+                    if (attempts == 1) {
+                        report(com.niko.assistant.ai.LeoNativeWebSearch.FetchDiagnostic("fixture.example", null, 0, "UnknownHostException"))
+                        pending.await()
+                    } else com.niko.assistant.ai.NikoAiReply("Fuente leída", true,
+                        listOf(com.niko.assistant.ai.NikoWebSource("Fuente", "https://fixture.example/solar")),
+                        passages = listOf(com.niko.assistant.ai.NikoRetrievedPassage(1, "Contenido leído", true)))
+                }
+            }
+        } }
+        compose.onNodeWithText("Probar búsqueda").performClick()
+        compose.onNodeWithText("Comprobando…").assertIsNotEnabled()
+        compose.runOnIdle { pending.complete(com.niko.assistant.ai.NikoAiReply("Prueba sin conexión", false, emptyList())) }
+        waitForText("Prueba sin conexión")
+        compose.onNodeWithText("Ver diagnóstico de la prueba").performClick()
+        compose.onNodeWithText("fixture.example: sin conexión con este proveedor").assertIsDisplayed()
+        compose.onNodeWithText("Probar búsqueda").performClick()
+        waitForText("Búsqueda disponible: 1 fuentes y lectura de páginas completada.")
+        compose.runOnIdle { assertEquals(2, attempts) }
+    }
 
     @Test fun geminiSetupOpensOfficialGooglePageAndRequiresUserCredential() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()

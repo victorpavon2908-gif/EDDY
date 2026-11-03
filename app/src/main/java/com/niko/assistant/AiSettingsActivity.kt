@@ -192,6 +192,7 @@ class AiSettingsActivity : ComponentActivity() {
                 LeoSettingsScreen(
                     onClose = { finish() },
                     onVoiceEnabled = ::setVoiceEnabled,
+                    onVoiceRestart = ::restartVoiceListener,
                 )
             }
         }
@@ -220,11 +221,19 @@ class AiSettingsActivity : ComponentActivity() {
         }
     }
 
-    private fun startVoiceListener() {
+    private fun restartVoiceListener() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) setVoiceEnabled(true)
+        else {
+            NikoVoiceSettings.setEnabled(this, true)
+            startVoiceListener(NikoAssistantService.ACTION_RESTART_VOICE)
+        }
+    }
+
+    private fun startVoiceListener(action: String = NikoAssistantService.ACTION_START) {
         runCatching {
             ContextCompat.startForegroundService(
                 this,
-                UpgradeIdentity.assistantService(this).apply { action = NikoAssistantService.ACTION_START },
+                UpgradeIdentity.assistantService(this).apply { this.action = action },
             )
         }.onFailure {
             NikoVoiceSettings.setEnabled(this, false)
@@ -237,6 +246,7 @@ class AiSettingsActivity : ComponentActivity() {
 private fun LeoSettingsScreen(
     onClose: () -> Unit,
     onVoiceEnabled: (Boolean) -> Unit,
+    onVoiceRestart: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -300,10 +310,6 @@ private fun LeoSettingsScreen(
     var autoResearch by remember { mutableStateOf(NikoAiSettings.autoResearch(context)) }
     var learning by remember { mutableStateOf(NikoAiSettings.adaptiveLearning(context)) }
     var behaviorFeedback by remember { mutableStateOf("") }
-    var testingSearch by remember { mutableStateOf(false) }
-    var searchFeedback by rememberSaveable { mutableStateOf("") }
-    var searchDetails by rememberSaveable { mutableStateOf("") }
-    var showSearchDetails by rememberSaveable { mutableStateOf(false) }
 
     val semanticMemory = remember { LeoSemanticMemory.get(context) }
     var semanticStatus by remember { mutableStateOf(semanticMemory.status) }
@@ -313,6 +319,7 @@ private fun LeoSettingsScreen(
     var modelStatus by remember { mutableStateOf("Los modelos acústicos se verifican e instalan localmente en tu teléfono.") }
 
     var hardwareAuditReport by remember { mutableStateOf("") }
+    var testingHardware by remember { mutableStateOf(false) }
     var showClearMemoryDialog by remember { mutableStateOf(false) }
     var memoryFeedback by remember { mutableStateOf("") }
 
@@ -474,43 +481,7 @@ private fun LeoSettingsScreen(
                         saveBehavior()
                     },
                 )
-                OutlinedButton(
-                    onClick = {
-                        testingSearch = true
-                        searchFeedback = "Consultando fuentes…"
-                        searchDetails = ""; showSearchDetails = false
-                        scope.launch {
-                            val events = java.util.Collections.synchronizedList(mutableListOf<LeoNativeWebSearch.FetchDiagnostic>())
-                            try {
-                                val reply = LeoNativeWebSearch.search("¿Qué es la energía solar?", mode = operatingMode,
-                                    diagnostic = { events += it })
-                                searchFeedback = when {
-                                    reply.webUsed -> "Búsqueda disponible: ${reply.sources.size} fuentes y lectura de páginas completada."
-                                    reply.sources.isNotEmpty() -> "Encontré ${reply.sources.size} fuentes, pero no pude leer sus páginas. Probá de nuevo."
-                                    else -> reply.text
-                                }
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (_: Exception) {
-                                searchFeedback = "No se pudo completar la prueba. Revisá la conexión y reintentá."
-                            } finally {
-                                searchDetails = com.niko.assistant.ai.LeoWebDiagnostics.describe(synchronized(events) { events.toList() })
-                                testingSearch = false
-                            }
-                        }
-                    },
-                    enabled = !testingSearch,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (testingSearch) "Comprobando…" else "Probar búsqueda") }
-                if (searchFeedback.isNotBlank()) Text(searchFeedback, color = DarkTextSecondary,
-                    style = MaterialTheme.typography.bodyMedium)
-                if (searchDetails.isNotBlank()) {
-                    TextButton(onClick = { showSearchDetails = !showSearchDetails }) {
-                        Text(if (showSearchDetails) "Ocultar diagnóstico" else "Ver diagnóstico de la prueba")
-                    }
-                    if (showSearchDetails) Text(searchDetails, color = DarkTextSecondary,
-                        style = MaterialTheme.typography.bodySmall)
-                }
+                com.niko.assistant.ai.LeoSearchTestPanel(operatingMode)
                 if (behaviorFeedback.isNotBlank()) Text(behaviorFeedback, color = DarkEmerald,
                     style = MaterialTheme.typography.bodyMedium)
             }
@@ -563,7 +534,7 @@ private fun LeoSettingsScreen(
                     OutlinedButton(
                         onClick = {
                             voiceEnabled = true
-                            onVoiceEnabled(true)
+                            onVoiceRestart()
                             voiceStatus = "Reiniciando motor de micrófono de LEO…"
                         },
                         modifier = Modifier.weight(1f),
@@ -888,22 +859,18 @@ private fun LeoSettingsScreen(
             ) {
                 Button(
                     onClick = {
-                        // Limpia siempre las coordenadas en SharedPreferences y además notifica al servicio en vivo
-                        runCatching {
-                            context.getSharedPreferences(UpgradeIdentity.bubblePreferences, Context.MODE_PRIVATE)
-                                .edit()
-                                .remove("bubble_x")
-                                .remove("bubble_y")
-                                .apply()
-                        }
-                        runCatching {
-                            context.startService(
-                                UpgradeIdentity.assistantService(context).apply {
+                        bubbleStatus = runCatching {
+                            check(context.getSharedPreferences(UpgradeIdentity.bubblePreferences, Context.MODE_PRIVATE)
+                                .edit().remove("bubble_x").remove("bubble_y").commit())
+                            if (NikoRuntimeState.read(context).running) {
+                                val sent = runCatching { context.startService(UpgradeIdentity.assistantService(context).apply {
                                     action = NikoAssistantService.ACTION_RESET_BUBBLE
-                                },
-                            )
-                        }
-                        bubbleStatus = "✓ Posición restaurada. La burbuja flotante volvió a su ubicación original."
+                                }) }.getOrNull() != null
+                                if (sent) "Posición guardada. Envié la solicitud al servicio de la burbuja."
+                                else "Posición guardada. Volvé a iniciar la burbuja para aplicarla."
+                            } else "Posición predeterminada guardada para el próximo inicio de la burbuja."
+                        }.getOrElse { "No pude guardar la posición. Podés reintentar." }
+
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -972,15 +939,21 @@ private fun LeoSettingsScreen(
 
                 OutlinedButton(
                     onClick = {
-                        val snap = LeoHardwareProtocolRunner(context).captureSensorSnapshot()
-                        hardwareAuditReport = "Batería: ${snap.batteryPercent}% (${"%.1f".format(snap.batteryTempC)} °C) · Luz ambiente: ${snap.ambientLux.toInt()} lx · Acelerómetro: ${"%.2f".format(snap.accelMagnitudeG)} g"
+                        testingHardware = true
+                        scope.launch {
+                            try { hardwareAuditReport = com.niko.assistant.actions.LeoSettingsHardwareProbe.read(context).describe() }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (_: Exception) { hardwareAuditReport = "No pude consultar los sensores. Revisá los permisos y reintentá." }
+                            finally { testingHardware = false }
+                        }
                     },
+                    enabled = !testingHardware,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, DarkBorder),
                 ) {
                     Text(
-                        text = "Consultar sensores",
+                        text = if (testingHardware) "Consultando sensores…" else "Consultar sensores",
                         color = DarkTextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -989,7 +962,7 @@ private fun LeoSettingsScreen(
 
                 if (hardwareAuditReport.isNotBlank()) {
                     DarkInfoBox(
-                        title = "Reporte de hardware en tiempo real",
+                        title = "Última lectura de hardware",
                         body = hardwareAuditReport,
                         accentColor = DarkEmerald,
                     )
@@ -1211,6 +1184,8 @@ private fun LeoSettingsScreen(
                     )
                 }
             }
+
+            Text("LEO ${BuildConfig.VERSION_NAME}", color = DarkTextMuted, style = MaterialTheme.typography.bodySmall)
 
             // ── BOTÓN PRINCIPAL PARA CERRAR Y VOLVER A LEO ──
             Button(

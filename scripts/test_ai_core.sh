@@ -20,6 +20,10 @@ leo_test_filters=(
     --tests com.niko.assistant.modes.LeoModeStoreTest
     --tests com.niko.assistant.inference.LeoLocalModelRecoveryTest
     --tests com.niko.assistant.inference.LeoInferenceClientTest
+    --tests com.niko.assistant.inference.LeoInferenceSettingsTest
+    --tests com.niko.assistant.inference.LeoInferenceProtocolTest
+    --tests com.niko.assistant.inference.LeoGoogleProtocolTest
+    --tests com.niko.assistant.actions.LeoSettingsHardwareProbeTest
     --tests com.niko.assistant.memory.LeoPersonalDataResetTest
     --tests com.niko.assistant.voice.SpeechProsodyTest
     --tests com.niko.assistant.voice.NikoTextToSpeechRecoveryTest

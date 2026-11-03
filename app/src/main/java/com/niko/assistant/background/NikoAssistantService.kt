@@ -192,6 +192,7 @@ open class NikoAssistantService : Service() {
     private var speechTimeout: Job? = null
     private var continueAfterSpeech = false
     private var recoveryJob: Job? = null
+    private var manualVoiceRestartJob: Job? = null
     private val voiceRecovery = VoiceRecoveryPolicy()
     private var initializationFailure: NikoLocalVoiceEngine.InitializationFailure? = null
     private val initiativeStore by lazy { com.niko.assistant.proactive.LeoInitiativeStore(applicationContext) }
@@ -265,6 +266,10 @@ open class NikoAssistantService : Service() {
                 voiceRequested = true
                 NikoVoiceSettings.setEnabled(this, true)
             }
+            ACTION_RESTART_VOICE -> {
+                voiceRequested = true
+                NikoVoiceSettings.setEnabled(this, true)
+            }
             ACTION_STOP -> {
                 voiceRequested = false
                 NikoVoiceSettings.setEnabled(this, false)
@@ -283,6 +288,10 @@ open class NikoAssistantService : Service() {
             }
         }
         if (!foregroundReady) { stopSelf(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_RESTART_VOICE) {
+            restartVoiceFromSettings()
+            return START_STICKY
+        }
         if (!voiceRequested && intent?.action != ACTION_START) {
             stopSelf()
             return START_NOT_STICKY
@@ -351,7 +360,7 @@ open class NikoAssistantService : Service() {
 
     /** One owner for preparation, native startup and recovery. No Android recognition sessions. */
     private fun ensureVoiceListening(initialDelay: Long = 0L) {
-        if (CaptureGate.held || destroyed || !foregroundReady || localVoiceActive || recoveryJob?.isActive == true || !voiceRequested) return
+        if (CaptureGate.held || destroyed || !foregroundReady || localVoiceActive || recoveryJob?.isActive == true || manualVoiceRestartJob?.isActive == true || !voiceRequested) return
         recoveryJob = serviceScope.launch {
             if (initialDelay > 0) delay(initialDelay)
             while (!CaptureGate.held && !destroyed && voiceRequested) {
@@ -668,6 +677,25 @@ open class NikoAssistantService : Service() {
             val detail = initializationFailure?.detail?.take(160).orEmpty()
             inputUnavailable("No inició $stage local. $detail. Voy a reintentar.")
             false
+        }
+    }
+
+    private fun restartVoiceFromSettings() {
+        if (destroyed || manualVoiceRestartJob?.isActive == true) return
+        interruptCurrentTurn()
+        if (platformTtsDelegate.isInitialized()) platformTts.stop()
+        ++localVoiceEpoch
+        localVoiceActive = false
+        manualVoiceRestartJob = serviceScope.launch {
+            try {
+                recoveryJob?.cancelAndJoin()
+                recoveryJob = null
+                NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.PREPARING, "Reiniciando micrófono…")
+                if (!stopActiveVoiceAndAwait()) inputUnavailable("El micrófono anterior todavía se está cerrando. Voy a reintentar.")
+            } finally {
+                manualVoiceRestartJob = null
+                if (!destroyed && voiceRequested) ensureVoiceListening()
+            }
         }
     }
 
@@ -1618,6 +1646,7 @@ open class NikoAssistantService : Service() {
         private const val DEFAULT_BUBBLE_X_DP = 18
         private const val DEFAULT_BUBBLE_Y_DP = 220
         const val ACTION_START = UpgradeIdentity.ACTION_START
+        const val ACTION_RESTART_VOICE = "com.eddy.assistant.action.RESTART_VOICE"
         const val ACTION_STOP = UpgradeIdentity.ACTION_STOP
         const val ACTION_SHOW_BUBBLE = UpgradeIdentity.ACTION_SHOW_BUBBLE
         const val ACTION_HIDE_BUBBLE = UpgradeIdentity.ACTION_HIDE_BUBBLE

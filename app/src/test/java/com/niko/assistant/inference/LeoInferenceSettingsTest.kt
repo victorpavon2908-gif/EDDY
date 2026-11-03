@@ -13,6 +13,25 @@ import org.robolectric.annotation.Config
 class LeoInferenceSettingsTest {
     private fun settings() = LeoInferenceSettings(RuntimeEnvironment.getApplication())
     @Before fun reset() { settings().clear() }
+    @Test fun credentialRoundTripIsEncryptedAndCannotFollowAChangedEndpoint() {
+        val app = RuntimeEnvironment.getApplication()
+        val key = javax.crypto.spec.SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val store = LeoInferenceSettings(app, key)
+        val fixture = "fixture-personal-credential"
+        store.save(LeoGoogleProvider.ENDPOINT, LeoGoogleProvider.MODEL, fixture, true, true, true, true)
+        assertEquals(fixture, LeoInferenceSettings(app, key).read()!!.key)
+        assertTrue(store.canReuseCredential(LeoGoogleProvider.ENDPOINT))
+        assertFalse(store.canReuseCredential("https://another.example/v1/chat/completions"))
+        assertTrue(store.historyAllowed)
+        val persisted = app.getSharedPreferences("leo_inference_v1", android.content.Context.MODE_PRIVATE).all.toString()
+        assertFalse(persisted.contains(fixture))
+        val wrongKey = javax.crypto.spec.SecretKeySpec(ByteArray(32) { 9 }, "AES")
+        assertNull(LeoInferenceSettings(app, wrongKey).read())
+        store.clear()
+        assertNull(store.read())
+        assertFalse(store.canReuseCredential(LeoGoogleProvider.ENDPOINT))
+    }
+
     @Test fun doesNotEnableItselfAndRequiresConsent() {
         assertNull(settings().read())
         assertFalse(settings().preferRemote)

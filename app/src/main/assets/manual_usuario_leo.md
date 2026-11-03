@@ -110,10 +110,18 @@ La recuperación de una instalación offline incompleta comprueba tamaño, hash 
 2. Copiá la clave, regresá a LEO y pegala en el campo indicado. Autorizá enviar preguntas y hacer una prueba.
 3. Elegí si Gemini será el modelo principal de conversación. Esta elección tiene prioridad sobre «Preferir respuestas locales». Las órdenes del teléfono y las funciones personales siguen su ruta habitual; «solo local» evita el envío al modelo.
 4. Para continuidad, podés autorizar por separado hasta tres intercambios recientes. El permiso de resumir extractos web también es independiente; las citas deben superar la validación de LEO.
-5. Tocá **COMPROBAR Y ACTIVAR**. Si falla la prueba, no se reemplaza la conexión anterior. Una clave inválida, falta de acceso al modelo o cuota agotada muestran un mensaje para reintentar.
+5. Elegí **Rápido · Gemini Flash-Lite** para conversación ágil o **Más capacidad · Gemini Flash**. Tocá **COMPROBAR Y ACTIVAR**. Si falla la prueba, no se reemplaza la conexión anterior. Una clave inválida, falta de acceso al modelo o cuota agotada muestran un mensaje para reintentar.
 
-La clave queda cifrada con Android Keystore. **PROBAR CONEXIÓN GUARDADA** comprueba la conexión existente sin volver a escribirla. **DESCONECTAR Y BORRAR CLAVE** elimina la credencial del teléfono; podés revocarla además en AI Studio.
+La clave queda cifrada con Android Keystore. En una conexión guardada podés dejar el campo vacío para conservarla al cambiar permisos o modelo; solo se reutiliza con el mismo endpoint. **PROBAR CONEXIÓN GUARDADA** comprueba la conexión existente sin volver a escribirla. **DESCONECTAR Y BORRAR CLAVE** elimina la credencial del teléfono; podés revocarla además en AI Studio.
 
 Google ofrece un nivel gratuito limitado para proyectos y modelos elegibles; usar la app Gemini gratis no equivale a una API ilimitada. Comprobá **Ver mi uso** y **Cuotas y precios**. Si el proyecto tiene facturación, las llamadas pueden costar dinero. En el nivel gratuito, Google puede usar preguntas y respuestas para mejorar sus productos. LEO no activa facturación.
 
 El inicio de sesión dentro de LEO sin pegar claves requiere otra integración con un proyecto Firebase de LEO y App Check; no está configurada en esta versión. La conexión disponible usa la clave personal de cada usuario.
+
+### Comprobaciones de Configuración en 0.14.1
+- **Probar búsqueda** ejecuta una consulta real. Solo anuncia lectura completada si recibió una fuente y un pasaje leído; de lo contrario muestra el fallo o los enlaces parciales. **Ver diagnóstico de la prueba** permite distinguir conexión, bloqueos y tiempos de espera. Una lectura directa puede reintentar una vez un fallo de conexión, sin repetir un rechazo HTTP.
+- **Gemini** utiliza su API nativa. Flash-Lite es la opción rápida propuesta; cada modelo recibe únicamente parámetros de razonamiento admitidos. La prueba exige la respuesta «LEO conectado» antes de guardar y activar. Un error no reemplaza la conexión anterior. Puede reintentar una vez errores temporales 502/503/504 si queda tiempo; los errores de cuota o permisos no se reintentan automáticamente.
+- **Reiniciar voz** cierra la sesión anterior y solicita un nuevo inicio. Los mensajes posteriores del motor indican si efectivamente quedó listo o si Android impide usar el micrófono.
+- **Consultar sensores** espera una lectura breve. Un dato ausente se muestra como «sin lectura» o «no disponible»; no se completa con números de ejemplo.
+- **Restablecer burbuja** informa si guardó la posición y si envió la solicitud al servicio; no afirma haber movido una burbuja que está apagada.
+- El número de versión aparece al final de Configuración para identificar la compilación instalada.

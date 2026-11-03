@@ -11,16 +11,21 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** Separate opt-in configuration; legacy cloud credential retirement cannot affect it. */
-class LeoInferenceSettings(context: Context) {
+class LeoInferenceSettings private constructor(context: Context, private val loadKey: () -> SecretKey) {
+    constructor(context: Context) : this(context, ::androidKey)
+    internal constructor(context: Context, key: SecretKey) : this(context, { key })
     private val prefs = context.applicationContext.getSharedPreferences("leo_inference_v1", Context.MODE_PRIVATE)
     data class Config(val endpoint: String, val model: String, val key: String, val research: Boolean = false, val revision: String = "", val history: Boolean = false) {
         override fun toString() = "Config(model=$model, credential=redacted)"
     }
     val enabled: Boolean get() = prefs.getBoolean("consent", false)
     val researchAllowed: Boolean get() = enabled && prefs.getBoolean("research_consent", false)
+    val historyAllowed: Boolean get() = enabled && prefs.getBoolean("history_consent", false)
     val preferRemote: Boolean get() = enabled && prefs.getBoolean("prefer_remote", false)
     val endpoint: String get() = prefs.getString("endpoint", "").orEmpty()
     val model: String get() = prefs.getString("model", "").orEmpty()
+    fun canReuseCredential(endpoint: String): Boolean = enabled && this.endpoint == endpoint.trim() &&
+        !prefs.getString("secret", "").isNullOrBlank()
     fun read(): Config? {
         val snapshot = prefs.all
         if (snapshot["consent"] != true) return null
@@ -32,7 +37,7 @@ class LeoInferenceSettings(context: Context) {
             val secret = if (encoded.isBlank()) "" else {
                 val parts = encoded.split(':'); require(parts.size == 2)
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
+                cipher.init(Cipher.DECRYPT_MODE, loadKey(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
                 String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
             }
             Config(endpoint, model, secret, snapshot["research_consent"] == true, snapshot["revision"] as? String ?: "", snapshot["history_consent"] == true)
@@ -45,7 +50,7 @@ class LeoInferenceSettings(context: Context) {
         require(secret.length <= 4096 && secret.none { it.isISOControl() })
         val encrypted = if (secret.isBlank()) "" else {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, key())
+            cipher.init(Cipher.ENCRYPT_MODE, loadKey())
             Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
                 Base64.encodeToString(cipher.doFinal(secret.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
         }
@@ -58,13 +63,15 @@ class LeoInferenceSettings(context: Context) {
     }
     fun disable() { check(prefs.edit().putBoolean("consent", false).putString("revision", java.util.UUID.randomUUID().toString()).commit()) }
     fun clear() { check(prefs.edit().clear().putString("revision", java.util.UUID.randomUUID().toString()).commit()) }
-    private fun key(): SecretKey {
-        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
-            init(KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
-        }.generateKey()
+    companion object {
+        private const val ALIAS = "leo_optional_inference_v1"
+        private fun androidKey(): SecretKey {
+            val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+            return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
+                init(KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
+            }.generateKey()
+        }
     }
-    companion object { private const val ALIAS = "leo_optional_inference_v1" }
 }
