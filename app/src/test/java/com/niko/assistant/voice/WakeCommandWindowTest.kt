@@ -4,9 +4,9 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WakeCommandWindowTest {
-    @Test fun speechKeepsAnAuthorizedFollowUpAliveUntilItsEndpoint() {
-        val window = WakeCommandWindow()
-        window.openFollowUp(1_000L)
+    @Test fun speechKeepsAnAuthorizedCommandAliveUntilItsEndpoint() {
+        val window = WakeCommandWindow(durationMillis = 12_000L)
+        window.onWake(1_000L)
         window.onSpeech(12_900L)
         assertTrue(window.isOpen(13_100L))
         window.onSpeech(14_000L)
@@ -18,14 +18,14 @@ class WakeCommandWindowTest {
         val window = WakeCommandWindow()
         window.onSpeech(500L)
         assertFalse(window.isOpen(501L))
-        window.openFollowUp(1_000L)
+        window.onWake(1_000L)
         window.onSpeech(13_000L)
         assertFalse(window.isOpen(13_001L))
     }
 
     @Test fun continuousSpeechStillHasAHardLimit() {
-        val window = WakeCommandWindow()
-        window.openFollowUp(1_000L)
+        val window = WakeCommandWindow(durationMillis = 12_000L)
+        window.onWake(1_000L)
         for (now in 12_000L..60_000L step 1_000L) window.onSpeech(now)
         assertTrue(window.isOpen(60_999L))
         window.onSpeech(61_000L)
@@ -48,29 +48,47 @@ class WakeCommandWindowTest {
         assertFalse(window.isOpen(2_001L))
     }
 
-    @Test fun authorizedFollowUpIsShorterThanInitialWake() {
-        val window = WakeCommandWindow(durationMillis = 30_000L, followUpMillis = 12_000L)
+    @Test fun ordinaryResponseClosesCaptureAndRequiresAnotherWake() {
+        val window = WakeCommandWindow()
+        window.onWake(1_000L)
+        window.afterResponse(2_000L, continueCommand = false)
+        window.onSpeech(2_100L)
+        window.afterResponse(2_200L, continueCommand = true)
+        assertFalse(window.isOpen(2_201L))
+        window.onWake(3_000L)
+        assertTrue(window.isOpen(3_001L))
+    }
+
+    @Test fun completedCommandCannotBeReopenedByTtsOrAPrompt() {
+        val window = WakeCommandWindow()
         window.onWake(1_000L)
         window.close()
-        window.openFollowUp(5_000L)
-        assertTrue(window.isOpen(16_999L))
-        assertFalse(window.isOpen(17_000L))
+        window.afterResponse(2_000L, continueCommand = false)
+        window.afterResponse(2_500L, continueCommand = true)
+        assertFalse(window.isOpen(2_501L))
+    }
+
+    @Test fun latePromptCannotReviveExpiredCaptureWithoutPolling() {
+        val window = WakeCommandWindow()
+        window.onWake(1_000L)
+        window.afterResponse(9_000L, continueCommand = true)
+        assertFalse(window.isOpen(9_001L))
     }
 
     @Test fun silenceExpiresAndCannotBeExtendedByALatePrompt() {
         val window = WakeCommandWindow()
         window.onWake(1_000L)
-        assertTrue(window.isOpen(30_999L))
-        assertFalse(window.isOpen(31_000L))
-        window.continueAfterPrompt(32_000L)
-        assertFalse(window.isOpen(32_001L))
+        assertTrue(window.isOpen(8_999L))
+        assertFalse(window.isOpen(9_000L))
+        window.continueAfterPrompt(10_000L)
+        assertFalse(window.isOpen(10_001L))
     }
 
     @Test fun acknowledgementLeavesTimeForTheCommand() {
         val window = WakeCommandWindow()
         window.onWake(1_000L)
-        window.continueAfterPrompt(5_000L)
-        assertTrue(window.isOpen(34_999L))
-        assertFalse(window.isOpen(35_000L))
+        window.afterResponse(5_000L, continueCommand = true)
+        assertTrue(window.isOpen(12_999L))
+        assertFalse(window.isOpen(13_000L))
     }
 }

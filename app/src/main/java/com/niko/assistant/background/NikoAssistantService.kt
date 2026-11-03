@@ -95,7 +95,6 @@ import kotlinx.coroutines.ensureActive
 import com.niko.assistant.voice.VoiceControl
 import com.niko.assistant.voice.LeoVoiceDiagnostics
 import com.niko.assistant.voice.LeoRealtimeTurnBus
-import com.niko.assistant.voice.LeoPlatformVoiceEngine
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -148,7 +147,6 @@ open class NikoAssistantService : Service() {
     private var replyProsody = SpeechProsody()
     private var replyVoiceInput = ""
     private var localVoice: NikoLocalVoiceEngine? = null
-    private var platformVoice: LeoPlatformVoiceEngine? = null
     private var localVoiceActive = false
     private val platformTtsDelegate = lazy(LazyThreadSafetyMode.NONE) {
         NikoTextToSpeech(
@@ -167,7 +165,6 @@ open class NikoAssistantService : Service() {
     private var destroyed = false
     private var foregroundReady = false
     @Volatile private var voiceRequested = false
-    @Volatile private var platformVoiceDisabledForSession = false
     private var localVoiceStarting = false
     private var localVoiceEpoch = 0
     private var isTranscribing = false
@@ -376,16 +373,11 @@ open class NikoAssistantService : Service() {
                         inputUnavailable("El micrófono anterior aún se está cerrando. Voy a reintentar.")
                     } else {
                         localVoice = null
-                        platformVoice = null
                         NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.PREPARING, "Iniciando micrófono…")
 
-                        // Ruta primaria: el reconocedor de Android evita cargar JNI/ONNX solo para
-                        // poder abrir el micrófono. Es especialmente útil en dispositivos donde
-                        // el KWS nativo puede abortar el proceso.
-                        if (!platformVoiceDisabledForSession && startPlatformVoiceIfAvailable()) return@launch
-
-                        // Respaldo totalmente local: solo se usa si Android no ofrece un
-                        // RecognitionService compatible.
+                        // Keep one local AudioRecord/KWS session while waiting for LEO.
+                        // SpeechRecognizer restarts can trigger OEM recording tones and
+                        // transcribe ambient speech; never use it as a passive fallback.
                         val failure = initializationFailure
                         initializationFailure = null
                         val failedModel = failure?.model
@@ -425,162 +417,36 @@ open class NikoAssistantService : Service() {
         updateVisualState()
     }
 
-    private fun startPlatformVoiceIfAvailable(): Boolean {
-        if (CaptureGate.held || !hasMicrophonePermission()) return false
-        val epoch = ++localVoiceEpoch
-        val engine = LeoPlatformVoiceEngine(
-            context = applicationContext,
-            onWakeOnly = { serviceScope.launch {
-                if (destroyed || epoch != localVoiceEpoch || isThinking || isSpeaking) return@launch
-                val response = playfulDialogue.greeting()
-                NikoRuntimeState.setResponse(applicationContext, response)
-                speakOnly(response, continueCommand = true)
-            }},
-            onState = { state -> serviceScope.launch {
-                if (destroyed || epoch != localVoiceEpoch) return@launch
-                when (state) {
-                    LeoPlatformVoiceEngine.State.PASSIVE -> {
-                        isTranscribing = false
-                        isListening = false
-                        updateVisualState()
-                    }
-                    LeoPlatformVoiceEngine.State.ACTIVE -> {
-                        isTranscribing = false
-                        isListening = !isThinking && !isSpeaking
-                        updateVisualState()
-                    }
-                    LeoPlatformVoiceEngine.State.PROCESSING -> {
-                        isTranscribing = true
-                        isListening = false
-                        updateVisualState()
-                    }
-                    LeoPlatformVoiceEngine.State.SPEAKING -> {
-                        isListening = false
-                        updateVisualState()
-                    }
-                    LeoPlatformVoiceEngine.State.STOPPED -> {
-                        isTranscribing = false
-                        isListening = false
-                        updateVisualState()
-                    }
-                }
-            }},
-            onWake = { serviceScope.launch {
-                if (destroyed || epoch != localVoiceEpoch) return@launch
-                NikoRuntimeState.setHeard(applicationContext, "LEO")
-                NikoRuntimeState.setResponse(applicationContext, "Te escucho.")
-                revealNikoOnLockScreen()
-            }},
-            onCommand = { text -> serviceScope.launch {
-                if (!destroyed && epoch == localVoiceEpoch) {
-                    isTranscribing = false
-                    submitCommand(text)
-                }
-            }},
-            onStatus = { status -> serviceScope.launch {
-                if (!destroyed && epoch == localVoiceEpoch) {
-                    when {
-                        status.startsWith("Micrófono listo") -> {
-                            NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, status)
-                            if (!isSpeaking && !isThinking) {
-                                NikoRuntimeState.setResponse(applicationContext, "Decí LEO para hablar conmigo.")
-                            }
-                        }
-                        status.startsWith("Te escucho") || status.startsWith("LEO detectado") -> {
-                            NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.READY, status)
-                            if (!isSpeaking && !isThinking) {
-                                NikoRuntimeState.setResponse(applicationContext, "Te escucho.")
-                            }
-                        }
-                        else -> NikoRuntimeState.setInputStatus(applicationContext, status)
-                    }
-                }
-            }},
-            onError = { error -> serviceScope.launch {
-                if (!destroyed && epoch == localVoiceEpoch) {
-                    NikoRuntimeState.setInput(applicationContext, NikoRuntimeState.InputState.ERROR, error)
-                }
-            }},
-            onFatal = { error -> serviceScope.launch {
-                if (!destroyed && epoch == localVoiceEpoch) {
-                    platformVoiceDisabledForSession = true
-                    ++localVoiceEpoch
-                    localVoiceActive = false
-                    platformVoice?.stop()
-                    platformVoice = null
-                    NikoRuntimeState.setInput(
-                        applicationContext,
-                        NikoRuntimeState.InputState.PREPARING,
-                        "$error Probando el motor local de respaldo…",
-                    )
-                    ensureVoiceListening(250L)
-                }
-            }},
-        )
-        platformVoice = engine
-        localVoice = null
-        val started = engine.start()
-        if (!started) {
-            platformVoiceDisabledForSession = true
-            platformVoice = null
-            engine.stop()
-            return false
-        }
-
-        localVoiceActive = true
-        initializationFailure = null
-        voiceRecovery.started(SystemClock.elapsedRealtime())
-        isListening = false
-        NikoRuntimeState.setInput(
-            applicationContext,
-            NikoRuntimeState.InputState.PREPARING,
-            "Abriendo micrófono con el servicio de voz de Android…",
-        )
-        NikoRuntimeState.setResponse(applicationContext, "Preparando el micrófono de LEO…")
-        updateVisualState()
-        prewarmAdaptiveLearning()
-        return true
-    }
-
     private suspend fun stopActiveVoiceAndAwait(): Boolean {
-        val platform = platformVoice
         val native = localVoice
-        platformVoice = null
         localVoice = null
-        val platformReleased = platform?.stopAndAwait() ?: true
         val nativeReleased = withContext(Dispatchers.IO) { native?.stopAndAwait() ?: true }
-        return platformReleased && nativeReleased
+        return nativeReleased
     }
 
     private fun stopActiveVoice() {
-        platformVoice?.stop()
-        platformVoice = null
         localVoice?.stop()
         localVoice = null
     }
 
     private fun setActiveVoiceBusy(value: Boolean) {
-        platformVoice?.setAssistantBusy(value)
         localVoice?.setAssistantBusy(value)
     }
 
     private fun cancelActiveVoiceConversation() {
-        platformVoice?.cancelConversation()
         localVoice?.cancelConversation()
     }
 
     private fun finishActiveVoiceTurn() {
-        platformVoice?.finishTurn()
         localVoice?.finishTurn()
     }
 
     private fun setActiveVoiceSpeaking(value: Boolean, continueCommand: Boolean = false) {
-        platformVoice?.setAssistantSpeaking(value, continueCommand)
         localVoice?.setAssistantSpeaking(value, continueCommand)
     }
 
     private fun activeVoiceMicrophoneSilenced(): Boolean =
-        platformVoice?.isMicrophoneSilenced == true || localVoice?.isMicrophoneSilenced == true
+        localVoice?.isMicrophoneSilenced == true
 
     private suspend fun startLocalVoiceIfReady(): Boolean {
         if (CaptureGate.held) return false
@@ -657,7 +523,6 @@ open class NikoAssistantService : Service() {
         if (destroyed) { engine.stop(); return false }
         return if (started && engine.isRunning) {
             localVoiceActive = true
-            platformVoice = null
             prewarmAdaptiveLearning()
             isListening = false
             initializationFailure = null
@@ -1478,9 +1343,9 @@ open class NikoAssistantService : Service() {
     private fun speakOnly(text: String, continueCommand: Boolean = false, prosody: SpeechProsody = replyProsody) {
         if (text.isBlank() || destroyed) return
         conversationWindowJob?.cancel()
-        continueAfterSpeech = continueCommand || NikoAiSettings.companionInitiative(applicationContext)
+        continueAfterSpeech = continueCommand
 
-        // Keep the primary recognizer listening for guarded interruptions during TTS.
+        // Keep only local keyword detection active for guarded interruptions during TTS.
         if (localVoiceActive) setActiveVoiceSpeaking(true, continueAfterSpeech)
 
         val systemReady = runCatching { platformTts.ensureReady() }.getOrDefault(false)

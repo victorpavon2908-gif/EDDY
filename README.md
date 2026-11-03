@@ -81,7 +81,7 @@ Los informes históricos pueden contener resultados de la aplicación web retira
 
 ## Voz y limpieza de código (2026-10-12)
 
-La salida activa utiliza el TTS de Android. Se retiraron el transporte Groq histórico, la cola progresiva desconectada y el sintetizador neuronal que nunca se inicializaba. Se conservan el reconocedor principal, el respaldo local, la cancelación por generación de turno y la instrumentación de voz.
+La salida activa utiliza el TTS de Android. Se retiraron el transporte Groq histórico, la cola progresiva desconectada y el sintetizador neuronal que nunca se inicializaba. La espera usa el detector local de «LEO» con una sesión de AudioRecord, sin reiniciar SpeechRecognizer ni transcribir conversaciones ambientales. Tras responder se cierra la captura de órdenes; una nueva orden requiere «LEO». Se conservan la cancelación por generación de turno y la instrumentación de voz. Android puede mantener su indicador de micrófono durante la espera local.
 
 Ver [rutas de voz vigentes](docs/VOICE_STREAMING.md) y [alcance, eliminaciones y validación de la limpieza](docs/LEO_CODE_CLEANUP.md). Las capacidades físicas siguen **PENDIENTES DE VALIDACIÓN FÍSICA**.
 

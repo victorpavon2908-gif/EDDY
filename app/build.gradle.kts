@@ -18,8 +18,8 @@ android {
         // LEO 0.10.1 establece Android 12 (API 31) como base soportada oficial.
         minSdk = 31
         targetSdk = 36
-        versionCode = 41
-        versionName = "0.14.1"
+        versionCode = 42
+        versionName = "0.14.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake { arguments += "-DANDROID_STL=c++_shared" }

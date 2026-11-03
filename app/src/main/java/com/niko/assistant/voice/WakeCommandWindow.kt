@@ -1,13 +1,8 @@
 package com.niko.assistant.voice
 
-/**
- * Audio-worker state. Un wake acústico abre la primera orden; después de una respuesta
- * autorizada puede abrirse una ventana de seguimiento más corta para conversar sin
- * repetir NIKO en cada frase.
- */
+/** Only an acoustic wake authorizes command capture; ordinary responses close it. */
 class WakeCommandWindow(
-    private val durationMillis: Long = 30_000L,
-    private val followUpMillis: Long = 12_000L,
+    private val durationMillis: Long = 8_000L,
     private val maximumTurnMillis: Long = 60_000L,
 ) {
     private var deadline = 0L
@@ -25,13 +20,12 @@ class WakeCommandWindow(
 
     /** Un aviso/reintento solo extiende una ventana que ya estaba autorizada. */
     fun continueAfterPrompt(now: Long) {
-        if (deadline > 0L) onWake(now)
+        if (isOpen(now)) onWake(now)
     }
 
-    /** Solo el motor de voz debe llamarlo después de un wake acústico previamente válido. */
-    fun openFollowUp(now: Long) {
-        deadline = now + followUpMillis
-        maximumDeadline = now + maxOf(followUpMillis, maximumTurnMillis)
+    /** Only an acknowledgement/retry within the wake turn may keep capture open. */
+    fun afterResponse(now: Long, continueCommand: Boolean) {
+        if (continueCommand) continueAfterPrompt(now) else close()
     }
 
     /** VAD-confirmed speech keeps an already authorized turn alive through its endpoint. */

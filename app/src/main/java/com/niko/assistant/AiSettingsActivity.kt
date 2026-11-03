@@ -508,7 +508,7 @@ private fun LeoSettingsScreen(
 
                 DarkSwitchRow(
                     title = "Iniciar conversaciones",
-                    description = "Permite que LEO inicie charlas breves en la pantalla principal y mantenga el turno abierto tras responder.",
+                    description = "Permite que LEO inicie charlas breves en la pantalla principal. Decí LEO para responderle.",
                     checked = initiative,
                     onCheckedChange = {
                         initiative = it
@@ -519,7 +519,7 @@ private fun LeoSettingsScreen(
                 DarkInfoBox(
                     title = "Estado de voz",
                     body = buildString {
-                        append(voiceStatus.ifBlank { if (voiceEnabled) "Micrófono listo para escucharte." else "Escucha en pausa." })
+                        append(voiceStatus.ifBlank { if (voiceEnabled) "Espera local: decí LEO para activar una orden." else "Escucha en pausa." })
                         if (outputVoiceStatus.isNotBlank()) {
                             append("\n• Salida de voz: ")
                             append(outputVoiceStatus)

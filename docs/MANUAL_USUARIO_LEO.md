@@ -7,7 +7,7 @@ Guía de uso desde la primera apertura. Describe las funciones presentes en el c
 2. La guía completa está en **Inicio → Guía** y **Configuración → Explorar la guía**, incluso sin conexión. Podés buscar por palabra y copiar el texto. Entrá al icono de **Ajustes** (arriba a la derecha) y activá **Escuchar la palabra «LEO»**. El botón de reinicio de micrófono puede ayudar si no te oye.
 3. **Mi voz** permite registrar tu voz y activar el modo de propietario; el comportamiento varía con el entorno y nunca reemplaza la seguridad de Android.
 4. **Pantalla / accesibilidad** y **burbuja flotante** necesitan permisos separados y opcionales. Revisá lo que concedés.
-5. Volvé al inicio. Decí «LEO» y formulá una pregunta normal. Tras responder puede mantenerse una ventana de conversación breve si está activada.
+5. Volvé al inicio. Decí «LEO» y formulá una pregunta normal. Al terminar de responder vuelve a esperar la palabra «LEO». Decila antes de cada nueva orden.
 6. Usá **Conversación y controles** para leer la respuesta completa y sus enlaces, o **Herramientas** para cambiar de modo sin hablar.
 
 ## Ajustes: dónde encontrar cada opción
@@ -24,7 +24,10 @@ Los cambios de Android se guardan al instante. Tocá una categoría para abrir o
 
 ## 2. Hablar y conversar
 - «LEO, ¿qué podés hacer?», «LEO, explicame qué es la energía eólica», «LEO, ayudame con matemáticas».
-- **Iniciar conversaciones**: permite intervenciones breves del asistente. Es opcional en Ajustes.
+- **Iniciar conversaciones**: permite intervenciones breves del asistente. Es opcional en Ajustes; para responderle, decí «LEO».
+- **Espera local**: mantiene una sesión de micrófono con detección local de «LEO», sin transcribir conversaciones en espera ni abrir repetidamente el reconocedor de Android. Android puede mostrar el indicador de micrófono porque la detección necesita audio. Para liberar completamente el micrófono, pausá la escucha en Ajustes.
+- Tras «LEO», si no hablás, la captura de la orden se cierra a los ocho segundos. Una pregunta hablada puede continuar hasta el límite del turno. Después de una respuesta vuelve a espera; los avisos «Ajá» o «No te entendí» permiten completar esa misma orden. Para interrumpirlo mientras habla, empezá con «LEO».
+- La activación local requiere completar la instalación inicial de los módulos de voz. Si falla, muestra un error y permite reintentar; no cambia a una escucha continua de Android.
 - **Personalidad**: elegí el estilo disponible en Ajustes.
 - **Preferir respuestas locales**: intenta resolver con capacidades locales. No equivale a disponer de todos los conocimientos del mundo.
 
