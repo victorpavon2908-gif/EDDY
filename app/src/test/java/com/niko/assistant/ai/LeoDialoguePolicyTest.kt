@@ -4,6 +4,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LeoDialoguePolicyTest {
+    @Test fun narrationRemovesPageControlsAndKeepsTheExplanation() {
+        val raw = "Información reportada:\nBitcoin es dinero digital. [1] Hacé clic aquí para saber más. " +
+            "Su precio puede variar.\nFuentes: https://example.org/bitcoin"
+        assertEquals("Bitcoin es dinero digital. Su precio puede variar.", LeoDialoguePolicy.researchSpeech(raw, null))
+        assertEquals("Bitcoin permite transferencias.", LeoDialoguePolicy.cleanResearchSpeech(
+            "[Bitcoin](https://example.org) permite transferencias. [2]"))
+    }
+    @Test fun pageChromeIsRejectedWithoutRemovingRelevantWarnings() {
+        assertTrue(LeoDialoguePolicy.isPageChrome("Bitcoin: aceptá cookies. Haga clic aquí."))
+        assertFalse(LeoDialoguePolicy.isPageChrome("Bitcoin tiene riesgos y no garantiza ganancias."))
+        val warning = "Esto todavía es incierto: el dato no se ha confirmado."
+        assertEquals(warning, LeoDialoguePolicy.researchSpeech(warning, null))
+        assertTrue(LeoDialoguePolicy.cleanResearchSpeech("Haz clic aquí.").startsWith("No pude extraer"))
+    }
     @Test fun clarifiesOnlyIncompleteRequests() {
         assertNotNull(LeoDialoguePolicy.clarification("Ayudame"))
         assertNotNull(LeoDialoguePolicy.clarification("Explicame este error"))
@@ -27,7 +41,7 @@ class LeoDialoguePolicyTest {
         val voice = LeoDialoguePolicy.researchSpeech(original, "brief")
         assertTrue(voice.startsWith("Primera explicación. Segunda explicación. Tercera explicación."))
         assertTrue(voice.endsWith("El detalle completo queda en pantalla."))
-        assertEquals(original, LeoDialoguePolicy.researchSpeech(original, "detailed"))
+        assertEquals(original.trim(), LeoDialoguePolicy.researchSpeech(original, "detailed"))
         assertEquals("Correcto.", LeoDialoguePolicy.researchSpeech("Correcto.", "brief"))
     }
     @Test fun capabilitiesStayLocalAndExplainLimits() {

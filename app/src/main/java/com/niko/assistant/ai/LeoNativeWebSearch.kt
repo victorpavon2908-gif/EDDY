@@ -774,6 +774,7 @@ object LeoNativeWebSearch {
             val raw = hit.articleText.ifBlank { hit.snippet }.ifBlank { hit.title }
             val sentences = splitSentences(raw).take(MAX_SENTENCES_PER_SOURCE)
             sentences.forEachIndexed sentenceLoop@ { index, sentence ->
+                if (LeoDialoguePolicy.isPageChrome(sentence)) return@sentenceLoop
                 val tokens = meaningfulTokens(sentence).map(::canonicalTerm).toSet()
                 val overlap = tokens.intersect(queryTerms).size
                 val previousOverlap = if (index > 0) subjectTokens(sentences[index - 1]).intersect(queryTerms).size else 0

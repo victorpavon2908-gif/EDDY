@@ -11,6 +11,13 @@ La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad p
 
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
 
+## Conversación por voz 0.14.3
+
+- Después de cada respuesta, la escucha activa permite continuar durante 12 segundos sin repetir «LEO»; al vencer el plazo vuelve al detector local de activación.
+- Las búsquedas que superan 1,2 segundos reciben un aviso hablado breve. El aviso se cancela con la consulta y no se guarda como respuesta ni abre la captura mientras se investiga.
+- La síntesis generada tiene una salida hablada separada del informe con citas. Conserva incertidumbre e inferencias y filtra controles de navegación, cookies y enlaces.
+- Regresión: «¿Qué es Bitcoin?» seguida de «¿Y quién lo controla?» conserva el tema público y la respuesta anterior. La síntesis generativa usa el modelo disponible y autorizado; sin él se mantiene la selección extractiva local, sin prometer paráfrasis libre.
+
 ## Novedades 0.15.0 (Soberanía Total — Cero Dependencia de GPT, Gemini o Modelos Externos)
 
 - **Corazón Emocional Multiturno (`LeoEmotionalHeart`)**: seguimiento afectivo de sesión (valencia, activación y trayectoria emocional: recuperación, fatiga sostenida o entusiasmo) con vocabulario español y nicaragüense ampliado (`LeoEmotionClassifier`), modulación empática de respuestas y abstención estricta ante negaciones, citas o preguntas.
@@ -81,7 +88,7 @@ Los informes históricos pueden contener resultados de la aplicación web retira
 
 ## Voz y limpieza de código (2026-10-12)
 
-La salida activa utiliza el TTS de Android. Se retiraron el transporte Groq histórico, la cola progresiva desconectada y el sintetizador neuronal que nunca se inicializaba. La espera usa el detector local de «LEO» con una sesión de AudioRecord, sin reiniciar SpeechRecognizer ni transcribir conversaciones ambientales. Tras responder se cierra la captura de órdenes; una nueva orden requiere «LEO». Se conservan la cancelación por generación de turno y la instrumentación de voz. Android puede mantener su indicador de micrófono durante la espera local.
+La salida activa utiliza el TTS de Android. Se retiraron el transporte Groq histórico, la cola progresiva desconectada y el sintetizador neuronal que nunca se inicializaba. La espera usa el detector local de «LEO» con una sesión de AudioRecord, sin reiniciar SpeechRecognizer ni transcribir conversaciones ambientales. Desde 0.14.3, tras responder queda una ventana de 12 segundos para continuar; después vuelve a requerir «LEO». Se conservan la cancelación por generación de turno y la instrumentación de voz. Android puede mantener su indicador de micrófono durante la espera local.
 
 Ver [rutas de voz vigentes](docs/VOICE_STREAMING.md) y [alcance, eliminaciones y validación de la limpieza](docs/LEO_CODE_CLEANUP.md). Las capacidades físicas siguen **PENDIENTES DE VALIDACIÓN FÍSICA**.
 

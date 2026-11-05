@@ -7,7 +7,7 @@ Guía de uso desde la primera apertura. Describe las funciones presentes en el c
 2. La guía completa está en **Inicio → Guía** y **Configuración → Explorar la guía**, incluso sin conexión. Podés buscar por palabra y copiar el texto. Entrá al icono de **Ajustes** (arriba a la derecha) y activá **Escuchar la palabra «LEO»**. El botón de reinicio de micrófono puede ayudar si no te oye.
 3. **Mi voz** permite registrar tu voz y activar el modo de propietario; el comportamiento varía con el entorno y nunca reemplaza la seguridad de Android.
 4. **Pantalla / accesibilidad** y **burbuja flotante** necesitan permisos separados y opcionales. Revisá lo que concedés.
-5. Volvé al inicio. Decí «LEO» y formulá una pregunta normal. Al terminar de responder vuelve a esperar la palabra «LEO». Decila antes de cada nueva orden.
+5. Volvé al inicio. Decí «LEO» y formulá una pregunta normal. Después de responder deja hasta 12 segundos para que sigás hablando sin repetir su nombre. Cada respuesta abre otra ventana. Si dejás de conversar, vuelve a esperar «LEO». Decí «detenete» para finalizar.
 6. Usá **Conversación y controles** para leer la respuesta completa y sus enlaces, o **Herramientas** para cambiar de modo sin hablar.
 
 ## Ajustes: dónde encontrar cada opción

@@ -25,6 +25,21 @@ class LeoResearchSynthesisTest {
         assertTrue(result.text.contains("Información reportada"))
         assertTrue(result.text.contains("[1]"))
         assertEquals(original().sources, result.sources)
+        assertNotNull(result.spokenText)
+        assertFalse(result.spokenText!!.contains("[1]"))
+        assertFalse(result.spokenText!!.contains("Información reportada"))
+        assertTrue(result.spokenText!!.contains("no hay corroboración independiente"))
+    }
+    @Test fun spokenSynthesisKeepsInferenceAndUncertaintyExplicit() {
+        assertTrue(LeoResearchSynthesis.validate(claim(kind = "inference"), original())!!.spokenText!!.contains("interpretación posible"))
+        assertTrue(LeoResearchSynthesis.validate(claim(kind = "uncertain"), original())!!.spokenText!!.contains("todavía es incierto"))
+    }
+    @Test fun extractiveFallbackRejectsNavigationSentences() {
+        val reply = original().copy(passages = listOf(NikoRetrievedPassage(1,
+            "Bitcoin es dinero digital que permite transferencias entre personas. Hacé clic aquí para ver Bitcoin en esta página.")))
+        val result = LeoResearchSynthesis.synthesizeLocalExtractive(reply, "Qué es Bitcoin")
+        assertTrue(result.spokenText!!.contains("dinero digital"))
+        assertFalse(result.spokenText!!.contains("clic"))
     }
     @Test fun rejectsInventedCitationAndQuote() {
         assertNull(LeoResearchSynthesis.validate(claim(source = 2), original()))

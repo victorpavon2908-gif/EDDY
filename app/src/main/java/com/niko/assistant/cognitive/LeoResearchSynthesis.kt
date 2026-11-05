@@ -67,7 +67,15 @@ object LeoResearchSynthesis {
             runCatching { java.net.URI(original.sources[id - 1].url).host.lowercase().removePrefix("www.") }.getOrNull()
         }.toSet()
         val scope = if (domains.size < 2) "\n\nLa síntesis depende de un solo dominio; no hay corroboración independiente." else ""
-        original.copy(text = answer + scope, spokenText = null,
+        val spoken = groups.filterValues { it.isNotEmpty() }.entries.joinToString(" ") { (kind, lines) ->
+            val prefix = when (kind) {
+                "inference" -> "Una interpretación posible es: "
+                "uncertain" -> "Esto todavía es incierto: "
+                else -> ""
+            }
+            prefix + lines.distinct().joinToString(" ")
+        } + if (domains.size < 2) " Solo pude contrastarlo con una fuente; no hay corroboración independiente." else ""
+        original.copy(text = answer + scope, spokenText = com.niko.assistant.ai.LeoDialoguePolicy.cleanResearchSpeech(spoken),
             evidence = original.evidence + " Síntesis generada: referencias y citas contrastadas con extractos, sin certificación automática de veracidad.")
     }.getOrNull()
 
@@ -93,7 +101,7 @@ object LeoResearchSynthesis {
                 .replace(Regex("\\s+"), " ")
                 .split(Regex("(?<=[.!?])\\s+"))
                 .map { it.trim() }
-                .filter { it.length in 26..360 }
+                .filter { it.length in 26..360 && !com.niko.assistant.ai.LeoDialoguePolicy.isPageChrome(it) }
             sentences.forEachIndexed { idx, sent ->
                 val lower = sent.lowercase()
                 val overlap = queryWords.count { lower.contains(it) }

@@ -8,6 +8,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LeoAgentRuntimeTest {
+    @Test fun bitcoinFollowUpRetainsThePublicTopicAndPreviousAnswer() {
+        val manager = ConversationManager { 100L }
+        manager.begin("¿Qué es Bitcoin?", 1)
+        val reply = NikoAiReply("Bitcoin es dinero digital. [1]", true,
+            listOf(NikoWebSource("Bitcoin", "https://bitcoin.org/es/")))
+        manager.researched("¿Qué es Bitcoin?", reply)
+        manager.reply(reply)
+        manager.begin("¿Y quién lo controla?", 2)
+        assertTrue(manager.researchQuery("¿Y quién lo controla?").contains("Bitcoin"))
+        assertTrue(manager.context().contains("Bitcoin es dinero digital"))
+        assertTrue(manager.shouldResearchFollowUp("¿Y quién lo controla?"))
+    }
     @Test fun generationRejectsLateProducerEvenWithoutJobCancellation() = runBlocking {
         val turns = TurnController()
         val old = turns.begin()

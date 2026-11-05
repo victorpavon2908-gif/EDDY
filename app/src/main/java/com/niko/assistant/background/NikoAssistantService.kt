@@ -1247,6 +1247,14 @@ open class NikoAssistantService : Service() {
         val researchLearningEpoch = learningEpoch
         NikoRuntimeState.setSearching(applicationContext, true)
         NikoRuntimeState.setResponse(applicationContext, "Investigando en Internet…")
+        // One delayed acknowledgement, owned by this search. Never save it as an answer
+        // or reopen command capture while the real answer is still being prepared.
+        val progressVoice = serviceScope.launch {
+            delay(1_200L)
+            if (researchEpoch == turnEpoch && !destroyed && isThinking && !isSpeaking) {
+                speakOnly("Voy a consultar la información para explicártelo.", continueCommand = false)
+            }
+        }
         return try {
             val retrieved = webClient.reply(contextualQuery, "", forceWeb)
             val reply = retrieved?.let { original ->
@@ -1291,7 +1299,10 @@ open class NikoAssistantService : Service() {
                 forceWeb && !reply.webUsed -> reply
                 else -> reply
             }
-        } finally { if (researchEpoch == turnEpoch) NikoRuntimeState.setSearching(applicationContext, false) }
+        } finally {
+            progressVoice.cancel()
+            if (researchEpoch == turnEpoch) NikoRuntimeState.setSearching(applicationContext, false)
+        }
     }
 
     private suspend fun recordLearningReply(answer: String) {
@@ -1323,7 +1334,7 @@ open class NikoAssistantService : Service() {
         val emotionalProsody = neuralCore.emotionalHeart.currentEmotion?.let {
             SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it))
         } ?: replyProsody
-        speakOnly(com.niko.assistant.ai.LeoDialoguePolicy.researchSpeech(spokenText.ifBlank { finalText }, voiceStyle), prosody = emotionalProsody)
+        speakOnly(com.niko.assistant.ai.LeoDialoguePolicy.researchSpeech(spokenText.ifBlank { finalText }, voiceStyle), continueCommand = localVoiceActive, prosody = emotionalProsody)
         recordLearningReply(finalText)
         withPersonalMemory { memory.rememberAssistantTurn(finalText) }
     }
@@ -1336,7 +1347,7 @@ open class NikoAssistantService : Service() {
         val emotionalProsody = neuralCore.emotionalHeart.currentEmotion?.let {
             SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it))
         } ?: replyProsody
-        speakOnly(text, prosody = emotionalProsody)
+        speakOnly(text, continueCommand = localVoiceActive, prosody = emotionalProsody)
         recordLearningReply(text)
         withPersonalMemory { memory.rememberAssistantTurn(text) }
     }

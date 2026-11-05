@@ -16,6 +16,8 @@ object LeoLocalResearchPrompt {
             "Devolvé exclusivamente JSON sin markdown: " +
             "{\"claims\":[{\"kind\":\"reported\",\"text\":\"respuesta breve\",\"refs\":[{\"source\":1,\"quote\":\"cita textual exacta de al menos 24 caracteres\"}]}]}. " +
             "Una o dos afirmaciones. Cada una debe citar un source existente y una cita exacta. " +
+            "En text explicá con tus propias palabras, en español conversacional con voseo; respondé la pregunta primero. " +
+            "No copies menús, publicidad, avisos de cookies ni instrucciones para hacer clic. " +
             "kind puede ser reported, inference o uncertain; nunca confirmed. /no_think"
         return LeoLocalPrompt.turns(instruction,
             "Pregunta: ${LeoLocalPrompt.clean(question)}\nExtractos: ${LeoLocalPrompt.clean(bounded.toString())}", modelId)

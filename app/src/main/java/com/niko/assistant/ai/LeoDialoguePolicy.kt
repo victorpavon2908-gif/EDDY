@@ -33,12 +33,36 @@ object LeoDialoguePolicy {
 
     fun fallback(): String = "No logré interpretar bien lo que necesitás. ¿Podés decirlo de otra manera o darme un ejemplo?"
 
+    /** Navigation and consent controls are not evidence and must never become spoken facts. */
+    fun isPageChrome(text: String): Boolean = Regex(
+        "\\b(?:hace? clic|haga clic|haz clic|da clic|clic aqui|click here|aceptar (?:todas las )?cookies|" +
+            "acepta (?:las )?cookies|politica de (?:privacidad|cookies)|todos los derechos reservados|" +
+            "suscribite|suscribete|subscribe|inicia sesion|iniciar sesion|menu principal|saltar al contenido)\\b"
+    ).containsMatchIn(MemoryLearning.key(text))
+
+    fun cleanResearchSpeech(text: String): String {
+        val cleaned = text
+            .replace(Regex("\\[([^]\\n]+)]\\(https?://[^)]+\\)"), "$1")
+            .replace(Regex("https?://\\S+|www\\.\\S+"), "")
+            .replace(Regex("\\s*\\[\\d+]"), "")
+            .lineSequence()
+            .filterNot { Regex("(?i)^\\s*(?:fuentes?|referencias?|sources?)\\s*:").containsMatchIn(it) }
+            .map { it.replace(Regex("(?i)^\\s*Informaci[oó]n reportada\\s*:\\s*"), "") }
+            .joinToString(" ")
+            .split(Regex("(?<=[.!?])\\s+"))
+            .filterNot(::isPageChrome)
+            .joinToString(" ")
+            .replace(Regex("\\s+"), " ").trim()
+        return cleaned.ifBlank { "No pude extraer una explicación útil de esas páginas. Podés pedirme que lo intente con otras fuentes." }
+    }
+
     /** Explicit brevity affects research narration, never stored evidence or action confirmations. */
     fun researchSpeech(text: String, style: String?): String {
-        if (style != "brief" || text.length <= 420) return text
-        val sentences = Regex("[^.!?]+[.!?](?:\\s|$)").findAll(text).map { it.value.trim() }.toList()
+        val clean = cleanResearchSpeech(text)
+        if (style != "brief" || clean.length <= 420) return clean
+        val sentences = Regex("[^.!?]+[.!?](?:\\s|$)").findAll(clean).map { it.value.trim() }.toList()
         val brief = sentences.take(3).joinToString(" ")
-        if (brief.isBlank() || brief.length >= text.length) return text
+        if (brief.isBlank() || brief.length >= clean.length) return clean
         return "$brief El detalle completo queda en pantalla."
     }
 }
