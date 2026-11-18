@@ -10,6 +10,16 @@ import kotlinx.coroutines.launch
 import java.net.URLDecoder
 
 class LeoNativeWebSearchTest {
+    @Test fun weatherWordsInAnExplicitLinkDoNotRedirectTheRequest() = runBlocking {
+        val link = "https://example.org/clima"
+        val requested = mutableListOf<String>()
+        LeoNativeWebSearch.search("Leé este artículo sobre clima: $link") { url, _, _ ->
+            requested += url
+            LeoNativeWebSearch.Fetch("", url, 404)
+        }
+        assertEquals(listOf(link), requested)
+    }
+
     @Test fun slowDiscoveryKeepsCompletedProvidersAndStillReadsPages() = runBlocking {
         var slowProviderCancelled = false
         val reply = LeoNativeWebSearch.search("panel solar") { url, _, _ ->

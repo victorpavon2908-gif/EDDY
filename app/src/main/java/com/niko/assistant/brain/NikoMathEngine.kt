@@ -36,17 +36,17 @@ object NikoMathEngine {
     }
 
     fun convertUnits(input: String): String? {
-        val clean = normalize(input)
+        val clean = normalize(input).trimStart('¿', '¡', ' ')
             .replace(Regex("""^(?:leo|niko|eddy)\s*[,.:;-]?\s*"""), "")
             .trim(' ', '¿', '?', '!', '.', ':', ';')
 
         val directMatch = Regex(
-            """^(?:converti(?:r|me)?|convierte|cuanto(?:s|as)?\s+(?:es|son|equivale(?:n)?)|pasa(?:r|me)?|transforma(?:r)?|calcula(?:r|me)?)?\s*(-?\d+(?:[.,]\d+)?)\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)\s+(?:a|en)\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)$"""
+            """^(?:converti(?:r|me)?|convierte|cuanto(?:s|as)?\s+(?:es|son|equivale(?:n)?)|pasa(?:r|me)?|transforma(?:r)?|calcula(?:r|me)?)?\s*(-?\d+(?:[.,]\d+)?)\s+(?:grados?\s+)?(°?[a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)\s+(?:a|en)\s+(?:grados?\s+)?(°?[a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)$"""
         ).find(clean)
 
         val reverseMatch = if (directMatch == null) {
             Regex(
-                """^cuanto(?:s|as)?\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)\s+(?:son|hay\s+en|tiene(?:n)?|equivalen?\s+a)\s+(-?\d+(?:[.,]\d+)?)\s+(?:grados?\s+)?([a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)$"""
+                """^cuanto(?:s|as)?\s+(?:grados?\s+)?(°?[a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)\s+(?:son|hay\s+en|tiene(?:n)?|equivalen?\s+a)\s+(-?\d+(?:[.,]\d+)?)\s+(?:grados?\s+)?(°?[a-z/]+(?:\s+por\s+hora|\s+por\s+segundo)?)$"""
             ).find(clean)
         } else null
 
@@ -83,7 +83,7 @@ object NikoMathEngine {
     }
 
     private fun normalizeExpression(input: String): String? {
-        var text = normalize(input)
+        var text = normalize(input).trimStart('¿', '¡', ' ')
             .replace('×', '*')
             .replace('÷', '/')
             .replace(',', '.')
@@ -94,7 +94,7 @@ object NikoMathEngine {
                 """^(?:(?:leo|niko|eddy)\s*[,.:;-]?\s*)?(?:por\s+favor\s+)?(?:cuanto\s+es|cuanto\s+da|calcula(?:me)?|calcular|resuelve|resolver|resultado\s+de|dime\s+cuanto\s+es|decime\s+cuanto\s+es)\s+"""
             ),
             "",
-        ).trim(' ', '¿', '?', '!', '.', ':', ';')
+        ).trimEnd(' ', '?', '!', '.', ':', ';').trimStart()
 
         val discountMatch = Regex(
             """^(?:el\s+)?descuento\s+de(?:l)?\s+(-?\d+(?:\.\d+)?)\s*(?:%|por\s+ciento)\s+(?:a|de|sobre|en)\s+(-?\d+(?:\.\d+)?)$"""
@@ -176,7 +176,7 @@ object NikoMathEngine {
 
         val strippedFunctions = text.replace(Regex("""\b(?:sqrt|cbrt|sin|cos|tan|log|ln|abs|fact)\b"""), "")
         if (Regex("""[^0-9.+\-*/%^()\s]""").containsMatchIn(strippedFunctions)) return null
-        return text.replace(Regex("""\s+"""), "")
+        return text
     }
 
     private fun normalize(value: String): String {
@@ -229,8 +229,8 @@ object NikoMathEngine {
         UnitSpec("mg", UnitCategory.MASS, 0.000001, setOf("mg", "miligramo", "miligramos")),
         UnitSpec("lb", UnitCategory.MASS, 0.45359237, setOf("lb", "lbs", "libra", "libras")),
         UnitSpec("oz", UnitCategory.MASS, 0.028349523125, setOf("oz", "onza", "onzas")),
-        UnitSpec("°C", UnitCategory.TEMPERATURE, 1.0, setOf("c", "celsius", "centigrado", "centigrados")),
-        UnitSpec("°F", UnitCategory.TEMPERATURE, 1.0, setOf("f", "fahrenheit")),
+        UnitSpec("°C", UnitCategory.TEMPERATURE, 1.0, setOf("c", "°c", "celsius", "centigrado", "centigrados")),
+        UnitSpec("°F", UnitCategory.TEMPERATURE, 1.0, setOf("f", "°f", "fahrenheit")),
         UnitSpec("K", UnitCategory.TEMPERATURE, 1.0, setOf("k", "kelvin")),
         UnitSpec("L", UnitCategory.VOLUME, 1.0, setOf("l", "lt", "lts", "litro", "litros")),
         UnitSpec("mL", UnitCategory.VOLUME, 0.001, setOf("ml", "mililitro", "mililitros")),
@@ -290,18 +290,18 @@ object NikoMathEngine {
         }
 
         private fun parseMultiplyDivide(): Double {
-            var value = parsePower()
+            var value = parseUnary()
             while (true) {
                 skipSpaces()
                 value = when {
-                    match('*') -> value * parsePower()
+                    match('*') -> value * parseUnary()
                     match('/') -> {
-                        val divisor = parsePower()
+                        val divisor = parseUnary()
                         if (divisor == 0.0) error("División por cero")
                         value / divisor
                     }
                     match('%') -> {
-                        val divisor = parsePower()
+                        val divisor = parseUnary()
                         if (divisor == 0.0) error("Módulo por cero")
                         value % divisor
                     }
@@ -311,10 +311,10 @@ object NikoMathEngine {
         }
 
         private fun parsePower(): Double {
-            var value = parseUnary()
+            var value = parsePrimary()
             skipSpaces()
             if (match('^')) {
-                val exponent = parsePower()
+                val exponent = parseUnary()
                 if (abs(exponent) > 20 || abs(value) > 1_000_000) error("Potencia demasiado grande")
                 value = value.pow(exponent)
             }
@@ -326,7 +326,7 @@ object NikoMathEngine {
             return when {
                 match('+') -> parseUnary()
                 match('-') -> -parseUnary()
-                else -> parsePrimary()
+                else -> parsePower()
             }
         }
 

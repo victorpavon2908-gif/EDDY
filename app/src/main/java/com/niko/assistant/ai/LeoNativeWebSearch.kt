@@ -105,18 +105,15 @@ object LeoNativeWebSearch {
             catch (_: Exception) { null }
         }
         val cleanQuery = query.trim().take(MAX_QUERY_CHARS)
-        runCatching { android.util.Log.i("LEO_TRACE", "LeoNativeWebSearch.search start: " + cleanQuery) }
 
-        // 1. Detección directa de Clima en tiempo real (wttr.in)
+        val links = Regex("https?://[^\\s<>\"]+").findAll(cleanQuery)
+            .map { it.value.trimEnd('.', ',', ')', ']') }.distinct().take(3).toList()
+        if (links.isNotEmpty()) return@withContext readLinks(cleanQuery, links, fetch)
+
         if (isWeatherQuery(cleanQuery)) {
             val weatherReply = searchWeather(cleanQuery, fetch)
             if (weatherReply != null) return@withContext weatherReply
         }
-
-        // 2. Lectura directa de enlaces explícitos
-        val links = Regex("https?://[^\\s<>\"]+").findAll(cleanQuery)
-            .map { it.value.trimEnd('.', ',', ')', ']') }.distinct().take(3).toList()
-        if (links.isNotEmpty()) return@withContext readLinks(cleanQuery, links, fetch)
 
         val subject = subjectQuery(cleanQuery)
         val terms = subjectTokens(subject)

@@ -17,6 +17,22 @@ class NikoMathEngineTest {
     }
 
     @Test
+    fun parsesSpokenQuestionsAndDecimalOperands() {
+        assertEquals("5", NikoMathEngine.solve("¿Cuánto es dos más tres?"))
+        assertEquals("1.5", NikoMathEngine.solve(".5 + 1"))
+        assertNull(NikoMathEngine.solve("2 3 + 1"))
+        assertEquals("36 °C equivalen a 96.8 °F.", NikoMathEngine.convertUnits("¿LEO, convertí 36 °C a °F?"))
+    }
+
+    @Test
+    fun powersBindBeforeSignsAndAssociateToTheRight() {
+        assertEquals("-4", NikoMathEngine.solve("-2^2"))
+        assertEquals("4", NikoMathEngine.solve("(-2)^2"))
+        assertEquals("0.25", NikoMathEngine.solve("2^-2"))
+        assertEquals("512", NikoMathEngine.solve("2^3^2"))
+    }
+
+    @Test
     fun solvesParentheses() {
         assertEquals("20", NikoMathEngine.solve("calculame (2 + 3) * 4"))
     }

@@ -7,10 +7,6 @@ leo_work=$(mktemp -d)
 trap 'rm -rf -- "$leo_work"' EXIT
 leo_json="${LEO_JSON_JAR:?Set LEO_JSON_JAR to the org.json dependency JAR}"
 leo_cp="$leo_json:$leo_lib/kotlin-stdlib-2.0.21.jar:$leo_lib/kotlinx-coroutines-core-jvm-1.6.4.jar"
-cat > "$leo_work/Log.kt" <<'KOTLIN'
-package android.util
-object Log { @JvmStatic fun i(tag: String, message: String): Int = 0 }
-KOTLIN
 cat > "$leo_work/Probe.kt" <<'KOTLIN'
 import com.niko.assistant.ai.LeoNativeWebSearch
 import kotlinx.coroutines.runBlocking
@@ -38,12 +34,14 @@ fun main(args: Array<String>) = runBlocking {
 }
 KOTLIN
 java -cp "$leo_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-reflect -jvm-target 17 \
- -classpath "$leo_cp" -d "$leo_work/probe.jar" "$leo_work/Probe.kt" "$leo_work/Log.kt" \
+ -classpath "$leo_cp" -d "$leo_work/probe.jar" "$leo_work/Probe.kt" \
  app/src/main/java/com/niko/assistant/agent/LeoTurnBudget.kt \
  app/src/main/java/com/niko/assistant/modes/LeoMode.kt \
  app/src/main/java/com/niko/assistant/ai/LeoWeather.kt \
  app/src/main/java/com/niko/assistant/ai/LeoWebRequests.kt \
  app/src/main/java/com/niko/assistant/ai/LeoNativeWebSearch.kt \
+ app/src/main/java/com/niko/assistant/ai/LeoDialoguePolicy.kt \
+ app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt \
  app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt \
  app/src/main/java/com/niko/assistant/brain/WebQueryRouter.kt
 java -cp "$leo_work/probe.jar:$leo_cp" ProbeKt "$@"
