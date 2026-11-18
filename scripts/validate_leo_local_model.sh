@@ -39,6 +39,8 @@ java -cp "$leo_lib/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-
  app/src/main/java/com/niko/assistant/modes/LeoMode.kt \
  app/src/main/java/com/niko/assistant/inference/local/LeoLocalPrompt.kt \
  app/src/main/java/com/niko/assistant/inference/local/LeoLocalResearchPrompt.kt \
+ app/src/main/java/com/niko/assistant/ai/LeoDialoguePolicy.kt \
+ app/src/main/java/com/niko/assistant/memory/MemoryLearning.kt \
  app/src/main/java/com/niko/assistant/ai/NikoAiReply.kt \
  app/src/main/java/com/niko/assistant/cognitive/LeoResearchSynthesis.kt scripts/ValidateLeoLocalModel.kt
 java -Djava.library.path="$leo_root/native" -cp "$leo_root/probes.jar:$leo_cp" ValidateLeoLocalModelKt "$leo_root/model.gguf" 2> "$leo_root/native.log" | tee "$leo_root/results.txt"
