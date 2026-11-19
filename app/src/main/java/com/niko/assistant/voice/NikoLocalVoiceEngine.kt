@@ -94,6 +94,7 @@ class NikoLocalVoiceEngine(
     @Volatile private var bargeInGuardUntil = 0L
     @Volatile private var state = State.STOPPED
     @Volatile private var lastWakeAt = 0L
+    @Volatile private var lastPassiveProbeAt = 0L
     @Volatile private var commandSpeechNotified = false
     @Volatile private var commandSpeechFrames = 0
     @Volatile private var ownerAuthorizedUntil = 0L
@@ -595,10 +596,69 @@ class NikoLocalVoiceEngine(
                 if (ownerVoice.enrollmentActive || !acceptSpeaker(wakeAudio, allowRecentOwner = false)) {
                     resetKeywordStream()
                     preRoll.clear()
+                    if (!ownerVoice.enrollmentActive) onUnauthorizedVoice()
                     return
                 }
                 activateWakeFromPassive(SystemClock.elapsedRealtime(), includePreRoll = true, source = "Sherpa KWS")
                 return
+            }
+        }
+
+        // Ruta 2 (rescate en español): Silero VAD + Canary rescatan "Leo" u "Oye Leo + orden"
+        // cuando el KWS zh-en no dispara por acento o micrófono.
+        val localVad = vad ?: return
+        localVad.acceptWaveform(samples)
+        while (!localVad.empty()) {
+            val segment = localVad.front()
+            localVad.pop()
+            val burst = segment.samples
+            val now = SystemClock.elapsedRealtime()
+            if (!LeoPassiveWakeVerifier.shouldProbe(burst.size, now, lastPassiveProbeAt)) continue
+            lastPassiveProbeAt = now
+            if (!ensureCommandModelsReady()) continue
+            val canary = recognizer ?: continue
+            val rawTranscript = runCatching { transcribeWith(canary, burst) }
+                .onFailure { com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.passiveRescue", it) }
+                .getOrDefault("")
+            if (rawTranscript.isBlank()) continue
+            val repaired = TranscriptQuality.repairAsrTranscript(rawTranscript)
+            when (val wake = LeoPassiveWakeVerifier.consumeTranscript(repaired, now)) {
+                WakeResult.Ignored -> Unit
+                WakeResult.Activated -> {
+                    if (ownerVoice.enrollmentActive || !acceptSpeaker(burst, allowRecentOwner = false)) {
+                        resetKeywordStream()
+                        preRoll.clear()
+                        if (!ownerVoice.enrollmentActive) onUnauthorizedVoice()
+                        return
+                    }
+                    if (activateWakeFromPassive(now, includePreRoll = false, source = "VAD+Canary")) {
+                        wakeAcknowledged = true
+                        speaking = true
+                        resetCommandDetector()
+                        onAwaitingCommand("Ajá.", true)
+                    }
+                    return
+                }
+                is WakeResult.Command -> {
+                    if (ownerVoice.enrollmentActive || !acceptSpeaker(burst, allowRecentOwner = false)) {
+                        resetKeywordStream()
+                        preRoll.clear()
+                        if (!ownerVoice.enrollmentActive) onUnauthorizedVoice()
+                        return
+                    }
+                    if (now - lastWakeAt < WAKE_DEBOUNCE_MS) return
+                    lastWakeAt = now
+                    resetKeywordStream()
+                    resetCommandDetector()
+                    preRoll.clear()
+                    LeoVoiceDiagnostics.recordWake("VAD+Canary · orden directa")
+                    onWake(1f, ownerVoice.hasProfile())
+                    LeoRealtimeTurnBus.updateTranscript(wake.text)
+                    commandWindow.close()
+                    assistantBusy = true
+                    onCommand(wake.text)
+                    return
+                }
             }
         }
     }
