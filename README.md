@@ -11,6 +11,10 @@ La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad p
 
 Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
 
+## Sumate al desarrollo
+
+Buscamos personas que quieran desarrollar y mantener LEO en comunidad. Podés probarlo en Android, trabajar en Kotlin, mejorar los scripts de Python o proponer la próxima función. Para empezar, leé la [guía de contribución](CONTRIBUTING.md) o participá en la [primera prueba con y sin internet](https://github.com/victorpavon2908-gif/EDDY/issues/25).
+
 ## Conversación por voz 0.14.3
 
 - Después de cada respuesta, la escucha activa permite continuar durante 12 segundos sin repetir «LEO»; al vencer el plazo vuelve al detector local de activación.
