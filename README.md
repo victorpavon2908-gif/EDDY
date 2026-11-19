@@ -42,3 +42,16 @@ Para proponer una función o asumir el mantenimiento de un área, consultá la [
 ## Licencia
 
 El código original de EDDY / LEO se distribuye bajo la [GNU General Public License, versión 3](LICENSE) (`GPL-3.0-only`). Las dependencias, los modelos y los materiales de terceros conservan sus respectivas licencias. Consultá los [avisos de componentes y modelos](app/src/main/assets/licenses) y los [créditos de la interfaz](THIRD_PARTY_UI_NOTICES.md).
+
+### Qué podés hacer con el código de LEO
+
+| Situación | Qué implica GPLv3 |
+|---|---|
+| Usar LEO o modificarlo en privado | Podés hacerlo para uso personal o interno de una empresa. Podés conservar esos cambios en privado. |
+| Crear tu propia versión | Podés copiar el repositorio y desarrollar un *fork*. Enviar mejoras al proyecto original es voluntario. Para incorporar un cambio a la versión oficial, seguí la [guía de contribución](CONTRIBUTING.md). |
+| Vender copias o cobrar por soporte | Podés cobrar y conservar esos ingresos. Quien recibe una copia también tiene derecho a compartirla, incluso gratis. |
+| Compartir código modificado | Debés distribuir la obra derivada bajo GPLv3, incluir la licencia, conservar los avisos de autoría, licencia y garantía, e indicar de forma visible que hiciste cambios y en qué fecha. |
+| Entregar un APK, gratis o de pago | Debés facilitar el código fuente correspondiente a esa versión, incluidos tus cambios y los scripts necesarios para compilarla, según la sección 6. Si ofrecés el APK en una página de descarga, una opción es enlazar allí el código exacto, accesible sin cargo adicional. |
+| Distribuir una versión derivada como software cerrado | GPLv3 lo prohíbe. También prohíbe imponer condiciones adicionales que impidan a quienes reciben la copia modificarla o redistribuirla. |
+
+La licencia permite colaborar sin transferir la titularidad de las aportaciones. Un fork tiene su propio historial y sus responsables. Los permisos de escritura y publicación del repositorio oficial los administra el equipo del proyecto. Para los términos completos, consultá la [licencia](LICENSE) y las [preguntas frecuentes de GNU](https://www.gnu.org/licenses/gpl-faq.html).
