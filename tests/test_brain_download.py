@@ -60,3 +60,12 @@ class BrainDownloadTest(unittest.TestCase):
         self.run_download(self.response(416), self.response(200, b"new data"))
         self.assertNotIn("Range", self.client.get.call_args.kwargs["headers"])
         self.assertEqual(self.file.read_bytes(), b"new data")
+
+    def test_server_can_deliver_resume_in_several_ranges(self):
+        self.run_download(
+            self.response(206, b"de", **{"Content-Range": "bytes 3-4/7"}),
+            self.response(206, b"fg", **{"Content-Range": "bytes 5-6/7"}),
+        )
+        offsets = [call.kwargs["headers"]["Range"] for call in self.client.get.call_args_list]
+        self.assertEqual(offsets, ["bytes=3-", "bytes=5-"])
+        self.assertEqual(self.file.read_bytes(), b"abcdefg")

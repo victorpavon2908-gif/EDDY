@@ -17,6 +17,7 @@ import re
 import shutil
 import sqlite3
 import sys
+import tempfile
 import time
 import zipfile
 from pathlib import Path
@@ -79,7 +80,7 @@ def chunks(text: str, maximum: int = 11_500, overlap: int = 320) -> Iterator[str
             if cut > floor:
                 end = cut + 1
         piece = text[start:end].strip()
-        if len(piece) >= 350:
+        if piece and (len(piece) >= 350 or end == len(text)):
             yield piece
         if end >= len(text):
             break
@@ -90,16 +91,18 @@ def download(url: str, destination: Path) -> None:
     import requests
     destination.parent.mkdir(parents=True, exist_ok=True)
     partial = destination.with_suffix(destination.suffix + ".part")
-    existing = partial.stat().st_size if partial.exists() else 0
+    offset = partial.stat().st_size if partial.exists() else 0
     # A stale range may need one fresh request. Keep the partial until the
     # server actually supplies a complete replacement response.
-    offsets = (existing, 0) if existing else (0,)
-    for offset in offsets:
+    fresh_retry_available = bool(offset)
+    while True:
         headers = {"User-Agent": "LEO-Frozen-Brain-Builder/1.0", "Accept-Encoding": "identity"}
         if offset:
             headers["Range"] = f"bytes={offset}-"
         with requests.get(url, headers=headers, stream=True, timeout=(30, 120)) as response:
-            if offset and response.status_code == 416:
+            if offset and fresh_retry_available and response.status_code == 416:
+                fresh_retry_available = False
+                offset = 0
                 continue
             response.raise_for_status()
             if response.headers.get("Content-Encoding", "identity").lower() != "identity":
@@ -116,6 +119,8 @@ def download(url: str, destination: Path) -> None:
                 start = 0
                 length = response.headers.get("Content-Length")
                 total = int(length) if length is not None else None
+                if total is not None and total < 0:
+                    raise ValueError("Negative Content-Length for corpus download")
                 expected_end = total
             else:
                 raise ValueError(f"Unexpected corpus download status {response.status_code}")
@@ -132,15 +137,16 @@ def download(url: str, destination: Path) -> None:
                     if now - last >= 5:
                         print(f"download {destination.name}: {done}/{total or '?'} bytes", flush=True)
                         last = now
-            if total is not None and done != total:
+            if expected_end is not None and done != expected_end:
                 raise OSError(f"Incomplete corpus download: {done}/{total} bytes")
+            if total is not None and done < total:
+                offset = done
+                continue
             break
     partial.replace(destination)
 
 
 def seed_records(seed_path: Path) -> Iterator[tuple[str, str, str, str]]:
-    if not seed_path.is_file():
-        return
     for line_number, line in enumerate(seed_path.read_text(encoding="utf-8").splitlines(), 1):
         line = line.strip()
         if not line:
@@ -245,6 +251,8 @@ def ingest_until_target(
 
 def build(args: argparse.Namespace) -> tuple[Path, Path]:
     output = Path(args.output_dir).resolve()
+    seed = Path(args.seed)
+    curriculum_sha = sha256(seed)
     cache = output / "source-cache"
     package = output / "package"
     if package.exists():
@@ -255,12 +263,10 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
     connection = create_database(database)
 
     count = 0
-    reached = False
-    seed = Path(args.seed)
-    count, reached = ingest_until_target(connection, database, seed_records(seed), args.target_bytes, count)
 
     used_shards: list[str] = []
     try:
+        count, reached = ingest_until_target(connection, database, seed_records(seed), args.target_bytes, count)
         for shard_index in range(SHARD_COUNT):
             if reached:
                 break
@@ -294,7 +300,7 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
         raise RuntimeError(f"Brain exceeded hard 500 MB budget: {installed_bytes} > {args.max_bytes}")
 
     # Verify that the frozen index actually answers representative offline queries.
-    check = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    check = sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)
     try:
         for query in ("Nicaragua", "inteligencia artificial", "sistema solar", "gallo pinto", "depurar error", "promedio eficiencia", "actualizar offline"):
             row = check.execute(
@@ -310,7 +316,7 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
     internal_manifest = {
         "schema": 1,
         "version": VERSION,
-        "curriculum_sha256": sha256(seed),
+        "curriculum_sha256": curriculum_sha,
         "build_commit": os.environ.get("GITHUB_SHA", "local"),
         "database": DATABASE_NAME,
         "installed_bytes": installed_bytes,
@@ -328,7 +334,7 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
         encoding="utf-8",
     )
     (package / ATTRIBUTION_NAME).write_text(
-        """Leo Frozen Brain v1\n\n"
+        "Leo Frozen Brain v1\n\n"
         "General knowledge source: Wikimedia Wikipedia, Spanish configuration 20231101.es,\n"
         "distributed through the wikimedia/wikipedia dataset on Hugging Face.\n"
         "Wikipedia text is available under CC BY-SA 3.0 and GFDL; individual article URLs\n"
@@ -336,33 +342,38 @@ def build(args: argparse.Namespace) -> tuple[Path, Path]:
         "Dataset: https://huggingface.co/datasets/wikimedia/wikipedia\n"
         "CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/\n"
         "GFDL: https://www.gnu.org/licenses/fdl-1.3.html\n"
-        "Leo-specific seed entries are first-party project material.\n""",
+        "Leo-specific seed entries are first-party project material.\n",
         encoding="utf-8",
     )
 
     archive = output / ARCHIVE_NAME
-    archive.unlink(missing_ok=True)
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as zipped:
-        for name in (DATABASE_NAME, INTERNAL_MANIFEST, ATTRIBUTION_NAME):
-            zipped.write(package / name, arcname=name)
-
-    external = {
-        "schema": 1,
-        "version": VERSION,
-        "curriculum_sha256": sha256(seed),
-        "build_commit": os.environ.get("GITHUB_SHA", "local"),
-        "archive_name": ARCHIVE_NAME,
-        "archive_bytes": archive.stat().st_size,
-        "archive_sha256": sha256(archive),
-        "installed_bytes": installed_bytes,
-        "installed_sha256": database_sha,
-        "document_count": count,
-        "source_dataset": DATASET,
-        "source_config": DATASET_CONFIG,
-        "source_license": ["CC-BY-SA-3.0", "GFDL"],
-    }
     manifest = output / EXTERNAL_MANIFEST
-    manifest.write_text(json.dumps(external, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    with tempfile.TemporaryDirectory(dir=output) as staging:
+        staged_archive = Path(staging) / ARCHIVE_NAME
+        with zipfile.ZipFile(staged_archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as zipped:
+            for name in (DATABASE_NAME, INTERNAL_MANIFEST, ATTRIBUTION_NAME):
+                zipped.write(package / name, arcname=name)
+
+        external = {
+            "schema": 1,
+            "version": VERSION,
+            "curriculum_sha256": curriculum_sha,
+            "build_commit": os.environ.get("GITHUB_SHA", "local"),
+            "archive_name": ARCHIVE_NAME,
+            "archive_bytes": staged_archive.stat().st_size,
+            "archive_sha256": sha256(staged_archive),
+            "installed_bytes": installed_bytes,
+            "installed_sha256": database_sha,
+            "document_count": count,
+            "source_dataset": DATASET,
+            "source_config": DATASET_CONFIG,
+            "source_license": ["CC-BY-SA-3.0", "GFDL"],
+        }
+        staged_manifest = Path(staging) / EXTERNAL_MANIFEST
+        staged_manifest.write_text(json.dumps(external, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        staged_archive.replace(archive)
+        staged_manifest.replace(manifest)
 
     print(json.dumps(external, indent=2), flush=True)
     return archive, manifest
