@@ -1,141 +1,44 @@
-# EDDY / LEO · Android
+<img src="app/src/main/res/drawable-nodpi/leo_emblem.webp" alt="Emblema de LEO" width="80">
 
-Identidad visual actual: [emblema negro proporcionado por el usuario](docs/design/LEO_EMBLEM.md), en sustitución del robot 3D.
+# LEO · Asistente para Android
 
-Aplicación móvil nativa para Android 12 o superior. El proyecto se centra exclusivamente en dispositivos Android; la aplicación web y su servidor se retiraron. La interfaz actual usa Kotlin y Jetpack Compose. La migración del cerebro a Python sigue pendiente; los scripts de preparación y entrenamiento ya usan Python.
+LEO es un asistente de voz en español para Android 12 o superior. Puede consultar una enciclopedia instalada en el teléfono, buscar información en internet con fuentes y abrir herramientas como notas y temporizadores. La aplicación está escrita en Kotlin con Jetpack Compose. Python se usa para preparar conocimiento, entrenar modelos y validar datos.
 
-**Guía para nuevos usuarios:** [manual completo](docs/MANUAL_USUARIO_LEO.md), disponible sin conexión desde Inicio → Guía y Ajustes → Guía de uso.
+[Manual de la app](docs/MANUAL_USUARIO_LEO.md) · [Cómo contribuir](CONTRIBUTING.md) · [Historial técnico](HISTORIAL.md)
 
-**Ajustes:** secciones desplegables, estilo pizarra y salvia con textos breves, preferencias inmediatas, descargas con errores recuperables y guía integrada. La búsqueda en Internet nativa de Android se mantiene.
-La identidad pública del proyecto es **LEO**. Ver [identidad y compatibilidad para auditoría](docs/IDENTIDAD_LEO.md).
+## Una primera prueba
 
-Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el asistente de voz mantiene su nombre y palabra de activación **LEO**.
+Una vez preparados los módulos de voz, decí «LEO, ¿qué podés hacer?». Para probar la búsqueda, abrí **Ajustes → Internet y fuentes → Probar búsqueda**. La enciclopedia se instala por separado en **Modelos y descargas**. Podés ayudar a comprobar cómo cambia una respuesta al desconectar el teléfono en la [prueba comunitaria con Rubén Darío](https://github.com/victorpavon2908-gif/EDDY/issues/25).
 
-## Sumate al desarrollo
+## Empezá a desarrollar
 
-Buscamos personas que quieran desarrollar y mantener LEO en comunidad. Podés probarlo en Android, trabajar en Kotlin, mejorar los scripts de Python o proponer la próxima función. Para empezar, leé la [guía de contribución](CONTRIBUTING.md) o participá en la [primera prueba con y sin internet](https://github.com/victorpavon2908-gif/EDDY/issues/25).
+Cloná el repositorio y entrá a su directorio.
+
+```sh
+git clone https://github.com/victorpavon2908-gif/EDDY.git
+cd EDDY
+```
+
+**Para explorar el conocimiento local**, ejecutá esta prueba desde la raíz con Python 3 y SQLite con FTS4. Crea un índice temporal con artículos del proyecto y comprueba que búsquedas como «gallo pinto» encuentren la entrada esperada. Funciona sin descargar modelos ni instalar Android Studio.
+
+```sh
+python3 -m unittest discover -s tests -p test_frozen_curriculum.py -v
+```
+
+En Windows podés sustituir `python3` por `py -3`.
+
+**Para trabajar en la app**, abrí la raíz en Android Studio con JDK 17. Desde SDK Manager instalá Android SDK 36, Build Tools 36.0.0, NDK 27.0.12077973 y CMake 3.22.1. Sincronizá Gradle y ejecutá el módulo `app` en un teléfono o emulador Android 12 o superior. La primera preparación de los módulos de voz requiere conexión.
+
+## Dónde aportar
+
+| Si te interesa… | Empezá por acá |
+|---|---|
+| Mejorar la búsqueda y sus fuentes | Revisá el [flujo de búsqueda](docs/SEARCH_RELIABILITY.md) y documentá una consulta que devuelva una cita incorrecta. |
+| Ampliar el conocimiento en español | Explorá el [currículo local](brain/leo_seed_knowledge.jsonl) y las [pruebas de recuperación](tests/test_frozen_curriculum.py). |
+| Probar la voz en un teléfono | Seguí el [protocolo de medición](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md). Las mediciones de latencia y batería requieren un dispositivo físico. |
+
+Para proponer una función o asumir el mantenimiento de un área, consultá la [guía de colaboración](CONTRIBUTING.md). El repositorio conserva el nombre EDDY y el identificador Android `com.eddy.assistant`. La app se presenta como LEO.
 
 ## Licencia
 
 El código original de EDDY / LEO se distribuye bajo la [GNU General Public License, versión 3](LICENSE) (`GPL-3.0-only`). Las dependencias, los modelos y los materiales de terceros conservan sus respectivas licencias. Consultá los [avisos de componentes y modelos](app/src/main/assets/licenses) y los [créditos de la interfaz](THIRD_PARTY_UI_NOTICES.md).
-
-## Conversación por voz 0.14.3
-
-- Después de cada respuesta, la escucha activa permite continuar durante 12 segundos sin repetir «LEO»; al vencer el plazo vuelve al detector local de activación.
-- Las búsquedas que superan 1,2 segundos reciben un aviso hablado breve. El aviso se cancela con la consulta y no se guarda como respuesta ni abre la captura mientras se investiga.
-- La síntesis generada tiene una salida hablada separada del informe con citas. Conserva incertidumbre e inferencias y filtra controles de navegación, cookies y enlaces.
-- Regresión: «¿Qué es Bitcoin?» seguida de «¿Y quién lo controla?» conserva el tema público y la respuesta anterior. La síntesis generativa usa el modelo disponible y autorizado; sin él se mantiene la selección extractiva local, sin prometer paráfrasis libre.
-
-## Novedades 0.15.0 (Soberanía Total — Cero Dependencia de GPT, Gemini o Modelos Externos)
-
-- **Corazón Emocional Multiturno (`LeoEmotionalHeart`)**: seguimiento afectivo de sesión (valencia, activación y trayectoria emocional: recuperación, fatiga sostenida o entusiasmo) con vocabulario español y nicaragüense ampliado (`LeoEmotionClassifier`), modulación empática de respuestas y abstención estricta ante negaciones, citas o preguntas.
-- **Motor Autodidacta y Autoentrenamiento Local (`LeoAutodidactEngine`)**: aprendizaje directo de reglas enseñadas por el usuario (*«LEO, aprendé que cuando te diga X me respondás Y»*), perfil de afinidad temática y ciclos autónomos de autoentrenamiento supervisado (`runSelfTrainingCycle`) sobre `OnlineIntentNetwork` con compuerta de no-regresión (`LeoAdaptiveTrainer`).
-- **Motor RAG Multimodal Local con Índice Vectorial Híbrido (`LeoLocalRagEngine`)**: ingesta y fragmentación semántica de documentos locales (PDF, OCR de fotos, notas de voz y apuntes), ranking híbrido con vectores densos L2 de 64 dimensiones (`EddyTransformerEmbedder`) + BM25 léxico y síntesis extractiva con citas.
-- **Formato de intercambio cifrado local (`LeoEncryptedSync`)**: cifrado autenticado `AES-256-GCM` con derivación `PBKDF2-HMAC-SHA256` (60 000 iteraciones) y verificación de integridad `SHA-256` sin depender de servidores externos.
-- **Escucha Superior, Wake-Word Acústico de Ultrabajo Consumo y Full-Duplex (`LeoAcousticWakeScorer`, `LeoDuplexPolicy`, `TranscriptQuality`)**: prefiltro acústico PCM 16 kHz por envolvente RMS, ZCR, banda formántica vocal y cadencia bisílaba (*«Le-o»*), rechazo de eco acústico/espectral (`isAcousticEcho`), frases naturales de barge-in y reparador fonético ASR (`repairAsrTranscript`).
-- **Agente Autónomo de Acciones Encadenadas en Pantalla con Confirmación Segura (`LeoUiStepPlanner.planLocalChainStep`, `NikoUiTaskPolicy.evaluateWithConfirmation`)**: planificación local paso a paso sobre el árbol de Accesibilidad y barrera de confirmación explícita para acciones modificadoras o cadenas largas.
-- **Evaluador Ejecutable del Protocolo Físico y Autocalibración (`LeoHardwareBenchmark`)**: evaluación determinista de latencia p95, falsos positivos/h, corte full-duplex, fluidez 60 FPS, batería y rechazo de eco con ajuste automático de `LeoVoiceTuningProfile`.
-- **Evolución «Eddy Lab Rats» (`LeoEddyPersona`, `LeoLabProtocols`, `LeoLiveVisionAnalyzer`, `LeoEpisodicTimeline`)**:
-  - **Personalidad Dinámica (`LeoEddyPersona`)**: conmutación por voz entre *Modo Eddy Clásico* (ingenioso y leal, respetando límites de humor y estados emocionales), *Modo Misión / Centro de Mando* y *Modo Enfoque Empático*, con prosodia expresiva vinculada al pulso del emblema.
-  - **Macro-Protocolos Biónicos y Conciencia de Sensores (`LeoLabProtocols`)**: ejecución encadenada con una sola orden (*Protocolo Estudio*, *Protocolo Nocturno*, *Protocolo Emergencia*, *Protocolo Laboratorio* y protocolos personalizados) más alertas proactivas por sensores físicos (oscuridad en lux, golpe/caída en G, temperatura de batería y nivel crítico).
-  - **Ojos de Eddy — Visión en Vivo y Escáner OCR Local (`LeoLiveVisionAnalyzer`)**: descripción de escena en tiempo real (personas, objetos, iluminación y texto OCR) e indexación directa en la base RAG local (*«escaneá este documento»*).
-  - **Memoria Episódica Autobiográfica y Destilador Cognitivo (`LeoEpisodicTimeline`)**: línea de tiempo de actividades (*«¿qué hicimos hoy?»*, *«¿en qué quedamos?»*) y destilación continua de investigaciones en fichas permanentes para uso offline.
-
-## Novedades 0.14.0
-
-- Diseño perla y verde oscuro, controles más legibles y respuesta completa seleccionable con todas sus fuentes.
-- Conversación espontánea opcional en Ajustes: LEO puede iniciar una charla y deja hasta 12 segundos para responder sin repetir su nombre.
-- Interpretación del contexto y síntesis web mejoradas; acepta respuestas breves con citas y valida estrictamente sus referencias.
-- **Motor matemático, científico y conversor determinista local** (`NikoMathEngine`): soporte nativo para funciones científicas (`sqrt`, `cbrt`, `sin`, `cos`, `tan`, `log`, `ln`, `abs`, factoriales), constantes (`pi`, `e`), porcentajes compuestos, descuentos, números en español y conversión de unidades en lenguaje natural (longitud, masa, temperatura, volumen, datos, tiempo y velocidad).
-- **Inteligencia de código local ampliada** (`LeoCodeIntelligence`): generación y auditoría estática local para 7 arquitecturas verificadas (calculadora en Python, conversor de unidades en Python, gestor de tareas en Python, repositorio CRUD SQLite parametrizado en Python, validador de contraseñas en Python, reintento exponencial con corrutinas en Kotlin y caché LRU genérica $O(1)$ en TypeScript).
-- **Memoria personal determinista** (`LeoPersonalMemory`): soporte ampliado de categorías personales (nombre, profesión, color, ciudad, meta, comida, bebida, pasatiempo, lenguaje de programación, música, lectura, cine, deporte) con reemplazo sin duplicados, retractación explícita, resumen de preferencias.
-- **Currículum offline ampliado** (`brain/leo_seed_knowledge.jsonl`): 60 entradas verificadas de conocimiento local offline en español, programación, arquitectura Android/Kotlin, algoritmos, seguridad y geografía de Nicaragua.
-
-Ver [alcance, pruebas y límites de esta revisión](docs/LEO_014_VALIDATION.md).
-
-Ver [estado de preparación móvil y validación pendiente](docs/EDDY_MOBILE_READINESS.md).
-
-## Abrir y validar
-
-Abrir la raíz en Android Studio, usar JDK 17 e instalar Android SDK 36. No configurar rutas personales de Java en archivos versionados.
-
-```sh
-./gradlew :app:testDebugUnitTest :app:lintDebug
-```
-
-Los commits ejecutan pruebas Android y Lint; no generan APK. Las descargas iniciales de modelos necesitan conexión y espacio disponible.
-
-## Funciones
-
-- Activación y reconocimiento local de voz en español, voz sintetizada y modo de servicio en primer plano.
-- Memoria local, acciones del teléfono y búsqueda web nativa.
-- Calculadora, notas, reloj, cronómetro, temporizador y conversor integrados.
-- Diagnóstico de voz y protocolo de medición física con evidencia.
-
-## Recuperación y mejoras 0.12.0
-
-Se recuperó la aplicación nativa desde `66930d1`. Gradle valida Android. El complemento web histórico se retiró el 26 de octubre de 2026.
-
-- Eliminada la ruta de JDK de una computadora Windows que impedía ejecutar Gradle en otras máquinas.
-- Actualizaciones de preferencias por eventos, sin consultas cada 500 ms.
-- Botón Atrás vuelve al asistente desde las herramientas.
-- Herramientas desplazables con márgenes para barras del sistema y teclado; calculadora adaptable al ancho disponible.
-- Estado de herramientas conservado al recrear la pantalla; relojes dejan de actualizar la interfaz cuando no está visible.
-- Temporizador basado en tiempo monotónico para evitar acumulación de retrasos. Es una herramienta visual: no sustituye una alarma del sistema ni promete avisos con la aplicación cerrada.
-- Errores de preparación recuperables y eliminación de la rama inalcanzable de descarga Qwen; el cerebro activo sigue siendo Kotlin/MicroGPT.
-
-Ver [validación de esta revisión](docs/ANDROID_012_VALIDATION.md). Consumo, latencia del micrófono y funcionamiento físico siguen pendientes de prueba en un teléfono.
-
-## Evidencias de Android
-
-Los informes históricos pueden contener resultados de la aplicación web retirada. No representan componentes activos ni validación móvil.
-
-- [Métricas y evidencia](evidencias/README.md)
-- [Protocolo físico](docs/LEO_011_PHYSICAL_TEST_PROTOCOL.md)
-- [Registro de mediciones](evidencias/mediciones.csv)
-
-## Voz y limpieza de código (2026-10-12)
-
-La salida activa utiliza el TTS de Android. Se retiraron el transporte Groq histórico, la cola progresiva desconectada y el sintetizador neuronal que nunca se inicializaba. La espera usa el detector local de «LEO» con una sesión de AudioRecord, sin reiniciar SpeechRecognizer ni transcribir conversaciones ambientales. Desde 0.14.3, tras responder queda una ventana de 12 segundos para continuar; después vuelve a requerir «LEO». Se conservan la cancelación por generación de turno y la instrumentación de voz. Android puede mantener su indicador de micrófono durante la espera local.
-
-Ver [rutas de voz vigentes](docs/VOICE_STREAMING.md) y [alcance, eliminaciones y validación de la limpieza](docs/LEO_CODE_CLEANUP.md). Las capacidades físicas siguen **PENDIENTES DE VALIDACIÓN FÍSICA**.
-
-## Usabilidad y voz 0.12.2
-
-- Cada herramienta conserva su estado al volver al asistente y regresar, mediante un contenedor de estado por pantalla.
-- Las notas se guardan automáticamente tras una pausa breve de escritura, al salir de Notas y al pasar a segundo plano; muestran el estado de guardado. El guardado usa preferencias locales con escritura asíncrona, no sincronización en nube.
-- El conversor acepta coma decimal y muestra error para entradas inválidas en lugar de convertirlas silenciosamente a cero.
-- La cola de streaming de aquella versión se retiró el 2026-10-12 al comprobar que ya no tenía productores activos.
-
-La revisión anterior `eae91c6` aprobó pruebas Android y Lint en GitHub (ejecución 36722239966). Cada nueva revisión debe validar su propio workflow. La fluidez y los cambios de pantalla aún requieren verificación visual y auditiva en dispositivo.
-
-## Transformaciones multimedia 0.13.0
-
-Botón **Transformarme** y órdenes como «LEO, conviértete en una cámara» abren herramientas dentro de LEO: cámara, video con audio, grabadora de audio y música, junto a la calculadora, cronómetro y demás utilidades existentes.
-
-- Cámara frontal/trasera, captura y exportación de archivos privados.
-- Grabación con permisos, pausa exclusiva del micrófono del asistente y liberación al terminar.
-- Reproductor de archivos locales, búsqueda de muestras Apple/iTunes y enlaces a YouTube/Spotify.
-- Modo fiesta con baile y frases ocasionales de LEO; interruptor para desactivarlo.
-- Órdenes locales de transformación antes de la búsqueda web.
-
-Ver [funcionamiento, límites y comprobaciones en teléfono](docs/POLYMORPHIC_TOOLS.md). La música de los resultados es una vista previa; las reacciones son programadas. Las nuevas funciones todavía requieren validación física.
-
-## Rendimiento y estabilidad 0.13.1
-
-- Capturas recientes: lectura fuera del hilo de interfaz y selección de las 30 más recientes sin ordenar toda la carpeta ni consultar fechas repetidamente.
-- El indicador de reproducción actualiza únicamente su propio componente; no vuelve a componer la pantalla y el robot cada 500 ms. Arrastrar el control realiza un solo salto al soltarlo.
-- Búsquedas cancelables: cierre de conexión, dos trabajadores y cola limitada. Una respuesta anterior no reemplaza resultados ni el estado de carga de una nueva petición. Salir de Música cancela la búsqueda.
-- Lectura del nombre de archivos de proveedores externos fuera del hilo de interfaz. No se inicia reproducción si el proveedor responde después de salir de la pantalla.
-- El fin de una frase de LEO no restaura el volumen por encima de la reducción solicitada por Android.
-
-Pruebas de regresión para cancelación de conexión bloqueada, búsquedas superpuestas, salida de pantalla y selección de archivos. Son correcciones verificables de código; aún no hay mediciones de latencia, FPS o batería en teléfono.
-
-
-## Ingeniería del agente LEO (2026-10-06)
-
-Arquitectura y límites comprobables: [LEO_ARCHITECTURE](docs/LEO_ARCHITECTURE.md), [validación](docs/LEO_VALIDATION.md) y [matriz de evidencia](docs/LEO_EVALUATION.md). La nueva coordinación preserva los motores existentes; no implica full-duplex principal, autonomía abierta o superioridad comercial comprobada.
-
-## Búsqueda: estabilidad y fuentes
-
-La revisión del 2026-10-26 incorpora proveedores web en paralelo, cancelación de consultas, errores visibles y citas vinculadas a las fuentes mostradas. Detalles, pruebas y límites pendientes: [SEARCH_RELIABILITY](docs/SEARCH_RELIABILITY.md).

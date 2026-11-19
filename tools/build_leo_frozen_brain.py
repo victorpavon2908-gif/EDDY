@@ -182,19 +182,20 @@ def create_database(path: Path) -> sqlite3.Connection:
     return connection
 
 
-def insert_record(connection: sqlite3.Connection, record: tuple[str, str, str, str]) -> None:
+def insert_record(connection: sqlite3.Connection, record: tuple[str, str, str, str]) -> bool:
     source_id, title, url, text = record
     cursor = connection.execute(
         "INSERT OR IGNORE INTO articles(source_id,title,url,text) VALUES(?,?,?,?)",
         (source_id, title, url, text),
     )
     if cursor.rowcount != 1:
-        return
+        return False
     rowid = cursor.lastrowid
     connection.execute(
         "INSERT INTO articles_fts(docid,title,text) VALUES(?,?,?)",
         (rowid, title, text),
     )
+    return True
 
 
 def ingest_until_target(
@@ -206,7 +207,8 @@ def ingest_until_target(
 ) -> tuple[int, bool]:
     pending = 0
     for record in records:
-        insert_record(connection, record)
+        if not insert_record(connection, record):
+            continue
         count += 1
         pending += 1
         # Smaller commits near the target limit overshoot while keeping the build fast earlier.

@@ -4,11 +4,24 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from tools.build_leo_frozen_brain import create_database, insert_record, seed_records
+from tools.build_leo_frozen_brain import create_database, ingest_until_target, insert_record, seed_records
 
 ROOT = Path(__file__).resolve().parents[1]
 
 class FrozenCurriculumTest(unittest.TestCase):
+    def test_duplicate_source_counts_once_across_batches(self):
+        record = ('source-1', 'Lago', 'leo://seed/lago', 'Cocibolca')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'brain.sqlite'
+            db = create_database(path)
+            try:
+                count, _ = ingest_until_target(db, path, [record], 1_000_000, 0)
+                count, _ = ingest_until_target(db, path, [record], 1_000_000, count)
+                self.assertEqual(count, 1)
+                self.assertEqual(count, db.execute('SELECT count(*) FROM articles').fetchone()[0])
+            finally:
+                db.close()
+
     def test_seed_integrity_and_practical_retrieval(self):
         seed = ROOT / 'brain/leo_seed_knowledge.jsonl'
         items = [json.loads(line) for line in seed.read_text(encoding='utf-8').splitlines() if line.strip()]
