@@ -512,6 +512,7 @@ open class NikoAssistantService : Service() {
             onError = { error -> serviceScope.launch {
                 if (!destroyed && epoch == localVoiceEpoch) {
                     NikoRuntimeState.setInputStatus(applicationContext, error)
+                    NikoRuntimeState.reportError(applicationContext, "Voz local", error)
                     if (localVoiceActive) recoverLocalVoice(error)
                 }
             } },

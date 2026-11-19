@@ -65,8 +65,8 @@ class NikoTextToSpeech private constructor(
             engine = factory(app, requestedEngine) { status ->
                 mainHandler.post { if (!closed && generation == engineEpoch) initialize(generation, status) }
             }
-            initWatchdog = Runnable { failEngine(generation) }.also { mainHandler.postDelayed(it, 10_000L) }
-        } catch (_: Exception) { failEngine(generation) }
+            initWatchdog = Runnable { failEngine(generation, "Timeout esperando inicialización de Android TTS (10s)") }.also { mainHandler.postDelayed(it, 10_000L) }
+        } catch (e: Exception) { failEngine(generation, "${e.javaClass.simpleName}: ${e.message ?: "error al crear TTS"}") }
     }
 
     override fun onInit(status: Int) { mainHandler.post { initialize(engineEpoch, status) } }
@@ -78,7 +78,7 @@ class NikoTextToSpeech private constructor(
         val selection = if (status == TextToSpeech.SUCCESS) runCatching {
             active.prepare(voicePrefs.getString("system_voice", null), voicePrefs.getString("system_engine", null))
         }.getOrNull() else null
-        if (selection == null) { failEngine(generation); return }
+        if (selection == null) { failEngine(generation, "TTS status=$status o sin voz española sin conexión instalada"); return }
         val listener = object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String) { mainHandler.post {
                 if (!closed && generation == engineEpoch && utteranceId == "${currentPrefix}_0") {
@@ -91,14 +91,14 @@ class NikoTextToSpeech private constructor(
             @Deprecated("Deprecated in Android API")
             override fun onError(utteranceId: String) { mainHandler.post {
                 if (!closed && generation == engineEpoch && currentPrefix?.let { utteranceId.startsWith(it) } == true)
-                    failEngine(generation)
+                    failEngine(generation, "UtteranceProgressListener.onError($utteranceId)")
             } }
             override fun onStop(utteranceId: String, interrupted: Boolean) { mainHandler.post {
                 if (!closed && generation == engineEpoch && utteranceId == currentUtterance) notifySpeaking(false)
             } }
         }
         if (!runCatching { active.listen(listener) && active.setProsody(1.07f, 0.92f) }.getOrDefault(false)) {
-            failEngine(generation); return
+            failEngine(generation, "No se pudo configurar listener o prosodia inicial de TTS"); return
         }
         voicePrefs.edit().putString("system_engine", selection.engine).putString("system_voice", selection.name).apply()
         voiceDescription = "Voz del teléfono · ${selection.locale} · sin conexión"
@@ -108,7 +108,7 @@ class NikoTextToSpeech private constructor(
         onReady(true)
     }
 
-    private fun failEngine(generation: Long) {
+    private fun failEngine(generation: Long, reason: String = "Fallo en motor TTS") {
         if (closed || generation != engineEpoch) return
         ++engineEpoch; ++notificationEpoch
         initWatchdog?.let(mainHandler::removeCallbacks); initWatchdog = null
@@ -116,6 +116,7 @@ class NikoTextToSpeech private constructor(
         currentPrefix = null; currentUtterance = null
         ready = false
         releaseEngine()
+        runCatching { com.niko.assistant.background.NikoRuntimeState.reportError(app, "TTS", reason) }
         LeoVoiceDiagnostics.recordSpeechCancelled()
         onReady(false); onSpeakingChanged(false)
         val delays = longArrayOf(500L, 1_500L, 4_000L)
@@ -203,17 +204,17 @@ class NikoTextToSpeech private constructor(
             for ((index, chunk) in planned.withIndex()) {
                 if (chunk.speed != lastSpeed || chunk.pitch != lastPitch) {
                     if (!active.setProsody(chunk.speed, chunk.pitch)) {
-                        failEngine(generation); return false
+                        failEngine(generation, "setProsody(${chunk.speed}, ${chunk.pitch}) falló"); return false
                     }
                     lastSpeed = chunk.speed
                     lastPitch = chunk.pitch
                 }
                 if (active.speak(chunk.text, if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, "${id}_$index") != TextToSpeech.SUCCESS) {
-                    failEngine(generation); return false
+                    failEngine(generation, "TextToSpeech.speak devolvió ERROR en bloque $index"); return false
                 }
             }
             return true
-        } catch (_: Exception) { failEngine(generation); return false }
+        } catch (e: Exception) { failEngine(generation, "${e.javaClass.simpleName}: ${e.message ?: "error en speak"}"); return false }
     }
 
     fun stop() {

@@ -138,8 +138,18 @@ class NikoLocalVoiceEngine(
             initializing = true
         }
         try {
-            if (!ready) return false
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return false
+            if (!ready) {
+                val msg = "Faltan modelos locales de voz (KWS/VAD/ASR) para activar la escucha."
+                lastInitializationFailure = InitializationFailure("modelos de voz", null, msg)
+                onError(msg)
+                return false
+            }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                val msg = "Permiso RECORD_AUDIO no concedido para abrir el micrófono."
+                lastInitializationFailure = InitializationFailure("permiso micrófono", null, msg)
+                onError(msg)
+                return false
+            }
             if (!initializeWakeModels() || !initializeMicrophone()) return false
             synchronized(lifecycleLock) {
                 if (stopRequested) return false
@@ -151,8 +161,10 @@ class NikoLocalVoiceEngine(
             }
             return true
         } catch (error: RuntimeException) {
-            lastInitializationFailure = InitializationFailure("micrófono", null, error.message ?: error.javaClass.simpleName)
-            onError("No pude iniciar la captura de audio local.")
+            val exact = "${error.javaClass.simpleName}: ${error.message ?: "sin detalle"}"
+            lastInitializationFailure = InitializationFailure("micrófono", null, exact)
+            com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.start", error)
+            onError("Error al iniciar captura local ($exact)")
             return false
         } finally {
             synchronized(lifecycleLock) {
@@ -242,12 +254,16 @@ class NikoLocalVoiceEngine(
                 failure.spec,
                 cause?.message ?: cause?.javaClass?.simpleName ?: "error desconocido",
             )
-            onError("El módulo local ${failure.stageName} no pudo iniciar. Voy a intentar reparar ese módulo.")
+            val exact = "${cause?.javaClass?.simpleName ?: "Error"}: ${cause?.message ?: "sin detalle"}"
+            cause?.let { com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.${failure.stageName}", it) }
+            onError("Error en módulo ${failure.stageName}: $exact")
             false
         } catch (error: Throwable) {
             releaseModels()
             lastInitializationFailure = InitializationFailure("núcleo de activación", null, error.message ?: error.javaClass.simpleName)
-            onError("No pude iniciar la activación local de LEO.")
+            val exact = "${error.javaClass.simpleName}: ${error.message ?: "sin detalle"}"
+            com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.wakeModels", error)
+            onError("Error en activación local: $exact")
             false
         }
     }
@@ -272,7 +288,9 @@ class NikoLocalVoiceEngine(
                 failure.spec,
                 cause?.message ?: cause?.javaClass?.simpleName ?: "error desconocido",
             )
-            onError("No pude preparar ${failure.stageName}.")
+            val exact = "${cause?.javaClass?.simpleName ?: "Error"}: ${cause?.message ?: "sin detalle"}"
+            cause?.let { com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.${failure.stageName}", it) }
+            onError("Error preparando ${failure.stageName}: $exact")
             false
         } catch (error: Throwable) {
             releaseCommandModels()
@@ -281,7 +299,9 @@ class NikoLocalVoiceEngine(
                 NikoModelCatalog.spanishAsr,
                 error.message ?: error.javaClass.simpleName,
             )
-            onError("No pude preparar el reconocimiento de órdenes.")
+            val exact = "${error.javaClass.simpleName}: ${error.message ?: "sin detalle"}"
+            com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.commandModels", error)
+            onError("Error en reconocimiento de órdenes: $exact")
             false
         }
     }
@@ -416,8 +436,10 @@ class NikoLocalVoiceEngine(
         releaseAudioEffects()
         runCatching { recorder?.release() }
         recorder = null
-        lastInitializationFailure = InitializationFailure("micrófono", null, it.message ?: it.javaClass.simpleName)
-        onError("No pude abrir el micrófono local de LEO.")
+        val exact = "${it.javaClass.simpleName}: ${it.message ?: "sin detalle"}"
+        lastInitializationFailure = InitializationFailure("micrófono", null, exact)
+        com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.initMic", it)
+        onError("Error abriendo micrófono local: $exact")
         false
     }
 
@@ -513,7 +535,9 @@ class NikoLocalVoiceEngine(
                 if (active) processActive(samples) else processPassiveWake(samples)
             }
         } catch (error: Exception) {
-            if (running.get()) onError("La captura local se interrumpió: ${error.message.orEmpty()}")
+            val exact = "${error.javaClass.simpleName}: ${error.message ?: "sin detalle"}"
+            com.niko.assistant.diagnostics.LeoCrashRecorder.recordHandled("VoiceEngine.audioLoop", error)
+            if (running.get()) onError("Captura local interrumpida: $exact")
         } finally {
             synchronized(lifecycleLock) {
                 running.set(false)

@@ -49,8 +49,12 @@ object LeoCrashRecorder {
     }
 
     fun recordHandled(where: String, throwable: Throwable) {
+        val detail = "${throwable.javaClass.simpleName}: ${throwable.message?.takeIf { it.isNotBlank() } ?: "sin detalle"}"
         breadcrumb("handled_exception where=$where type=${throwable.javaClass.name} msg=${throwable.message.orEmpty()}")
         val app = context ?: return
+        runCatching {
+            com.niko.assistant.background.NikoRuntimeState.reportError(app, where, detail)
+        }
         runCatching {
             synchronized(lock) {
                 File(app.filesDir, CRASH_FILE).writeText(

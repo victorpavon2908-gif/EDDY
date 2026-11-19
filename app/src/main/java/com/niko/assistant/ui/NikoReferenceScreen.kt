@@ -94,6 +94,8 @@ internal fun NikoReferenceScreen(
     inputStatus: String = "",
     webSearching: Boolean = false,
     suggestions: List<String> = emptyList(),
+    lastError: String = "",
+    onClearError: () -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
     onTools: () -> Unit = {},
 ) {
@@ -125,6 +127,50 @@ internal fun NikoReferenceScreen(
             modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp),
         ) {
             Icon(Icons.Rounded.Settings, contentDescription = "Ajustes", tint = Color(0xFF345B50))
+        }
+        val visibleError = lastError.ifBlank {
+            if (inputState == InputState.ERROR) inputStatus else ""
+        }
+        if (visibleError.isNotBlank()) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 60.dp, start = 14.dp, end = 14.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFFEECEC),
+                border = BorderStroke(1.2.dp, Color(0xFFD9383A)),
+                shadowElevation = 4.dp,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "ERROR EXACTO DETECTADO",
+                            color = Color(0xFFB42318),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.0.sp,
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        SelectionContainer {
+                            Text(
+                                text = visibleError,
+                                color = Color(0xFF5A1616),
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                            )
+                        }
+                    }
+                    TextButton(onClick = onClearError) {
+                        Text("Cerrar", color = Color(0xFFB42318), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
         }
         Column(
             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp),

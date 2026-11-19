@@ -8,10 +8,10 @@ import kotlin.math.tanh
 /**
  * Nivelador digital DSP para voz débil y campo lejano (far-field).
  *
- * Trabaja antes de KWS/VAD/ASR:
- * 1. Filtro paso-alto de primer orden (~80 Hz a 16 kHz) para eliminar deriva DC, viento y golpes graves.
+ * Trabaja en tiempo real sobre bloques cortos (512 muestras / 32 ms) antes de KWS/VAD/ASR:
+ * 1. Centrado DC sin discontinuidades de fase entre bloques consecutivos del KeywordSpotter.
  * 2. Control automático de ganancia (AGC) acotado por el piso de ruido real medido en el teléfono.
- * 3. Limitador de rodilla suave (soft-knee tanh) sobre 0.82 para evitar recorte duro que distorsiona ASR.
+ * 3. Limitador de rodilla suave (soft-knee tanh) sobre 0.82 para evitar recorte duro que distorsiona ASR/KWS.
  */
 object FarFieldAudioEnhancer {
     private const val HPF_ALPHA = 0.969f
@@ -43,13 +43,12 @@ object FarFieldAudioEnhancer {
         val gain = (targetRms / rms).coerceIn(1f, maximumGain)
         if (gain <= 1.01f) return samples
 
-        val filtered = highPassFilter(samples, HPF_ALPHA)
-        return FloatArray(filtered.size) { index ->
-            softLimit(filtered[index] * gain)
+        return FloatArray(samples.size) { index ->
+            softLimit(mean + (samples[index] - mean) * gain)
         }
     }
 
-    /** First-order high-pass filter (~80 Hz at 16 kHz) removing DC offset and low-frequency rumble. */
+    /** First-order high-pass filter (~80 Hz at 16 kHz) for full utterance buffers (not stateless 32ms KWS chunks). */
     internal fun highPassFilter(samples: FloatArray, alpha: Float = HPF_ALPHA): FloatArray {
         if (samples.isEmpty()) return samples
         val out = FloatArray(samples.size)

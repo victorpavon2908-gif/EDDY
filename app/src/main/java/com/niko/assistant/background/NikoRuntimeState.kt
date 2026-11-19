@@ -31,6 +31,7 @@ object NikoRuntimeState {
     private const val KEY_BRAIN_STATUS = "brain_status"
     private const val KEY_BRAIN_DOWNLOADED_BYTES = "brain_downloaded_bytes"
     private const val KEY_BRAIN_TOTAL_BYTES = "brain_total_bytes"
+    private const val KEY_LAST_ERROR = "last_error"
     const val ACTION_RUNTIME_STATE = "com.eddy.assistant.RUNTIME_STATE"
 
     enum class InputState { STOPPED, PREPARING, READY, ERROR }
@@ -62,6 +63,7 @@ object NikoRuntimeState {
         val brainStatus: String = "Cerebro local pendiente",
         val brainDownloadedBytes: Long = 0L,
         val brainTotalBytes: Long = 0L,
+        val lastError: String = "",
     )
 
     /** In-memory reactive state — always up to date inside each Android process. */
@@ -129,6 +131,7 @@ object NikoRuntimeState {
             ),
             brainDownloadedBytes = prefs.getLong(KEY_BRAIN_DOWNLOADED_BYTES, 0L).coerceAtLeast(0L),
             brainTotalBytes = prefs.getLong(KEY_BRAIN_TOTAL_BYTES, 0L).coerceAtLeast(0L),
+            lastError = prefs.getString(KEY_LAST_ERROR, "").orEmpty(),
         )
     }
 
@@ -142,12 +145,32 @@ object NikoRuntimeState {
                 putString(KEY_HEARD, "")
             }
         }
+        val errorEntry = if (state == InputState.ERROR && status.isNotBlank()) "Micr?fono/Voz ? ${LeoBrand.publicText(status)}" else _stateFlow.value.lastError
+        if (state == InputState.ERROR && status.isNotBlank()) edit(context) { putString(KEY_LAST_ERROR, errorEntry) }
         _stateFlow.value = _stateFlow.value.copy(
             inputState = state,
             inputStatus = LeoBrand.publicText(status),
             state = if (state != InputState.READY) State.IDLE else _stateFlow.value.state,
             heardText = if (state != InputState.READY) "" else _stateFlow.value.heardText,
+            lastError = errorEntry,
         )
+        publishExternal(context)
+    }
+
+    /** Publishes an exact error/exception message across processes so the UI always displays it. */
+    fun reportError(context: Context, source: String, detail: String) {
+        val cleanSource = source.trim().ifBlank { "Sistema" }
+        val cleanDetail = detail.trim().take(600)
+        if (cleanDetail.isBlank()) return
+        val formatted = "[$cleanSource] $cleanDetail"
+        edit(context) { putString(KEY_LAST_ERROR, formatted) }
+        _stateFlow.value = _stateFlow.value.copy(lastError = formatted)
+        publishExternal(context)
+    }
+
+    fun clearError(context: Context) {
+        edit(context) { putString(KEY_LAST_ERROR, "") }
+        _stateFlow.value = _stateFlow.value.copy(lastError = "")
         publishExternal(context)
     }
 
@@ -329,6 +352,7 @@ object NikoRuntimeState {
         .put("brainStatus", snapshot.brainStatus)
         .put("brainDownloaded", snapshot.brainDownloadedBytes)
         .put("brainTotal", snapshot.brainTotalBytes)
+        .put("lastError", snapshot.lastError)
         .toString()
 
     private fun decodeSnapshot(raw: String): Snapshot? = runCatching {
@@ -351,6 +375,7 @@ object NikoRuntimeState {
             brainStatus = json.optString("brainStatus", "Cerebro local pendiente"),
             brainDownloadedBytes = json.optLong("brainDownloaded", 0L).coerceAtLeast(0L),
             brainTotalBytes = json.optLong("brainTotal", 0L).coerceAtLeast(0L),
+            lastError = json.optString("lastError", ""),
         )
     }.getOrNull()
 

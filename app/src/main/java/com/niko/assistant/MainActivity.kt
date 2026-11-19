@@ -341,6 +341,8 @@ class MainActivity : ComponentActivity() {
                             webUsed = snapshot.webUsed,
                             webSources = snapshot.webSources,
                             suggestions = snapshot.suggestions,
+                            lastError = snapshot.lastError,
+                            onClearError = { NikoRuntimeState.clearError(applicationContext) },
                             onSuggestionClick = { suggestion ->
                                 NikoAssistantService.submitCommand(applicationContext, suggestion)
                             },
