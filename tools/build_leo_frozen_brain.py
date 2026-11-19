@@ -91,33 +91,50 @@ def download(url: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     partial = destination.with_suffix(destination.suffix + ".part")
     existing = partial.stat().st_size if partial.exists() else 0
-    headers = {"User-Agent": "LEO-Frozen-Brain-Builder/1.0", "Accept-Encoding": "identity"}
-    if existing:
-        headers["Range"] = f"bytes={existing}-"
-    with requests.get(url, headers=headers, stream=True, timeout=(30, 120)) as response:
-        if existing and response.status_code != 206:
-            partial.unlink(missing_ok=True)
-            existing = 0
-            return download(url, destination)
-        response.raise_for_status()
-        mode = "ab" if existing else "wb"
-        total = response.headers.get("Content-Length")
-        total_bytes = existing + int(total) if total and total.isdigit() else 0
-        done = existing
-        last = time.monotonic()
-        with partial.open(mode) as handle:
-            for block in response.iter_content(chunk_size=1024 * 1024):
-                if not block:
-                    continue
-                handle.write(block)
-                done += len(block)
-                now = time.monotonic()
-                if now - last >= 5:
-                    if total_bytes:
-                        print(f"download {destination.name}: {done * 100 // total_bytes}% ({done}/{total_bytes})", flush=True)
-                    else:
-                        print(f"download {destination.name}: {done} bytes", flush=True)
-                    last = now
+    # A stale range may need one fresh request. Keep the partial until the
+    # server actually supplies a complete replacement response.
+    offsets = (existing, 0) if existing else (0,)
+    for offset in offsets:
+        headers = {"User-Agent": "LEO-Frozen-Brain-Builder/1.0", "Accept-Encoding": "identity"}
+        if offset:
+            headers["Range"] = f"bytes={offset}-"
+        with requests.get(url, headers=headers, stream=True, timeout=(30, 120)) as response:
+            if offset and response.status_code == 416:
+                continue
+            response.raise_for_status()
+            if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+                raise ValueError("Unexpected encoding for byte-range corpus download")
+            if response.status_code == 206:
+                span = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", response.headers.get("Content-Range", ""))
+                if not span:
+                    raise ValueError("Invalid Content-Range for corpus download")
+                start, end, total = map(int, span.groups())
+                if start != offset or not start <= end < total:
+                    raise ValueError("Corpus download range does not match the partial file")
+                expected_end = end + 1
+            elif response.status_code == 200:
+                start = 0
+                length = response.headers.get("Content-Length")
+                total = int(length) if length is not None else None
+                expected_end = total
+            else:
+                raise ValueError(f"Unexpected corpus download status {response.status_code}")
+
+            done = start
+            last = time.monotonic()
+            with partial.open("ab" if start else "wb") as handle:
+                for block in response.iter_content(chunk_size=1024 * 1024):
+                    done += len(block)
+                    if expected_end is not None and done > expected_end:
+                        raise ValueError("Corpus download exceeds the announced range")
+                    handle.write(block)
+                    now = time.monotonic()
+                    if now - last >= 5:
+                        print(f"download {destination.name}: {done}/{total or '?'} bytes", flush=True)
+                        last = now
+            if total is not None and done != total:
+                raise OSError(f"Incomplete corpus download: {done}/{total} bytes")
+            break
     partial.replace(destination)
 
 
