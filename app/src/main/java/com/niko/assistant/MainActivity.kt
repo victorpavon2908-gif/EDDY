@@ -309,10 +309,10 @@ class MainActivity : ComponentActivity() {
                 LeoCrashRecorder.breadcrumb("morph_begin from=${renderedMode.id} to=${uiMode.id}")
                 morphTarget = uiMode
                 morphing = true
-                delay(260L)
+                delay(200L)
                 renderedMode = uiMode
                 LeoCrashRecorder.breadcrumb("morph_render mode=${uiMode.id}")
-                delay(360L)
+                delay(260L)
                 morphing = false
                 LeoCrashRecorder.breadcrumb("morph_complete mode=${uiMode.id}")
             }

@@ -80,20 +80,20 @@ object LeoResearchSynthesis {
     }.getOrNull()
 
     /**
-     * Síntesis extractiva multi-fuente 100 % local (cero LLM externo) que selecciona las afirmaciones
-     * más informativas de los pasajes leídos, articula conectores naturales y genera `spokenText` limpio.
+     * Síntesis extractiva multi-fuente 100 % local (cero LLM externo) con:
+     * - Detección de corroboración entre fuentes independientes (cross-source consensus boost)
+     * - Selección MMR (Maximal Marginal Relevance) para evitar redundancia
+     * - Conectores naturales en español y `spokenText` limpio para TTS.
      */
     fun synthesizeLocalExtractive(original: NikoAiReply, query: String = ""): NikoAiReply {
         if (!original.webUsed) return original
         val passages = selected(original)
         if (passages.isEmpty()) return original
 
-        val queryWords = normalize(query).lowercase()
-            .split(' ')
-            .filter { it.length >= 3 }
-            .toSet()
+        val queryWords = contentTokens(query)
+        val passageTokensBySource = passages.associate { it.sourceIndex to contentTokens(it.text) }
 
-        data class RankedFact(val sentence: String, val sourceIndex: Int, val score: Double)
+        data class RankedFact(val sentence: String, val sourceIndex: Int, val score: Double, val tokens: Set<String>)
 
         val candidates = mutableListOf<RankedFact>()
         for (passage in passages) {
@@ -103,36 +103,44 @@ object LeoResearchSynthesis {
                 .map { it.trim() }
                 .filter { it.length in 26..360 && !com.niko.assistant.ai.LeoDialoguePolicy.isPageChrome(it) }
             sentences.forEachIndexed { idx, sent ->
-                val lower = sent.lowercase()
-                val overlap = queryWords.count { lower.contains(it) }
-                val hasDigits = if (sent.any(Char::isDigit)) 0.9 else 0.0
-                val explanatory = if (Regex("(?i)\\b(?:es|fue|son|permite|consiste|define|produce|transforma|naci[oó]|funciona)\\b").containsMatchIn(sent)) 1.3 else 0.0
-                val leadBonus = if (idx == 0) 0.5 else 0.0
+                val sentTokens = contentTokens(sent)
+                val overlap = if (queryWords.isEmpty()) 0 else sentTokens.intersect(queryWords).size
+                val hasDigits = if (sent.any(Char::isDigit)) 0.95 else 0.0
+                val explanatory = if (Regex("(?i)\\b(?:es|fue|son|permite|consiste|define|produce|transforma|naci[oó]|funciona|reduce|aumenta|utiliza)\\b").containsMatchIn(sent)) 1.3 else 0.0
+                val leadBonus = if (idx == 0) 0.55 else 0.0
+                val corroboratedSources = passageTokensBySource.count { (otherIdx, otherTokens) ->
+                    otherIdx != passage.sourceIndex && sentTokens.intersect(otherTokens).size >= 2
+                }
+                val consensusBonus = if (corroboratedSources > 0) 1.4 else 0.0
                 candidates += RankedFact(
                     sentence = sent.trimEnd('.', '!', '?'),
                     sourceIndex = passage.sourceIndex,
-                    score = overlap * 2.0 + hasDigits + explanatory + leadBonus,
+                    score = overlap * 2.0 + hasDigits + explanatory + leadBonus + consensusBonus,
+                    tokens = sentTokens,
                 )
             }
         }
 
         if (candidates.isEmpty()) return original
 
+        // MMR (Maximal Marginal Relevance) selection prioritizing multi-source diversity first.
         val chosen = mutableListOf<RankedFact>()
         val usedSources = mutableSetOf<Int>()
-        for (cand in candidates.sortedByDescending { it.score }) {
-            if (chosen.size >= 3) break
-            if (cand.sourceIndex !in usedSources) {
-                usedSources += cand.sourceIndex
-                chosen += cand
+        val pool = candidates.toMutableList()
+        while (chosen.size < 3 && pool.isNotEmpty()) {
+            val best = pool.maxByOrNull { cand ->
+                val maxSim = chosen.maxOfOrNull { jaccard(cand.tokens, it.tokens) } ?: 0.0
+                val sourceBonus = if (cand.sourceIndex !in usedSources) 2.2 else 0.0
+                cand.score + sourceBonus - maxSim * 4.5
+            } ?: break
+            pool.remove(best)
+            if (chosen.none { jaccard(best.tokens, it.tokens) >= 0.72 || it.sentence.take(45).equals(best.sentence.take(45), ignoreCase = true) }) {
+                chosen += best
+                usedSources += best.sourceIndex
             }
         }
-        for (cand in candidates.sortedByDescending { it.score }) {
-            if (chosen.size >= 3) break
-            if (cand !in chosen && chosen.none { it.sentence.take(45).equals(cand.sentence.take(45), ignoreCase = true) }) {
-                chosen += cand
-            }
-        }
+
+        if (chosen.isEmpty()) return original
 
         val connectors = listOf("", "Además, ", "Por otra parte, ")
         val written = chosen.mapIndexed { idx, item ->
@@ -152,6 +160,24 @@ object LeoResearchSynthesis {
             evidence = (original.evidence + " Síntesis extractiva multi-fuente local.").trim(),
         )
     }
+
+    private fun contentTokens(text: String): Set<String> = normalize(text).lowercase()
+        .replace(Regex("[^a-záéíóúüñ0-9 ]"), " ")
+        .split(' ')
+        .filter { it.length >= 3 && it !in STOP_WORDS }
+        .toSet()
+
+    private fun jaccard(a: Set<String>, b: Set<String>): Double {
+        if (a.isEmpty() || b.isEmpty()) return 0.0
+        val union = a.union(b).size
+        return if (union == 0) 0.0 else a.intersect(b).size.toDouble() / union
+    }
+
+    private val STOP_WORDS = setOf(
+        "que", "con", "para", "por", "una", "uno", "unos", "unas", "del", "las", "los",
+        "este", "esta", "esto", "ese", "esa", "desde", "hasta", "sobre", "entre", "sin",
+        "mas", "muy", "pero", "sus", "tambien", "como", "the", "and", "for", "with",
+    )
 
     private fun normalize(text: String) = text.replace(Regex("\\s+"), " ").trim()
 }

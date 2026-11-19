@@ -27,7 +27,10 @@ object OfflineVoiceSelector {
         .lowercase(Locale.ROOT).split(Regex("[^\\p{L}]+")).toSet()
 
     private fun naturalRank(voice: Candidate): Int =
-        if (words(voice).any { it in setOf("natural", "neural", "wavenet", "premium", "enhanced", "studio") }) 0 else 1
+        if (words(voice).any {
+                it in setOf("natural", "neural", "wavenet", "premium", "enhanced", "studio", "journey", "chirp", "hd")
+            }
+        ) 0 else 1
 
     private fun genderRank(voice: Candidate): Int = when {
         words(voice).any { it in setOf("female", "femenino", "feminine", "mujer", "woman") } -> 2

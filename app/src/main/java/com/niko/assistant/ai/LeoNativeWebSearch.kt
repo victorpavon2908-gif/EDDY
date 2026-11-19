@@ -151,7 +151,7 @@ object LeoNativeWebSearch {
                 (base + facets).awaitAll()
             }
         }
-        val relevant = selectDiverse(hits.values.filter { isRelevantTo(subject, it) }, terms)
+        val relevant = selectDiverse(hits.values.filter { isRelevantTo(subject, it) }, terms, normalize(subject))
         if (relevant.isEmpty()) return@withContext noResults(subject)
 
         val enriched = coroutineScope {
@@ -487,10 +487,29 @@ object LeoNativeWebSearch {
     private fun canonicalTerm(term: String): String = when (term) {
         "btc" -> "bitcoin"
         "eth" -> "ethereum"
-        else -> term
+        "ia", "ai" -> "inteligencia"
+        "eeuu", "usa" -> "estados"
+        "onu" -> "naciones"
+        "oms" -> "salud"
+        "js" -> "javascript"
+        "ts" -> "typescript"
+        "py" -> "python"
+        "ml" -> "machine"
+        "db" -> "database"
+        else -> stemSpanishLite(term)
     }
 
-    private fun relevanceScore(hit: Hit, terms: Set<String>): Double {
+    private fun stemSpanishLite(term: String): String {
+        if (term.length < 5) return term
+        return when {
+            term.endsWith("ces") && term.length >= 6 -> term.dropLast(3) + "z"
+            term.endsWith("es") && term.length >= 6 && term[term.length - 3] in "lnrd" -> term.dropLast(2)
+            term.endsWith("s") && term[term.length - 2] in "aeiou" && !term.endsWith("is") && !term.endsWith("us") -> term.dropLast(1)
+            else -> term
+        }
+    }
+
+    private fun relevanceScore(hit: Hit, terms: Set<String>, subjectPhrase: String = ""): Double {
         if (terms.isEmpty()) return 0.0
         val title = meaningfulTokens(hit.title).map(::canonicalTerm).toSet()
         val body = meaningfulTokens("${hit.title} ${hit.snippet} ${hit.articleText}").map(::canonicalTerm).toSet()
@@ -498,10 +517,17 @@ object LeoNativeWebSearch {
         val bodyOverlap = body.intersect(terms).size
         val coverage = bodyOverlap.toDouble() / terms.size
         if (bodyOverlap == 0 || (terms.size == 2 && bodyOverlap < 2) || (terms.size > 2 && bodyOverlap < 2 && titleOverlap == 0)) return 0.0
-        return titleOverlap * 2.5 + bodyOverlap * 1.5 + coverage * 2.0
+        var phraseBoost = 0.0
+        if (subjectPhrase.isNotBlank() && terms.size >= 2) {
+            val normTitle = normalize(hit.title)
+            val normBody = normalize("${hit.snippet} ${hit.articleText.take(600)}")
+            if (normTitle.contains(subjectPhrase)) phraseBoost += 3.0
+            else if (normBody.contains(subjectPhrase)) phraseBoost += 1.5
+        }
+        return titleOverlap * 2.5 + bodyOverlap * 1.5 + coverage * 2.0 + phraseBoost
     }
 
-    private fun selectDiverse(candidates: List<Hit>, terms: Set<String>): List<Hit> {
+    private fun selectDiverse(candidates: List<Hit>, terms: Set<String>, subjectPhrase: String = ""): List<Hit> {
         val remaining = candidates.toMutableList()
         val selected = mutableListOf<Hit>()
         val usedHosts = mutableSetOf<String>()
@@ -509,7 +535,7 @@ object LeoNativeWebSearch {
         while (remaining.isNotEmpty() && selected.size < MAX_RESULTS) {
             val best = remaining.maxByOrNull { hit ->
                 val host = hostOf(hit.url)
-                relevanceScore(hit, terms) + sourceQualityScore(hit) - hit.rank * 0.04 +
+                relevanceScore(hit, terms, subjectPhrase) + sourceQualityScore(hit) - hit.rank * 0.04 +
                     (if (host !in usedHosts) 2.8 else -1.2) +
                     (if (hit.angle !in usedAngles) 1.2 else 0.0)
             } ?: break
@@ -532,6 +558,9 @@ object LeoNativeWebSearch {
             "learn.microsoft.com", "docs.oracle.com", "nodejs.org", "go.dev", "doc.rust-lang.org",
             "es.wikipedia.org", "en.wikipedia.org", "github.com", "arxiv.org", "who.int", "paho.org",
             "un.org", "bcn.gob.ni", "ineter.gob.ni", "w3.org", "ietf.org", "react.dev", "sqlite.org", "postgresql.org",
+            "nature.com", "science.org", "nih.gov", "nasa.gov", "bbc.com", "reuters.com", "apnews.com",
+            "rae.es", "dle.rae.es", "stackoverflow.com", "huggingface.co", "openai.com", "deepmind.google",
+            "ai.google.dev", "britannica.com",
         )
         return (if (technicalPrimary) 2.0 else 0.0) + (if (institutional) 1.4 else 0.0) + (if (titledAsPrimary) 0.5 else 0.0) +
             (if (hit.url.startsWith("https://")) 0.2 else 0.0)
@@ -694,7 +723,7 @@ object LeoNativeWebSearch {
 
     internal fun extractReadableText(html: String, query: String = ""): String {
         if (html.isBlank()) return ""
-        val cleaned = html.replace(SCRIPT_STYLE, " ").replace(COMMENTS, " ")
+        val cleaned = html.replace(SCRIPT_STYLE, " ").replace(CHROME_BLOCKS, " ").replace(COMMENTS, " ")
         val metaDescriptions = META_TAG.findAll(cleaned).mapNotNull { tag ->
             val attrs = attributes(tag.value)
             val key = (attrs["name"] ?: attrs["property"]).orEmpty().lowercase(Locale.ROOT)
@@ -1001,6 +1030,7 @@ object LeoNativeWebSearch {
     private val DDG_LITE_SNIPPET = Regex("""<td\b[^>]*\bclass=['"][^'"]*result-snippet[^'"]*['"][^>]*>(.*?)</td>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val HREF_ATTR = Regex("""\bhref=['"]([^'"]+)['"]""", RegexOption.IGNORE_CASE)
     private val SCRIPT_STYLE = Regex("<(script|style|noscript|svg)\\b[^>]*>.*?</\\1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val CHROME_BLOCKS = Regex("<(nav|header|footer|aside|form)\\b[^>]*>.*?</\\1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val COMMENTS = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
     private val META_TAG = Regex("<meta\\b[^>]*>", RegexOption.IGNORE_CASE)
     private val CONTENT_TAG = Regex("<(?:p|li|blockquote|dd)\\b[^>]*>(.*?)</(?:p|li|blockquote|dd)>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))

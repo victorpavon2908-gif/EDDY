@@ -17,9 +17,10 @@ import androidx.lifecycle.compose.currentStateAsState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.sin
 
-/** Procedural face in the reference emblem's coordinates; no bitmap stretching or 3D runtime. */
+/** Procedural face in the reference emblem's coordinates with organic micro-expressions; no bitmap stretching or 3D runtime. */
 @Composable
 internal fun LeoAnimatedFace(
     state: NikoVisualState,
@@ -43,28 +44,49 @@ internal fun LeoAnimatedFace(
     LaunchedEffect(active, state, mood) {
         elapsed = 0f
         if (!active || !ValueAnimator.areAnimatorsEnabled()) return@LaunchedEffect
-        if (state == NikoVisualState.SPEAKING || (expressive && mood == LeoFaceMood.LAUGHING)) {
+        val animateLoop = state == NikoVisualState.SPEAKING ||
+            state == NikoVisualState.LISTENING ||
+            state == NikoVisualState.THINKING ||
+            (expressive && mood == LeoFaceMood.LAUGHING)
+        if (animateLoop) {
             val start = withFrameNanos { it }
             while (isActive) {
                 elapsed = withFrameNanos { (it - start) / 1_000_000_000f }
-                delay(32) // Only the visible face updates, bounded to approximately 30 frames/s.
+                delay(32) // Bounded to ~30 fps only while actively listening, thinking, speaking, or laughing.
             }
         }
     }
     LaunchedEffect(active) {
         blink = false
         if (!active || !ValueAnimator.areAnimatorsEnabled()) return@LaunchedEffect
+        var cycle = 0
         while (isActive) {
-            delay(3800)
+            val waitMs = when (cycle % 4) {
+                0 -> 3400L
+                1 -> 4600L
+                2 -> 2800L
+                else -> 4100L
+            }
+            delay(waitMs)
             blink = true
-            delay(130)
+            delay(120)
             blink = false
+            // Occasional natural double-blink
+            if (cycle % 5 == 3) {
+                delay(150)
+                blink = true
+                delay(105)
+                blink = false
+            }
+            cycle++
         }
     }
     Canvas(modifier) {
         val scale = minOf(size.width / 360f, size.height / 341f)
+        val listeningBob = if (active && state == NikoVisualState.LISTENING) sin(elapsed * 3.2f) * 2.2f else 0f
+        val thinkingTiltX = if (active && state == NikoVisualState.THINKING) sin(elapsed * 2.4f) * 3.5f else 0f
         withTransform({
-            translate((size.width - 360f * scale) / 2f, (size.height - 341f * scale) / 2f)
+            translate((size.width - 360f * scale) / 2f, (size.height - 341f * scale) / 2f + listeningBob * scale)
             scale(scale, scale, Offset.Zero)
         }) {
             val ink = if (mode == com.niko.assistant.modes.LeoMode.NORMAL) Color.Black else Color(mode.ink)
@@ -88,8 +110,9 @@ internal fun LeoAnimatedFace(
             val afraid = face == LeoFaceMood.AFRAID
             val angry = face == LeoFaceMood.ANGRY
             val sad = face == LeoFaceMood.SAD
+            val listeningPulse = if (active && state == NikoVisualState.LISTENING) (1f + sin(elapsed * 4.5f)) * 1.6f else 0f
             for (i in 0..1) {
-                val x = if (i == 0) 148.5f else 219.5f
+                val x = (if (i == 0) 148.5f else 219.5f) + thinkingTiltX * 0.45f
                 val shut = blink || laughing || (wry && i == 1)
                 if (shut) {
                     drawPath(Path().apply { moveTo(x - 19f, 112f); quadraticBezierTo(x, if (laughing) 92f else 114f, x + 19f, 110f) }, ink, style = line)
@@ -98,8 +121,8 @@ internal fun LeoAnimatedFace(
                     // Keep this silhouette for every open-eye expression, without pupils.
                     drawPath(Path().apply {
                         moveTo(x - 23.5f, 117f)
-                        val crown = if (serious) 101f else 91f
-                        val shoulder = if (serious) 108f else 102.64f
+                        val crown = (if (serious) 101f else 91f) - listeningPulse
+                        val shoulder = (if (serious) 108f else 102.64f) - listeningPulse * 0.5f
                         cubicTo(x - 23.5f, shoulder, x - 12.98f, crown, x, crown)
                         cubicTo(x + 12.98f, crown, x + 23.5f, shoulder, x + 23.5f, 117f)
                         close()
@@ -112,12 +135,30 @@ internal fun LeoAnimatedFace(
                     val outer = if (angry) 66f else 80f
                     drawLine(ink, Offset(x - 18f, if (i == 0) outer else inner), Offset(x + 18f, if (i == 0) inner else outer), 5f, StrokeCap.Round)
                 } else if (wry || surprised || caring || state == NikoVisualState.THINKING) {
-                    drawLine(ink, Offset(x - 18f, if (wry && i == 0) 70f else 77f), Offset(x + 18f, if (caring && i == 0) 68f else 72f), 5f, StrokeCap.Round)
+                    val thinkLift = if (state == NikoVisualState.THINKING) cos(elapsed * 2.4f) * 2.0f else 0f
+                    drawLine(
+                        ink,
+                        Offset(x - 18f, (if (wry && i == 0) 70f else 77f) - thinkLift),
+                        Offset(x + 18f, (if (caring && i == 0) 68f else 72f) + thinkLift * 0.5f),
+                        5f,
+                        StrokeCap.Round,
+                    )
+                } else if (state == NikoVisualState.LISTENING) {
+                    // Subtle attentive raised brows while actively listening.
+                    drawLine(ink, Offset(x - 16f, 75f - listeningPulse), Offset(x + 16f, 73f - listeningPulse), 4.5f, StrokeCap.Round)
                 }
             }
             val speaking = active && state == NikoVisualState.SPEAKING
-            // Rhythm follows speaking state, not phonemes or measured audio amplitude.
-            val opening = if (speaking) 7f + abs(sin(elapsed * 13f)) * 25f else if (laughing) 29f + abs(sin(elapsed * 9f)) * 9f else 0f
+            // Organic multi-harmonic cadence during speech so lip motion feels lifelike.
+            val speechEnvelope = if (speaking) {
+                val harmonic = abs(sin(elapsed * 12.5f)) * 0.58f +
+                    abs(sin(elapsed * 21.3f + 0.7f)) * 0.27f +
+                    abs(sin(elapsed * 6.9f + 1.4f)) * 0.15f
+                7f + harmonic * 27f
+            } else if (laughing) {
+                29f + abs(sin(elapsed * 9f)) * 9f
+            } else 0f
+            val opening = speechEnvelope
             when {
                 serious && speaking -> drawOval(ink, Offset(161f, 149f), Size(47f, 8f + opening * .35f), style = line)
                 serious -> drawLine(ink, Offset(157f, 158f), Offset(211f, 158f), 6f, StrokeCap.Round)

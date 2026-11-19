@@ -9,7 +9,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.text.Normalizer
 
-/** Spanish offline speech with bounded automatic recovery and obsolete-callback rejection. */
+/** Spanish offline speech with bounded automatic recovery, micro-prosody contours, and obsolete-callback rejection. */
 class NikoTextToSpeech private constructor(
     context: Context,
     private val onReady: (Boolean) -> Unit,
@@ -134,16 +134,38 @@ class NikoTextToSpeech private constructor(
         return ready
     }
 
+    internal fun normalizeForSpeech(text: String): String = prepareForNicaraguanSpeech(text)
+
     private fun prepareForNicaraguanSpeech(text: String): String {
         var value = com.niko.assistant.ai.NikoIdentity.forSpeech(text.trim())
         if (value.isBlank()) return value
         value = value
+            .replace(Regex("https?://\\S+"), "")
+            .replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
+            .replace(Regex("`([^`]+)`"), "$1")
             .replace(Regex("(?i)\\bwi[ -]?fi\\b"), "uái fái")
             .replace(Regex("(?i)\\bwhats ?app\\b"), "guátsap")
             .replace(Regex("(?i)\\byoutube\\b"), "yútub")
             .replace(Regex("(?i)\\bspotify\\b"), "espótifai")
             .replace(Regex("(?i)\\bbluetooth\\b"), "blútuz")
+            .replace(Regex("(?i)\\bchatgpt\\b"), "chat ye pe te")
+            .replace(Regex("(?i)\\bopenai\\b"), "ópen ei ái")
+            .replace(Regex("(?i)\\bgoogle\\b"), "gúgol")
+            .replace(Regex("(?i)\\bandroid\\b"), "ándroid")
+            .replace(Regex("(?i)\\binstagram\\b"), "ínstagram")
+            .replace(Regex("(?i)\\btik ?tok\\b"), "tík tok")
             .replace(Regex("(?i)\\bOK\\b"), "okey")
+            .replace(Regex("(\\d+(?:[.,]\\d+)?)\\s*°\\s*[Cc]\\b"), "$1 grados centígrados")
+            .replace(Regex("(\\d+(?:[.,]\\d+)?)\\s*°\\s*[Ff]\\b"), "$1 grados Fahrenheit")
+            .replace(Regex("(\\d+(?:[.,]\\d+)?)\\s*%"), "$1 por ciento")
+            .replace(Regex("(?i)(\\d+(?:[.,]\\d+)?)\\s*km/h\\b"), "$1 kilómetros por hora")
+            .replace(Regex("C\\$\\s*(\\d+(?:[.,]\\d+)?)"), "$1 córdobas")
+            .replace(Regex("(?:US)?\\$\\s*(\\d+(?:[.,]\\d+)?)"), "$1 dólares")
+            .replace(Regex("(?i)\\betc\\."), "etcétera")
+            .replace(Regex("(?i)\\bp\\.\\s*ej\\."), "por ejemplo")
+            .replace(Regex("\\bDr\\.\\s+"), "Doctor ")
+            .replace(Regex("\\bDra\\.\\s+"), "Doctora ")
+            .replace(Regex("\\bIng\\.\\s+"), "Ingeniero ")
             .replace(Regex("\\s+"), " ")
             .replace("…", ".")
             .trim()
@@ -164,17 +186,29 @@ class NikoTextToSpeech private constructor(
         ++notificationEpoch
         val generation = engineEpoch
         try {
-            if (!active.setProsody(prosody.speed.coerceIn(0.85f, 1.15f), prosody.pitch.coerceIn(0.85f, 1.05f))) {
-                failEngine(generation); return false
-            }
             val maximum = (TextToSpeech.getMaxSpeechInputLength() - 1).coerceAtLeast(80)
-            val chunks = SpeechProsody.fastStartChunks(spoken, firstLimit = minOf(56, maximum), nextLimit = minOf(240, maximum))
+            val planned = SpeechProsody.planUtterance(
+                spoken,
+                base = prosody,
+                firstLimit = minOf(56, maximum),
+                nextLimit = minOf(240, maximum),
+            )
+            if (planned.isEmpty()) return false
             val id = "leo_reply_${System.nanoTime()}"
             LeoRealtimeTurnBus.beginSpeechReference(id, spoken)
-            currentPrefix = id; currentUtterance = "${id}_${chunks.lastIndex}"
+            currentPrefix = id; currentUtterance = "${id}_${planned.lastIndex}"
             LeoVoiceDiagnostics.recordSpeechRequested("Android TTS")
-            for ((index, chunk) in chunks.withIndex()) {
-                if (active.speak(chunk, if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, "${id}_$index") != TextToSpeech.SUCCESS) {
+            var lastSpeed = Float.NaN
+            var lastPitch = Float.NaN
+            for ((index, chunk) in planned.withIndex()) {
+                if (chunk.speed != lastSpeed || chunk.pitch != lastPitch) {
+                    if (!active.setProsody(chunk.speed, chunk.pitch)) {
+                        failEngine(generation); return false
+                    }
+                    lastSpeed = chunk.speed
+                    lastPitch = chunk.pitch
+                }
+                if (active.speak(chunk.text, if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, "${id}_$index") != TextToSpeech.SUCCESS) {
                     failEngine(generation); return false
                 }
             }

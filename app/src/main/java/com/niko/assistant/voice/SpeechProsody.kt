@@ -3,7 +3,78 @@ package com.niko.assistant.voice
 import com.niko.assistant.memory.MemoryLearning
 
 data class SpeechProsody(val speed: Float = 1.07f, val pitch: Float = 0.92f) {
+    /** Per-chunk expressive prosody contour for natural multi-clause speech synthesis. */
+    data class ProsodyChunk(
+        val text: String,
+        val speed: Float,
+        val pitch: Float,
+        val pauseAfterMs: Long = 0L,
+    )
+
     companion object {
+        private val EMPATHETIC_CLAUSE = Regex(
+            "(?i)\\b(?:tranquil[oa]|respir[aá]|con calma|te acompa[nñ]o|no te preocup[eé]s|lamento|se vale descansar|paso a paso|despacio)\\b",
+        )
+
+        /** Smoothly blends operating-mode prosody with emotional prosody without abrupt jumps. */
+        fun blend(base: SpeechProsody, emotional: SpeechProsody, weight: Float = 0.65f): SpeechProsody {
+            val w = weight.coerceIn(0f, 1f)
+            return SpeechProsody(
+                speed = (base.speed * (1f - w) + emotional.speed * w).coerceIn(0.85f, 1.15f),
+                pitch = (base.pitch * (1f - w) + emotional.pitch * w).coerceIn(0.85f, 1.08f),
+            )
+        }
+
+        /**
+         * Plans sentence/clause-aware micro-prosody contours on top of [fastStartChunks]
+         * so questions lift subtly, exclamations energize, and empathetic phrases soften.
+         */
+        fun planUtterance(
+            text: String,
+            base: SpeechProsody = SpeechProsody(),
+            firstLimit: Int = 56,
+            nextLimit: Int = 240,
+        ): List<ProsodyChunk> {
+            val rawChunks = fastStartChunks(text, firstLimit = firstLimit, nextLimit = nextLimit)
+            if (rawChunks.isEmpty()) return emptyList()
+            return rawChunks.mapIndexed { index, chunk ->
+                var speedDelta = 0f
+                var pitchDelta = 0f
+                val trimmed = chunk.trim()
+                val endsQuestion = trimmed.endsWith("?") || trimmed.startsWith("¿")
+                val endsExclamation = trimmed.endsWith("!") || trimmed.startsWith("¡")
+                when {
+                    EMPATHETIC_CLAUSE.containsMatchIn(trimmed) -> {
+                        speedDelta -= 0.04f
+                        pitchDelta -= 0.02f
+                    }
+                    endsQuestion -> {
+                        speedDelta += 0.01f
+                        pitchDelta += 0.035f
+                    }
+                    endsExclamation -> {
+                        speedDelta += 0.03f
+                        pitchDelta += 0.04f
+                    }
+                }
+                if (rawChunks.size > 1 && index == rawChunks.lastIndex && !endsQuestion && !endsExclamation) {
+                    speedDelta -= 0.015f
+                }
+                val pauseMs = when {
+                    index == rawChunks.lastIndex -> 0L
+                    trimmed.endsWith("?") || trimmed.endsWith("!") -> 210L
+                    trimmed.endsWith(".") -> 160L
+                    trimmed.endsWith(";") || trimmed.endsWith(":") -> 95L
+                    else -> 0L
+                }
+                ProsodyChunk(
+                    text = trimmed,
+                    speed = (base.speed + speedDelta).coerceIn(0.85f, 1.15f),
+                    pitch = (base.pitch + pitchDelta).coerceIn(0.85f, 1.05f),
+                    pauseAfterMs = pauseMs,
+                )
+            }
+        }
         fun forMode(base: SpeechProsody, mode: com.niko.assistant.modes.LeoMode, input: String = ""): SpeechProsody {
             val text = MemoryLearning.key(input)
             val explicit = Regex("\\b(?:mas despacio|habla lento|habla mas lento|habla despacio|habla mas despacio|habla rapido|habla mas rapido|responde rapido|ponte serio|habla serio|voz seria|sin bromas|habla alegre|habla asustado|habla enojado|voz de sorpresa)\\b")

@@ -1332,7 +1332,7 @@ open class NikoAssistantService : Service() {
             else withContext(Dispatchers.IO) { memory.responseStyle() }
         agent.turns.checkpoint()
         val emotionalProsody = neuralCore.emotionalHeart.currentEmotion?.let {
-            SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it))
+            SpeechProsody.blend(replyProsody, SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it)))
         } ?: replyProsody
         speakOnly(com.niko.assistant.ai.LeoDialoguePolicy.researchSpeech(spokenText.ifBlank { finalText }, voiceStyle), continueCommand = localVoiceActive, prosody = emotionalProsody)
         recordLearningReply(finalText)
@@ -1345,7 +1345,7 @@ open class NikoAssistantService : Service() {
         agent.conversation.reply(NikoAiReply(text, false, emptyList()))
         NikoRuntimeState.setResponse(applicationContext, text)
         val emotionalProsody = neuralCore.emotionalHeart.currentEmotion?.let {
-            SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it))
+            SpeechProsody.blend(replyProsody, SpeechProsody.fromExpressive(neuralCore.persona.prosodyFor(it)))
         } ?: replyProsody
         speakOnly(text, continueCommand = localVoiceActive, prosody = emotionalProsody)
         recordLearningReply(text)

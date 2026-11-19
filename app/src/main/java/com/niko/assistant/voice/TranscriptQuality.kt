@@ -47,12 +47,17 @@ object TranscriptQuality {
         if (raw.isBlank()) return ""
         var text = normalize(raw)
         val replacements = listOf(
-            Regex("(?i)^(?:oye|hola|hey)\\s+(?:lio|leito|leos)\\b") to "Oye Leo",
+            Regex("(?i)^(?:oye|hola|hey|o\\s+ye)\\s+(?:lio|leito|leos)\\b") to "Oye Leo",
             Regex("(?i)\\b(?:wasap|guasap|guasa|watsap|whatsap)\\b") to "WhatsApp",
             Regex("(?i)\\b(?:yutu|yutub|youtub|yu tube)\\b") to "YouTube",
             Regex("(?i)\\b(?:espotifai|spotifai|espotify)\\b") to "Spotify",
             Regex("(?i)\\b(?:blutu|blutut|bluethooth)\\b") to "Bluetooth",
             Regex("(?i)\\b(?:waifai|guaifai|wifi)\\b") to "Wi-Fi",
+            Regex("(?i)\\b(?:chat\\s?gepete|cha\\s?gpt|chat\\s+gpt)\\b") to "ChatGPT",
+            Regex("(?i)\\b(?:gugol|gugle)\\b") to "Google",
+            Regex("(?i)\\b(?:instagran|istagram)\\b") to "Instagram",
+            Regex("(?i)\\b(?:tic\\s?toc|tictok)\\b") to "TikTok",
+            Regex("(?i)\\b(?:yeminai|yemini)\\b") to "Gemini",
         )
         for ((pattern, replacement) in replacements) {
             text = pattern.replace(text, replacement)
