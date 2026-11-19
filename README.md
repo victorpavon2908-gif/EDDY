@@ -15,6 +15,10 @@ Conserva el identificador `com.eddy.assistant` y las bases SQLite existentes; el
 
 Buscamos personas que quieran desarrollar y mantener LEO en comunidad. Podés probarlo en Android, trabajar en Kotlin, mejorar los scripts de Python o proponer la próxima función. Para empezar, leé la [guía de contribución](CONTRIBUTING.md) o participá en la [primera prueba con y sin internet](https://github.com/victorpavon2908-gif/EDDY/issues/25).
 
+## Licencia
+
+El código original de EDDY / LEO se distribuye bajo la [GNU General Public License, versión 3](LICENSE) (`GPL-3.0-only`). Las dependencias, los modelos y los materiales de terceros conservan sus respectivas licencias. Consultá los [avisos de componentes y modelos](app/src/main/assets/licenses) y los [créditos de la interfaz](THIRD_PARTY_UI_NOTICES.md).
+
 ## Conversación por voz 0.14.3
 
 - Después de cada respuesta, la escucha activa permite continuar durante 12 segundos sin repetir «LEO»; al vencer el plazo vuelve al detector local de activación.
