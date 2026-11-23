@@ -40,9 +40,11 @@ data class LeoWakeMetrics(
 }
 
 data class LeoVoiceTuningProfile(
-    val keywordScore: Float = 1.50f,
-    val keywordThreshold: Float = 0.11f,
-    val trailingBlanks: Int = 3,
+    // Slightly more sensitive default for the short Spanish "Le-o"; user-labeled
+    // diagnostics still tighten it if real-world false positives rise.
+    val keywordScore: Float = 1.44f,
+    val keywordThreshold: Float = 0.095f,
+    val trailingBlanks: Int = 2,
     val minPassiveSpeechMs: Int = 150,
     val maxPassiveSpeechMs: Int = 3_200,
     val passiveProbeCooldownMs: Long = 650L,
