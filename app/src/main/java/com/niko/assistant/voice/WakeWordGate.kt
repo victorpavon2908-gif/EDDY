@@ -18,7 +18,7 @@ class WakeWordGate(
     private var armedUntil: Long = 0L
 
     private val wakeForms: Set<String> by lazy {
-        setOf(normalize(wakeWord), "leo")
+        setOf(normalize(wakeWord), "leo", "le o", "le-o")
     }
 
     fun arm(
@@ -75,8 +75,11 @@ class WakeWordGate(
     }
 
     private fun removeWakeWord(input: String, matched: String): String {
+        // The normalized match may be "leo" even when Android returned "Leó".
+        // Match the original spelling too, otherwise the wake remains in the command.
+        val spokenForm = if (matched == "leo") "l[eé]o" else Regex.escape(matched)
         val regex = Regex(
-            "(?i)^(?:(?:hola|oye|hey|ey|ok|okay|por favor)[,:;.!?¿¡\\s-]+)*[¿¡]?${Regex.escape(matched)}(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
+            "(?i)^(?:(?:hola|oye|hey|ey|ok|okay|por favor)[,:;.!?¿¡\\s-]+)*[¿¡]?${spokenForm}(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
         )
         return input.replaceFirst(regex, "").trim()
     }
