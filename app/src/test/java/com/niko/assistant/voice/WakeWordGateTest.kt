@@ -26,6 +26,7 @@ class WakeWordGateTest {
         assertEquals(WakeResult.Activated, gate.consume("Le o", nowMs = 1_000L))
         assertEquals(WakeResult.Command("abrí cámara"), gate.consume("Le-o, abrí cámara", nowMs = 2_000L))
         assertEquals(WakeResult.Command("poné música"), gate.consume("Leó, poné música", nowMs = 3_000L))
+        assertEquals(WakeResult.Command("abrí fotos"), gate.consume("Léo, abrí fotos", nowMs = 3_500L))
         assertEquals(WakeResult.Ignored, gate.consume("el león está aquí", nowMs = 4_000L))
     }
 
