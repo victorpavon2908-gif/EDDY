@@ -29,8 +29,8 @@ object LeoEvolutionEngine {
                         uri.host == "seed" && uri.port == -1 && uri.rawUserInfo == null &&
                         uri.rawQuery == null && uri.rawFragment == null &&
                         Regex("^/[a-z0-9][a-z0-9-]{0,80}$").matches(uri.path.orEmpty())
-                    val publicSource = uri?.scheme in setOf("http", "https") &&
-                        !uri?.host.isNullOrBlank() && uri?.rawUserInfo == null
+                    val publicSource = uri != null && uri.scheme in setOf("http", "https") &&
+                        !uri.host.isNullOrBlank() && uri.rawUserInfo == null
                     check(
                         !title.isNullOrBlank() && title.length <= 1000 &&
                             (officialSeed || publicSource),

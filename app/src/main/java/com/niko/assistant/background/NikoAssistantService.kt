@@ -1291,7 +1291,7 @@ open class NikoAssistantService : Service() {
                 withContext(Dispatchers.IO) {
                     learningMutex.withLock {
                         if (researchEpoch == turnEpoch && researchLearningEpoch == learningEpoch &&
-                            NikoAiSettings.adaptiveLearning(applicationContext)) retrieved?.let { learnedKnowledge.learn(contextualQuery, it) }
+                            NikoAiSettings.adaptiveLearning(applicationContext)) learnedKnowledge.learn(contextualQuery, retrieved)
                     }
                 }
             }

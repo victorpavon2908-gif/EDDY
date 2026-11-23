@@ -85,7 +85,7 @@ class ActionExecutor(private val context: Context) {
         }
         val candidates = activities.mapNotNull { info ->
             val packageName = info.activityInfo?.packageName ?: return@mapNotNull null
-            val label = runCatching { info.loadLabel(packageManager)?.toString().orEmpty() }.getOrDefault("")
+            val label = runCatching { info.loadLabel(packageManager).toString() }.getOrDefault("")
             if (label.isBlank()) return@mapNotNull null
             AppCandidate(label, packageName, scoreApp(cleanTarget, label, packageName))
         }

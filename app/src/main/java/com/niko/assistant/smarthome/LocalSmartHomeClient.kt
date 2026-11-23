@@ -5,6 +5,7 @@ import com.niko.assistant.compat.UpgradeIdentity
 import android.content.Context
 import com.niko.assistant.actions.ActionResult
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.text.Normalizer
 import java.util.Locale
@@ -35,6 +36,15 @@ class LocalSmartHomeClient(private val context: Context) {
             )
         }
 
+        val parsedUri = runCatching { URI(baseUrl) }.getOrNull()
+        val scheme = parsedUri?.scheme?.lowercase(Locale.ROOT)
+        if (parsedUri == null || scheme !in setOf("http", "https") || parsedUri.host.isNullOrBlank() || parsedUri.rawUserInfo != null) {
+            return@withContext ActionResult(
+                false,
+                "La dirección de casa inteligente no es válida. Usá un enlace http:// o https:// correcto.",
+            )
+        }
+
         val entityId = inferEntityId(target)
         val domain = entityId.substringBefore('.')
         val service = if (enabled) "turn_on" else "turn_off"
@@ -42,6 +52,7 @@ class LocalSmartHomeClient(private val context: Context) {
 
         val connection = try {
             (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
                 requestMethod = "POST"
                 connectTimeout = 5_000
                 readTimeout = 7_000

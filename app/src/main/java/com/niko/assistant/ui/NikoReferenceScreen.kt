@@ -42,7 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
-import androidx.compose.material.icons.rounded.Chat
+import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Apps
@@ -571,8 +571,10 @@ private fun QuickActionsRail() {
                 context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://youtube.com")))
             }
         },
-        QuickAction("WhatsApp", Icons.Rounded.Chat, Color(0xFF345849)) {
-            context.packageManager.getLaunchIntentForPackage("com.whatsapp")?.let(context::startActivity)
+        QuickAction("WhatsApp", Icons.AutoMirrored.Rounded.Chat, Color(0xFF345849)) {
+            context.packageManager.getLaunchIntentForPackage("com.whatsapp")?.let { intent ->
+                runCatching { context.startActivity(intent) }
+            }
         },
         QuickAction("Alarmas", Icons.Rounded.Alarm, Color(0xFF345849)) {
             runCatching { context.startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS)) }

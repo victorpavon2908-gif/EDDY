@@ -52,9 +52,11 @@ internal object LeoSettingsHardwareProbe {
         }
         try {
             var waiting = false
-            listOf(Sensor.TYPE_LIGHT, Sensor.TYPE_ACCELEROMETER).forEach { type ->
-                val sensor = sensors?.getDefaultSensor(type)
-                if (sensor != null && sensors != null) waiting = sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL) || waiting
+            if (sensors != null) {
+                listOf(Sensor.TYPE_LIGHT, Sensor.TYPE_ACCELEROMETER).forEach { type ->
+                    val sensor = sensors.getDefaultSensor(type)
+                    if (sensor != null) waiting = sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL) || waiting
+                }
             }
             if (waiting) delay(800)
             val battery = app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))

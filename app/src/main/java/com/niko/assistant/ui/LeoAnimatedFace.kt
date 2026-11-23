@@ -115,7 +115,7 @@ internal fun LeoAnimatedFace(
                 val x = (if (i == 0) 148.5f else 219.5f) + thinkingTiltX * 0.45f
                 val shut = blink || laughing || (wry && i == 1)
                 if (shut) {
-                    drawPath(Path().apply { moveTo(x - 19f, 112f); quadraticBezierTo(x, if (laughing) 92f else 114f, x + 19f, 110f) }, ink, style = line)
+                    drawPath(Path().apply { moveTo(x - 19f, 112f); quadraticTo(x, if (laughing) 92f else 114f, x + 19f, 110f) }, ink, style = line)
                 } else {
                     // Reference eyes: an upper arch closed by a straight horizontal base.
                     // Keep this silhouette for every open-eye expression, without pupils.
@@ -177,11 +177,11 @@ internal fun LeoAnimatedFace(
                     lineTo(185f, 154f); lineTo(195f, 163f); lineTo(210f, 154f)
                 }, ink, style = line)
                 angry || sad -> drawPath(Path().apply {
-                    moveTo(156f, 167f); quadraticBezierTo(183f, if (sad) 139f else 153f, 211f, 167f)
+                    moveTo(156f, 167f); quadraticTo(183f, if (sad) 139f else 153f, 211f, 167f)
                 }, ink, style = line)
                 surprised -> drawOval(ink, Offset(170f, 140f), Size(27f, 35f + opening * .3f), style = line)
-                wry && !speaking -> drawPath(Path().apply { moveTo(154f, 158f); quadraticBezierTo(185f, 180f, 219f, 143f) }, ink, style = line)
-                caring && !speaking -> drawPath(Path().apply { moveTo(159f, 160f); quadraticBezierTo(184f, 154f, 210f, 160f) }, ink, style = line)
+                wry && !speaking -> drawPath(Path().apply { moveTo(154f, 158f); quadraticTo(185f, 180f, 219f, 143f) }, ink, style = line)
+                caring && !speaking -> drawPath(Path().apply { moveTo(159f, 160f); quadraticTo(184f, 154f, 210f, 160f) }, ink, style = line)
                 opening > 0f -> {
                     drawOval(ink, Offset(150f, 142f), Size(69f, opening + 12f))
                     drawRoundRect(Color.White, Offset(159f, 144f), Size(50f, 7f), androidx.compose.ui.geometry.CornerRadius(2f))

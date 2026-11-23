@@ -43,10 +43,11 @@ class LeoLocalInferenceClient(context: Context) {
                     })
                     connection = object : ServiceConnection {
                         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-                            remote = Messenger(binder)
+                            val messenger = Messenger(binder)
+                            remote = messenger
                             if (!continuation.isActive) { release(true); return }
                             if (!validating && !store.isCurrent(revision)) { finish(null); return }
-                            try { remote!!.send(Message.obtain().apply {
+                            try { messenger.send(Message.obtain().apply {
                                 what = LeoLocalInferenceService.RUN; replyTo = receiver
                                 data = Bundle().apply { putLong("id", id); putByteArray("prompt", prompt); putString("model_id", store.spec.id); putInt("limit", (responseTokens ?: mode.tokenBudget(if (researchEvidence != null) 1024 else LeoLocalPrompt.responseBudget(question))).coerceIn(16, 1024)) }
                             }) } catch (_: RemoteException) { finish(null) }

@@ -12,7 +12,7 @@ object LeoResearchSynthesis {
         .filter { it.pageRead && it.text.length >= 24 && it.sourceIndex in 1..reply.sources.size }
         .distinctBy { it.sourceIndex }.filter { passage ->
             val uri = runCatching { java.net.URI(reply.sources[passage.sourceIndex - 1].url) }.getOrNull()
-            uri?.scheme in setOf("http", "https") && !uri?.host.isNullOrBlank() && uri?.rawUserInfo == null
+            uri != null && uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.rawUserInfo == null
         }.take(6).map { it.copy(text = it.text.take(1200)) }
 
     fun evidence(reply: NikoAiReply): String? {
