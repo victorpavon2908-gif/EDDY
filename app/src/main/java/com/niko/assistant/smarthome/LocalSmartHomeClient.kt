@@ -10,20 +10,11 @@ import java.net.URL
 import java.text.Normalizer
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 class LocalSmartHomeClient(private val context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-    /**
-     * Entrada compatible con el planificador de acciones actual. La operación de red se
-     * ejecuta en Dispatchers.IO, nunca directamente sobre el hilo de Android.
-     */
-    fun control(target: String, enabled: Boolean): ActionResult = runBlocking(Dispatchers.IO) {
-        controlAsync(target, enabled)
-    }
 
     suspend fun controlAsync(target: String, enabled: Boolean): ActionResult = withContext(Dispatchers.IO) {
         val baseUrl = prefs.getString(KEY_BASE_URL, "").orEmpty().trim().trimEnd('/')
@@ -36,19 +27,16 @@ class LocalSmartHomeClient(private val context: Context) {
             )
         }
 
-        val parsedUri = runCatching { URI(baseUrl) }.getOrNull()
-        val scheme = parsedUri?.scheme?.lowercase(Locale.ROOT)
-        if (parsedUri == null || scheme !in setOf("http", "https") || parsedUri.host.isNullOrBlank() || parsedUri.rawUserInfo != null) {
-            return@withContext ActionResult(
+        val validatedUrl = validateBaseUrl(baseUrl)
+            ?: return@withContext ActionResult(
                 false,
                 "La dirección de casa inteligente no es válida. Usá un enlace http:// o https:// correcto.",
             )
-        }
 
         val entityId = inferEntityId(target)
         val domain = entityId.substringBefore('.')
         val service = if (enabled) "turn_on" else "turn_off"
-        val endpoint = "$baseUrl/api/services/$domain/$service"
+        val endpoint = "$validatedUrl/api/services/$domain/$service"
 
         val connection = try {
             (URL(endpoint).openConnection() as HttpURLConnection).apply {
@@ -75,6 +63,10 @@ class LocalSmartHomeClient(private val context: Context) {
                     true,
                     if (enabled) "De una, encendí $target." else "Listo, apagué $target.",
                 )
+                in 300..399 -> ActionResult(
+                    false,
+                    "La dirección de casa inteligente redirigió la petición ($code). Usá la URL directa para proteger tu token.",
+                )
                 401, 403 -> ActionResult(
                     false,
                     "Home Assistant rechazó el acceso. Revisá el token en la configuración de casa inteligente.",
@@ -95,41 +87,51 @@ class LocalSmartHomeClient(private val context: Context) {
         }
     }
 
-    private fun inferEntityId(target: String): String {
-        val direct = target.trim().lowercase(Locale.ROOT)
-        if (Regex("^[a-z_]+\\.[a-z0-9_]+$").matches(direct)) return direct
-
-        val normalized = normalize(target)
-        val domain = when {
-            containsAny(normalized, "luz", "lampara", "bombillo", "foco") -> "light"
-            containsAny(normalized, "ventilador", "abanico") -> "fan"
-            containsAny(normalized, "televisor", "tv") -> "media_player"
-            else -> "switch"
-        }
-
-        val name = normalized
-            .replace(Regex("\\b(?:luz|lampara|bombillo|foco|ventilador|abanico|enchufe|tomacorriente|switch|televisor|tv)\\b"), " ")
-            .replace(Regex("\\b(?:la|el|los|las|de|del)\\b"), " ")
-            .trim()
-            .replace(Regex("[^a-z0-9]+"), "_")
-            .trim('_')
-            .ifBlank { normalized.replace(Regex("[^a-z0-9]+"), "_").trim('_') }
-
-        return "$domain.$name"
-    }
-
-    private fun normalize(value: String): String {
-        val lower = value.lowercase(Locale.ROOT)
-        return Normalizer.normalize(lower, Normalizer.Form.NFD)
-            .replace("\\p{Mn}+".toRegex(), "")
-            .trim()
-    }
-
-    private fun containsAny(text: String, vararg values: String): Boolean = values.any(text::contains)
-
     companion object {
         const val PREFS_NAME = UpgradeIdentity.smartHomePreferences
         const val KEY_BASE_URL = "base_url"
         const val KEY_TOKEN = "token"
+
+        internal fun validateBaseUrl(raw: String): String? {
+            val trimmed = raw.trim().trimEnd('/')
+            if (trimmed.isBlank()) return null
+            val parsed = runCatching { URI(trimmed) }.getOrNull() ?: return null
+            val scheme = parsed.scheme?.lowercase(Locale.ROOT)
+            if (scheme !in setOf("http", "https")) return null
+            if (parsed.host.isNullOrBlank() || parsed.rawUserInfo != null) return null
+            return trimmed
+        }
+
+        internal fun inferEntityId(target: String): String {
+            val direct = target.trim().lowercase(Locale.ROOT)
+            if (Regex("^[a-z_]+\\.[a-z0-9_]+$").matches(direct)) return direct
+
+            val normalized = normalize(target)
+            val domain = when {
+                containsAny(normalized, "luz", "lampara", "bombillo", "foco") -> "light"
+                containsAny(normalized, "ventilador", "abanico") -> "fan"
+                containsAny(normalized, "televisor", "tv") -> "media_player"
+                else -> "switch"
+            }
+
+            val name = normalized
+                .replace(Regex("\\b(?:luz|lampara|bombillo|foco|ventilador|abanico|enchufe|tomacorriente|switch|televisor|tv)\\b"), " ")
+                .replace(Regex("\\b(?:la|el|los|las|de|del)\\b"), " ")
+                .trim()
+                .replace(Regex("[^a-z0-9]+"), "_")
+                .trim('_')
+                .ifBlank { normalized.replace(Regex("[^a-z0-9]+"), "_").trim('_') }
+
+            return "$domain.$name"
+        }
+
+        private fun normalize(value: String): String {
+            val lower = value.lowercase(Locale.ROOT)
+            return Normalizer.normalize(lower, Normalizer.Form.NFD)
+                .replace("\\p{Mn}+".toRegex(), "")
+                .trim()
+        }
+
+        private fun containsAny(text: String, vararg values: String): Boolean = values.any(text::contains)
     }
 }

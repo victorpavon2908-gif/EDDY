@@ -2,7 +2,9 @@ package com.niko.assistant.devicecontrol
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.os.Build
 import android.os.Bundle
+import kotlinx.coroutines.delay
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.security.MessageDigest
@@ -62,57 +64,82 @@ open class NikoAccessibilityService : AccessibilityService() {
      * Captures the current UI into a bounded tree. Node ids are ephemeral and are valid
      * only for the returned snapshot id/revision pair.
      */
-    fun snapshot(maxNodes: Int = 160, maxDepth: Int = 14): LeoUiSnapshot {
+    /** Non-blocking coroutine snapshot that yields via [delay] instead of sleeping a worker thread. */
+    suspend fun snapshotAsync(maxNodes: Int = 160, maxDepth: Int = 14): LeoUiSnapshot {
         val attempts = longArrayOf(0L, 70L, 160L, 320L)
-        var last = LeoUiSnapshot(
-            packageName = currentPackageName,
-            tree = "No hay una ventana activa.",
-            nodeCount = 0,
-            snapshotId = snapshotCounter.incrementAndGet(),
-            uiRevision = uiRevision.get(),
-            signature = "empty",
-        )
-
+        var last = emptySnapshot()
         for (delayMs in attempts) {
-            if (delayMs > 0L) Thread.sleep(delayMs)
+            if (delayMs > 0L) delay(delayMs)
+            val attempt = captureSnapshotAttempt(maxNodes, maxDepth) ?: continue
+            last = attempt
+            if (last.nodeCount > 0) return last
+        }
+        return last
+    }
+
+    private fun emptySnapshot(): LeoUiSnapshot = LeoUiSnapshot(
+        packageName = currentPackageName,
+        tree = "No hay una ventana activa.",
+        nodeCount = 0,
+        snapshotId = snapshotCounter.incrementAndGet(),
+        uiRevision = uiRevision.get(),
+        signature = "empty",
+    )
+
+    private fun captureSnapshotAttempt(maxNodes: Int, maxDepth: Int): LeoUiSnapshot? {
+        clearNodeMap()
+        val revisionBefore = uiRevision.get()
+        val root = rootInActiveWindow ?: return null
+        val pkg = root.packageName?.toString()?.takeIf(String::isNotBlank) ?: currentPackageName
+        currentPackageName = pkg
+        val out = StringBuilder("Package: $pkg\n")
+        try {
+            appendNode(root, out, 0, maxDepth.coerceIn(2, 20), maxNodes.coerceIn(20, 260))
+        } finally {
+            root.safeRecycle()
+        }
+
+        val revisionAfter = uiRevision.get()
+        val tree = out.toString().take(MAX_TREE_CHARS)
+        if (revisionBefore != revisionAfter) {
             clearNodeMap()
-            val revisionBefore = uiRevision.get()
-            val root = rootInActiveWindow ?: continue
-            val pkg = root.packageName?.toString()?.takeIf(String::isNotBlank) ?: currentPackageName
-            currentPackageName = pkg
-            val out = StringBuilder("Package: $pkg\n")
-            try {
-                appendNode(root, out, 0, maxDepth.coerceIn(2, 20), maxNodes.coerceIn(20, 260))
-            } finally {
-                runCatching { root.recycle() }
-            }
-
-            val revisionAfter = uiRevision.get()
-            val tree = out.toString().take(MAX_TREE_CHARS)
-            if (revisionBefore != revisionAfter) {
-                clearNodeMap()
-                last = LeoUiSnapshot(
-                    packageName = pkg,
-                    tree = tree,
-                    nodeCount = 0,
-                    snapshotId = snapshotCounter.incrementAndGet(),
-                    uiRevision = revisionAfter,
-                    signature = stableSignature(pkg, tree),
-                )
-                continue
-            }
-
-            val id = snapshotCounter.incrementAndGet()
-            activeSnapshotId = id
-            activeSnapshotRevision = revisionAfter
-            last = LeoUiSnapshot(
+            return LeoUiSnapshot(
                 packageName = pkg,
                 tree = tree,
-                nodeCount = nodeMap.size,
-                snapshotId = id,
+                nodeCount = 0,
+                snapshotId = snapshotCounter.incrementAndGet(),
                 uiRevision = revisionAfter,
                 signature = stableSignature(pkg, tree),
             )
+        }
+
+        val id = snapshotCounter.incrementAndGet()
+        activeSnapshotId = id
+        activeSnapshotRevision = revisionAfter
+        return LeoUiSnapshot(
+            packageName = pkg,
+            tree = tree,
+            nodeCount = nodeMap.size,
+            snapshotId = id,
+            uiRevision = revisionAfter,
+            signature = stableSignature(pkg, tree),
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun AccessibilityNodeInfo.safeRecycle() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            runCatching { recycle() }
+        }
+    }
+
+    fun snapshot(maxNodes: Int = 160, maxDepth: Int = 14): LeoUiSnapshot {
+        val attempts = longArrayOf(0L, 70L, 160L, 320L)
+        var last = emptySnapshot()
+        for (delayMs in attempts) {
+            if (delayMs > 0L) Thread.sleep(delayMs)
+            val attempt = captureSnapshotAttempt(maxNodes, maxDepth) ?: continue
+            last = attempt
             if (last.nodeCount > 0) return last
         }
         return last

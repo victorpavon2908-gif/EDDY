@@ -17,7 +17,7 @@ class AndroidLeoUiSession(
     val planner = LeoUiStepPlanner()
 
     override suspend fun snapshot(): LeoUiSnapshot = withContext(Dispatchers.Default) {
-        service.snapshot()
+        service.snapshotAsync()
     }
 
     override suspend fun perform(step: LeoUiStep.Do, snapshot: LeoUiSnapshot): LeoUiActionResult =
