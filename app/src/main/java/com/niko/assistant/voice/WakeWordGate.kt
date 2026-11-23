@@ -77,7 +77,7 @@ class WakeWordGate(
     private fun removeWakeWord(input: String, matched: String): String {
         // The normalized match may be "leo" even when Android returned "Leó".
         // Match the original spelling too, otherwise the wake remains in the command.
-        val spokenForm = if (matched == "leo") "l[eé]o" else Regex.escape(matched)
+        val spokenForm = if (matched == "leo") "l[eé][oó]" else Regex.escape(matched)
         val regex = Regex(
             "(?i)^(?:(?:hola|oye|hey|ey|ok|okay|por favor)[,:;.!?¿¡\\s-]+)*[¿¡]?${spokenForm}(?=$|\\s|[,:;.!?¿¡-])[,:;.!?¿¡\\s-]*",
         )
