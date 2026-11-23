@@ -151,7 +151,10 @@ class NikoLocalVoiceEngine(
                 onError(msg)
                 return false
             }
-            if (!initializeWakeModels() || !initializeMicrophone()) return false
+            // Prepare Canary/GTCRN BEFORE AudioRecord starts. Initializing the large ASR
+            // on the first "Leo" blocked the only microphone read loop and lost the
+            // first command (or subsequent wakes) while the model loaded.
+            if (!initializeWakeModels() || !ensureCommandModelsReady() || !initializeMicrophone()) return false
             synchronized(lifecycleLock) {
                 if (stopRequested) return false
                 recorder?.startRecording()
@@ -272,8 +275,8 @@ class NikoLocalVoiceEngine(
     /**
      * Carga diferida del reconocimiento de órdenes.
      *
-     * Mantener Canary, GTCRN, Whisper y Speaker fuera del arranque evita que varios
-     * runtimes ONNX grandes compitan por memoria justo al abrir el micrófono.
+     * Canary/GTCRN are prepared before capture starts. Whisper/Speaker remain lazy
+     * to avoid loading extra models that are not needed for every utterance.
      */
     private fun ensureCommandModelsReady(): Boolean = synchronized(commandModelLock) {
         if (recognizer != null && speechDenoiser != null) return@synchronized true
@@ -771,6 +774,23 @@ class NikoLocalVoiceEngine(
                 return
             }
             if (!speaking) setState(State.ACTIVE)
+        }
+
+        // KWS can recognize a short standalone "Leo" even when VAD does not
+        // produce a complete segment. Acknowledge that wake instead of leaving
+        // the user waiting in silence; do not speak over a continuing command.
+        if (!enrolling && lastWakeAt > 0L && LeoWakeAcknowledgement.shouldPromptAfterLocalWake(
+                elapsedSinceWakeMs = SystemClock.elapsedRealtime() - lastWakeAt,
+                alreadyAcknowledged = wakeAcknowledged,
+                commandSpeechStarted = commandSpeechNotified,
+                speechInProgress = localVad.isSpeechDetected(),
+                assistantSpeaking = speaking,
+            )
+        ) {
+            wakeAcknowledged = true
+            speaking = true
+            resetCommandDetector()
+            onAwaitingCommand("Ajá.", true)
         }
     }
 
