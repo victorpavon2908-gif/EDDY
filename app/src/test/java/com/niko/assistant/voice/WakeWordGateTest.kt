@@ -21,6 +21,14 @@ class WakeWordGateTest {
         assertEquals(WakeResult.Activated, WakeWordGate().consume("Leo", nowMs = 2_000L))
     }
 
+    @Test fun splitAndAccentedWakeTranscriptsStillWork() {
+        val gate = WakeWordGate()
+        assertEquals(WakeResult.Activated, gate.consume("Le o", nowMs = 1_000L))
+        assertEquals(WakeResult.Command("abrí cámara"), gate.consume("Le-o, abrí cámara", nowMs = 2_000L))
+        assertEquals(WakeResult.Command("poné música"), gate.consume("Leó, poné música", nowMs = 3_000L))
+        assertEquals(WakeResult.Ignored, gate.consume("el león está aquí", nowMs = 4_000L))
+    }
+
     @Test fun wakeCanPrefixCommands() {
         val gate = WakeWordGate()
         assertEquals(WakeResult.Command("abre YouTube"), gate.consume("Leo, abre YouTube", nowMs = 1_000L))
