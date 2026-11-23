@@ -21,6 +21,7 @@ import com.niko.assistant.memory.LeoSovereignStore
 import com.niko.assistant.voice.LeoAcousticWakeScorer
 import com.niko.assistant.voice.LeoDuplexPolicy
 import com.niko.assistant.voice.LeoHardwareBenchmark
+import com.niko.assistant.voice.LeoVoiceTuningProfile
 import com.niko.assistant.voice.TranscriptQuality
 import java.nio.file.Files
 import kotlin.math.PI
@@ -212,7 +213,7 @@ class LeoSovereignUpgradesTest {
         )
         val noisyReport = LeoHardwareBenchmark.evaluate(noisySlow)
         assertFalse(noisyReport.passedAll)
-        assertTrue(noisyReport.recommendedTuning.keywordScore > 1.50f)
+        assertTrue(noisyReport.recommendedTuning.keywordScore > LeoVoiceTuningProfile().keywordScore)
     }
 
     @Test
