@@ -1,0 +1,27 @@
+name: LEO AI Engine Python tests
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feat/leo-ai-engine-2-audit]
+permissions:
+  contents: read
+jobs:
+  python-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile Python sources
+        run: |
+          python -m py_compile training/evaluate_leo.py training/test_evaluate_leo.py training/benchmark_leo_model.py training/test_benchmark_leo_model.py
+          python -m py_compile model-pipeline/verify_model_package.py model-pipeline/test_verify_model_package.py
+          python -m py_compile ai/inference/leo_local_server.py ai/inference/test_leo_local_server.py
+      - name: Run unit and HTTP contract tests
+        run: |
+          python -m unittest discover -s training -p 'test_*.py' -v
+          python -m unittest discover -s model-pipeline -p 'test_*.py' -v
+          python -m unittest discover -s ai/inference -p 'test_*.py' -v
